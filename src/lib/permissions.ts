@@ -67,6 +67,11 @@ export const PAGE_PERMISSIONS = [
     href: "/trade/catalogo-pdv",
   },
   {
+    key: "planograma",
+    label: "Planograma",
+    href: "/trade/planograma",
+  },
+  {
     key: "colaboradores",
     label: "Colaboradores",
     href: "/colaboradores",

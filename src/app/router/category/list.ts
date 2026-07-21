@@ -36,66 +36,34 @@ export const listCategories = base
     })
   )
   .handler(async ({ context }) => {
-    const [categoriesWithChildren, categoriesWithoutChildren, allCategories] =
-      await Promise.all([
-        await prisma.category.findMany({
-          where: {
-            organizationId: context.org.id,
-            parentId: null,
-          },
+    // Uma query só: as outras duas que existiam aqui (`categoriesWithoutChildren`
+    // e `allCategories`) eram buscadas e nunca usadas no retorno — trabalho de
+    // banco puro em toda chamada.
+    const categoriesWithChildren = await prisma.category.findMany({
+      where: {
+        organizationId: context.org.id,
+        parentId: null,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        _count: { select: { products: true } },
+        children: {
           select: {
             id: true,
             name: true,
             slug: true,
             description: true,
-            _count: {
-              select: {
-                products: true,
-              },
-            },
-            children: {
-              select: {
-                id: true,
-                name: true,
-                slug: true,
-                description: true,
-                parentId: true,
-                _count: {
-                  select: {
-                    products: true,
-                  },
-                },
-              },
-              orderBy: {
-                name: "asc",
-              },
-            },
+            parentId: true,
+            _count: { select: { products: true } },
           },
-          orderBy: {
-            name: "asc",
-          },
-        }),
-
-        await prisma.category.findMany({
-          where: {
-            organizationId: context.org.id,
-            parentId: null,
-          },
-          select: {
-            id: true,
-            name: true,
-          },
-        }),
-
-        await prisma.category.findMany({
-          where: {
-            organizationId: context.org.id,
-          },
-          orderBy: {
-            name: "asc",
-          },
-        }),
-      ]);
+          orderBy: { name: "asc" },
+        },
+      },
+      orderBy: { name: "asc" },
+    });
 
     // Formata os dados para o formato esperado pelo componente
     const formattedCategories = categoriesWithChildren.map((category) => ({

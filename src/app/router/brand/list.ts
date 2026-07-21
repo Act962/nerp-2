@@ -16,7 +16,8 @@ export const listBrand = base
           name: z.string(),
           logo: z.string().nullable(),
           isActive: z.boolean(),
-          supplierId: z.string(),
+          // nullable: marca importada de planilha pode não ter indústria conhecida
+          supplierId: z.string().nullable(),
         }),
       ),
     }),

@@ -20,6 +20,7 @@ import { mapLayerRoutes } from "./map-layer";
 import { mapObjectRoutes } from "./map-object";
 import { mapAnnotationRoutes } from "./map-annotation";
 import { pdvPhotoRoutes } from "./pdv-photo";
+import { planogramRoutes } from "./planogram";
 import { bookRoutes } from "./book";
 import { spaceNegotiationRoutes } from "./space-negotiation";
 import { mediaTypeRoutes } from "./trade-catalog/media-type";
@@ -57,6 +58,7 @@ export const router = {
   mapObject: mapObjectRoutes,
   mapAnnotation: mapAnnotationRoutes,
   pdvPhoto: pdvPhotoRoutes,
+  planogram: planogramRoutes,
   book: bookRoutes,
   spaceNegotiation: spaceNegotiationRoutes,
   mediaType: mediaTypeRoutes,
