@@ -72,6 +72,11 @@ export const PAGE_PERMISSIONS = [
     href: "/promotor",
   },
   {
+    key: "planograma",
+    label: "Planograma",
+    href: "/trade/planograma",
+  },
+  {
     key: "colaboradores",
     label: "Colaboradores",
     href: "/colaboradores",

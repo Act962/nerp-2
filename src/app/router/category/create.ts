@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { applyOwnPath, resolveHierarchy } from "./hierarchy";
 
 export const createCategory = base
   .use(requireAuthMiddleware)
@@ -26,9 +27,12 @@ export const createCategory = base
     })
   )
   .handler(async ({ input, context, errors }) => {
+    // Escopado por org: o unique do banco é (organizationId, slug), então sem o
+    // filtro aqui uma org bloqueava a outra de usar o mesmo slug.
     const categoryExists = await prisma.category.findFirst({
       where: {
         slug: input.slug,
+        organizationId: context.org.id,
       },
     });
 
@@ -38,6 +42,11 @@ export const createCategory = base
       });
     }
 
+    const { level, path: parentPath } = await resolveHierarchy(
+      input.parentId,
+      context.org.id,
+    );
+
     const category = await prisma.category.create({
       data: {
         name: input.name,
@@ -45,8 +54,11 @@ export const createCategory = base
         description: input.description,
         organizationId: context.org.id,
         parentId: input.parentId,
+        level,
       },
     });
+
+    await applyOwnPath(category.id, parentPath);
 
     return {
       categoryName: category.name,

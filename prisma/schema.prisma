@@ -12,33 +12,35 @@ datasource db {
 // ============================================
 
 model User {
-  id                    String               @id @default(cuid())
-  name                  String
-  email                 String               @unique
-  emailVerified         Boolean              @default(false)
-  image                 String?
-  createdAt             DateTime             @default(now())
-  updatedAt             DateTime             @updatedAt
+  id                       String               @id @default(cuid())
+  name                     String
+  email                    String               @unique
+  emailVerified            Boolean              @default(false)
+  image                    String?
+  createdAt                DateTime             @default(now())
+  updatedAt                DateTime             @updatedAt
   // Relações de autenticação
-  sessions              Session[]
-  accounts              Account[]
+  sessions                 Session[]
+  accounts                 Account[]
   // Relações de organização (mantido do seu schema)
-  members               Member[]
-  invitations           Invitation[]
+  members                  Member[]
+  invitations              Invitation[]
   // Auditoria de ações no ERP
-  createdProducts       Product[]            @relation("CreatedProducts")
-  createdSales          Sale[]               @relation("CreatedSales")
-  createdStockMovements StockMovement[]      @relation("CreatedStockMovements")
-  createdPurchases      Purchase[]           @relation("CreatedPurchases")
-  createdKitchenOrders  KitchenOrder[]       @relation("CreatedKitchenOrders")
-  kitchenEventsActed    KitchenOrderEvent[]  @relation("KitchenEventsByUser")
-  promotionalCatalogs   PromotionalCatalog[]
-  createdPdvPhotos      PdvPhoto[]           @relation("CreatedPdvPhotos")
-  createdBooks          Book[]               @relation("CreatedBooks")
-  createdTradeCatalogs  TradeCatalog[]       @relation("CreatedTradeCatalogs")
-  authoredAnnotations   MapAnnotation[]      @relation("AuthoredAnnotations")
-  editedMapObjects      MapObject[]          @relation("EditedMapObjects")
-  createdNegotiations   SpaceNegotiation[]   @relation("CreatedSpaceNegotiations")
+  createdProducts          Product[]            @relation("CreatedProducts")
+  createdSales             Sale[]               @relation("CreatedSales")
+  createdStockMovements    StockMovement[]      @relation("CreatedStockMovements")
+  createdPurchases         Purchase[]           @relation("CreatedPurchases")
+  createdKitchenOrders     KitchenOrder[]       @relation("CreatedKitchenOrders")
+  kitchenEventsActed       KitchenOrderEvent[]  @relation("KitchenEventsByUser")
+  promotionalCatalogs      PromotionalCatalog[]
+  createdPdvPhotos         PdvPhoto[]           @relation("CreatedPdvPhotos")
+  createdBooks             Book[]               @relation("CreatedBooks")
+  createdTradeCatalogs     TradeCatalog[]       @relation("CreatedTradeCatalogs")
+  createdPlanograms        Planogram[]          @relation("CreatedPlanograms")
+  createdPlanogramVersions PlanogramVersion[]   @relation("CreatedPlanogramVersions")
+  authoredAnnotations      MapAnnotation[]      @relation("AuthoredAnnotations")
+  editedMapObjects         MapObject[]          @relation("EditedMapObjects")
+  createdNegotiations      SpaceNegotiation[]   @relation("CreatedSpaceNegotiations")
 
   @@index([email])
   @@map("user")
@@ -114,92 +116,96 @@ enum OrganizationStatus {
 }
 
 model Organization {
-  id                       String                    @id @default(cuid())
-  name                     String
-  slug                     String                    @unique
-  logo                     String?
-  createdAt                DateTime                  @default(now())
-  updatedAt                DateTime                  @updatedAt
-  metadata                 String? // Mantido do seu schema
+  id                        String                     @id @default(cuid())
+  name                      String
+  slug                      String                     @unique
+  logo                      String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+  metadata                  String? // Mantido do seu schema
   // Dados da empresa
-  tradeName                String? // Nome fantasia
-  sigla                    String? // Sigla curta da rede p/ Digital Space ID (ex.: "WS")
-  document                 String?                   @unique // CNPJ/CPF
-  email                    String?
-  phone                    String?
+  tradeName                 String? // Nome fantasia
+  sigla                     String? // Sigla curta da rede p/ Digital Space ID (ex.: "WS")
+  document                  String?                    @unique // CNPJ/CPF
+  email                     String?
+  phone                     String?
   // Multi-tenant e Catálogo
-  subdomain                String?                   @unique // empresa1.seuapp.com
-  customDomain             String?                   @unique // minhaloja.com.br
+  subdomain                 String?                    @unique // empresa1.seuapp.com
+  customDomain              String?                    @unique // minhaloja.com.br
   // Endereço
-  address                  String?
-  addressNumber            String?
-  complement               String?
-  neighborhood             String?
-  city                     String?
-  state                    String?
-  zipCode                  String?
-  country                  String                    @default("BR")
+  address                   String?
+  addressNumber             String?
+  complement                String?
+  neighborhood              String?
+  city                      String?
+  state                     String?
+  zipCode                   String?
+  country                   String                     @default("BR")
   // Configurações visuais
-  primaryColor             String                    @default("#3b82f6")
+  primaryColor              String                     @default("#3b82f6")
   // Módulos do NERP que esta empresa NÃO usa — some do menu de todo mundo.
   // Lista de exclusão: default [] = todos ativos, módulo novo entra sozinho.
-  disabledModules          String[]                  @default([])
+  disabledModules           String[]                   @default([])
   // Plano e status
-  plan                     PlanType                  @default(FREE)
-  status                   OrganizationStatus        @default(TRIAL)
+  plan                      PlanType                   @default(FREE)
+  status                    OrganizationStatus         @default(TRIAL)
   // Limites por plano
-  maxProducts              Int                       @default(100)
-  maxUsers                 Int                       @default(3)
+  maxProducts               Int                        @default(100)
+  maxUsers                  Int                        @default(3)
   // Datas importantes
-  trialEndsAt              DateTime?
-  subscribedAt             DateTime?
+  trialEndsAt               DateTime?
+  subscribedAt              DateTime?
   // Relações de membros (mantido do seu schema)
-  members                  Member[]
-  invitations              Invitation[]
+  members                   Member[]
+  invitations               Invitation[]
   // Relações do ERP
-  products                 Product[]
-  categories               Category[]
-  customers                Customer[]
-  suppliers                Supplier[]
-  sales                    Sale[]
-  purchases                Purchase[]
-  stockMovements           StockMovement[]
-  kitchenColumns           KitchenColumn[]
-  kitchenOrders            KitchenOrder[]
-  kitchenOrderEvents       KitchenOrderEvent[]
-  collaborators            Collaborator[]
-  catalogSettings          CatalogSettings?
-  financialAccounts        FinancialAccount[]
-  transactions             Transaction[]
-  catalogUsers             CatalogUser[]
+  products                  Product[]
+  categories                Category[]
+  customers                 Customer[]
+  suppliers                 Supplier[]
+  sales                     Sale[]
+  purchases                 Purchase[]
+  stockMovements            StockMovement[]
+  kitchenColumns            KitchenColumn[]
+  kitchenOrders             KitchenOrder[]
+  kitchenOrderEvents        KitchenOrderEvent[]
+  collaborators             Collaborator[]
+  catalogSettings           CatalogSettings?
+  financialAccounts         FinancialAccount[]
+  transactions              Transaction[]
+  catalogUsers              CatalogUser[]
   // Integração NASA (S2S)
-  nasaIntegrationConsents  NasaIntegrationConsent[]
-  nasaIntegrationKeys      NasaIntegrationKey[]
-  promotionalCatalogs      PromotionalCatalog[]
+  nasaIntegrationConsents   NasaIntegrationConsent[]
+  nasaIntegrationKeys       NasaIntegrationKey[]
+  promotionalCatalogs       PromotionalCatalog[]
   // Ranking de Equipes (metas de venda)
-  salesGoalPeriods         SalesGoalPeriod[]
-  salesGoalRankingSettings SalesGoalRankingSettings?
+  salesGoalPeriods          SalesGoalPeriod[]
+  salesGoalRankingSettings  SalesGoalRankingSettings?
   // Trade Marketing (lojas, mapa, PDV, book)
-  stores                   Store[]
-  floorPlans               FloorPlan[]
-  mapLayers                MapLayer[]
-  mapObjects               MapObject[]
-  brands                   Brand[]
-  pdvPhotos                PdvPhoto[]
-  books                    Book[]
-  bookCoverTemplate        BookCoverTemplate?
-  bookTemplates            BookTemplate[]
-  bookPageTemplates        BookPageTemplate[]
-  tradeCatalogs            TradeCatalog[]
-  mapAnnotations           MapAnnotation[]
-  spaceNegotiations        SpaceNegotiation[]
-  mediaTypes               MediaType[]
-  negotiationTypes         NegotiationType[]
-  storeSectors             StoreSector[]
+  stores                    Store[]
+  floorPlans                FloorPlan[]
+  mapLayers                 MapLayer[]
+  mapObjects                MapObject[]
+  brands                    Brand[]
+  pdvPhotos                 PdvPhoto[]
+  books                     Book[]
+  bookCoverTemplate         BookCoverTemplate?
+  bookTemplates             BookTemplate[]
+  bookPageTemplates         BookPageTemplate[]
+  tradeCatalogs             TradeCatalog[]
+  planograms                Planogram[]
+  planogramFixtures         PlanogramFixture[]
+  planogramFixtureTemplates PlanogramFixtureTemplate[]
+  planogramItems            PlanogramItem[]
+  mapAnnotations            MapAnnotation[]
+  spaceNegotiations         SpaceNegotiation[]
+  mediaTypes                MediaType[]
+  negotiationTypes          NegotiationType[]
+  storeSectors              StoreSector[]
   // Catálogo PDV (precificação)
-  mediaTypePrices          MediaTypePrice[]
-  tradePricingSettings     TradePricingSettings?
-  regionCostBenchmarks     RegionCostBenchmark[]
+  mediaTypePrices           MediaTypePrice[]
+  tradePricingSettings      TradePricingSettings?
+  regionCostBenchmarks      RegionCostBenchmark[]
 
   @@index([slug])
   @@index([subdomain])
@@ -376,14 +382,23 @@ model Category {
   parentId       String?
   parent         Category?    @relation("SubCategories", fields: [parentId], references: [id], onDelete: Cascade)
   children       Category[]   @relation("SubCategories")
+  // Estrutura mercadológica: 0=Categoria 1=Sub-Categoria 2=Segmento 3=Sub-Segmento.
+  // `path` é materialized path de ids ("catA/subB/segC") — resolve "todos os
+  // descendentes de X" com um startsWith, sem CTE recursiva. Derivados de
+  // parentId; mantidos por backfill e na escrita.
+  level          Int          @default(0)
+  path           String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   products       Product[]
+  planograms     Planogram[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
   @@index([parentId])
+  @@index([organizationId, level])
+  @@index([organizationId, path])
   @@map("categories")
 }
 
@@ -423,12 +438,30 @@ model Product {
   maxStock         Decimal?        @db.Decimal(10, 3)
   // Imagens
   images           String[] // Array de URLs
-  thumbnail        String // URL da thumbnail
-  // Dimensões e peso
+  // default "" para viabilizar gravação em massa (createMany/COPY na importação):
+  // sem isso qualquer linha de planilha sem imagem quebra o lote inteiro.
+  thumbnail        String          @default("") // chave R2 da thumbnail
+  // Dimensões e peso — LEGADO: sem unidade declarada em nenhuma camada (schema,
+  // formulário ou importador), então os dados existentes misturam cm e m.
+  // NÃO usar em planograma; usar os campos *Mm abaixo.
   weight           Decimal?        @db.Decimal(10, 3)
   length           Decimal?        @db.Decimal(10, 2)
   width            Decimal?        @db.Decimal(10, 2)
   height           Decimal?        @db.Decimal(10, 2)
+  // Dimensões para planograma — milímetro INTEIRO de propósito: somar dezenas de
+  // larguras em float acumula deriva; em mm é exato, e casa com a precisão de
+  // uma trena. Medem a UNIDADE DE VENDA (o que fica na frente da gôndola).
+  widthMm          Int?
+  heightMm         Int?
+  depthMm          Int?
+  grossWeightG     Int?
+  // Embalagem secundária (a caixa) — necessária para "prateleira de caixaria".
+  packQty          Int?
+  packWidthMm      Int?
+  packHeightMm     Int?
+  packDepthMm      Int?
+  brandId          String?
+  ncm              String?
   // Controle
   isActive         Boolean         @default(true)
   isFeatured       Boolean         @default(false)
@@ -444,17 +477,25 @@ model Product {
   organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   category         Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   supplier         Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  brand            Brand?          @relation(fields: [brandId], references: [id], onDelete: SetNull)
   createdBy        User            @relation("CreatedProducts", fields: [createdById], references: [id])
   saleItems        SaleItem[]
   purchaseItems    PurchaseItem[]
   stockMovements   StockMovement[]
   kitchenOrders    KitchenOrder[]
+  planogramItems   PlanogramItem[]
 
   @@unique([organizationId, slug])
   // @@unique([organizationId, sku])
+  // Chave natural do produto: é ela que viabiliza `ON CONFLICT DO UPDATE` na
+  // importação massiva — sem isso, reimportar a planilha duplica tudo. Também
+  // serve de índice para a busca por EAN no seletor do planograma.
+  // NULL não conflita em UNIQUE no Postgres, então produto sem EAN fica livre;
+  // string vazia CONFLITA, por isso a migration normaliza "" para NULL.
+  @@unique([organizationId, barcode])
   @@index([organizationId])
   @@index([categoryId])
-  @@index([barcode])
+  @@index([organizationId, brandId])
   @@index([isActive])
   @@index([supplierId])
   @@map("products")
@@ -1493,52 +1534,53 @@ model MapLayer {
 }
 
 model MapObject {
-  id               String             @id @default(cuid())
-  organizationId   String
-  floorPlanId      String
-  layerId          String
-  type             MapObjectType
-  shapeKind        MapShapeKind       @default(RECT)
-  geometry         Json // coordenadas em metros (engine-agnóstico 2D/3D)
-  z                Int                @default(0)
-  heightM          Float? // extrusão para 3D futuro
-  style            Json?
+  id                String             @id @default(cuid())
+  organizationId    String
+  floorPlanId       String
+  layerId           String
+  type              MapObjectType
+  shapeKind         MapShapeKind       @default(RECT)
+  geometry          Json // coordenadas em metros (engine-agnóstico 2D/3D)
+  z                 Int                @default(0)
+  heightM           Float? // extrusão para 3D futuro
+  style             Json?
   // Painel lateral
-  name             String?
-  spaceState       MapSpaceState      @default(LIVRE) // 🟡 livre / 🟢 executado / 🔴 pendente
-  spaceCode        String? // Digital Space ID (ex.: WS-009-GD-002-PERF) — editável, único por org
-  spaceSeq         Int? // sequencial cru do spaceCode, p/ regenerar sem reparsear
-  status           String? // DEPRECADO: texto livre legado, substituído por spaceState. Sai do banco quando o backfill de sectorId validar limpo
-  category         String? // DEPRECADO: texto livre, substituído por sectorId. Mantido só p/ leitura de fallback
-  responsibleName  String?
-  lastVisitAt      DateTime?
-  lastEditedById   String? // promotor que fez a última edição em campo (carimbado pelo servidor)
-  properties       Json?
-  supplierId       String? // Empresa/Indústria responsável
-  brandId          String? // Marca
+  name              String?
+  spaceState        MapSpaceState      @default(LIVRE) // 🟡 livre / 🟢 executado / 🔴 pendente
+  spaceCode         String? // Digital Space ID (ex.: WS-009-GD-002-PERF) — editável, único por org
+  spaceSeq          Int? // sequencial cru do spaceCode, p/ regenerar sem reparsear
+  status            String? // DEPRECADO: texto livre legado, substituído por spaceState. Sai do banco quando o backfill de sectorId validar limpo
+  category          String? // DEPRECADO: texto livre, substituído por sectorId. Mantido só p/ leitura de fallback
+  responsibleName   String?
+  lastVisitAt       DateTime?
+  lastEditedById    String? // promotor que fez a última edição em campo (carimbado pelo servidor)
+  properties        Json?
+  supplierId        String? // Empresa/Indústria responsável
+  brandId           String? // Marca
   // Biblioteca Nacional de Espaços Comerciais — classificação p/ comparar e
   // precificar entre lojas. Nenhum tem default: "não classificado" é estado real.
-  mediaTypeId      String?
-  sectorId         String?
-  tier             SpaceTier?
-  flowLevel        SpaceFlowLevel?
-  visibility       SpaceVisibility?
-  isExclusive      Boolean            @default(false)
-  revenuePotential Decimal?           @db.Decimal(12, 2)
-  avgSalesAmount   Decimal?           @db.Decimal(12, 2) // venda média — entrada manual, não vem do ERP
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  floorPlan        FloorPlan          @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
-  layer            MapLayer           @relation(fields: [layerId], references: [id], onDelete: Cascade)
-  supplier         Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  brand            Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  lastEditedBy     User?              @relation("EditedMapObjects", fields: [lastEditedById], references: [id], onDelete: SetNull)
-  mediaType        MediaType?         @relation(fields: [mediaTypeId], references: [id], onDelete: SetNull)
-  sector           StoreSector?       @relation(fields: [sectorId], references: [id], onDelete: SetNull)
-  pdvPhotos        PdvPhoto[]
-  annotations      MapAnnotation[]
-  negotiations     SpaceNegotiation[]
+  mediaTypeId       String?
+  sectorId          String?
+  tier              SpaceTier?
+  flowLevel         SpaceFlowLevel?
+  visibility        SpaceVisibility?
+  isExclusive       Boolean            @default(false)
+  revenuePotential  Decimal?           @db.Decimal(12, 2)
+  avgSalesAmount    Decimal?           @db.Decimal(12, 2) // venda média — entrada manual, não vem do ERP
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  floorPlan         FloorPlan          @relation(fields: [floorPlanId], references: [id], onDelete: Cascade)
+  layer             MapLayer           @relation(fields: [layerId], references: [id], onDelete: Cascade)
+  supplier          Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  brand             Brand?             @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  lastEditedBy      User?              @relation("EditedMapObjects", fields: [lastEditedById], references: [id], onDelete: SetNull)
+  mediaType         MediaType?         @relation(fields: [mediaTypeId], references: [id], onDelete: SetNull)
+  sector            StoreSector?       @relation(fields: [sectorId], references: [id], onDelete: SetNull)
+  pdvPhotos         PdvPhoto[]
+  annotations       MapAnnotation[]
+  planogramFixtures PlanogramFixture[]
+  negotiations      SpaceNegotiation[]
 
   @@unique([organizationId, spaceCode])
   @@index([organizationId])
@@ -1746,16 +1788,20 @@ model RegionCostBenchmark {
 model Brand {
   id             String             @id @default(cuid())
   organizationId String
-  supplierId     String // Indústria (Supplier) dona da marca
+  // Opcional: importar "OMO" de uma planilha de 400k produtos sem saber a
+  // indústria criaria fornecedores-fantasma poluindo /fornecedores. Relaxar o
+  // NOT NULL é aditivo — nenhuma marca existente viola.
+  supplierId     String? // Indústria (Supplier) dona da marca, quando conhecida
   name           String
   logo           String?
   isActive       Boolean            @default(true)
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
   organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  supplier       Supplier           @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  supplier       Supplier?          @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   mapObjects     MapObject[]
   negotiations   SpaceNegotiation[]
+  products       Product[]
 
   @@index([organizationId])
   @@index([supplierId])
@@ -2022,4 +2068,217 @@ model MapAnnotation {
   @@index([organizationId])
   @@index([floorPlanId])
   @@map("map_annotations")
+}
+
+// ============================================
+// PLANOGRAMA — exposição de produtos na gôndola
+// ============================================
+// Relacional até o item porque o produto precisa ser consultável ("em quais
+// planogramas o SKU X aparece", "quantos facings da OMO na rede"). JSON só onde
+// o dado nunca é consultado por dentro: o snapshot da versão e as divisórias.
+// Tudo em MILÍMETRO INTEIRO — somar dezenas de larguras em float acumula deriva.
+
+enum PlanogramStatus {
+  RASCUNHO
+  EM_APROVACAO
+  ATIVO
+  ARQUIVADO
+}
+
+enum FixtureKind {
+  GONDOLA
+  PONTA_GONDOLA
+  ILHA
+  CHECKOUT
+  GELADEIRA
+  EXPOSITOR
+  CLIP_STRIP
+}
+
+enum ShelfKind {
+  PRATELEIRA
+  GANCHEIRA
+  CESTO
+  CAIXARIA
+}
+
+enum ShelfLayoutMode {
+  PACKED // produtos encostados, posição derivada da ordem
+  FREE // posição livre em xMm
+}
+
+enum ItemOrientation {
+  FRENTE
+  LADO
+  TOPO
+}
+
+model Planogram {
+  id             String             @id @default(cuid())
+  organizationId String
+  name           String
+  code           String?
+  categoryId     String? // sub-segmento alvo
+  status         PlanogramStatus    @default(RASCUNHO)
+  isActive       Boolean            @default(false) // toggle "Ativar Planograma"
+  releaseAt      DateTime? // "Agendar Liberação"
+  expiresAt      DateTime?
+  currentVersion Int                @default(1)
+  decisionTree   Json? // parâmetros da árvore de decisão — Fase 4
+  createdById    String
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category       Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdBy      User               @relation("CreatedPlanograms", fields: [createdById], references: [id])
+  fixtures       PlanogramFixture[]
+  items          PlanogramItem[]
+  versions       PlanogramVersion[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([organizationId, categoryId])
+  @@map("planograms")
+}
+
+model PlanogramFixture {
+  id             String            @id @default(cuid())
+  organizationId String
+  planogramId    String
+  kind           FixtureKind       @default(GONDOLA)
+  name           String
+  order          Int               @default(0)
+  widthMm        Int               @default(1300) // largura de UM módulo
+  heightMm       Int               @default(1900)
+  depthMm        Int               @default(400)
+  baseHeightMm   Int               @default(100) // rodapé
+  colorHex       String? // campo "Modelo" do WebJasper
+  // Vínculo OPCIONAL com a gôndola desenhada em Lojas e Mapas. O planograma
+  // precisa existir sem mapa nenhum — por isso não é o MapObject que manda.
+  mapObjectId    String?
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planogram      Planogram         @relation(fields: [planogramId], references: [id], onDelete: Cascade)
+  mapObject      MapObject?        @relation(fields: [mapObjectId], references: [id], onDelete: SetNull)
+  modules        PlanogramModule[]
+
+  @@index([planogramId, order])
+  @@index([organizationId])
+  @@map("planogram_fixtures")
+}
+
+/// Gôndola salva como padrão da rede. Supermercados repetem o mesmo
+/// dimensionamento em toda a loja, então o padrão vira o ponto de partida de
+/// qualquer gôndola nova em vez de reconfigurar tudo a cada planograma.
+model PlanogramFixtureTemplate {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  kind           FixtureKind  @default(GONDOLA)
+  widthMm        Int
+  heightMm       Int
+  depthMm        Int
+  baseHeightMm   Int
+  colorHex       String?
+  moduleCount    Int          @default(1)
+  /// [{ yMm, widthMm, depthMm, thicknessMm, kind, colorHex }] — as prateleiras
+  /// exatamente onde estavam, não só a contagem: a altura de cada nível É o
+  /// padrão da loja.
+  shelves        Json
+  isDefault      Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId, isDefault])
+  @@map("planogram_fixture_templates")
+}
+
+model PlanogramModule {
+  id             String           @id @default(cuid())
+  organizationId String
+  fixtureId      String
+  index          Int // "Módulo 2/2"
+  widthMm        Int              @default(1300)
+  label          String?
+  fixture        PlanogramFixture @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  shelves        PlanogramShelf[]
+
+  @@unique([fixtureId, index])
+  @@index([organizationId])
+  @@map("planogram_modules")
+}
+
+model PlanogramShelf {
+  id             String          @id @default(cuid())
+  organizationId String
+  moduleId       String
+  index          Int // 0 = mais baixa
+  yMm            Int // topo da prateleira, a partir do piso
+  widthMm        Int
+  depthMm        Int // fica na prateleira: a base costuma ser mais funda
+  thicknessMm    Int             @default(25)
+  kind           ShelfKind       @default(PRATELEIRA)
+  layoutMode     ShelfLayoutMode @default(PACKED)
+  maxWeightKg    Float?
+  colorHex       String? // null = herda a cor padrão da longarina
+  dividers       Json? // [{ xMm }] — poucas e nunca consultadas isoladamente
+  module         PlanogramModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  items          PlanogramItem[]
+
+  @@unique([moduleId, index])
+  @@index([organizationId])
+  @@map("planogram_shelves")
+}
+
+model PlanogramItem {
+  id             String          @id @default(cuid())
+  organizationId String
+  // Denormalizado: permite "em quais planogramas está o SKU X" sem 4 joins.
+  planogramId    String
+  shelfId        String
+  productId      String
+  position       Int // ordem na prateleira (fonte de verdade no modo PACKED)
+  xMm            Int? // só usado quando layoutMode = FREE
+  facings        Int             @default(1)
+  facingsDeep    Int             @default(1)
+  facingsHigh    Int             @default(1)
+  orientation    ItemOrientation @default(FRENTE)
+  isBoxed        Boolean         @default(false) // exposto na caixa fechada
+  // SNAPSHOT da medida do produto no momento em que foi posicionado: corrigir o
+  // cadastro do SKU depois não pode alterar sozinho um planograma já aprovado.
+  widthMm        Int
+  heightMm       Int
+  depthMm        Int
+  note           String?
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  planogram      Planogram       @relation(fields: [planogramId], references: [id], onDelete: Cascade)
+  shelf          PlanogramShelf  @relation(fields: [shelfId], references: [id], onDelete: Cascade)
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([shelfId, position])
+  @@index([planogramId, productId])
+  @@index([organizationId, productId])
+  @@map("planogram_items")
+}
+
+model PlanogramVersion {
+  id             String    @id @default(cuid())
+  organizationId String
+  planogramId    String
+  version        Int
+  label          String?
+  snapshot       Json // árvore completa serializada — só lida inteira
+  // Pré-calculados para diff e dashboard sem precisar abrir o snapshot.
+  itemCount      Int       @default(0)
+  facingCount    Int       @default(0)
+  linearMm       Int       @default(0)
+  createdById    String
+  createdAt      DateTime  @default(now())
+  planogram      Planogram @relation(fields: [planogramId], references: [id], onDelete: Cascade)
+  createdBy      User      @relation("CreatedPlanogramVersions", fields: [createdById], references: [id])
+
+  @@unique([planogramId, version])
+  @@index([organizationId])
+  @@map("planogram_versions")
 }

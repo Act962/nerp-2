@@ -41,3 +41,6 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated
+
+# Configuração local do Claude Code — não versionar
+.claude/
