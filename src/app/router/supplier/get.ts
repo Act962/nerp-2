@@ -10,7 +10,7 @@ export const getSupplier = base
   .input(
     z.object({
       id: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, context, errors }) => {
     const supplier = await prisma.supplier.findFirst({
@@ -28,6 +28,7 @@ export const getSupplier = base
         phone: true,
         contactPerson: true,
         logo: true,
+        actionCodeImage: true,
         address: true,
         city: true,
         state: true,

@@ -13,6 +13,11 @@ import {
   type CoverBackground,
   type CoverElement,
 } from "../../lib/cover-layout";
+import {
+  DEFAULT_BACKDROP_COLOR,
+  focusPolygonCss,
+  type PhotoAdjustment,
+} from "../../lib/photo-adjustment";
 
 // Render estático de um layout. Não usa Konva de propósito: serve pra
 // miniaturas e pro preview do card, onde não há edição no canvas. Posicionar
@@ -43,11 +48,15 @@ function PreviewElement({
   element,
   variableValues,
   photoUrls,
+  photoAdjustments,
+  onSlotClick,
   logos,
 }: {
   element: CoverElement;
   variableValues?: BookVariableValues;
   photoUrls?: string[];
+  photoAdjustments?: Array<PhotoAdjustment | undefined>;
+  onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
   logos?: LayoutLogos;
 }) {
   const box = {
@@ -100,6 +109,8 @@ function PreviewElement({
 
   if (element.type === "photoSlot") {
     const url = photoUrls?.[element.slotIndex];
+    const adjustment = photoAdjustments?.[element.slotIndex];
+    const clickable = !!onSlotClick;
     const strokeWidth = element.strokeWidth ?? 0;
     const moldura =
       strokeWidth > 0
@@ -109,51 +120,109 @@ function PreviewElement({
             } ${element.strokeColor ?? "#1a1a1a"}`,
           }
         : {};
+    // Ajuste por foto (o que o admin salva no "Ajustar enquadramento") tem
+    // prioridade; sem ele, cai no enquadramento do próprio slot do layout.
+    const scale = adjustment?.zoom ?? element.imageScale ?? 1;
+    const objectPosition = adjustment
+      ? `${adjustment.posX}% ${adjustment.posY}%`
+      : `${element.imageOffsetX ?? 50}% ${element.imageOffsetY ?? 50}%`;
+    const backdrop = adjustment?.backdrop ?? "none";
+    const focusClip = focusPolygonCss(adjustment?.focusPolygon ?? []);
+    // No modo desfoque a parte nítida só aparece com um polígono fechado; sem
+    // ele, mostra só a versão borrada.
+    const showSharp = backdrop !== "blur" || !!focusClip;
+    const commonBox = {
+      ...box,
+      ...moldura,
+      borderRadius: toCqw(element.cornerRadius),
+      overflow: "hidden" as const,
+      cursor: clickable ? ("pointer" as const) : undefined,
+      padding: 0,
+      background: "none",
+    };
+    // Botão de verdade quando clicável (acessível por teclado); div quando é só
+    // exibição, pra não virar tab stop em miniaturas.
+    const Tag = clickable ? "button" : "div";
+
     if (url) {
       return (
-        <div
-          style={{
-            ...box,
-            ...moldura,
-            borderRadius: toCqw(element.cornerRadius),
-            overflow: "hidden",
-          }}
+        <Tag
+          type={clickable ? "button" : undefined}
+          style={commonBox}
+          onClick={
+            clickable ? () => onSlotClick(element.slotIndex, true) : undefined
+          }
         >
-          {/* biome-ignore lint/performance/noImgElement: preview de key do R2, sem otimização do next/image */}
-          <img
-            src={url}
-            alt=""
-            loading="lazy"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: element.objectFit,
-              objectPosition: `${element.imageOffsetX ?? 50}% ${
-                element.imageOffsetY ?? 50
-              }%`,
-              transform: `scale(${element.imageScale ?? 1})`,
-            }}
-          />
-        </div>
+          {backdrop === "blur" && (
+            // Foco seletivo: foto inteira desfocada; a parte nítida vem no
+            // recorte por cima.
+            // biome-ignore lint/performance/noImgElement: preview de key do R2, sem otimização do next/image
+            <img
+              src={url}
+              alt=""
+              aria-hidden
+              loading="lazy"
+              style={{
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                objectPosition,
+                transform: `scale(${scale})`,
+                filter: "blur(5px)",
+              }}
+            />
+          )}
+          {backdrop === "color" && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                backgroundColor:
+                  adjustment?.backdropColor ?? DEFAULT_BACKDROP_COLOR,
+              }}
+            />
+          )}
+          {showSharp && (
+            // biome-ignore lint/performance/noImgElement: preview de key do R2, sem otimização do next/image
+            <img
+              src={url}
+              alt=""
+              loading="lazy"
+              style={{
+                position: "relative",
+                width: "100%",
+                height: "100%",
+                objectFit: backdrop === "blur" ? "cover" : element.objectFit,
+                objectPosition,
+                transform: `scale(${scale})`,
+                clipPath: backdrop === "blur" ? focusClip : undefined,
+              }}
+            />
+          )}
+        </Tag>
       );
     }
     return (
-      <div
+      <Tag
+        type={clickable ? "button" : undefined}
         style={{
-          ...box,
+          ...commonBox,
           backgroundColor: "#e5e7eb",
-          ...moldura,
           border: moldura.border ?? "1px dashed #9ca3af",
-          borderRadius: toCqw(element.cornerRadius),
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           fontSize: toCqw(16),
           color: "#6b7280",
         }}
+        onClick={
+          clickable ? () => onSlotClick(element.slotIndex, false) : undefined
+        }
       >
-        Foto {element.slotIndex + 1}
-      </div>
+        {clickable ? "+ Foto" : `Foto ${element.slotIndex + 1}`}
+      </Tag>
     );
   }
 
@@ -199,6 +268,8 @@ interface LayoutPreviewProps {
   background: unknown;
   variableValues?: BookVariableValues;
   photoUrls?: string[];
+  photoAdjustments?: Array<PhotoAdjustment | undefined>;
+  onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
   logos?: LayoutLogos;
   className?: string;
 }
@@ -208,6 +279,8 @@ export function LayoutPreview({
   background,
   variableValues,
   photoUrls,
+  photoAdjustments,
+  onSlotClick,
   logos,
   className,
 }: LayoutPreviewProps) {
@@ -246,6 +319,8 @@ export function LayoutPreview({
           element={element}
           variableValues={variableValues}
           photoUrls={photoUrls}
+          photoAdjustments={photoAdjustments}
+          onSlotClick={onSlotClick}
           logos={logos}
         />
       ))}

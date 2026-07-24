@@ -1,6 +1,6 @@
 import { PageHeader } from "@/components/page-header";
 import { AddBookButton } from "@/features/books/components/add-book-button";
-import { BooksList } from "@/features/books/components/books-list";
+import { BooksScreen } from "@/features/books/components/books-screen";
 import { requirePermission } from "@/lib/auth-utils";
 
 export default async function BooksPage() {
@@ -14,7 +14,7 @@ export default async function BooksPage() {
       >
         <AddBookButton />
       </PageHeader>
-      <BooksList />
+      <BooksScreen />
     </div>
   );
 }

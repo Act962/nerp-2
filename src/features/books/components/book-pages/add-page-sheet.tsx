@@ -51,20 +51,28 @@ interface AddPageSheetProps {
     photoKeys: string[];
     pageTemplateId?: string | null;
   }) => Promise<void> | void;
+  onDuplicate: (itemId: string) => Promise<void> | void;
   isSaving: boolean;
   supplierId?: string | null;
+  // Páginas já no book, para o atalho "Duplicar página".
+  existingPages: { id: string; storeName: string }[];
 }
 
 type Step = 1 | 2 | 3;
+// "choose" = tela inicial de atalhos; "full" entra no fluxo PDV→mídia→foto.
+type Mode = "choose" | "full" | "duplicate" | "template";
 
 export function AddPageSheet({
   open,
   onOpenChange,
   onConfirm,
+  onDuplicate,
   isSaving,
   supplierId,
+  existingPages,
 }: AddPageSheetProps) {
   const isMobile = useIsMobile();
+  const [mode, setMode] = useState<Mode>("choose");
   const [step, setStep] = useState<Step>(1);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
@@ -84,11 +92,13 @@ export function AddPageSheet({
 
   useEffect(() => {
     if (open) return;
+    setMode("choose");
     setStep(1);
     setSearch("");
     setStoreId(null);
     setStoreName("");
     setMediaTypeId(null);
+    setPageTemplateId(NO_PAGE_TEMPLATE);
     setPhotoKeys([]);
     setUploadingCount(0);
   }, [open]);
@@ -170,18 +180,151 @@ export function AddPageSheet({
     onOpenChange(false);
   };
 
+  const handleDuplicate = async (itemId: string) => {
+    try {
+      await onDuplicate(itemId);
+    } catch {
+      return;
+    }
+    onOpenChange(false);
+  };
+
+  // Página só com padrão: sem escolher PDV agora. Usa a primeira loja como
+  // marcador (o promotor ajusta os dados no card depois).
+  const handleTemplateOnly = async () => {
+    const store = stores[0];
+    if (!store) {
+      toast.error("Cadastre uma loja antes de criar uma página em branco");
+      return;
+    }
+    try {
+      await onConfirm({
+        storeId: store.id,
+        photoKeys: [],
+        pageTemplateId:
+          pageTemplateId === NO_PAGE_TEMPLATE ? null : pageTemplateId,
+      });
+    } catch {
+      return;
+    }
+    onOpenChange(false);
+  };
+
   const title =
-    step === 1 ? "Escolher o PDV" : step === 2 ? "Tipo de mídia" : "Fotos";
+    mode === "choose"
+      ? "Adicionar página"
+      : mode === "duplicate"
+        ? "Duplicar página"
+        : mode === "template"
+          ? "Aplicar padrão de página"
+          : step === 1
+            ? "Escolher o PDV"
+            : step === 2
+              ? "Tipo de mídia"
+              : "Fotos";
   const description =
-    step === 1
-      ? "Busque a loja que você está visitando. Se ela ainda não estiver cadastrada, dá pra criar na hora."
-      : step === 2
-        ? `${storeName} — o que você está fotografando?`
-        : `${storeName} — tire as fotos do espaço.`;
+    mode === "choose"
+      ? "Escolha como quer criar a página."
+      : mode === "duplicate"
+        ? "Copia uma página existente (dados, fotos e layout) numa nova."
+        : mode === "template"
+          ? "A página nasce com o padrão escolhido; preencha os dados do PDV depois no card."
+          : step === 1
+            ? "Busque a loja que você está visitando. Se ela ainda não estiver cadastrada, dá pra criar na hora."
+            : step === 2
+              ? `${storeName} — o que você está fotografando?`
+              : `${storeName} — tire as fotos do espaço.`;
 
   const body = (
     <div className="space-y-4">
-      {step === 1 && (
+      {mode === "choose" && (
+        <div className="grid gap-2">
+          <button
+            type="button"
+            onClick={() => setMode("full")}
+            className="flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors hover:border-primary"
+          >
+            <span className="text-sm font-semibold">Nova do zero</span>
+            <span className="text-xs text-muted-foreground">
+              Escolher PDV → tipo de mídia → tirar as fotos.
+            </span>
+          </button>
+          <button
+            type="button"
+            disabled={existingPages.length === 0}
+            onClick={() => setMode("duplicate")}
+            className="flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors hover:border-primary disabled:opacity-50"
+          >
+            <span className="text-sm font-semibold">Duplicar página</span>
+            <span className="text-xs text-muted-foreground">
+              {existingPages.length === 0
+                ? "Nenhuma página no book ainda."
+                : "Copiar uma página existente com tudo dentro."}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("template")}
+            className="flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left transition-colors hover:border-primary"
+          >
+            <span className="text-sm font-semibold">
+              Aplicar padrão de página
+            </span>
+            <span className="text-xs text-muted-foreground">
+              Criar já com um padrão salvo, sem preencher o PDV agora.
+            </span>
+          </button>
+        </div>
+      )}
+
+      {mode === "duplicate" && (
+        <Command className="rounded-md border">
+          <CommandInput placeholder="Buscar página…" />
+          <CommandList className="max-h-[45vh]">
+            <CommandEmpty className="py-6 text-sm text-muted-foreground">
+              Nenhuma página encontrada.
+            </CommandEmpty>
+            <CommandGroup>
+              {existingPages.map((page, index) => (
+                <CommandItem
+                  key={page.id}
+                  value={`${page.storeName} ${index + 1}`}
+                  onSelect={() => handleDuplicate(page.id)}
+                  className="min-h-12 cursor-pointer"
+                >
+                  <span className="font-medium">
+                    {index + 1}. {page.storeName}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      )}
+
+      {mode === "template" && (
+        <>
+          <div className="rounded-lg border p-3">
+            <PageTemplatePicker
+              supplierId={supplierId ?? null}
+              value={pageTemplateId}
+              onChange={setPageTemplateId}
+              label="Padrão de página"
+            />
+          </div>
+          <Button
+            type="button"
+            className="h-12 w-full gap-2"
+            disabled={isSaving || pageTemplateId === NO_PAGE_TEMPLATE}
+            onClick={handleTemplateOnly}
+          >
+            {isSaving ? <Spinner /> : <Check className="size-4" />}
+            Criar página com este padrão
+          </Button>
+        </>
+      )}
+
+      {mode === "full" && step === 1 && (
         <Command shouldFilter={false} className="rounded-md border">
           <CommandInput
             value={search}
@@ -363,24 +506,36 @@ export function AddPageSheet({
     </div>
   );
 
+  const showBack = mode !== "choose";
+  const goBack = () => {
+    if (mode === "full" && step > 1) {
+      setStep((current) => (current === 3 ? 2 : 1) as Step);
+      return;
+    }
+    setMode("choose");
+    setStep(1);
+  };
+
   const header = (
     <div className="flex items-start gap-2">
-      {step > 1 && (
+      {showBack && (
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="shrink-0"
-          onClick={() => setStep((current) => (current === 3 ? 2 : 1) as Step)}
+          onClick={goBack}
           aria-label="Voltar"
         >
           <ArrowLeft className="size-4" />
         </Button>
       )}
       <div className="space-y-1">
-        <span className="text-xs font-medium text-muted-foreground">
-          Passo {step} de 3
-        </span>
+        {mode === "full" && (
+          <span className="text-xs font-medium text-muted-foreground">
+            Passo {step} de 3
+          </span>
+        )}
         <p className="text-lg font-semibold leading-none">{title}</p>
       </div>
     </div>

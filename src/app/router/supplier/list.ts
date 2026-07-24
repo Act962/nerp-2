@@ -1,7 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { PersonType, Prisma } from "@/generated/prisma/client";
+import { PersonType, type Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import z from "zod";
 
@@ -34,6 +34,7 @@ export const listSupplier = base
           state: z.string().nullable(),
           isActive: z.boolean(),
           logo: z.string().nullable(),
+          actionCodeImage: z.string().nullable(),
         }),
       ),
       totalCount: z.number(),
@@ -78,6 +79,7 @@ export const listSupplier = base
           state: true,
           isActive: true,
           logo: true,
+          actionCodeImage: true,
         },
       }),
       prisma.supplier.count({ where }),

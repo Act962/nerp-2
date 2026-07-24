@@ -5,6 +5,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, LayoutTemplate, SquarePen, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { constructUrl } from "@/hooks/use-construct-url";
+import { compressImage } from "@/lib/compress-image";
+import { uploadToR2 } from "@/lib/upload-to-r2";
 import { useUpdatePdvPhoto } from "@/features/pdv-photos/hooks/use-pdv-photos";
 import { useQueryCollaborators } from "@/features/collaborators/hooks/use-collaborators";
 import {
@@ -34,14 +36,21 @@ import type {
 } from "../../lib/photo-adjustment";
 import {
   BookPagePhotoGrid,
+  MAX_PHOTOS,
   type PhotoLayoutPattern,
 } from "./book-page-photo-grid";
 import { PageItemLayoutDialog } from "./page-item-layout-dialog";
+import { ImportPhotoDialog } from "./import-photo-dialog";
+import { PhotoAdjustDialog } from "./photo-adjust-dialog";
+import type { CoverElement } from "../../lib/cover-layout";
 
 export interface BookPageItem {
   id: string;
   pdvPhotoId: string;
   hasOwnPageLayout: boolean;
+  approvalStatus: "PENDING" | "APPROVED" | "REJECTED";
+  approvalNote: string | null;
+  reviewedByName: string | null;
   // Layout próprio da página; null = segue o do book.
   pageLayout: unknown;
   pageBackground: unknown;
@@ -254,6 +263,64 @@ export function BookPageCard({
   const fundoEfetivo = hasOwnLayout ? item.pageBackground : bookPageBackground;
   const temLayoutLivre =
     Array.isArray(layoutEfetivo) && layoutEfetivo.length > 0;
+
+  // ── Espaços de foto clicáveis direto no preview do Conteúdo ────────────
+  const slotElements = (
+    Array.isArray(layoutEfetivo) ? (layoutEfetivo as CoverElement[]) : []
+  ).filter((element) => element.type === "photoSlot");
+
+  const slotInfo = (slotIndex: number) => {
+    const slot = slotElements.find(
+      (element) =>
+        element.type === "photoSlot" && element.slotIndex === slotIndex,
+    );
+    if (slot?.type !== "photoSlot")
+      return { aspectRatio: 1, objectFit: "cover" as const };
+    return {
+      aspectRatio: slot.height > 0 ? slot.width / slot.height : 1,
+      objectFit: slot.objectFit,
+    };
+  };
+
+  // Alinhado por índice de slot: a Nª foto do PDV preenche o Nº espaço.
+  const photoAdjustmentsBySlot = photos.map((key) => photoAdjustments[key]);
+
+  const [adjustingSlot, setAdjustingSlot] = useState<number | null>(null);
+  const [importSlot, setImportSlot] = useState<number | null>(null);
+
+  // Slot vazio abre o importador (cliente+indústria → fotos aprovadas ou
+  // tirar/enviar na hora); slot preenchido abre o ajuste.
+  const handleSlotClick = (slotIndex: number, hasPhoto: boolean) => {
+    if (hasPhoto) {
+      setAdjustingSlot(slotIndex);
+      return;
+    }
+    setImportSlot(slotIndex);
+  };
+
+  const uploadSlotPhoto = (file: File): Promise<string> =>
+    compressImage(file).then((compressed) => uploadToR2(compressed, true));
+
+  const addKeyToSlot = (slotIndex: number, key: string) => {
+    updatePhotos((prev) => {
+      const next = [...prev];
+      if (slotIndex < next.length) next[slotIndex] = key;
+      else next.push(key);
+      return next.slice(0, MAX_PHOTOS);
+    });
+  };
+
+  const replacePhotoInSlot = async (slotIndex: number, file: File) => {
+    const key = await uploadSlotPhoto(file);
+    updatePhotos((prev) => {
+      const next = [...prev];
+      if (slotIndex < next.length) next[slotIndex] = key;
+      return next;
+    });
+  };
+
+  const adjustingKey =
+    adjustingSlot != null ? photos[adjustingSlot] : undefined;
 
   const variaveisDaPagina: BookVariableValues = {
     loja: item.storeName,
@@ -520,8 +587,14 @@ export function BookPageCard({
             background={fundoEfetivo}
             variableValues={variaveisDaPagina}
             photoUrls={photos.map(constructUrl)}
+            photoAdjustments={photoAdjustmentsBySlot}
+            onSlotClick={handleSlotClick}
             logos={logos}
           />
+          <p className="px-3 pt-2 text-center text-[11px] text-neutral-400 md:px-5">
+            Toque num espaço de foto para trocar, reenquadrar ou desfocar o
+            fundo.
+          </p>
           <details className="border-t bg-neutral-50">
             <summary className="cursor-pointer px-3 py-3 text-xs font-semibold uppercase tracking-wider text-neutral-600 md:px-5">
               Editar dados do PDV
@@ -550,6 +623,40 @@ export function BookPageCard({
       <div className="flex shrink-0 items-center justify-end border-t px-5 py-2 text-xs text-neutral-500">
         {position} / {total}
       </div>
+
+      {importSlot != null && (
+        <ImportPhotoDialog
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setImportSlot(null);
+          }}
+          defaultSupplierId={supplierId ?? null}
+          onPick={(key) => {
+            addKeyToSlot(importSlot, key);
+            setImportSlot(null);
+          }}
+        />
+      )}
+
+      {adjustingSlot != null && adjustingKey && (
+        <PhotoAdjustDialog
+          open
+          onOpenChange={(nextOpen) => {
+            if (!nextOpen) setAdjustingSlot(null);
+          }}
+          photoUrl={constructUrl(adjustingKey)}
+          aspectRatio={slotInfo(adjustingSlot).aspectRatio}
+          objectFit={slotInfo(adjustingSlot).objectFit}
+          allowBackdrop
+          initialAdjustment={photoAdjustments[adjustingKey]}
+          onSave={(adjustment) => saveAdjustment(adjustingKey, adjustment)}
+          onReplacePhoto={(file) => {
+            const slot = adjustingSlot;
+            setAdjustingSlot(null);
+            if (slot != null) replacePhotoInSlot(slot, file);
+          }}
+        />
+      )}
 
       <PageItemLayoutDialog
         open={layoutDialogOpen}

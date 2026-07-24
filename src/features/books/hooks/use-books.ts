@@ -23,6 +23,36 @@ export function useBook(id: string) {
   return { book: query.data, isLoading: query.isPending };
 }
 
+export function useBookDashboard() {
+  const query = useQuery(orpc.book.dashboard.queryOptions({ input: {} }));
+  return { metrics: query.data, isLoading: query.isPending };
+}
+
+export function useReviewBookItem() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.reviewItem.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useSendBook() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.send.mutationOptions({
+      onSuccess: (result) => {
+        toast.success(
+          result.sent ? "Book enviado à indústria" : "Envio desfeito",
+        );
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 function useInvalidateBooks() {
   const queryClient = useQueryClient();
   return () => {
@@ -75,6 +105,19 @@ export function useAddBookPage() {
   return useMutation(
     orpc.book.addPage.mutationOptions({
       onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDuplicateBookPage() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.duplicatePage.mutationOptions({
+      onSuccess: () => {
+        toast.success("Página duplicada");
+        invalidate();
+      },
       onError: (error) => toast.error(error.message),
     }),
   );

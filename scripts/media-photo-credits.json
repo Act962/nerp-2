@@ -1,0 +1,324 @@
+{
+  "PG": {
+    "mediaType": "Ponta de Gôndola",
+    "key": "media-model/pg.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Halloween_candy_display_in_a_Publix_in_Clearwater,_Florida,_Sep_2020_(viewed_from_left_side).jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "MatthewHoobin"
+  },
+  "GO": {
+    "mediaType": "Gôndola",
+    "key": "media-model/go.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:New_York-made_maple_syrup_for_sale_at_Sauders_Store,_Seneca_Falls,_New_York_-_20230131.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Andre Carrotflower"
+  },
+  "CK": {
+    "mediaType": "Checkout",
+    "key": "media-model/ck.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Publix_checkout_aisle.jpg",
+    "license": "CC BY 4.0",
+    "author": "Nielsoncaetanosalmeron"
+  },
+  "CM": {
+    "mediaType": "Cross Merchandising",
+    "key": "media-model/cm.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Canadian_grocer_July-September_1919_(1919)_(14596440007).jpg",
+    "license": "No restrictions",
+    "author": "Internet Archive Book Images"
+  },
+  "FR": {
+    "mediaType": "Freezer",
+    "key": "media-model/fr.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Frozen_silkworm_pupae_at_supermarket_(close-up).jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Benlisquare"
+  },
+  "GL": {
+    "mediaType": "Geladeira",
+    "key": "media-model/gl.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Santorin_(GR),_Akrotiri,_Supermarkt_--_2017_--_2877-83.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Dietmar Rabich"
+  },
+  "ST": {
+    "mediaType": "Stack",
+    "key": "media-model/st.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:DFC_3031_A_narrow_bustling_shop_aisle_packed_from_floor_to_ceiling_with_colorful_household_goods_toiletries_and_snacks_stacked_on_shelves_under_a_sign_in_Thai.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "PattayaPatrol"
+  },
+  "PL": {
+    "mediaType": "Pallet",
+    "key": "media-model/pl.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:99_pence_per_lb_(53697959289).jpg",
+    "license": "CC BY 2.0",
+    "author": "Conall from Downpatrick, Northern Ireland"
+  },
+  "TG": {
+    "mediaType": "Terminal de Gôndola",
+    "key": "media-model/tg.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Halloween_displays_in_a_Publix_in_Clearwater,_Florida,_Sep_2020.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "MatthewHoobin"
+  },
+  "FG": {
+    "mediaType": "Faixa de Gôndola",
+    "key": "media-model/fg.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Coca_Cola_regular_bottle_price_and_Nutri-Score.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "The RedBurn"
+  },
+  "MB": {
+    "mediaType": "Móbile",
+    "key": "media-model/mb.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:San_Francisco._Legs_Hanging_Out_The_Window._(37961406601).jpg",
+    "license": "CC0",
+    "author": "Bernard Spragg. NZ from Christchurch, New Zealand"
+  },
+  "CB": {
+    "mediaType": "Cashback",
+    "key": "media-model/cb.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Credit_card_terminal.jpg",
+    "license": "Public domain",
+    "author": "Izcool at English Wikipedia"
+  },
+  "FD": {
+    "mediaType": "Programa de Fidelidade",
+    "key": "media-model/fd.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Ca%C3%B1%C3%B3n_Miles,_Yuk%C3%B3n,_Canad%C3%A1,_2017-08-26,_DD_144-154_PAN.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Diego Delso"
+  },
+  "RM": {
+    "mediaType": "Retail Media",
+    "key": "media-model/rm.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Digital_Signage.jpg",
+    "license": "CC BY 3.0",
+    "author": "TS Eriksson"
+  },
+  "BN": {
+    "mediaType": "Banner",
+    "key": "media-model/bn.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Banner,_shop_(AM_1999.166.2-1).jpg",
+    "license": "CC BY 4.0",
+    "author": "Farmer's Trading Company"
+  },
+  "TT": {
+    "mediaType": "Totem",
+    "key": "media-model/tt.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Vancouver_(BC,_Canada),_Stanley_Park,_Totem_poles,_Kakaso%27Las_totem_pole_--_2022_--_2043.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Dietmar Rabich"
+  },
+  "AP": {
+    "mediaType": "Adesivação de Piso",
+    "key": "media-model/ap.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Francesco_Vanni,_Mos%C3%A8_spezza_le_Tavole_della_Legge,_1500-1599_circa_(da_beccafumi).jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Francesco Bini"
+  },
+  "CS": {
+    "mediaType": "Comunicação Suspensa",
+    "key": "media-model/cs.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:-2022-04-08_Batteries_for_sale_sign,_Morrisons,_Cromer,_Norfolk.JPG",
+    "license": "CC BY-SA 4.0",
+    "author": "Kolforn (Kolforn) I'd appreciate if you could mail me (Kolforn@gmail.com) if you want to use this picture out of the Wikimedia project scope. This file is licensed under the Creative Commons Attribution-Share Alike 4.0 International license. You are free: to share – to copy, distribute and transmit the work to remix – to adapt the work Under the following conditions: attribution – You must give appropriate credit, provide a link to the license, and indicate if changes were made. You may do so in any reasonable manner, but not in any way that suggests the licensor endorses you or your use. share alike – If you remix, transform, or build upon the material, you must distribute your contributions under the same or compatible license as the original.https://creativecommons.org/licenses/by-sa/4.0CC BY-SA 4.0 Creative Commons Attribution-Share Alike 4.0 truetrue"
+  },
+  "PI": {
+    "mediaType": "Painel Interno",
+    "key": "media-model/pi.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Lifto_en_domo_N_5_en_strato_Nikolaj_Nikitin_(Tjumeno)_03.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "RG72"
+  },
+  "FC": {
+    "mediaType": "Fachada",
+    "key": "media-model/fc.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Econofoods_and_JCPenney_facade_Original.png",
+    "license": "CC BY-SA 4.0",
+    "author": "Samuel Abraham Steinberg"
+  },
+  "ET": {
+    "mediaType": "Estacionamento",
+    "key": "media-model/et.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Mall_parking_lot_%E2%80%93_Panorama_(Sergej_Majboroda_via_Poly_Haven).jpg",
+    "license": "CC0",
+    "author": "Sergej Majboroda"
+  },
+  "CR": {
+    "mediaType": "Carrinhos",
+    "key": "media-model/cr.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Shopping_Cart_Supermarket.jpg",
+    "license": "CC0",
+    "author": "safaritravelplus"
+  },
+  "CE": {
+    "mediaType": "Cestas",
+    "key": "media-model/ce.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Lone_Shopping_Cart_Goes_to_School.webp",
+    "license": "CC0",
+    "author": "Whythealgarve"
+  },
+  "EN": {
+    "mediaType": "Entrada",
+    "key": "media-model/en.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Entrance_of_Sainsbury%27s_supermarket_-_geograph.org.uk_-_7432438.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "TCExplorer"
+  },
+  "SD": {
+    "mediaType": "Saída",
+    "key": "media-model/sd.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Automatic_doors_at_a_cash_register_which_can_be_opened_by_scanning_a_receipt,_Albert_Heijn_Winschoten_(2019)_01.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Donald Trung Quoc Don (Chữ Hán: 徵國單) - Wikimedia Commons - © CC BY-SA 4.0 International.(Want to use this image?)Original publication 📤: --Donald Trung 『徵國單』 (No Fake News 💬) (WikiProject Numismatics 💴) (Articles 📚) 22:59, 8 August 2019 (UTC)"
+  },
+  "AC": {
+    "mediaType": "Açougue",
+    "key": "media-model/ac.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:%E8%82%89%E5%B1%8B%E3%81%95%E3%82%93%E3%81%A7%E3%82%A8%E3%83%A9%E3%83%BC%E7%99%BA%E7%94%9F%E3%81%97%E3%81%A6%E3%82%8B_(e-Signage_Program_Viewer)_(6191318913).jpg",
+    "license": "CC BY 2.0",
+    "author": "Masahiko OHKUBO"
+  },
+  "PA": {
+    "mediaType": "Padaria",
+    "key": "media-model/pa.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Tesco_Supermarket_(Bakery).jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Vauxford"
+  },
+  "HF": {
+    "mediaType": "Hortifruti",
+    "key": "media-model/hf.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Fruit_section_of_a_grocery_store.jpg",
+    "license": "CC0",
+    "author": "Alabama Extension"
+  },
+  "AG": {
+    "mediaType": "Adega",
+    "key": "media-model/ag.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Sekt-im-supermarkt.jpg",
+    "license": "CC BY 2.5",
+    "author": "Ralf Roletschek (User:Marcela)"
+  },
+  "QR": {
+    "mediaType": "QR Code Map",
+    "key": "media-model/qr.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:HiPoints_information_QR_code_at_the_Drill_Hall,_Llandudno_-_geograph.org.uk_-_6579612.jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "Meirion"
+  },
+  "TD": {
+    "mediaType": "Totem Digital",
+    "key": "media-model/td.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Visitor%E2%80%99s_Center_implements_interactive_kiosk_(4029438).jpeg",
+    "license": "Public domain",
+    "author": "U.S. Air Force photo by Halle Thornton"
+  },
+  "ED": {
+    "mediaType": "Etiqueta Digital",
+    "key": "media-model/ed.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Pricer_LCD_Electronic_shelf_label.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Snopski8790"
+  },
+  "RI": {
+    "mediaType": "Rádio Interna",
+    "key": "media-model/ri.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:D%C3%BClmen,_Kirchspiel,_ehem._Sondermunitionslager_Visbeck,_Zaun_--_2023_--_6763.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Dietmar Rabich"
+  },
+  "APP": {
+    "mediaType": "Aplicativo do Supermercado",
+    "key": "media-model/app.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Day_144_-_West_Midlands_Police_-_Facewatch_App_(8801960454).jpg",
+    "license": "CC BY-SA 2.0",
+    "author": "West Midlands Police from West Midlands, United Kingdom"
+  },
+  "WA": {
+    "mediaType": "WhatsApp Oficial",
+    "key": "media-model/wa.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Image_in_a_spanish_whatsapp_chat.jpg",
+    "license": "CC0",
+    "author": "Adeste549"
+  },
+  "PN": {
+    "mediaType": "Push Notification",
+    "key": "media-model/pn.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Barrierefreiheit_002_2021_08_31.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Friedrich Haag"
+  },
+  "GEO": {
+    "mediaType": "Geolocalização",
+    "key": "media-model/geo.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Utilisation_de_Waze_via_Apple_CarPlay.png",
+    "license": "CC BY-SA 4.0",
+    "author": "Futurhit12"
+  },
+  "MAP": {
+    "mediaType": "Mapa Digital",
+    "key": "media-model/map.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Hasegawa_Tohaku_-_Pine_Trees_(Sh%C5%8Drin-zu_by%C5%8Dbu)_-_right_hand_screen.jpg",
+    "license": "Public domain",
+    "author": "Hasegawa Tōhaku"
+  },
+  "CP": {
+    "mediaType": "Cupom Digital",
+    "key": "media-model/cp.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:FCC_DTV_Coupon_Card.png",
+    "license": "Public domain",
+    "author": "desconhecido"
+  },
+  "TV": {
+    "mediaType": "TV Corporativa",
+    "key": "media-model/tv.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Zarzis2007_img_5871.jpg",
+    "license": "CC BY-SA 3.0",
+    "author": "Gürkan Sengün"
+  },
+  "IL": {
+    "mediaType": "Ilha Promocional",
+    "key": "media-model/il.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Grocery_Store_display-1979-17.jpg",
+    "license": "CC BY 4.0",
+    "author": "Gary Hoover"
+  },
+  "DP": {
+    "mediaType": "Display",
+    "key": "media-model/dp.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Display_board_at_Bundibugyo_Community_Library,_Bundibugyo_Central,_Bundibugyo_district.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Vanmulondo"
+  },
+  "SP": {
+    "mediaType": "Stopper",
+    "key": "media-model/sp.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Walmart_(32936438182)_cropped.jpg",
+    "license": "CC0",
+    "author": "Dan Keck"
+  },
+  "WB": {
+    "mediaType": "Wobbler",
+    "key": "media-model/wb.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Leominster_-_2015-07-15_-_Andy_Mabbett_-_Herbert_Oliver_mosaic_sign.JPG",
+    "license": "CC BY-SA 4.0",
+    "author": "Andy Mabbett"
+  },
+  "AD": {
+    "mediaType": "Adesivação de Parede",
+    "key": "media-model/ad.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Coca-Cola_painted_advertisement,_Buffalo_Bodega,_Deadwood,_2009.jpg",
+    "license": "CC0",
+    "author": "DimiTalen"
+  },
+  "LED": {
+    "mediaType": "Painel LED",
+    "key": "media-model/led.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:LED_Impact_electronic_billboard,_Molenlaankwartier,_Rotterdam_(2023)_05.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Donald Trung Quoc Don (Chữ Hán: 徵國單) - Wikimedia Commons - © CC BY-SA 4.0 International.(Want to use this image?)Original publication 📤: --Donald Trung 『徵國單』 (No Fake News 💬) (WikiProject Numismatics 💴) (Articles 📚) 20:06, 15 April 2023 (UTC)"
+  }
+}

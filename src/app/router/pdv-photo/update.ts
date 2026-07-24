@@ -33,6 +33,17 @@ export const updatePdvPhoto = base
             zoom: z.number().min(1).max(3),
             posX: z.number().min(0).max(100),
             posY: z.number().min(0).max(100),
+            backdrop: z.enum(["none", "blur", "color"]).optional(),
+            backdropColor: z.string().optional(),
+            focusPolygon: z
+              .array(
+                z.object({
+                  x: z.number().min(0).max(100),
+                  y: z.number().min(0).max(100),
+                }),
+              )
+              .max(40)
+              .optional(),
           }),
         )
         .nullable()

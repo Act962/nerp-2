@@ -33,6 +33,7 @@ import { tradeCatalogDocRoutes } from "./trade-catalog/catalog-doc";
 import { mediaModelPhotoRoutes } from "./media-model-photo";
 import { tradeCatalogSeedRoutes } from "./trade-catalog/seed";
 import { invitationRoutes } from "./invitation";
+import { promotorRoutes } from "./promotor";
 
 export const router = {
   products: productsRoutes,
@@ -57,6 +58,7 @@ export const router = {
   mapObject: mapObjectRoutes,
   mapAnnotation: mapAnnotationRoutes,
   pdvPhoto: pdvPhotoRoutes,
+  promotor: promotorRoutes,
   book: bookRoutes,
   spaceNegotiation: spaceNegotiationRoutes,
   mediaType: mediaTypeRoutes,

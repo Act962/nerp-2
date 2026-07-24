@@ -17,18 +17,19 @@ export const createSupplier = base
       email: z.string().optional(),
       contactPerson: z.string().optional(),
       logo: z.string().optional(),
+      actionCodeImage: z.string().optional(),
       city: z.string().optional(),
       state: z.string().optional(),
       cep: z.string().optional(),
       address: z.string().optional(),
       notes: z.string().optional(),
-    })
+    }),
   )
   .output(
     z.object({
       id: z.string(),
       name: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
     const supplier = await prisma.supplier.create({
@@ -41,6 +42,7 @@ export const createSupplier = base
         email: input.email,
         contactPerson: input.contactPerson,
         logo: input.logo,
+        actionCodeImage: input.actionCodeImage,
         zipCode: input.cep,
         city: input.city,
         state: input.state,

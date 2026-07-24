@@ -22,6 +22,7 @@ import {
   Box,
   Building,
   Building2,
+  Camera,
   ChefHat,
   ChevronDown,
   ChevronsUpDown,
@@ -179,6 +180,12 @@ const navigation: Array<{
         icon: Tag,
         permission: "catalogo-pdv",
       },
+      {
+        name: "Promotor",
+        href: "/promotor",
+        icon: Camera,
+        permission: "promotor",
+      },
     ],
   },
   {
@@ -276,7 +283,9 @@ export function AppSidebar() {
       if (!isVisible(item.permission)) return null;
 
       const parentPermitted =
-        fullAccess || !item.permission || allowedPermissions.has(item.permission);
+        fullAccess ||
+        !item.permission ||
+        allowedPermissions.has(item.permission);
 
       if (!item.children) {
         return parentPermitted ? item : null;

@@ -43,6 +43,17 @@ export const auth = betterAuth({
     minPasswordLength: 6,
     maxPasswordLength: 20,
     requireEmailVerification: false,
+    // Sem provedor de e-mail configurado neste ambiente, o reset só é útil se o
+    // link chegar em algum lugar: fora de produção ele vai pro log do servidor.
+    sendResetPassword: async ({ user, url }) => {
+      if (process.env.NODE_ENV === "production") {
+        console.error(
+          `[auth] Reset de senha solicitado por ${user.email}, mas nenhum provedor de e-mail está configurado.`,
+        );
+        return;
+      }
+      console.info(`[auth] Link de reset de senha para ${user.email}: ${url}`);
+    },
   },
   // ── Sync de auth NERP → NASA (best-effort) ──────────────────────────
   // Os hooks só GRAVAM na SyncOutbox (fire-and-forget); um processador

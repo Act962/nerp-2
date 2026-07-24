@@ -23,6 +23,10 @@ import { listBookPageTemplates } from "./list-page-templates";
 import { saveBookPageTemplate } from "./save-page-template";
 import { applyBookPageTemplate } from "./apply-page-template";
 import { deleteBookPageTemplate } from "./delete-page-template";
+import { reviewBookItem } from "./review-item";
+import { sendBook } from "./send-book";
+import { bookDashboard } from "./dashboard";
+import { duplicateBookPage } from "./duplicate-page";
 
 export const bookRoutes = {
   list: listBook,
@@ -50,4 +54,8 @@ export const bookRoutes = {
   savePageTemplate: saveBookPageTemplate,
   applyPageTemplate: applyBookPageTemplate,
   deletePageTemplate: deleteBookPageTemplate,
+  reviewItem: reviewBookItem,
+  send: sendBook,
+  dashboard: bookDashboard,
+  duplicatePage: duplicateBookPage,
 };

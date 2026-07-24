@@ -582,6 +582,8 @@ model Supplier {
   zipCode        String?
   // Informações adicionais
   logo           String?
+  // Imagem R2 do "código de ação" desta indústria, carimbada na foto do promotor.
+  actionCodeImage String?
   contactPerson  String?
   notes          String?            @db.Text
   isActive       Boolean            @default(true)
@@ -1357,6 +1359,13 @@ enum BookStatus {
   FAILED
 }
 
+// Aprovação da foto de uma página do book pela coordenadora.
+enum BookItemApproval {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum TradeCatalogStatus {
   DRAFT
   GENERATING
@@ -1772,6 +1781,18 @@ model PdvPhoto {
   photoAdjustments   Json? // Record<chave R2, { zoom: number; posX: number; posY: number }> — enquadramento (pan/zoom) de cada foto dentro do slot fixo
   capturedAt         DateTime               @default(now())
   notes              String?                @db.Text
+  // Captura do promotor: snapshot do nome + geolocalização (reverse-geocode).
+  promoterName       String?
+  capturedCity       String?
+  capturedState      String?
+  capturedLatitude   Float?
+  capturedLongitude  Float?
+  // Aprovação da foto pela coordenadora (QC antes de entrar no book).
+  approvalStatus     BookItemApproval @default(PENDING)
+  approvalNote       String?
+  reviewedById       String?
+  reviewedByName     String?
+  reviewedAt         DateTime?
   createdById        String
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
@@ -1789,6 +1810,8 @@ model PdvPhoto {
   @@index([organizationId, code])
   @@index([organizationId, supplierId])
   @@index([organizationId, mediaTypeId])
+  @@index([organizationId, createdById])
+  @@index([organizationId, approvalStatus])
   @@map("pdv_photos")
 }
 
@@ -1814,6 +1837,11 @@ model Book {
   coverBackground   Json?
   closingBackground Json?
   pageBackground    Json?
+  // Envio do book à indústria/fornecedor para liberar a verba. Snapshot de
+  // quem enviou, sem relation, pra exibir sem join.
+  sentAt            DateTime?
+  sentById          String?
+  sentByName        String?
   createdById       String
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
@@ -1883,12 +1911,19 @@ model BookItem {
   // Permite uma página de abertura com um padrão e as de PDV com outro.
   pageLayout     Json?
   pageBackground Json?
+  // Aprovação da coordenadora. reviewedByName é snapshot pra exibir sem join.
+  approvalStatus BookItemApproval @default(PENDING)
+  approvalNote   String?
+  reviewedById   String?
+  reviewedByName String?
+  reviewedAt     DateTime?
   createdAt      DateTime @default(now())
   book           Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
   pdvPhoto       PdvPhoto @relation(fields: [pdvPhotoId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, pdvPhotoId])
   @@index([bookId])
+  @@index([bookId, approvalStatus])
   @@map("book_items")
 }
 
