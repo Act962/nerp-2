@@ -95,9 +95,16 @@ export function BarcodeScanner({
       >
         <track kind="captions" />
       </video>
-      {/* Mira */}
+      {/* Mira + laser de scan (barra vermelha descendo e subindo) */}
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="h-40 w-64 rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+        <style>{`
+@keyframes tg-scan-laser { from { top: 6%; } to { top: 92%; } }
+`}</style>
+        <div className="relative h-40 w-64 overflow-hidden rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
+          {status === "scanning" && (
+            <span className="absolute inset-x-2 h-0.5 rounded-full bg-red-500 shadow-[0_0_12px_3px_rgba(239,68,68,0.85)] [animation:tg-scan-laser_2.2s_ease-in-out_infinite_alternate]" />
+          )}
+        </div>
       </div>
       {status === "starting" && (
         <div className="absolute inset-0 flex items-center justify-center text-white">

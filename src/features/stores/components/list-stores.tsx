@@ -43,6 +43,7 @@ import {
 } from "@/features/shopper/components/store-qr-dialog";
 import { useStores } from "../hooks/use-stores";
 import { DeleteStore } from "./delete-store";
+import { StoreCoverCell } from "./store-cover-cell";
 import { StoreFormDialog } from "./store-form-dialog";
 
 export function ListStores() {
@@ -108,13 +109,20 @@ export function ListStores() {
                   stores.map((store) => (
                     <TableRow key={store.id}>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{store.name}</span>
-                          {store.code && (
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {store.code}
-                            </span>
-                          )}
+                        <div className="flex items-center gap-3">
+                          <StoreCoverCell
+                            storeId={store.id}
+                            coverImageKey={store.coverImageKey}
+                            name={store.name}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{store.name}</span>
+                            {store.code && (
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {store.code}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{store.managerName || "—"}</TableCell>
