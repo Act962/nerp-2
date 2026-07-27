@@ -225,35 +225,38 @@ export async function buildVirtualPeriodFromErp(
       },
       projectedAmount: null,
       projectedPercent: null,
-      branchCode: seller?.branchCode ?? null,
+      // Equipe = supervisor (PCSUPERV), a divisão comercial do Winthor. Campos
+      // intermediários só para agrupar/rotular abaixo — removidos da entry final.
+      teamCode: seller?.supervisorCode ?? null,
+      teamName: seller?.supervisorName?.trim() || null,
     };
   });
 
   entries.sort((a, b) => b.achievedAmount - a.achievedAmount);
 
-  const byBranch = new Map<string, typeof entries>();
+  const byTeam = new Map<string, typeof entries>();
   for (const entry of entries) {
-    const key = entry.branchCode ?? "—";
-    const list = byBranch.get(key) ?? [];
+    const key = entry.teamCode ?? "none";
+    const list = byTeam.get(key) ?? [];
     list.push(entry);
-    byBranch.set(key, list);
+    byTeam.set(key, list);
   }
 
-  const branches = [...byBranch.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([branchCode, branchEntries]) => ({
-      id: `virtual:branch:${branchCode}`,
-      name: branchCode === "—" ? "Sem filial" : `Filial ${branchCode}`,
+  const branches = [...byTeam.values()]
+    .map((teamEntries) => ({
+      id: `virtual:team:${teamEntries[0]?.teamCode ?? "none"}`,
+      name: teamEntries[0]?.teamName ?? "Sem equipe",
       isActive: true,
       goalTotal: 0,
-      achievedTotal: branchEntries.reduce(
+      achievedTotal: teamEntries.reduce(
         (total, entry) => total + entry.achievedAmount,
         0,
       ),
-      entries: branchEntries.map(
-        ({ branchCode: _branchCode, ...entry }) => entry,
+      entries: teamEntries.map(
+        ({ teamCode: _teamCode, teamName: _teamName, ...entry }) => entry,
       ),
-    }));
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const achievedTotal = entries.reduce(
     (total, entry) => total + entry.achievedAmount,

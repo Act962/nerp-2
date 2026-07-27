@@ -51,6 +51,7 @@ interface SellerRow {
   NOME: string | null;
   CODFILIAL: string | null;
   CODSUPERVISOR: number | null;
+  SUPERVISOR_NOME: string | null;
   PEDIDOS_RECENTES: number;
 }
 
@@ -79,16 +80,20 @@ export function createWinthorConnector(config: OracleConfig): SalesConnector {
   async function sellers(): Promise<ExternalSellerDTO[]> {
     const rows = await withOracleReadOnly(config, (query: OracleQuery) =>
       query<SellerRow>(
+        // A equipe do vendedor é o SUPERVISOR (PCSUPERV) — a divisão comercial
+        // real do Winthor. CODFILIAL é o depósito físico, não o time.
         `SELECT u.codusur          AS "CODUSUR",
                 u.nome             AS "NOME",
                 u.codfilial        AS "CODFILIAL",
                 u.codsupervisor    AS "CODSUPERVISOR",
+                s.nome             AS "SUPERVISOR_NOME",
                 (SELECT COUNT(*)
                    FROM ${schema}.pcpedc p
                   WHERE p.codusur = u.codusur
                     AND ${VENDA_PIPELINE}
                     AND p.data >= TRUNC(SYSDATE) - :dias) AS "PEDIDOS_RECENTES"
-           FROM ${schema}.pcusuari u`,
+           FROM ${schema}.pcusuari u
+           LEFT JOIN ${schema}.pcsuperv s ON s.codsupervisor = u.codsupervisor`,
         { dias: DIAS_PARA_CONSIDERAR_ATIVO },
       ),
     );
@@ -101,6 +106,7 @@ export function createWinthorConnector(config: OracleConfig): SalesConnector {
         branchCode: row.CODFILIAL?.trim() || null,
         supervisorCode:
           row.CODSUPERVISOR === null ? null : String(row.CODSUPERVISOR),
+        supervisorName: row.SUPERVISOR_NOME?.trim() || null,
         isBucket: isSellerBucketName(name),
         isActive: row.PEDIDOS_RECENTES > 0,
       };

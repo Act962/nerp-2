@@ -3,6 +3,20 @@
 import { useEffect, useState } from "react";
 import { Pause, Play } from "lucide-react";
 
+// Iniciais do avatar do time: 1ª letra das 2 primeiras palavras — desambigua
+// equipes com prefixo igual ("PI - SUL"→PS, "PI - NORTE"→PN). Nome de 1 palavra
+// cai nos 2 primeiros caracteres ("CAPITAL"→CA, "Todas"→TO).
+function teamInitials(name: string): string {
+  const words = name.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+  if (words.length >= 2) {
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }
+  return name
+    .replace(/[^\p{L}\p{N}]/gu, "")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
 export function SalesGoalTeamsCarousel({
   teams,
   selectedId,
@@ -70,7 +84,7 @@ export function SalesGoalTeamsCarousel({
                   }
             }
           >
-            {team.name.slice(0, 2).toUpperCase()}
+            {teamInitials(team.name)}
           </button>
         ))}
       </div>

@@ -73,6 +73,7 @@ export async function runErpSync(
               name: seller.name,
               branchCode: seller.branchCode,
               supervisorCode: seller.supervisorCode,
+              supervisorName: seller.supervisorName,
               isBucket: seller.isBucket,
               isActive: seller.isActive,
             },
