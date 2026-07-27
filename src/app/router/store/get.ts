@@ -20,6 +20,7 @@ export const getStore = base
         city: true,
         state: true,
         notes: true,
+        coverImageKey: true,
         isActive: true,
         areaM2: true,
         monthlyCost: true,

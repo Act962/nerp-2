@@ -10,14 +10,16 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
-import { constructUrl } from "@/hooks/use-construct-url";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useStores } from "@/features/stores/hooks/use-stores";
-import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { PhotoCaptureInput } from "@/features/pdv-photos/components/photo-capture-input";
 import { ArrowLeft, Camera, Factory, Store as StoreIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { reverseGeocode, useCapturePromotorPhoto } from "../hooks/use-promotor";
+import {
+  reverseGeocode,
+  useCapturePromotorPhoto,
+  useMyIndustries,
+} from "../hooks/use-promotor";
 import { StampEditor } from "./stamp-editor";
 
 type Selected = { id: string; name: string };
@@ -36,9 +38,24 @@ function formatDateTime(date: Date) {
   }).format(date);
 }
 
-export function CaptureWizard({ promoterName }: { promoterName: string }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [store, setStore] = useState<Selected | null>(null);
+export function CaptureWizard({
+  promoterName,
+  initialStore,
+  initialSupplierId,
+}: {
+  promoterName: string;
+  // Loja vinda por contexto (do /mapa): pula a etapa de escolher a loja e
+  // começa direto na "Escolha a Indústria".
+  initialStore?: Selected | null;
+  // Indústria vinda por contexto (da página de mídia): resolve na lista de
+  // indústrias do promotor e pula direto para tirar a foto.
+  initialSupplierId?: string;
+}) {
+  const hasFixedStore = !!initialStore;
+  const minStep = hasFixedStore ? 2 : 1;
+  const totalSteps = hasFixedStore ? 2 : 3;
+  const [step, setStep] = useState<1 | 2 | 3>(hasFixedStore ? 2 : 1);
+  const [store, setStore] = useState<Selected | null>(initialStore ?? null);
   const [supplier, setSupplier] = useState<
     (Selected & { actionCodeImage: string | null }) | null
   >(null);
@@ -53,12 +70,27 @@ export function CaptureWizard({ promoterName }: { promoterName: string }) {
   const { stores, isLoading: loadingStores } = useStores(
     debouncedStore || undefined,
   );
-  const { suppliers, isLoading: loadingSuppliers } = useSupplier({
-    search: debouncedSupplier || undefined,
-    pageSize: 30,
-  });
+  const { suppliers, isLoading: loadingSuppliers } = useMyIndustries(
+    debouncedSupplier || undefined,
+  );
 
   const capture = useCapturePromotorPhoto();
+
+  // Indústria vinda por deep-link: quando a lista do promotor carrega, encontra
+  // a indústria e pula direto para a foto. Se não estiver entre as vinculadas,
+  // apenas segue no passo de escolher a indústria.
+  useEffect(() => {
+    if (!initialSupplierId || supplier) return;
+    const match = suppliers.find((item) => item.id === initialSupplierId);
+    if (match) {
+      setSupplier({
+        id: match.id,
+        name: match.name,
+        actionCodeImage: match.actionCodeImage,
+      });
+      setStep(3);
+    }
+  }, [initialSupplierId, supplier, suppliers]);
 
   // Ao chegar no passo 3, pega a localização (best-effort) e o horário.
   useEffect(() => {
@@ -79,8 +111,8 @@ export function CaptureWizard({ promoterName }: { promoterName: string }) {
   }, [step]);
 
   const reset = () => {
-    setStep(1);
-    setStore(null);
+    setStep(minStep);
+    setStore(initialStore ?? null);
     setSupplier(null);
     setFile(null);
     setGeo({ city: null, state: null });
@@ -123,7 +155,7 @@ export function CaptureWizard({ promoterName }: { promoterName: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        {step > 1 && !file && (
+        {step > minStep && !file && (
           <Button
             type="button"
             variant="ghost"
@@ -137,7 +169,7 @@ export function CaptureWizard({ promoterName }: { promoterName: string }) {
         )}
         <div>
           <span className="text-xs font-medium text-muted-foreground">
-            Passo {step} de 3
+            Passo {step - (minStep - 1)} de {totalSteps}
           </span>
           <p className="text-lg font-semibold leading-tight">{title}</p>
         </div>
@@ -214,16 +246,7 @@ export function CaptureWizard({ promoterName }: { promoterName: string }) {
                   }}
                   className="min-h-12 cursor-pointer gap-2"
                 >
-                  {item.logo ? (
-                    // biome-ignore lint/performance/noImgElement: thumbnail simples de key do R2
-                    <img
-                      src={constructUrl(item.logo)}
-                      alt=""
-                      className="size-8 rounded object-contain"
-                    />
-                  ) : (
-                    <Factory className="size-5 text-muted-foreground" />
-                  )}
+                  <Factory className="size-5 text-muted-foreground" />
                   <span className="font-medium">{item.name}</span>
                 </CommandItem>
               ))}

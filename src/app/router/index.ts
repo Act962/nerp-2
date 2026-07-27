@@ -35,6 +35,16 @@ import { mediaModelPhotoRoutes } from "./media-model-photo";
 import { tradeCatalogSeedRoutes } from "./trade-catalog/seed";
 import { invitationRoutes } from "./invitation";
 import { promotorRoutes } from "./promotor";
+import { billingRoutes } from "./billing";
+import { couponRoutes } from "./coupon";
+import { directoryRoutes } from "./directory";
+import { distributorRoutes } from "./distributor";
+import { shopperRoutes } from "./shopper";
+import { shopperInsightsRoutes } from "./shopper-insights";
+import { storeInventoryRoutes } from "./store-inventory";
+import { tradegramPublicRoutes } from "./tradegram-public";
+import { tradeDashboardRoutes } from "./trade-dashboard";
+import { tradeInterestRoutes } from "./trade-interest";
 
 export const router = {
   products: productsRoutes,
@@ -74,4 +84,14 @@ export const router = {
   mediaModelPhoto: mediaModelPhotoRoutes,
   tradeCatalogSeed: tradeCatalogSeedRoutes,
   invitation: invitationRoutes,
+  tradegramPublic: tradegramPublicRoutes,
+  tradeDashboard: tradeDashboardRoutes,
+  tradeInterest: tradeInterestRoutes,
+  distributor: distributorRoutes,
+  directory: directoryRoutes,
+  billing: billingRoutes,
+  shopper: shopperRoutes,
+  coupon: couponRoutes,
+  storeInventory: storeInventoryRoutes,
+  shopperInsights: shopperInsightsRoutes,
 };

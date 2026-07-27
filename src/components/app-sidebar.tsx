@@ -18,6 +18,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
+  Aperture,
   BookImage,
   Box,
   Building,
@@ -26,7 +27,9 @@ import {
   ChefHat,
   ChevronDown,
   ChevronsUpDown,
+  CreditCard,
   GalleryVerticalEnd,
+  Inbox,
   LayoutDashboard,
   Library,
   LayoutGrid,
@@ -39,8 +42,10 @@ import {
   ShoppingCart,
   Store,
   Tag,
+  Ticket,
   TrendingUp,
   Trophy,
+  Truck,
   UserCircle2,
   UsersIcon,
 } from "lucide-react";
@@ -77,18 +82,24 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const navigation: Array<{
+type NavItem = {
   name: string;
   href: string;
   icon: typeof LayoutDashboard;
   permission?: string;
-  children?: Array<{
-    name: string;
-    href: string;
-    icon: typeof LayoutDashboard;
-    permission?: string;
-  }>;
-}> = [
+  children?: NavItem[];
+};
+
+// Casa a rota atual com o item ou qualquer descendente — usado pra abrir os
+// grupos certos quando a página está num sub/sub-item.
+function navMatchesPath(item: NavItem, pathname: string): boolean {
+  if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+    return true;
+  }
+  return (item.children ?? []).some((child) => navMatchesPath(child, pathname));
+}
+
+const navigation: NavItem[] = [
   {
     name: "Dashboard",
     href: "/dashboard",
@@ -158,6 +169,12 @@ const navigation: Array<{
     icon: Megaphone,
     children: [
       {
+        name: "Painel do Trade",
+        href: "/trade/painel",
+        icon: LayoutDashboard,
+        permission: "trade-painel",
+      },
+      {
         name: "Lojas e Mapas",
         href: "/lojas",
         icon: MapPinned,
@@ -182,7 +199,7 @@ const navigation: Array<{
         permission: "catalogo-pdv",
       },
       {
-        name: "Promotor",
+        name: "App Promotor",
         href: "/promotor",
         icon: Camera,
         permission: "promotor",
@@ -192,6 +209,61 @@ const navigation: Array<{
         href: "/trade/planograma",
         icon: LayoutGrid,
         permission: "planograma",
+      },
+      {
+        name: "TradeGram",
+        href: "/trade/tradegram",
+        icon: Aperture,
+        permission: "tradegram",
+      },
+      {
+        name: "Interesses (TradeGram)",
+        href: "/trade/interesses",
+        icon: Inbox,
+        permission: "trade-interesses",
+      },
+      {
+        name: "Configurações",
+        href: "/trade/configuracoes",
+        icon: Settings,
+        children: [
+          {
+            name: "Distribuidores",
+            href: "/trade/distribuidores",
+            icon: Truck,
+            permission: "distribuidores",
+          },
+          {
+            name: "Diretório de Empresas",
+            href: "/trade/diretorio",
+            icon: Building2,
+            permission: "diretorio",
+          },
+          {
+            name: "Cupons",
+            href: "/trade/cupons",
+            icon: Ticket,
+            permission: "cupons",
+          },
+          {
+            name: "Insights do Cliente",
+            href: "/trade/insights",
+            icon: TrendingUp,
+            permission: "insights",
+          },
+          {
+            name: "Plano & Assinatura",
+            href: "/trade/plano",
+            icon: CreditCard,
+            permission: "plano",
+          },
+          {
+            name: "Vínculos de Promotores",
+            href: "/trade/promotor-vinculos",
+            icon: UsersIcon,
+            permission: "promotor-vinculos",
+          },
+        ],
       },
     ],
   },
@@ -267,8 +339,6 @@ export function AppSidebar() {
   const isVisible = (permission?: string) =>
     !permission || isModuleVisible(permission, moduleVisibility);
 
-  type NavItem = (typeof navigation)[number];
-
   // Rede de segurança: se a consulta do member falhar, o filtro esconderia
   // TODOS os itens (nenhuma permissão conhecida) e o usuário ficaria preso
   // numa tela sem navegação. Nesse caso mostra o mínimo pra ele conseguir
@@ -281,35 +351,33 @@ export function AppSidebar() {
       ),
   );
 
+  // Filtra a árvore recursivamente (suporta grupos aninhados, ex.: "Configurações
+  // de Trade"). Item com permissão própria é checado individualmente; sem
+  // permissão, herda a visibilidade do ancestral. Grupo sem filho visível some.
+  const filterNav = (
+    item: NavItem,
+    ancestorPermitted: boolean,
+  ): NavItem | null => {
+    if (!isVisible(item.permission)) return null;
+
+    const selfPermitted = item.permission
+      ? fullAccess || allowedPermissions.has(item.permission)
+      : ancestorPermitted;
+
+    if (!item.children || item.children.length === 0) {
+      return selfPermitted ? item : null;
+    }
+
+    const children = item.children
+      .map((child) => filterNav(child, fullAccess || selfPermitted))
+      .filter((child): child is NavItem => child !== null);
+
+    if (children.length === 0) return null;
+    return { ...item, children };
+  };
+
   const visibleNavigation = navigation
-    .map((item): NavItem | null => {
-      // Esconder o pai esconde a subárvore inteira. Precisa vir antes do filtro
-      // dos filhos: o `fullAccess` lá embaixo aprova o filho sozinho, então sem
-      // este corte desligar "Produtos"/"Estoque" não teria efeito nenhum para
-      // owner/admin — justamente quem configura os módulos.
-      if (!isVisible(item.permission)) return null;
-
-      const parentPermitted =
-        fullAccess ||
-        !item.permission ||
-        allowedPermissions.has(item.permission);
-
-      if (!item.children) {
-        return parentPermitted ? item : null;
-      }
-
-      // Filtra os filhos: filhos com permissão própria são checados
-      // individualmente; filhos sem permissão herdam a visibilidade do pai.
-      const children = item.children.filter((child) => {
-        if (!isVisible(child.permission)) return false;
-        if (fullAccess) return true;
-        if (child.permission) return allowedPermissions.has(child.permission);
-        return parentPermitted;
-      });
-
-      if (children.length === 0) return null;
-      return { ...item, children };
-    })
+    .map((item) => filterNav(item, true))
     .filter((item): item is NavItem => item !== null);
 
   // Menu vazio por falha de carregamento é diferente de menu vazio por falta
@@ -348,15 +416,7 @@ export function AppSidebar() {
                       <Collapsible
                         key={item.name}
                         asChild
-                        defaultOpen={
-                          pathname === item.href ||
-                          pathname.startsWith(item.href + "/") ||
-                          item.children?.some(
-                            (child) =>
-                              pathname === child.href ||
-                              pathname.startsWith(child.href + "/"),
-                          )
-                        }
+                        defaultOpen={navMatchesPath(item, pathname)}
                       >
                         <SidebarMenuItem>
                           <CollapsibleTrigger asChild>
@@ -376,23 +436,12 @@ export function AppSidebar() {
                           <CollapsibleContent>
                             <SidebarMenuSub>
                               {item.children?.map((child) => (
-                                <SidebarMenuSubItem key={child.name}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    className={cn(
-                                      pathname === child.href &&
-                                        "bg-sidebar-accent text-sidebar-accent-foreground",
-                                    )}
-                                  >
-                                    <Link
-                                      href={child.href}
-                                      onClick={handleNavClick}
-                                    >
-                                      <child.icon />
-                                      <span>{child.name}</span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
+                                <SubItem
+                                  key={child.name}
+                                  item={child}
+                                  pathname={pathname}
+                                  onNav={handleNavClick}
+                                />
                               ))}
                             </SidebarMenuSub>
                           </CollapsibleContent>
@@ -407,7 +456,7 @@ export function AppSidebar() {
                       tooltip={item.name}
                       className={cn(
                         (pathname === item.href ||
-                          pathname.startsWith(item.href + "/")) &&
+                          pathname.startsWith(`${item.href}/`)) &&
                           "bg-sidebar-accent text-sidebar-accent-foreground",
                       )}
                       asChild
@@ -428,6 +477,67 @@ export function AppSidebar() {
         <NavUser />
       </SidebarFooter>
     </Sidebar>
+  );
+}
+
+// Renderiza um filho do menu: link simples (folha) ou um sub-grupo colapsável
+// aninhado (ex.: "Configurações de Trade" dentro de Trade Marketing).
+function SubItem({
+  item,
+  pathname,
+  onNav,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNav: () => void;
+}) {
+  const hasChildren = !!item.children?.length;
+
+  if (!hasChildren) {
+    return (
+      <SidebarMenuSubItem>
+        <SidebarMenuSubButton
+          asChild
+          className={cn(
+            pathname === item.href &&
+              "bg-sidebar-accent text-sidebar-accent-foreground",
+          )}
+        >
+          <Link href={item.href} onClick={onNav}>
+            <item.icon />
+            <span>{item.name}</span>
+          </Link>
+        </SidebarMenuSubButton>
+      </SidebarMenuSubItem>
+    );
+  }
+
+  return (
+    <Collapsible asChild defaultOpen={navMatchesPath(item, pathname)}>
+      <SidebarMenuSubItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuSubButton asChild className="cursor-pointer">
+            <button type="button">
+              <item.icon />
+              <span>{item.name}</span>
+              <ChevronDown className="ml-auto transition-transform duration-200 data-[state=open]:rotate-180" />
+            </button>
+          </SidebarMenuSubButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {item.children?.map((child) => (
+              <SubItem
+                key={child.name}
+                item={child}
+                pathname={pathname}
+                onNav={onNav}
+              />
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuSubItem>
+    </Collapsible>
   );
 }
 

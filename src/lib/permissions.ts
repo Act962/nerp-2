@@ -47,6 +47,11 @@ export const PAGE_PERMISSIONS = [
     href: "/fornecedores",
   },
   {
+    key: "trade-painel",
+    label: "Painel do Trade",
+    href: "/trade/painel",
+  },
+  {
     key: "lojas",
     label: "Lojas e Mapas",
     href: "/lojas",
@@ -75,6 +80,46 @@ export const PAGE_PERMISSIONS = [
     key: "planograma",
     label: "Planograma",
     href: "/trade/planograma",
+  },
+  {
+    key: "tradegram",
+    label: "TradeGram",
+    href: "/trade/tradegram",
+  },
+  {
+    key: "distribuidores",
+    label: "Distribuidores",
+    href: "/trade/distribuidores",
+  },
+  {
+    key: "diretorio",
+    label: "Diretório de Empresas",
+    href: "/trade/diretorio",
+  },
+  {
+    key: "cupons",
+    label: "Cupons",
+    href: "/trade/cupons",
+  },
+  {
+    key: "insights",
+    label: "Insights do Cliente",
+    href: "/trade/insights",
+  },
+  {
+    key: "plano",
+    label: "Plano & Assinatura",
+    href: "/trade/plano",
+  },
+  {
+    key: "promotor-vinculos",
+    label: "Vínculos de Promotores",
+    href: "/trade/promotor-vinculos",
+  },
+  {
+    key: "trade-interesses",
+    label: "Interesses (TradeGram)",
+    href: "/trade/interesses",
   },
   {
     key: "colaboradores",

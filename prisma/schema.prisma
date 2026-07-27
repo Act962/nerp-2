@@ -41,6 +41,7 @@ model User {
   authoredAnnotations      MapAnnotation[]      @relation("AuthoredAnnotations")
   editedMapObjects         MapObject[]          @relation("EditedMapObjects")
   createdNegotiations      SpaceNegotiation[]   @relation("CreatedSpaceNegotiations")
+  companyClaims            CompanyClaim[]       @relation("UserCompanyClaims")
 
   @@index([email])
   @@map("user")
@@ -143,6 +144,9 @@ model Organization {
   country                   String                     @default("BR")
   // Configurações visuais
   primaryColor              String                     @default("#3b82f6")
+  // Vitrine pública PlanoGram: quando true, /planogram/<slug> fica acessível
+  // sem login. Opt-in por org — nenhuma rede vira pública sem ligar isto.
+  isPublicProfile           Boolean                    @default(false)
   // Módulos do NERP que esta empresa NÃO usa — some do menu de todo mundo.
   // Lista de exclusão: default [] = todos ativos, módulo novo entra sozinho.
   disabledModules           String[]                   @default([])
@@ -202,6 +206,17 @@ model Organization {
   mediaTypes                MediaType[]
   negotiationTypes          NegotiationType[]
   storeSectors              StoreSector[]
+  promoterSuppliers         PromoterSupplier[]
+  promoterStores            PromoterStore[]
+  spaceInterests            SpaceInterest[]
+  distributors              Distributor[]
+  distributorIndustries     DistributorIndustry[]
+  storeDistributors         StoreDistributor[]
+  promoterDistributors      PromoterDistributor[]
+  claimedCompanies          DirectoryCompany[]         @relation("ClaimedCompanies")
+  companyClaims             CompanyClaim[]             @relation("OrgCompanyClaims")
+  tradeSubscription         TradeSubscription?
+  coupons                   Coupon[]
   // Catálogo PDV (precificação)
   mediaTypePrices           MediaTypePrice[]
   tradePricingSettings      TradePricingSettings?
@@ -236,6 +251,11 @@ model Member {
   supervisees      Member[]     @relation("MemberSupervisor")
 
   salesGoalEntries SalesGoalEntry[]
+  // Vínculos do promotor: indústrias que representa e lojas que cobre. Só pode
+  // fotografar uma indústria numa loja se tiver vínculo com AS DUAS.
+  promoterSuppliers PromoterSupplier[]
+  promoterStores    PromoterStore[]
+  promoterDistributors PromoterDistributor[]
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -484,6 +504,9 @@ model Product {
   stockMovements   StockMovement[]
   kitchenOrders    KitchenOrder[]
   planogramItems   PlanogramItem[]
+  favorites        Favorite[]
+  storeProducts    StoreProduct[]
+  batches          ProductBatch[]
 
   @@unique([organizationId, slug])
   // @@unique([organizationId, sku])
@@ -645,6 +668,8 @@ model Supplier {
   bookTemplates  BookTemplate[]
   bookPageTemplates BookPageTemplate[]
   negotiations   SpaceNegotiation[]
+  promoterLinks  PromoterSupplier[]
+  distributorLinks DistributorIndustry[]
 
   @@index([organizationId])
   @@index([document])
@@ -1472,6 +1497,7 @@ model Store {
   state           String?
   notes           String?          @db.Text
   isActive        Boolean          @default(true)
+  coverImageKey   String? // chave R2 da foto de fachada — vitrine PlanoGram
   // Métricas manuais p/ o Catálogo PDV (custo do m²) e a Biblioteca Nacional.
   // Nenhum contador automático existe — ponte ERP↔mapa é fora de escopo.
   areaM2          Float?
@@ -1483,9 +1509,445 @@ model Store {
   floorPlans      FloorPlan[]
   pdvPhotos       PdvPhoto[]
   mediaTypePrices MediaTypePrice[]
+  promoterLinks   PromoterStore[]
+  spaceInterests  SpaceInterest[]
+  distributorLinks StoreDistributor[]
+  storeProducts   StoreProduct[]
+  batches         ProductBatch[]
 
   @@index([organizationId])
   @@map("stores")
+}
+
+// Vínculo promotor → indústria: as indústrias que o promotor representa.
+model PromoterSupplier {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  supplierId     String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, supplierId])
+  @@index([organizationId])
+  @@index([supplierId])
+  @@map("promoter_suppliers")
+}
+
+// Vínculo promotor → loja: as lojas que o promotor cobre.
+model PromoterStore {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  storeId        String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  store          Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, storeId])
+  @@index([organizationId])
+  @@index([storeId])
+  @@map("promoter_stores")
+}
+
+// Distribuidor: intermediário logístico entre indústria e loja. A indústria nem
+// sempre tem vínculo direto com a loja — usa o distribuidor. É a ponte do grafo
+// de autorização da Fase 2 (indústria→distribuidor→loja).
+model Distributor {
+  id             String                @id @default(cuid())
+  organizationId String
+  name           String
+  document       String? // CNPJ
+  contactName    String?
+  contactPhone   String?
+  contactEmail   String?
+  logo           String?
+  notes          String?               @db.Text
+  isActive       Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  organization   Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  industries     DistributorIndustry[]
+  stores         StoreDistributor[]
+  promoterLinks  PromoterDistributor[]
+
+  @@index([organizationId])
+  @@map("distributors")
+}
+
+// Distribuidor ↔ indústria: quais indústrias o distribuidor representa.
+model DistributorIndustry {
+  id             String       @id @default(cuid())
+  organizationId String
+  distributorId  String
+  supplierId     String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  distributor    Distributor  @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([distributorId, supplierId])
+  @@index([organizationId])
+  @@index([supplierId])
+  @@map("distributor_industries")
+}
+
+// Distribuidor ↔ loja: quais lojas o distribuidor atende.
+model StoreDistributor {
+  id             String       @id @default(cuid())
+  organizationId String
+  storeId        String
+  distributorId  String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  store          Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  distributor    Distributor  @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, distributorId])
+  @@index([organizationId])
+  @@index([distributorId])
+  @@map("store_distributors")
+}
+
+// Promotor ↔ distribuidor: os distribuidores que o promotor representa. Junto
+// com as junções acima, autoriza o promotor a atuar numa loja via distribuidor.
+model PromoterDistributor {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  distributorId  String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  distributor    Distributor  @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, distributorId])
+  @@index([organizationId])
+  @@index([distributorId])
+  @@map("promoter_distributors")
+}
+
+// Diretório global de empresas (acima de org). Cascas pré-cadastradas por CNPJ
+// (supermercados/indústrias/distribuidores) que dão lastro à busca cross-org
+// desde o dia 1. Enquanto não reivindicada (claimedByOrgId nulo), é só uma
+// vitrine pública não-editável; o dono reivindica e passa a administrar.
+model DirectoryCompany {
+  id             String         @id @default(cuid())
+  type           CompanyType
+  name           String
+  tradeName      String?
+  document       String?        @unique // CNPJ — dedup global
+  city           String?
+  state          String?
+  logoKey        String?
+  website        String?
+  source         CompanySource  @default(USUARIO)
+  claimedByOrgId String?
+  claimedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  claimedByOrg   Organization?  @relation("ClaimedCompanies", fields: [claimedByOrgId], references: [id], onDelete: SetNull)
+  claims         CompanyClaim[]
+
+  @@index([type])
+  @@index([claimedByOrgId])
+  @@map("directory_companies")
+}
+
+// Reivindicação de uma empresa do diretório por uma org. APROVADA na hora quando
+// a empresa está livre (first-claim-wins com evidência registrada); CONTESTADA
+// quando já tem dono (fica pra resolução futura).
+model CompanyClaim {
+  id                String             @id @default(cuid())
+  companyId         String
+  organizationId    String
+  requestedByUserId String
+  status            CompanyClaimStatus @default(APROVADA)
+  claimantRole      String?
+  contactEmail      String?
+  document          String?
+  notes             String?            @db.Text
+  createdAt         DateTime           @default(now())
+  resolvedAt        DateTime?
+  company           DirectoryCompany   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  organization      Organization       @relation("OrgCompanyClaims", fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedBy       User               @relation("UserCompanyClaims", fields: [requestedByUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([organizationId])
+  @@map("company_claims")
+}
+
+enum CompanyType {
+  SUPERMERCADO
+  INDUSTRIA
+  DISTRIBUIDOR
+}
+
+enum CompanySource {
+  SEED // semeada pelo sistema
+  IMPORTACAO // importada em lote
+  USUARIO // adicionada por um usuário
+}
+
+enum CompanyClaimStatus {
+  APROVADA
+  PENDENTE
+  CONTESTADA
+  REJEITADA
+}
+
+// Assinatura do Trade Marketing (separada do `plan` PlanType do ERP). Define o
+// tier (Bronze/Prata/Ouro) que libera módulos e cotas de trade. `provider`/
+// `externalId` são o gancho para a cobrança real (Stripe/Asaas) — hoje o plano
+// é definido manualmente (status CORTESIA), sem transação.
+model TradeSubscription {
+  id               String                  @id @default(cuid())
+  organizationId   String                  @unique
+  plan             TradePlanTier
+  status           TradeSubscriptionStatus @default(CORTESIA)
+  currentPeriodEnd DateTime?
+  provider         String?
+  externalId       String?
+  extraUsers       Int                     @default(0)
+  extraPromoters   Int                     @default(0)
+  extraPhotos      Int                     @default(0)
+  extraStorageGb   Int                     @default(0)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  organization     Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("trade_subscriptions")
+}
+
+enum TradePlanTier {
+  BRONZE
+  PRATA
+  OURO
+}
+
+enum TradeSubscriptionStatus {
+  ATIVA // cobrança ativa (via provedor)
+  CORTESIA // liberado manualmente, sem cobrança
+  INADIMPLENTE // pagamento em atraso (mantém acesso em carência)
+  CANCELADA // sem acesso aos módulos pagos
+}
+
+// Evento de comportamento do shopper (app do cliente). Append-only, sem FK — é a
+// mangueira que alimenta o analytics de indústria. IDs (product/brand/supplier)
+// são denormalizados na escrita pro rollup nunca re-juntar. anonId identifica o
+// visitante sem login; shopperId preenche quando ele estiver logado (Fase B).
+model ScanEvent {
+  id             String        @id @default(cuid())
+  organizationId String
+  storeId        String
+  kind           ScanEventKind
+  barcode        String?
+  productId      String?
+  brandId        String?
+  supplierId     String?
+  sectorId       String?
+  query          String?
+  matched        Boolean       @default(false)
+  anonId         String
+  shopperId      String?
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, productId])
+  @@index([organizationId, storeId, createdAt])
+  @@map("scan_events")
+}
+
+enum ScanEventKind {
+  BARCODE_SCAN
+  PRODUCT_SEARCH
+  SECTOR_VIEW
+  LOCATE
+  UNKNOWN_BARCODE
+}
+
+// Cliente final (shopper) — identidade GLOBAL (sem organizationId), separada da
+// equipe (User/Member). Login leve por bcrypt + token HMAC (sem cookie/sessão
+// própria por enquanto). Favorita produtos, resgata cupons e recebe alerta de
+// queda de preço.
+model Shopper {
+  id           String             @id @default(cuid())
+  email        String             @unique
+  passwordHash String
+  name         String?
+  phone        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  favorites    Favorite[]
+  redemptions  CouponRedemption[]
+
+  @@map("shoppers")
+}
+
+// Produto favoritado pelo shopper. priceWhenFavorited guarda o preço no momento
+// pra mostrar "baixou X%" na leitura; lastNotifiedPrice deduplica o alerta.
+model Favorite {
+  id                 String   @id @default(cuid())
+  shopperId          String
+  organizationId     String
+  productId          String
+  storeId            String?
+  priceWhenFavorited Decimal  @db.Decimal(10, 2)
+  notifyOnDrop       Boolean  @default(true)
+  lastNotifiedPrice  Decimal? @db.Decimal(10, 2)
+  createdAt          DateTime @default(now())
+  shopper            Shopper  @relation(fields: [shopperId], references: [id], onDelete: Cascade)
+  product            Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([shopperId, productId])
+  @@index([productId])
+  @@index([organizationId, productId])
+  @@map("favorites")
+}
+
+// Cupom de desconto. funderSupplierId = indústria que patrocina (ROI mensurável).
+// Alvo por produto/marca/categoria. Sem transação de pagamento — só o registro.
+model Coupon {
+  id               String             @id @default(cuid())
+  organizationId   String
+  productId        String?
+  brandId          String?
+  categoryId       String?
+  funderSupplierId String?
+  title            String
+  type             CouponType
+  value            Decimal            @db.Decimal(10, 2)
+  minQty           Int?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  maxRedemptions   Int?
+  perShopperLimit  Int                @default(1)
+  personalized     Boolean            @default(false)
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  redemptions      CouponRedemption[]
+
+  @@index([organizationId, isActive])
+  @@index([productId])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id         String   @id @default(cuid())
+  couponId   String
+  shopperId  String
+  storeId    String
+  redeemedAt DateTime @default(now())
+  coupon     Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  shopper    Shopper  @relation(fields: [shopperId], references: [id], onDelete: Cascade)
+
+  @@index([couponId])
+  @@index([shopperId])
+  @@map("coupon_redemptions")
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+// Override de preço/estoque POR LOJA (a Fase A lê por org; aqui refina sem
+// backfill). Tudo nullable = override-com-fallback: o que for null cai no
+// escalar do Product. A liquidação por validade grava aqui o promotionalPrice.
+model StoreProduct {
+  id               String   @id @default(cuid())
+  organizationId   String
+  storeId          String
+  productId        String
+  salePrice        Decimal? @db.Decimal(10, 2)
+  promotionalPrice Decimal? @db.Decimal(10, 2)
+  currentStock     Decimal? @db.Decimal(10, 3)
+  minStock         Decimal? @db.Decimal(10, 3)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  store            Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, productId])
+  @@index([organizationId])
+  @@map("store_products")
+}
+
+// Lote com validade por loja. Fonte pro repositor acompanhar vencimento e
+// quantidade (evita dano ao consumidor e ruptura), junto do planograma.
+model ProductBatch {
+  id             String      @id @default(cuid())
+  organizationId String
+  storeId        String
+  productId      String
+  lote           String?
+  validade       DateTime
+  quantity       Decimal     @db.Decimal(10, 3)
+  status         BatchStatus @default(OK)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  store          Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  product        Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, storeId, validade])
+  @@index([productId])
+  @@map("product_batches")
+}
+
+enum BatchStatus {
+  OK
+  NEAR_EXPIRY
+  EXPIRED
+  CLEARED
+}
+
+// Lead público do TradeGram: um visitante (sem login) demonstra interesse num
+// espaço. Espaço LIVRE → INTERESSE; espaço ocupado → FILA_ESPERA. Mantém a
+// negociação DENTRO da plataforma (não expõe contato do comercial). O dono da
+// loja trabalha esses leads no inbox interno. O snapshot spaceCode/spaceLabel
+// sobrevive à edição/regeneração do objeto do mapa.
+model SpaceInterest {
+  id             String              @id @default(cuid())
+  organizationId String
+  storeId        String
+  mapObjectId    String?
+  kind           SpaceInterestKind
+  status         SpaceInterestStatus @default(NOVO)
+  spaceCode      String?
+  spaceLabel     String?
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  message        String?             @db.Text
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  store          Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  mapObject      MapObject?          @relation(fields: [mapObjectId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status])
+  @@index([storeId])
+  @@index([mapObjectId])
+  @@map("space_interests")
+}
+
+enum SpaceInterestKind {
+  INTERESSE // espaço livre — quer negociar o ponto
+  FILA_ESPERA // espaço ocupado — quer entrar na fila
+}
+
+enum SpaceInterestStatus {
+  NOVO
+  EM_CONTATO
+  GANHO
+  ARQUIVADO
 }
 
 model FloorPlan {
@@ -1581,6 +2043,7 @@ model MapObject {
   annotations       MapAnnotation[]
   planogramFixtures PlanogramFixture[]
   negotiations      SpaceNegotiation[]
+  spaceInterests    SpaceInterest[]
 
   @@unique([organizationId, spaceCode])
   @@index([organizationId])

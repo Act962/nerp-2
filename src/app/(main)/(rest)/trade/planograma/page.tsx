@@ -1,9 +1,9 @@
 import { PageHeader } from "@/components/page-header";
+import { requireTradeAccess } from "@/features/billing/lib/require-trade-access";
 import { PlanogramList } from "@/features/planogram/components/planogram-list";
-import { requirePermission } from "@/lib/auth-utils";
 
 export default async function PlanogramaPage() {
-  await requirePermission("planograma");
+  await requireTradeAccess("planograma");
 
   return (
     <div className="space-y-6">

@@ -22,6 +22,50 @@ export function useMyPhotos(status: PromotorPhotoStatus) {
   };
 }
 
+// Indústrias vinculadas ao promotor (as que ele pode fotografar). Owner/admin
+// recebem todas.
+export function useMyIndustries(search?: string) {
+  const query = useQuery(
+    orpc.promotor.myIndustries.queryOptions({ input: { search } }),
+  );
+  return {
+    suppliers: query.data?.suppliers ?? [],
+    isLoading: query.isPending,
+  };
+}
+
+// Gestão (admin): vínculos de um membro/promotor.
+export function useMemberLinks(memberId: string) {
+  const query = useQuery({
+    ...orpc.promotor.memberLinks.queryOptions({ input: { memberId } }),
+    enabled: !!memberId,
+  });
+  return {
+    supplierIds: query.data?.supplierIds ?? [],
+    storeIds: query.data?.storeIds ?? [],
+    distributorIds: query.data?.distributorIds ?? [],
+    isLoading: query.isPending,
+  };
+}
+
+export function useSetMemberLinks() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotor.setMemberLinks.mutationOptions({
+      onSuccess: () => {
+        toast.success("Vínculos salvos");
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.memberLinks.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.myIndustries.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useCapturePromotorPhoto() {
   const queryClient = useQueryClient();
   return useMutation(

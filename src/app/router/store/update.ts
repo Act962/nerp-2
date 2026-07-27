@@ -17,6 +17,7 @@ export const updateStore = base
       city: z.string().optional(),
       state: z.string().optional(),
       notes: z.string().optional(),
+      coverImageKey: z.string().nullable().optional(),
       isActive: z.boolean().optional(),
       areaM2: z.number().positive().nullable().optional(),
       monthlyCost: z.number().nonnegative().nullable().optional(),

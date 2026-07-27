@@ -136,3 +136,21 @@ export type NegotiationCreatedData = {
 export const negotiationCreated = eventType("pdv/negotiation.created", {
   schema: staticSchema<NegotiationCreatedData>(),
 });
+
+/**
+ * Alerta de queda de preço para o app do cliente (Shopper).
+ *
+ * Emitido quando o preço efetivo (promo ?? venda) de um produto cai. A função
+ * `shopperPriceAlert` acha os favoritos com `notifyOnDrop`, deduplica por
+ * `lastNotifiedPrice` e notifica (e-mail via Resend, best-effort).
+ */
+export type ShopperPriceChangedData = {
+  organizationId: string;
+  productId: string;
+  oldPrice: number;
+  newPrice: number;
+};
+
+export const shopperPriceChanged = eventType("shopper/price.changed", {
+  schema: staticSchema<ShopperPriceChangedData>(),
+});
