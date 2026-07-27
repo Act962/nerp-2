@@ -19,10 +19,12 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { normalizeCollaboratorName } from "@/features/ranking/lib/collaborator-name-match";
+import { compareRankEntries } from "@/features/ranking/lib/sales-goal-rank-order";
 import { playSalesGoalSound } from "@/features/ranking/lib/sales-goal-sound-presets";
 import { SALES_GOAL_THEME_STYLES } from "@/features/ranking/lib/sales-goal-theme";
 import type { SalesGoalPeriodType } from "@/features/ranking/lib/sales-goal-xlsx-parser";
 import { cn } from "@/lib/utils";
+import { SalesGoalPerformanceStrip } from "./sales-goal-performance-strip";
 import {
   formatBrl,
   SalesGoalPodium,
@@ -67,6 +69,22 @@ export interface SalesGoalBoardPeriod {
   label: string | null;
   goalTotal: number;
   achievedTotal: number;
+  // Todos ausentes no payload público, que é montado por allowlist: margem é
+  // estrutura de custo e não sai numa URL sem login (ver `public-list.ts`).
+  achievedSourceKind?: "ERP" | "NATIVE";
+  marginTotal?: number | null;
+  marginPercent?: number | null;
+  averageTicket?: number | null;
+  ordersTotal?: number;
+  projectedTotal?: number | null;
+  projectedPercent?: number | null;
+  coverageStart?: string | null;
+  pace?: { elapsedDays: number; totalDays: number; isClosed: boolean };
+  // Recorte de venda ativo + totais dos dois, para o seletor e o indicador
+  // secundário. Ausentes na venda nativa (só há um recorte).
+  salesMode?: "INVOICED" | "PIPELINE";
+  invoicedTotal?: number;
+  pipelineTotal?: number;
   branches: {
     id: string;
     name: string;
@@ -94,6 +112,9 @@ interface SalesGoalRankingBoardProps {
   isLoading: boolean;
   periodType: SalesGoalPeriodType;
   onPeriodTypeChange: (periodType: SalesGoalPeriodType) => void;
+  /** Recorte de venda selecionado e seu setter. Ausente = sem seletor (público sem toggle). */
+  salesMode?: "INVOICED" | "PIPELINE";
+  onSalesModeChange?: (mode: "INVOICED" | "PIPELINE") => void;
   onRefresh: () => void;
   canEdit?: boolean;
   /** Fallback de foto por nome do vendedor. A tela pública já vem resolvida do servidor. */
@@ -102,6 +123,13 @@ interface SalesGoalRankingBoardProps {
   headerActions?: ReactNode;
   /** Ações extras no grupo de botões da barra de filtros, ao lado do Modo TV. */
   toolbarActions?: ReactNode;
+  /**
+   * Indicador de estado ao lado da barra de filtros (ex.: última sincronização
+   * com o ERP). Fica FORA do `ButtonGroup` de propósito: o grupo remove borda e
+   * arredondamento dos filhos para colá-los, o que desmonta qualquer coisa que
+   * não seja botão de altura uniforme.
+   */
+  statusSlot?: ReactNode;
   /** Ações exibidas no estado vazio (configurar ranking, importar planilha). */
   emptyStateActions?: ReactNode;
 }
@@ -114,11 +142,14 @@ export function SalesGoalRankingBoard({
   isLoading,
   periodType,
   onPeriodTypeChange,
+  salesMode,
+  onSalesModeChange,
   onRefresh,
   canEdit = false,
   photoByName,
   headerActions,
   toolbarActions,
+  statusSlot,
   emptyStateActions,
 }: SalesGoalRankingBoardProps) {
   const [selectedBranch, setSelectedBranch] = useState<string>(ALL_BRANCHES);
@@ -233,16 +264,22 @@ export function SalesGoalRankingBoard({
       selectedBranch === ALL_BRANCHES
         ? period.branches
         : period.branches.filter((branch) => branch.id === selectedBranch);
-    return branches
-      .flatMap((branch) => branch.entries)
-      .map((entry) => ({
-        ...entry,
-        photoUrl:
-          entry.photoUrl ??
-          photoByName?.get(normalizeCollaboratorName(entry.sellerName)) ??
-          null,
-      }))
-      .sort((a, b) => (b.percentAchieved ?? -1) - (a.percentAchieved ?? -1));
+    return (
+      branches
+        .flatMap((branch) => branch.entries)
+        .map((entry) => ({
+          ...entry,
+          photoUrl:
+            entry.photoUrl ??
+            photoByName?.get(normalizeCollaboratorName(entry.sellerName)) ??
+            null,
+        }))
+        // Desempate por valor vendido: sem meta cadastrada `percentAchieved` é
+        // null para todo mundo, e o `flatMap` acima já concatenou filial por
+        // filial — sem este critério o pódio mostraria os primeiros da primeira
+        // filial em vez dos maiores vendedores.
+        .sort(compareRankEntries)
+    );
   }, [period, selectedBranch, photoByName]);
 
   const goalTotal =
@@ -264,6 +301,44 @@ export function SalesGoalRankingBoard({
       ? "Todas as equipes"
       : (period?.branches.find((branch) => branch.id === selectedBranch)
           ?.name ?? "Equipe");
+
+  // Métricas da faixa de performance escopadas ao filtro de equipe. Para "Todas
+  // as equipes" usa os totais do período (incluindo o indicador secundário
+  // faturado×pipeline). Para uma filial, recomputa margem/ticket/projeção das
+  // entries filtradas e OMITE o secundário — o payload não traz os dois recortes
+  // por filial, então mostrar o total da org ao lado do vendido da filial seria
+  // enganoso (era o bug: card na filial, métricas na org toda).
+  const stripPeriod = useMemo(() => {
+    if (!period) return null;
+    if (selectedBranch === ALL_BRANCHES) return period;
+
+    const revenue = entries.reduce((t, e) => t + (e.metrics?.revenue ?? 0), 0);
+    const cost = entries.reduce((t, e) => t + (e.metrics?.cost ?? 0), 0);
+    const orders = entries.reduce((t, e) => t + (e.metrics?.orders ?? 0), 0);
+    const ratio =
+      period.pace && period.pace.totalDays > 0
+        ? period.pace.elapsedDays / period.pace.totalDays
+        : 0;
+    const projectedTotal = ratio > 0 ? achievedTotal / ratio : null;
+
+    return {
+      ...period,
+      goalTotal,
+      achievedTotal,
+      marginTotal: revenue > 0 ? revenue - cost : null,
+      marginPercent: revenue > 0 ? ((revenue - cost) / revenue) * 100 : null,
+      averageTicket: orders > 0 ? revenue / orders : null,
+      ordersTotal: orders,
+      projectedTotal,
+      projectedPercent:
+        projectedTotal !== null && goalTotal > 0
+          ? (projectedTotal / goalTotal) * 100
+          : null,
+      // Sem dado dos dois recortes por filial → esconde o indicador secundário.
+      invoicedTotal: undefined,
+      pipelineTotal: undefined,
+    };
+  }, [period, selectedBranch, entries, goalTotal, achievedTotal]);
 
   const teamsForCarousel = useMemo(() => {
     const teams = [{ id: ALL_BRANCHES, name: "Todas" }];
@@ -334,7 +409,13 @@ export function SalesGoalRankingBoard({
             {settings?.displayName ?? "Ranking de Equipes"}
           </h1>
           <p className="text-sm text-muted-foreground">
-            Metas importadas do Winthor; vendido calculado das vendas do NERP.
+            {/* Sem `achievedSourceKind` (payload público) o texto fica neutro:
+              afirmar a origem errada é pior que não afirmar nada. */}
+            {period?.achievedSourceKind === "ERP"
+              ? "Metas importadas de planilha; vendido sincronizado do ERP."
+              : period?.achievedSourceKind === "NATIVE"
+                ? "Metas importadas de planilha; vendido calculado das vendas do NERP."
+                : "Metas importadas de planilha."}
           </p>
         </div>
         {headerActions}
@@ -360,64 +441,103 @@ export function SalesGoalRankingBoard({
             </SelectContent>
           </Select>
 
-          <ButtonGroup>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="gap-2">
-                  <Filter className="size-3.5" /> Filtros avançados
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-64 space-y-3">
-                <div className="flex items-center justify-between">
-                  <label htmlFor="filter-show-score" className="text-sm">
-                    Exibir pontuação
-                  </label>
-                  <Switch
-                    id="filter-show-score"
-                    checked={showScore}
-                    onCheckedChange={setShowScore}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="filter-show-percent" className="text-sm">
-                    Exibir porcentagem
-                  </label>
-                  <Switch
-                    id="filter-show-percent"
-                    checked={showPercent}
-                    onCheckedChange={setShowPercent}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="filter-show-sold-value" className="text-sm">
-                    Exibir valor vendido
-                  </label>
-                  <Switch
-                    id="filter-show-sold-value"
-                    checked={showSoldValue}
-                    onCheckedChange={setShowSoldValue}
-                  />
-                </div>
-              </PopoverContent>
-            </Popover>
-            <Button
-              variant="outline"
-              size="icon-sm"
-              onClick={onRefresh}
-              title="Atualizar"
-            >
-              <RotateCcw className="size-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={toggleTvMode}
-            >
-              <Maximize2 className="size-3.5" /> Modo TV
-            </Button>
-            {toolbarActions}
-          </ButtonGroup>
+          <div className="flex flex-wrap items-center gap-2">
+            {statusSlot}
+            <ButtonGroup>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="gap-2">
+                    <Filter className="size-3.5" /> Filtros avançados
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-64 space-y-3">
+                  {/* Recorte de venda: só faz sentido com ERP externo, onde
+                    faturado e pipeline diferem. */}
+                  {onSalesModeChange &&
+                    salesMode &&
+                    period?.achievedSourceKind === "ERP" && (
+                      <div className="space-y-1.5 border-b pb-3">
+                        <span className="text-sm font-medium">
+                          Contar venda por
+                        </span>
+                        <div className="grid grid-cols-2 gap-1">
+                          {(
+                            [
+                              ["INVOICED", "Faturado"],
+                              ["PIPELINE", "Todos os pedidos"],
+                            ] as const
+                          ).map(([mode, label]) => (
+                            <Button
+                              key={mode}
+                              type="button"
+                              size="sm"
+                              variant={
+                                salesMode === mode ? "default" : "outline"
+                              }
+                              onClick={() => onSalesModeChange(mode)}
+                            >
+                              {label}
+                            </Button>
+                          ))}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {salesMode === "PIPELINE"
+                            ? "Todo pedido não cancelado, como no relatório do Winthor."
+                            : "Só nota emitida — receita já faturada."}
+                        </p>
+                      </div>
+                    )}
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="filter-show-score" className="text-sm">
+                      Exibir pontuação
+                    </label>
+                    <Switch
+                      id="filter-show-score"
+                      checked={showScore}
+                      onCheckedChange={setShowScore}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="filter-show-percent" className="text-sm">
+                      Exibir porcentagem
+                    </label>
+                    <Switch
+                      id="filter-show-percent"
+                      checked={showPercent}
+                      onCheckedChange={setShowPercent}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="filter-show-sold-value" className="text-sm">
+                      Exibir valor vendido
+                    </label>
+                    <Switch
+                      id="filter-show-sold-value"
+                      checked={showSoldValue}
+                      onCheckedChange={setShowSoldValue}
+                    />
+                  </div>
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="outline"
+                size="icon-sm"
+                onClick={onRefresh}
+                title="Atualizar"
+              >
+                <RotateCcw className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2"
+                onClick={toggleTvMode}
+              >
+                <Maximize2 className="size-3.5" /> Modo TV
+              </Button>
+              {toolbarActions}
+            </ButtonGroup>
+          </div>
         </div>
 
         {isLoading ? (
@@ -532,6 +652,16 @@ export function SalesGoalRankingBoard({
                       </p>
                     </div>
                   </div>
+                  {/* Só rende com ERP externo; na página pública os campos não
+                    vêm no payload e a faixa some sozinha. Escopada à filial
+                    selecionada via `stripPeriod`. */}
+                  {stripPeriod && (
+                    <SalesGoalPerformanceStrip
+                      period={stripPeriod}
+                      accent={theme.accent}
+                      textOnDark={theme.textOnDark}
+                    />
+                  )}
                 </div>
 
                 {/* Trilho de ícones + presets de tempo — some no modo TV pra deixar limpo */}

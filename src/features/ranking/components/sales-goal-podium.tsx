@@ -18,6 +18,18 @@ export interface SalesGoalRankEntry {
   memberId?: string | null;
   photoUrl: string | null;
   achievedSource: "AUTO" | "MANUAL";
+  // Também ausente no payload público — margem é estrutura de custo do cliente
+  // e não sai numa URL sem login (ver `public-list.ts`). Só existe quando o
+  // vendido vem de ERP externo: venda nativa do NERP não guarda custo.
+  metrics?: {
+    revenue: number;
+    cost: number;
+    margin: number;
+    marginPercent: number | null;
+    orders: number;
+    customers: number;
+    averageTicket: number | null;
+  } | null;
 }
 
 function formatBrl(value: number): string {
@@ -158,7 +170,9 @@ function PodiumCard({
           >
             {entry.percentAchieved !== null
               ? `${entry.percentAchieved.toFixed(0)}% da meta`
-              : "sem venda"}
+              : entry.goalAmount <= 0
+                ? "sem meta definida"
+                : "sem venda"}
           </span>
         )}
         {showSoldValue && (

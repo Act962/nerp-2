@@ -132,6 +132,11 @@ export const PAGE_PERMISSIONS = [
     href: "/ranking",
   },
   {
+    key: "integracoes",
+    label: "Integrações",
+    href: "/integracoes",
+  },
+  {
     key: "configuracoes",
     label: "Configurações",
     href: "/configuracoes",

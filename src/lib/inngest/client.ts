@@ -154,3 +154,24 @@ export type ShopperPriceChangedData = {
 export const shopperPriceChanged = eventType("shopper/price.changed", {
   schema: staticSchema<ShopperPriceChangedData>(),
 });
+
+/**
+ * Sync do ERP externo (Winthor/Oracle hoje) para as tabelas canônicas.
+ *
+ * Emitido pelo cron `erpSyncSchedule`, um evento por organização, e também pela
+ * procedure `erpSync.run` (botão "Atualizar agora"). Um evento por org — em vez
+ * de um laço numa função só — isola falha: ERP de um cliente fora do ar não
+ * atrasa nem consome o retry dos outros.
+ *
+ * `windowDays` é quantos dias para trás reprocessar. Não é enfeite: pedido no
+ * Winthor muda de POSICAO depois de criado, então reler só "hoje" perderia o
+ * pedido de terça que virou faturado na quinta.
+ */
+export type ErpSyncRequestedData = {
+  organizationId: string;
+  windowDays?: number;
+};
+
+export const erpSyncRequested = eventType("erp/sync.requested", {
+  schema: staticSchema<ErpSyncRequestedData>(),
+});

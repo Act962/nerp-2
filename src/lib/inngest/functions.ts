@@ -1,4 +1,8 @@
 import prisma from "@/lib/db";
+import {
+  listOrganizationsForSync,
+  runErpSync,
+} from "@/features/erp-sync/server/run-erp-sync";
 import { deliver } from "@/lib/sync-deliver";
 import { runProductImport } from "@/features/products/server/import-runner";
 import { runSupplierImport } from "@/features/supplier/server/supplier-import-runner";
@@ -9,6 +13,7 @@ import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
 import {
   bookGenerateRequested,
   customerImportRequested,
+  erpSyncRequested,
   inngest,
   productImportRequested,
   shopperPriceChanged,
@@ -255,6 +260,87 @@ export const shopperPriceAlert = inngest.createFunction(
   },
 );
 
+/**
+ * Agendador do sync de ERP externo.
+ *
+ * Não sincroniza nada: lista as organizações com ERP configurado e dispara um
+ * evento por org, para que a falha de um cliente não contamine os outros.
+ *
+ * Cadência calculada para o consumo do Inngest (ver `docs/` do módulo):
+ * 15 em 15 min, das 6h às 22h, de segunda a sábado. Domingo fica de fora porque
+ * a base não vende no domingo — conferido nos dados: 19/07/2026 não tem uma
+ * linha de pedido faturado. Isso dá ~68 execuções/dia contra 96 de um cron 24/7,
+ * e ~1.800 disparos/mês em vez de ~2.900.
+ */
+export const erpSyncSchedule = inngest.createFunction(
+  {
+    id: "erp-sync-schedule",
+    triggers: [{ cron: "TZ=America/Fortaleza 0,15,30,45 6-22 * * 1-6" }],
+  },
+  async ({ step }) => {
+    const organizationIds = await step.run("list-orgs", () =>
+      listOrganizationsForSync(),
+    );
+    if (organizationIds.length === 0) return { dispatched: 0 };
+
+    await step.sendEvent(
+      "dispatch",
+      organizationIds.map((organizationId) =>
+        erpSyncRequested.create({ organizationId, windowDays: 7 }),
+      ),
+    );
+    return { dispatched: organizationIds.length };
+  },
+);
+
+/**
+ * Passada profunda noturna.
+ *
+ * A janela curta do cron de 15 min não enxerga mudança tardia — pedido
+ * cancelado semanas depois, ou faturado fora do prazo. Uma vez por dia relê 90
+ * dias para o espelho não divergir devagar da origem.
+ */
+export const erpSyncDeepSchedule = inngest.createFunction(
+  {
+    id: "erp-sync-deep-schedule",
+    triggers: [{ cron: "TZ=America/Fortaleza 0 3 * * *" }],
+  },
+  async ({ step }) => {
+    const organizationIds = await step.run("list-orgs", () =>
+      listOrganizationsForSync(),
+    );
+    if (organizationIds.length === 0) return { dispatched: 0 };
+
+    await step.sendEvent(
+      "dispatch",
+      organizationIds.map((organizationId) =>
+        erpSyncRequested.create({ organizationId, windowDays: 90 }),
+      ),
+    );
+    return { dispatched: organizationIds.length };
+  },
+);
+
+/**
+ * Executa o sync de uma organização.
+ *
+ * `concurrency` por org evita que o botão "Atualizar agora" e o cron rodem em
+ * cima um do outro e briguem pela mesma janela de datas. `onFailure` já é
+ * coberto por `runErpSync`, que grava o erro na conexão antes de propagar.
+ */
+export const erpSyncRun = inngest.createFunction(
+  {
+    id: "erp-sync-run",
+    triggers: [erpSyncRequested],
+    retries: 3,
+    concurrency: { key: "event.data.organizationId", limit: 1 },
+  },
+  async ({ event, step }) => {
+    const { organizationId, windowDays } = event.data;
+    return step.run("sync", () => runErpSync(organizationId, { windowDays }));
+  },
+);
+
 export const functions = [
   syncNasaDelivery,
   productImportProcess,
@@ -263,4 +349,7 @@ export const functions = [
   bookGenerate,
   tradeCatalogGenerate,
   shopperPriceAlert,
+  erpSyncSchedule,
+  erpSyncDeepSchedule,
+  erpSyncRun,
 ];

@@ -37,6 +37,7 @@ import {
   MapPinned,
   Megaphone,
   Package,
+  Plug,
   Plus,
   Settings,
   ShoppingCart,
@@ -278,6 +279,12 @@ const navigation: NavItem[] = [
     href: "/ranking",
     icon: Trophy,
     permission: "ranking",
+  },
+  {
+    name: "Integrações",
+    href: "/integracoes",
+    icon: Plug,
+    permission: "integracoes",
   },
   {
     name: "Catálogo Online",

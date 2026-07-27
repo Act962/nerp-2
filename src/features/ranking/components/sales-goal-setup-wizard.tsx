@@ -226,7 +226,12 @@ export function SalesGoalSetupWizard({
   const membersQuery = useQuery(orpc.members.list.queryOptions({ input: {} }));
   // includeInactiveBranches: sem isso, equipes desativadas ficariam fora do
   // prefill e o prune do salvamento as apagaria silenciosamente.
-  const existingQuery = useSalesGoalRanking(initialPeriodType, undefined, true);
+  const existingQuery = useSalesGoalRanking(
+    initialPeriodType,
+    undefined,
+    undefined,
+    true,
+  );
 
   const [stepIndex, setStepIndex] = useState(0);
   const [done, setDone] = useState(false);

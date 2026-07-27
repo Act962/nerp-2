@@ -4,14 +4,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import type { SalesGoalPeriodType } from "../lib/sales-goal-xlsx-parser";
 
+// Recorte de venda: faturado (padrão) ou pipeline (todo pedido não cancelado).
+export type SalesMode = "INVOICED" | "PIPELINE";
+
 export function useSalesGoalRanking(
   periodType: SalesGoalPeriodType,
+  salesMode: SalesMode = "INVOICED",
   periodStart?: string,
   includeInactiveBranches?: boolean,
 ) {
   return useQuery(
     orpc.ranking.list.queryOptions({
-      input: { periodType, periodStart, includeInactiveBranches },
+      input: { periodType, salesMode, periodStart, includeInactiveBranches },
       // vendido AUTO muda fora da tela (vendas concluídas no PDV) — polling
       // mantém Modo TV e sons reagindo sem interação
       refetchInterval: 30_000,
@@ -24,10 +28,11 @@ export function useSalesGoalRanking(
 export function usePublicSalesGoalRanking(
   orgSlug: string,
   periodType: SalesGoalPeriodType,
+  salesMode: SalesMode = "INVOICED",
 ) {
   return useQuery(
     orpc.ranking.publicList.queryOptions({
-      input: { orgSlug, periodType },
+      input: { orgSlug, periodType, salesMode },
       refetchInterval: 30_000,
     }),
   );

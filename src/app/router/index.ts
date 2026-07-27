@@ -45,6 +45,7 @@ import { storeInventoryRoutes } from "./store-inventory";
 import { tradegramPublicRoutes } from "./tradegram-public";
 import { tradeDashboardRoutes } from "./trade-dashboard";
 import { tradeInterestRoutes } from "./trade-interest";
+import { erpSyncRoutes } from "./erp-sync";
 
 export const router = {
   products: productsRoutes,
@@ -94,4 +95,5 @@ export const router = {
   coupon: couponRoutes,
   storeInventory: storeInventoryRoutes,
   shopperInsights: shopperInsightsRoutes,
+  erpSync: erpSyncRoutes,
 };

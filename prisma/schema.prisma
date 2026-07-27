@@ -221,6 +221,10 @@ model Organization {
   mediaTypePrices           MediaTypePrice[]
   tradePricingSettings      TradePricingSettings?
   regionCostBenchmarks      RegionCostBenchmark[]
+  // Integração com ERP externo (espelho canônico de vendas)
+  erpConnection             ErpConnection?
+  externalSellers           ExternalSeller[]
+  salesFactsDaily           SalesFactDaily[]
 
   @@index([slug])
   @@index([subdomain])
@@ -256,6 +260,7 @@ model Member {
   promoterSuppliers PromoterSupplier[]
   promoterStores    PromoterStore[]
   promoterDistributors PromoterDistributor[]
+  externalSellers  ExternalSeller[]
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -2744,4 +2749,118 @@ model PlanogramVersion {
   @@unique([planogramId, version])
   @@index([organizationId])
   @@map("planogram_versions")
+}
+
+// ============================================
+// INTEGRAÇÃO COM ERP EXTERNO
+// ============================================
+// Camada canônica. O NERP espelha aqui as vendas de qualquer origem, sempre com
+// a mesma forma; ranking e dashboards leem só destas tabelas e nunca sabem se o
+// dado veio do Winthor, de outro ERP ou das vendas nativas. Quem traduz é o
+// conector em `src/features/erp-sync/server/connectors/` — é o único lugar do
+// código onde nome de ERP pode aparecer.
+//
+// A aplicação NUNCA consulta o ERP em request: o sync é assíncrono e escreve
+// aqui. Conexões de ERP são somente-leitura (ver `oracle-client.ts`).
+
+enum ErpConnectionKind {
+  NATIVE // sem ERP externo: o vendido sai de Sale (comportamento padrão)
+  WINTHOR_ORACLE // TOTVS Winthor sobre Oracle
+}
+
+enum ErpConnectionStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+// Uma origem de venda por organização — é o que torna `resolveSalesConnector`
+// determinístico e evita dois "vendido" concorrentes no ranking.
+model ErpConnection {
+  id               String              @id @default(cuid())
+  organizationId   String              @unique
+  kind             ErpConnectionKind   @default(NATIVE)
+  status           ErpConnectionStatus @default(ACTIVE)
+  // Credenciais + schema do ERP, cifrados com AES-256-GCM (mesmo cofre do S2S,
+  // `src/lib/nasa-s2s-crypto.ts`). NATIVE não usa. Nunca sai para o client.
+  configCiphertext String?
+  // Marcado ao disparar o sync e limpo ao terminar. `status` continua sendo
+  // saúde da conexão, não etapa — misturar os dois esconderia um ERROR atrás de
+  // um "sincronizando". Sync travado se reconhece por `syncStartedAt` antigo.
+  syncStartedAt    DateTime?
+  lastSyncAt       DateTime?
+  lastSyncError    String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("erp_connections")
+}
+
+// Vendedor do ERP ↔ Member do NERP. É o ÚNICO lugar desse vínculo:
+// SalesGoalEntry.externalCode resolve através daqui, para não existirem duas
+// verdades sobre quem é quem.
+model ExternalSeller {
+  id             String  @id @default(cuid())
+  organizationId String
+  externalCode   String // PCUSUARI.CODUSUR no Winthor
+  name           String
+  branchCode     String? // filial do ERP; não confiável como chave (vem null/99)
+  supervisorCode String?
+  supervisorName String? // nome da equipe (PCSUPERV.NOME) — divisão do ranking
+  // Código que não é pessoa (Winthor: CODUSUR 7 = CHECK-OUT BOMBONIERE).
+  // Fica fora do ranking de pessoas; conta como canal.
+  isBucket       Boolean @default(false)
+  isActive       Boolean @default(true)
+  memberId       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, externalCode])
+  @@index([organizationId])
+  @@index([memberId])
+  @@map("external_sellers")
+}
+
+// Grão: dia × vendedor. Uma org com 34 vendedores ativos gera ~12 k linhas/ano —
+// barato de reprocessar por inteiro quando a regra mudar.
+//
+// A filial NÃO entra no grão: o mesmo vendedor pode faturar por duas filiais no
+// mesmo dia, e o ranking atribui a venda à pessoa. A filial que importa é a do
+// vendedor, que vive em `ExternalSeller.branchCode`.
+//
+// Sem FK para ExternalSeller de propósito: dado de ERP tem código órfão (pedido
+// apontando para vendedor que sumiu do cadastro), e uma FK derrubaria o sync
+// inteiro por causa de uma linha. Os órfãos são reportados pelo job.
+model SalesFactDaily {
+  id                 String   @id @default(cuid())
+  organizationId     String
+  date               DateTime @db.Date
+  sellerExternalCode String
+  // Bucket FATURADO (posicao = 'F'): só nota emitida, a receita conservadora.
+  revenue            Decimal  @db.Decimal(15, 2)
+  cost               Decimal  @db.Decimal(15, 2)
+  orders             Int      @default(0)
+  customers          Int      @default(0)
+  // Bucket PIPELINE (posicao <> 'C'): todo pedido não cancelado, incluindo em
+  // andamento. É o número que o relatório de supervisor do Winthor mostra, e é
+  // um superconjunto do faturado. O board deixa o usuário escolher qual conta.
+  revenuePipeline    Decimal  @default(0) @db.Decimal(15, 2)
+  costPipeline       Decimal  @default(0) @db.Decimal(15, 2)
+  ordersPipeline     Int      @default(0)
+  customersPipeline  Int      @default(0)
+
+  syncedAt DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, date, sellerExternalCode])
+  @@index([organizationId, date])
+  @@index([organizationId, sellerExternalCode])
+  @@map("sales_facts_daily")
 }

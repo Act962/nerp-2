@@ -3,10 +3,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
-import {
-  computeAchievedByUserId,
-  resolveUserIdByMemberId,
-} from "./_sales-aggregation";
+import { buildAchievedLookup } from "./_sales-aggregation";
 import { periodTypeSchema } from "./_schemas";
 
 export const listSalesGoalEvolution = base
@@ -37,36 +34,35 @@ export const listSalesGoalEvolution = base
           .filter((memberId): memberId is string => memberId !== null),
       ),
     ];
-    const userIdByMemberId = await resolveUserIdByMemberId(
-      context.org.id,
-      allMemberIds,
-    );
+
+    // Resolve a conexão uma vez e repassa: sem isto cada período refazia o mesmo
+    // findUnique da mesma linha.
+    const connection = await prisma.erpConnection.findUnique({
+      where: { organizationId: context.org.id },
+      select: { kind: true },
+    });
 
     return Promise.all(
       periods.map(async (period) => {
         const allEntries = period.branches.flatMap((branch) => branch.entries);
-        const hasLinkedEntry = allEntries.some(
-          (entry) =>
-            entry.memberId !== null && userIdByMemberId.has(entry.memberId),
+        const lookup = await buildAchievedLookup(
+          context.org.id,
+          period.periodStart,
+          period.periodEnd,
+          allMemberIds,
+          "INVOICED",
+          connection,
         );
-        const achievedByUserId = hasLinkedEntry
-          ? await computeAchievedByUserId(
-              context.org.id,
-              period.periodStart,
-              period.periodEnd,
-            )
-          : new Map<string, number>();
 
         const goalTotal = allEntries.reduce(
           (total, entry) => total + Number(entry.goalAmount),
           0,
         );
         const achievedTotal = allEntries.reduce((total, entry) => {
-          const linkedUserId = entry.memberId
-            ? userIdByMemberId.get(entry.memberId)
-            : undefined;
-          if (linkedUserId)
-            return total + (achievedByUserId.get(linkedUserId) ?? 0);
+          const auto = entry.achievedIsManual
+            ? null
+            : lookup.achievedFor(entry);
+          if (auto !== null) return total + auto;
           return (
             total +
             (entry.achievedAmount !== null ? Number(entry.achievedAmount) : 0)

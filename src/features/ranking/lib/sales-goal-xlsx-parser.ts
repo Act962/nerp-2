@@ -1,4 +1,5 @@
 import * as XLSX from "xlsx";
+import { isSellerBucketName } from "@/utils/seller-bucket";
 import { parseBrlAmount as parseBrlAmountString } from "./parse-brl-amount";
 
 // Parser heurístico da planilha de metas do Winthor: estrutura hierárquica
@@ -40,8 +41,6 @@ export interface ParsedSalesGoalWorkbook {
   warnings: string[];
 }
 
-const BUCKET_KEYWORDS = ["TREINAMENTO", "CHECK-OUT", "CHECKOUT"];
-
 const MONTH_NAMES_PT: Record<string, number> = {
   JANEIRO: 1,
   FEVEREIRO: 2,
@@ -68,11 +67,6 @@ function formatBrl(value: number): string {
 
 function isTotalRow(cells: string[]): boolean {
   return cells.some((cell) => /TOTAL\s+EM\s+GERAL/i.test(cell));
-}
-
-function isBucketName(name: string): boolean {
-  const upper = name.toUpperCase();
-  return BUCKET_KEYWORDS.some((keyword) => upper.includes(keyword));
 }
 
 function extractMetaHeader(cells: string[]): {
@@ -199,7 +193,7 @@ export async function parseSalesGoalWorkbook(
       sellerName: nameCell,
       goalName: nameCell,
       goalAmount,
-      entryKind: isBucketName(nameCell) ? "BUCKET" : "SELLER",
+      entryKind: isSellerBucketName(nameCell) ? "BUCKET" : "SELLER",
     });
   }
 
