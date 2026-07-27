@@ -23,6 +23,8 @@ export interface ExternalSellerDTO {
   name: string;
   branchCode: string | null;
   supervisorCode: string | null;
+  /** Nome da equipe (supervisor) — a divisão comercial usada no ranking. */
+  supervisorName: string | null;
   /** Código que não representa uma pessoa (balcão, treinamento, PDV). */
   isBucket: boolean;
   isActive: boolean;

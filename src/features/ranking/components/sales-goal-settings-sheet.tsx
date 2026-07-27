@@ -199,6 +199,10 @@ function TeamsTab({ periodType }: { periodType: SalesGoalPeriodType }) {
   const query = useSalesGoalRanking(periodType, undefined, undefined, true);
   const updateBranch = useUpdateSalesGoalBranch();
   const branches = query.data?.branches ?? [];
+  // Com ERP ativo o ranking usa as equipes do Winthor (período virtual, ids
+  // sintéticos). Editar não persiste — mostra read-only em vez de controles que
+  // falhariam em silêncio (NOT_FOUND).
+  const isErpSourced = query.data?.achievedSourceKind === "ERP";
 
   if (query.isLoading)
     return <Loader2 className="size-5 animate-spin text-muted-foreground" />;
@@ -207,6 +211,29 @@ function TeamsTab({ periodType }: { periodType: SalesGoalPeriodType }) {
       <p className="text-sm text-muted-foreground">
         Nenhuma equipe importada ainda para este período.
       </p>
+    );
+  }
+
+  if (isErpSourced) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground">
+          As equipes vêm do ERP (Winthor), pelo supervisor de cada vendedor, e
+          são atualizadas a cada sincronização — não são editáveis aqui.
+        </p>
+        {branches.map((branch) => (
+          <div
+            key={branch.id}
+            className="flex items-center justify-between gap-2 rounded-md border p-2"
+          >
+            <span className="text-sm font-medium">{branch.name}</span>
+            <span className="text-xs text-muted-foreground shrink-0">
+              {branch.entries.length}{" "}
+              {branch.entries.length === 1 ? "vendedor" : "vendedores"}
+            </span>
+          </div>
+        ))}
+      </div>
     );
   }
 

@@ -21,6 +21,32 @@ export async function buildSalesGoalRanking(
   organizationId: string,
   input: BuildRankingInput,
 ) {
+  const salesMode: SalesMode = input.salesMode ?? "INVOICED";
+
+  // Origem padrão do ranking: enquanto houver uma conexão de ERP externo ATIVA,
+  // o board mostra os dados do ERP (todos os vendedores do Winthor, ordenados
+  // por vendido), MESMO que já exista planilha importada. Pausar ou remover a
+  // conexão devolve o comando à planilha. Sem fatos na janela pedida (ex.: mês
+  // fora da cobertura do espelho), cai para a planilha em vez de um board vazio.
+  const connection = await prisma.erpConnection.findUnique({
+    where: { organizationId },
+    select: { kind: true, status: true },
+  });
+  const erpActive =
+    connection !== null &&
+    connection.kind !== "NATIVE" &&
+    connection.status !== "PAUSED";
+
+  if (erpActive) {
+    const erpPeriod = await buildVirtualPeriodFromErp(
+      organizationId,
+      input.periodType,
+      undefined,
+      salesMode,
+    );
+    if (erpPeriod) return erpPeriod;
+  }
+
   const period = await prisma.salesGoalPeriod.findFirst({
     where: {
       organizationId,
@@ -39,18 +65,18 @@ export async function buildSalesGoalRanking(
     },
   });
 
-  const salesMode: SalesMode = input.salesMode ?? "INVOICED";
-
-  // Sem período cadastrado para o tipo escolhido, o board caía vazio mesmo com
-  // venda sincronizada — só o mês costuma vir da planilha. Deriva a janela do
-  // espelho do ERP, sem persistir nada.
+  // Sem planilha cadastrada: se o ERP ativo não tinha fatos na janela, honra o
+  // board vazio; senão mantém o caminho antigo (deriva do espelho, que já
+  // devolve null quando não há ERP externo).
   if (!period) {
-    return buildVirtualPeriodFromErp(
-      organizationId,
-      input.periodType,
-      undefined,
-      salesMode,
-    );
+    return erpActive
+      ? null
+      : buildVirtualPeriodFromErp(
+          organizationId,
+          input.periodType,
+          undefined,
+          salesMode,
+        );
   }
 
   const linkedMemberIds = [
@@ -67,6 +93,8 @@ export async function buildSalesGoalRanking(
     period.periodEnd,
     linkedMemberIds,
     salesMode,
+    // Conexão já resolvida acima — evita o `findUnique` repetido lá dentro.
+    connection ? { kind: connection.kind } : null,
   );
 
   const pace = computePeriodPace(period.periodStart, period.periodEnd);

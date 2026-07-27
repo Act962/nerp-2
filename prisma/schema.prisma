@@ -2051,6 +2051,7 @@ model ExternalSeller {
   name           String
   branchCode     String? // filial do ERP; não confiável como chave (vem null/99)
   supervisorCode String?
+  supervisorName String? // nome da equipe (PCSUPERV.NOME) — divisão do ranking
   // Código que não é pessoa (Winthor: CODUSUR 7 = CHECK-OUT BOMBONIERE).
   // Fica fora do ranking de pessoas; conta como canal.
   isBucket       Boolean @default(false)
