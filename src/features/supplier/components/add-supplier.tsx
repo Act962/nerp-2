@@ -47,6 +47,7 @@ const createSupplierSchema = z.object({
   email: z.string().optional(),
   contactPerson: z.string().optional(),
   logo: z.string().optional(),
+  actionCodeImage: z.string().optional(),
   cep: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
@@ -71,6 +72,7 @@ export const AddSupplierModal = ({
       email: "",
       contactPerson: "",
       logo: "",
+      actionCodeImage: "",
       cep: "",
       city: "",
       state: "",
@@ -100,7 +102,7 @@ export const AddSupplierModal = ({
           "address",
           `${addressData.logradouro}${
             addressData.bairro ? `, ${addressData.bairro}` : ""
-          }`
+          }`,
         );
       }
     }
@@ -124,243 +126,262 @@ export const AddSupplierModal = ({
         </DialogHeader>
         <form onSubmit={form.handleSubmit(onSubmit)}>
           <div className="overflow-y-auto max-h-[60vh] pr-1">
-          <FieldGroup>
-            <Controller
-              name="logo"
-              control={form.control}
-              render={({ field }) => (
-                <Field>
-                  <FieldLabel>Logo</FieldLabel>
-                  <LogoUploader
-                    value={field.value}
-                    onChange={field.onChange}
-                  />
-                </Field>
-              )}
-            />
-            <Controller
-              name="personType"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Tipo</FieldLabel>
-                  <Select
-                    name={field.name}
-                    value={field.value}
-                    onValueChange={field.onChange}
-                  >
-                    <SelectTrigger
-                      id={field.name}
-                      aria-invalid={fieldState.invalid}
-                      disabled={isLoading}
+            <FieldGroup>
+              <Controller
+                name="logo"
+                control={form.control}
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>Logo</FieldLabel>
+                    <LogoUploader
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </Field>
+                )}
+              />
+              <Controller
+                name="actionCodeImage"
+                control={form.control}
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel>Imagem do código de ação</FieldLabel>
+                    <LogoUploader
+                      value={field.value}
+                      onChange={field.onChange}
+                    />
+                  </Field>
+                )}
+              />
+              <Controller
+                name="personType"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field>
+                    <FieldLabel htmlFor={field.name}>Tipo</FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={field.onChange}
                     >
-                      <SelectValue placeholder="Selecione o tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="JURIDICA">Pessoa Jurídica</SelectItem>
-                      <SelectItem value="FISICA">Pessoa Física</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </Field>
-              )}
-            />
-            <Controller
-              name="name"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Razão Social / Nome</FieldLabel>
-                  <Input
-                    {...field}
-                    id={field.name}
-                    aria-invalid={fieldState.invalid}
-                    placeholder="Ex.: Empresa Distribuidora Ltda"
-                    disabled={isLoading}
-                  />
-                  {fieldState.error && (
-                    <FieldError errors={[fieldState.error]} />
+                      <SelectTrigger
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        disabled={isLoading}
+                      >
+                        <SelectValue placeholder="Selecione o tipo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="JURIDICA">
+                          Pessoa Jurídica
+                        </SelectItem>
+                        <SelectItem value="FISICA">Pessoa Física</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                )}
+              />
+              <Controller
+                name="name"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field>
+                    <FieldLabel htmlFor={field.name}>
+                      Razão Social / Nome
+                    </FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      placeholder="Ex.: Empresa Distribuidora Ltda"
+                      disabled={isLoading}
+                    />
+                    {fieldState.error && (
+                      <FieldError errors={[fieldState.error]} />
+                    )}
+                  </Field>
+                )}
+              />
+              <Controller
+                name="tradeName"
+                control={form.control}
+                render={({ field, fieldState }) => (
+                  <Field>
+                    <FieldLabel htmlFor={field.name}>Nome Fantasia</FieldLabel>
+                    <Input
+                      {...field}
+                      id={field.name}
+                      aria-invalid={fieldState.invalid}
+                      placeholder="Ex.: Distribuidora ABC"
+                      disabled={isLoading}
+                    />
+                  </Field>
+                )}
+              />
+              <div className="flex items-center gap-4">
+                <Controller
+                  name="document"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>CPF/CNPJ</FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ex.: 00.000.000/0001-00"
+                        onChange={(e) => {
+                          field.onChange(formatCPForCNPJ(e.target.value));
+                        }}
+                        disabled={isLoading}
+                      />
+                    </Field>
                   )}
-                </Field>
-              )}
-            />
-            <Controller
-              name="tradeName"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Nome Fantasia</FieldLabel>
-                  <Input
-                    {...field}
-                    id={field.name}
-                    aria-invalid={fieldState.invalid}
-                    placeholder="Ex.: Distribuidora ABC"
-                    disabled={isLoading}
-                  />
-                </Field>
-              )}
-            />
-            <div className="flex items-center gap-4">
+                />
+                <Controller
+                  name="phone"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Telefone</FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="(00) 00000-0000"
+                        onChange={(e) => {
+                          field.onChange(phoneMask(e.target.value));
+                        }}
+                        disabled={isLoading}
+                      />
+                    </Field>
+                  )}
+                />
+              </div>
+              <div className="flex items-center gap-4">
+                <Controller
+                  name="email"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Email</FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ex.: contato@empresa.com"
+                        disabled={isLoading}
+                      />
+                    </Field>
+                  )}
+                />
+                <Controller
+                  name="contactPerson"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>
+                        Pessoa de Contato
+                      </FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ex.: João Silva"
+                        disabled={isLoading}
+                      />
+                    </Field>
+                  )}
+                />
+              </div>
+              <div className="flex items-center gap-4">
+                <Controller
+                  name="cep"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>CEP</FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ex.: 00000-000"
+                        onChange={(e) => {
+                          const maskedValue = cepMask(e.target.value);
+                          field.onChange(maskedValue);
+                          handleCepChange(maskedValue);
+                        }}
+                        disabled={isLoading}
+                      />
+                    </Field>
+                  )}
+                />
+                <Controller
+                  name="city"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Cidade</FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ex.: São Paulo"
+                        disabled={isLoading}
+                      />
+                    </Field>
+                  )}
+                />
+                <Controller
+                  name="state"
+                  control={form.control}
+                  render={({ field, fieldState }) => (
+                    <Field>
+                      <FieldLabel htmlFor={field.name}>Estado</FieldLabel>
+                      <Input
+                        {...field}
+                        id={field.name}
+                        aria-invalid={fieldState.invalid}
+                        placeholder="Ex.: SP"
+                        disabled={isLoading}
+                      />
+                    </Field>
+                  )}
+                />
+              </div>
               <Controller
-                name="document"
+                name="address"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field>
-                    <FieldLabel htmlFor={field.name}>CPF/CNPJ</FieldLabel>
+                    <FieldLabel htmlFor={field.name}>Endereço</FieldLabel>
                     <Input
                       {...field}
                       id={field.name}
                       aria-invalid={fieldState.invalid}
-                      placeholder="Ex.: 00.000.000/0001-00"
-                      onChange={(e) => {
-                        field.onChange(formatCPForCNPJ(e.target.value));
-                      }}
+                      placeholder="Ex.: Rua das Flores, 123"
                       disabled={isLoading}
                     />
                   </Field>
                 )}
               />
               <Controller
-                name="phone"
+                name="notes"
                 control={form.control}
                 render={({ field, fieldState }) => (
                   <Field>
-                    <FieldLabel htmlFor={field.name}>Telefone</FieldLabel>
-                    <Input
+                    <FieldLabel htmlFor={field.name}>Observação</FieldLabel>
+                    <Textarea
                       {...field}
                       id={field.name}
                       aria-invalid={fieldState.invalid}
-                      placeholder="(00) 00000-0000"
-                      onChange={(e) => {
-                        field.onChange(phoneMask(e.target.value));
-                      }}
+                      placeholder="Informações adicionais sobre o fornecedor"
                       disabled={isLoading}
                     />
                   </Field>
                 )}
               />
-            </div>
-            <div className="flex items-center gap-4">
-              <Controller
-                name="email"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>Email</FieldLabel>
-                    <Input
-                      {...field}
-                      id={field.name}
-                      aria-invalid={fieldState.invalid}
-                      placeholder="Ex.: contato@empresa.com"
-                      disabled={isLoading}
-                    />
-                  </Field>
-                )}
-              />
-              <Controller
-                name="contactPerson"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>Pessoa de Contato</FieldLabel>
-                    <Input
-                      {...field}
-                      id={field.name}
-                      aria-invalid={fieldState.invalid}
-                      placeholder="Ex.: João Silva"
-                      disabled={isLoading}
-                    />
-                  </Field>
-                )}
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <Controller
-                name="cep"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>CEP</FieldLabel>
-                    <Input
-                      {...field}
-                      id={field.name}
-                      aria-invalid={fieldState.invalid}
-                      placeholder="Ex.: 00000-000"
-                      onChange={(e) => {
-                        const maskedValue = cepMask(e.target.value);
-                        field.onChange(maskedValue);
-                        handleCepChange(maskedValue);
-                      }}
-                      disabled={isLoading}
-                    />
-                  </Field>
-                )}
-              />
-              <Controller
-                name="city"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>Cidade</FieldLabel>
-                    <Input
-                      {...field}
-                      id={field.name}
-                      aria-invalid={fieldState.invalid}
-                      placeholder="Ex.: São Paulo"
-                      disabled={isLoading}
-                    />
-                  </Field>
-                )}
-              />
-              <Controller
-                name="state"
-                control={form.control}
-                render={({ field, fieldState }) => (
-                  <Field>
-                    <FieldLabel htmlFor={field.name}>Estado</FieldLabel>
-                    <Input
-                      {...field}
-                      id={field.name}
-                      aria-invalid={fieldState.invalid}
-                      placeholder="Ex.: SP"
-                      disabled={isLoading}
-                    />
-                  </Field>
-                )}
-              />
-            </div>
-            <Controller
-              name="address"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Endereço</FieldLabel>
-                  <Input
-                    {...field}
-                    id={field.name}
-                    aria-invalid={fieldState.invalid}
-                    placeholder="Ex.: Rua das Flores, 123"
-                    disabled={isLoading}
-                  />
-                </Field>
-              )}
-            />
-            <Controller
-              name="notes"
-              control={form.control}
-              render={({ field, fieldState }) => (
-                <Field>
-                  <FieldLabel htmlFor={field.name}>Observação</FieldLabel>
-                  <Textarea
-                    {...field}
-                    id={field.name}
-                    aria-invalid={fieldState.invalid}
-                    placeholder="Informações adicionais sobre o fornecedor"
-                    disabled={isLoading}
-                  />
-                </Field>
-              )}
-            />
-          </FieldGroup>
+            </FieldGroup>
           </div>
           <DialogFooter className="mt-4">
             <DialogClose asChild>

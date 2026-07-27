@@ -47,6 +47,11 @@ export const PAGE_PERMISSIONS = [
     href: "/fornecedores",
   },
   {
+    key: "trade-painel",
+    label: "Painel do Trade",
+    href: "/trade/painel",
+  },
+  {
     key: "lojas",
     label: "Lojas e Mapas",
     href: "/lojas",
@@ -65,6 +70,56 @@ export const PAGE_PERMISSIONS = [
     key: "catalogo-pdv",
     label: "Catálogo PDV",
     href: "/trade/catalogo-pdv",
+  },
+  {
+    key: "promotor",
+    label: "Promotor (captura)",
+    href: "/promotor",
+  },
+  {
+    key: "planograma",
+    label: "Planograma",
+    href: "/trade/planograma",
+  },
+  {
+    key: "tradegram",
+    label: "TradeGram",
+    href: "/trade/tradegram",
+  },
+  {
+    key: "distribuidores",
+    label: "Distribuidores",
+    href: "/trade/distribuidores",
+  },
+  {
+    key: "diretorio",
+    label: "Diretório de Empresas",
+    href: "/trade/diretorio",
+  },
+  {
+    key: "cupons",
+    label: "Cupons",
+    href: "/trade/cupons",
+  },
+  {
+    key: "insights",
+    label: "Insights do Cliente",
+    href: "/trade/insights",
+  },
+  {
+    key: "plano",
+    label: "Plano & Assinatura",
+    href: "/trade/plano",
+  },
+  {
+    key: "promotor-vinculos",
+    label: "Vínculos de Promotores",
+    href: "/trade/promotor-vinculos",
+  },
+  {
+    key: "trade-interesses",
+    label: "Interesses (TradeGram)",
+    href: "/trade/interesses",
   },
   {
     key: "colaboradores",
@@ -91,6 +146,26 @@ export const PAGE_PERMISSIONS = [
 export type PagePermissionKey = (typeof PAGE_PERMISSIONS)[number]["key"];
 
 export const PAGE_PERMISSION_KEYS = PAGE_PERMISSIONS.map((p) => p.key);
+
+// Permissões de AÇÃO (não abrem página, não entram no menu): liberam um botão
+// específico. Aparecem no painel de Permissões junto com as de página.
+export const ACTION_PERMISSIONS = [
+  {
+    key: "books-aprovar",
+    label: "Aprovar fotos de Books",
+  },
+] as const;
+
+export type ActionPermissionKey = (typeof ACTION_PERMISSIONS)[number]["key"];
+
+// Tudo que um admin pode atribuir a um membro no painel de Permissões.
+export const ASSIGNABLE_PERMISSIONS: { key: string; label: string }[] = [
+  ...PAGE_PERMISSIONS.map((page) => ({ key: page.key, label: page.label })),
+  ...ACTION_PERMISSIONS.map((action) => ({
+    key: action.key,
+    label: action.label,
+  })),
+];
 
 // Cargos oferecidos ao convidar/alterar um membro. "owner" existe no plugin
 // organization mas fica de fora: virar dono é transferência, não convite.
@@ -149,6 +224,16 @@ interface MemberLike {
 export function memberHasPermission(
   member: MemberLike | null | undefined,
   key: PagePermissionKey,
+): boolean {
+  if (!member) return false;
+  if (hasFullAccess(member.role)) return true;
+  return (member.permissions ?? []).includes(key);
+}
+
+// Versão genérica pra permissões de ação (chave livre, ex.: "books-aprovar").
+export function memberCan(
+  member: MemberLike | null | undefined,
+  key: string,
 ): boolean {
   if (!member) return false;
   if (hasFullAccess(member.role)) return true;

@@ -48,6 +48,7 @@ export function MapViewerWorkspace({ storeId }: MapViewerWorkspaceProps) {
     <MapViewer
       key={selectedId}
       floorPlanId={selectedId}
+      storeId={storeId}
       storeName={store?.name}
       floorPlans={floorPlans}
       selectedFloorPlanId={selectedId}

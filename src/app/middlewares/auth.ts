@@ -29,7 +29,7 @@ export const requireAuthMiddleware = base.middleware(
     });
 
     if (!sessionData?.session || !sessionData?.user) {
-      throw errors.UNAUTHORIZED;
+      throw errors.UNAUTHORIZED();
     }
 
     // Adds session and user to the context

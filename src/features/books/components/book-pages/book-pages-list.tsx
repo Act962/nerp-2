@@ -22,6 +22,7 @@ import { useUpdatePdvPhoto } from "@/features/pdv-photos/hooks/use-pdv-photos";
 import { Plus } from "lucide-react";
 import {
   useAddBookPage,
+  useDuplicateBookPage,
   useRemoveBookItem,
   useReorderBookItems,
 } from "../../hooks/use-books";
@@ -57,6 +58,7 @@ export function BookPagesList({
   logos,
 }: BookPagesListProps) {
   const addPage = useAddBookPage();
+  const duplicatePage = useDuplicateBookPage();
   const updatePhoto = useUpdatePdvPhoto({ silent: true });
   const removeItem = useRemoveBookItem();
   const reorderItems = useReorderBookItems();
@@ -156,8 +158,15 @@ export function BookPagesList({
       open={openAddPage}
       onOpenChange={setOpenAddPage}
       onConfirm={handleConfirmPage}
-      isSaving={isSavingPage}
+      onDuplicate={async (itemId) => {
+        await duplicatePage.mutateAsync({ bookId, itemId });
+      }}
+      isSaving={isSavingPage || duplicatePage.isPending}
       supplierId={supplierId}
+      existingPages={orderedItems.map((item) => ({
+        id: item.id,
+        storeName: item.storeName,
+      }))}
     />
   ) : null;
 

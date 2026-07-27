@@ -30,13 +30,20 @@ import {
   MapIcon,
   MapPinnedIcon,
   MoreVerticalIcon,
+  QrCodeIcon,
+  ScanBarcodeIcon,
   SearchIcon,
   Trash2Icon,
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import {
+  StoreQrDialog,
+  type StoreQrVariant,
+} from "@/features/shopper/components/store-qr-dialog";
 import { useStores } from "../hooks/use-stores";
 import { DeleteStore } from "./delete-store";
+import { StoreCoverCell } from "./store-cover-cell";
 import { StoreFormDialog } from "./store-form-dialog";
 
 export function ListStores() {
@@ -44,6 +51,8 @@ export function ListStores() {
   const [selectedId, setSelectedId] = useState("");
   const [openEdit, setOpenEdit] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
+  const [qrStoreId, setQrStoreId] = useState("");
+  const [qrVariant, setQrVariant] = useState<StoreQrVariant>("scanner");
 
   const { stores, isLoading } = useStores(search || undefined);
 
@@ -100,13 +109,20 @@ export function ListStores() {
                   stores.map((store) => (
                     <TableRow key={store.id}>
                       <TableCell>
-                        <div className="flex flex-col">
-                          <span className="font-medium">{store.name}</span>
-                          {store.code && (
-                            <span className="font-mono text-xs text-muted-foreground">
-                              {store.code}
-                            </span>
-                          )}
+                        <div className="flex items-center gap-3">
+                          <StoreCoverCell
+                            storeId={store.id}
+                            coverImageKey={store.coverImageKey}
+                            name={store.name}
+                          />
+                          <div className="flex flex-col">
+                            <span className="font-medium">{store.name}</span>
+                            {store.code && (
+                              <span className="font-mono text-xs text-muted-foreground">
+                                {store.code}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell>{store.managerName || "—"}</TableCell>
@@ -159,6 +175,26 @@ export function ListStores() {
                                   Fotos do PDV
                                 </Link>
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setQrStoreId(store.id);
+                                  setQrVariant("scanner");
+                                }}
+                              >
+                                <ScanBarcodeIcon className="mr-2 size-4" />
+                                QR code scanner
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setQrStoreId(store.id);
+                                  setQrVariant("promotor");
+                                }}
+                              >
+                                <QrCodeIcon className="mr-2 size-4" />
+                                QR code promotor
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 onClick={() => {
                                   setSelectedId(store.id);
@@ -200,6 +236,12 @@ export function ListStores() {
         id={selectedId}
         open={openDelete}
         onOpenChange={setOpenDelete}
+      />
+      <StoreQrDialog
+        open={!!qrStoreId}
+        onOpenChange={(open) => !open && setQrStoreId("")}
+        storeId={qrStoreId}
+        variant={qrVariant}
       />
     </>
   );

@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { memberCan } from "@/lib/permissions";
 import { z } from "zod";
 
 export const getBook = base
@@ -47,9 +48,18 @@ export const getBook = base
       throw errors.NOT_FOUND({ message: "Book não encontrado" });
     }
 
+    const member = await prisma.member.findFirst({
+      where: { organizationId: context.org.id, userId: context.user.id },
+      select: { role: true, permissions: true },
+    });
+    const canApprove = memberCan(member, "books-aprovar");
+
     return {
       id: book.id,
       name: book.name,
+      canApprove,
+      sentAt: book.sentAt?.toISOString() ?? null,
+      sentByName: book.sentByName,
       supplierId: book.supplierId,
       supplierName: book.supplier?.name ?? null,
       supplierLogo: book.supplier?.logo ?? null,
@@ -81,6 +91,10 @@ export const getBook = base
         pageLayout: item.pageLayout,
         pageBackground: item.pageBackground,
         hasOwnPageLayout: Array.isArray(item.pageLayout),
+        approvalStatus: item.approvalStatus,
+        approvalNote: item.approvalNote,
+        reviewedByName: item.reviewedByName,
+        reviewedAt: item.reviewedAt?.toISOString() ?? null,
         storeName: item.pdvPhoto.store.name,
         // Snapshot da página vence; vazio cai no gerente cadastrado na loja.
         managerName:

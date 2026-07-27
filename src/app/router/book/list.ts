@@ -20,22 +20,45 @@ export const listBook = base
         status: true,
         pdfKey: true,
         generatedAt: true,
-        supplier: { select: { name: true } },
+        sentAt: true,
+        distributorLogo: true,
+        coverLayout: true,
+        coverBackground: true,
+        supplier: { select: { name: true, logo: true } },
+        organization: { select: { logo: true } },
         _count: { select: { items: true } },
+        items: { select: { approvalStatus: true } },
       },
     });
 
     return {
-      books: books.map((book) => ({
-        id: book.id,
-        name: book.name,
-        periodMonth: book.periodMonth,
-        periodYear: book.periodYear,
-        status: book.status,
-        pdfKey: book.pdfKey,
-        generatedAt: book.generatedAt?.toISOString() ?? null,
-        supplierName: book.supplier?.name ?? null,
-        itemsCount: book._count.items,
-      })),
+      books: books.map((book) => {
+        const rejectedCount = book.items.filter(
+          (item) => item.approvalStatus === "REJECTED",
+        ).length;
+        const approvedCount = book.items.filter(
+          (item) => item.approvalStatus === "APPROVED",
+        ).length;
+        return {
+          id: book.id,
+          name: book.name,
+          periodMonth: book.periodMonth,
+          periodYear: book.periodYear,
+          status: book.status,
+          pdfKey: book.pdfKey,
+          generatedAt: book.generatedAt?.toISOString() ?? null,
+          sentAt: book.sentAt?.toISOString() ?? null,
+          supplierName: book.supplier?.name ?? null,
+          itemsCount: book._count.items,
+          rejectedCount,
+          approvedCount,
+          // Capa pra miniatura da vista "Capas": layout + fundo + logos
+          // resolvidos igual ao editor/geração.
+          coverLayout: book.coverLayout,
+          coverBackground: book.coverBackground,
+          organizationLogo: book.distributorLogo ?? book.organization.logo,
+          supplierLogo: book.supplier?.logo ?? null,
+        };
+      }),
     };
   });

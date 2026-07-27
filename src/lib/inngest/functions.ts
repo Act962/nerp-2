@@ -9,12 +9,14 @@ import { runSupplierImport } from "@/features/supplier/server/supplier-import-ru
 import { runCustomerImport } from "@/features/custom/server/customer-import-runner";
 import { generateBook } from "@/features/books/server/generate-book";
 import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-catalog-pdf";
+import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
 import {
   bookGenerateRequested,
   customerImportRequested,
   erpSyncRequested,
   inngest,
   productImportRequested,
+  shopperPriceChanged,
   supplierImportRequested,
   syncNasaRequested,
   tradeCatalogGenerateRequested,
@@ -243,6 +245,22 @@ export const tradeCatalogGenerate = inngest.createFunction(
 );
 
 /**
+ * Alerta de queda de preço para o app do cliente.
+ *
+ * Disparada por `shopper/price.changed` (de `products.update`). Notifica os
+ * favoritos com queda real e deduplica por `lastNotifiedPrice`.
+ */
+export const shopperPriceAlert = inngest.createFunction(
+  { id: "shopper-price-alert", triggers: [shopperPriceChanged], retries: 2 },
+  async ({ event, step }) => {
+    const { productId, newPrice } = event.data;
+    return step.run("notify-favorites", () =>
+      runShopperPriceAlert({ productId, newPrice }),
+    );
+  },
+);
+
+/**
  * Agendador do sync de ERP externo.
  *
  * Não sincroniza nada: lista as organizações com ERP configurado e dispara um
@@ -330,6 +348,7 @@ export const functions = [
   customerImportProcess,
   bookGenerate,
   tradeCatalogGenerate,
+  shopperPriceAlert,
   erpSyncSchedule,
   erpSyncDeepSchedule,
   erpSyncRun,

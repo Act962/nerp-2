@@ -1,10 +1,10 @@
 import { PageHeader } from "@/components/page-header";
+import { requireTradeAccess } from "@/features/billing/lib/require-trade-access";
 import { AddBookButton } from "@/features/books/components/add-book-button";
-import { BooksList } from "@/features/books/components/books-list";
-import { requirePermission } from "@/lib/auth-utils";
+import { BooksScreen } from "@/features/books/components/books-screen";
 
 export default async function BooksPage() {
-  await requirePermission("books");
+  await requireTradeAccess("books");
 
   return (
     <div className="space-y-6">
@@ -14,7 +14,7 @@ export default async function BooksPage() {
       >
         <AddBookButton />
       </PageHeader>
-      <BooksList />
+      <BooksScreen />
     </div>
   );
 }

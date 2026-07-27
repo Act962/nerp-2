@@ -4,6 +4,7 @@ import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { ProductUnit } from "@/generated/prisma/enums";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { inngest, shopperPriceChanged } from "@/lib/inngest/client";
 
 export const updateProduct = base
   .use(requireAuthMiddleware)
@@ -105,6 +106,28 @@ export const updateProduct = base
         supplierId: input.supplierId === "" ? null : input.supplierId,
       },
     });
+
+    // Preço efetivo (promo ?? venda) caiu → dispara alerta para quem favoritou.
+    const effective = (sale: unknown, promo: unknown) => Number(promo ?? sale);
+    const oldPrice = effective(
+      productExists.salePrice,
+      productExists.promotionalPrice,
+    );
+    const newPrice = effective(product.salePrice, product.promotionalPrice);
+    if (newPrice < oldPrice) {
+      await inngest
+        .send(
+          shopperPriceChanged.create({
+            organizationId: product.organizationId,
+            productId: product.id,
+            oldPrice,
+            newPrice,
+          }),
+        )
+        .catch((error) => {
+          console.error("[products.update] price alert send falhou:", error);
+        });
+    }
 
     return {
       id: product.id,

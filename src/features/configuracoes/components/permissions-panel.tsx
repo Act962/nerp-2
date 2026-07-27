@@ -24,7 +24,7 @@ import {
   useUpdateMemberPermissions,
   useUpdateMemberSupervisor,
 } from "@/features/members/hooks/use-members";
-import { PAGE_PERMISSIONS, roleLabel } from "@/lib/permissions";
+import { ASSIGNABLE_PERMISSIONS, roleLabel } from "@/lib/permissions";
 import { ShieldCheck, Users } from "lucide-react";
 
 // Radix Select não aceita value="", então "sem supervisor" precisa de sentinela.
@@ -149,7 +149,7 @@ export function PermissionsPanel() {
                     </p>
                   ) : (
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {PAGE_PERMISSIONS.map((page) => {
+                      {ASSIGNABLE_PERMISSIONS.map((page) => {
                         const checked = member.permissions.includes(page.key);
                         const id = `${member.id}-${page.key}`;
                         return (

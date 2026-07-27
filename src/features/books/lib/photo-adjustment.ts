@@ -10,6 +10,22 @@ export interface PhotoAdjustment {
   zoom: number;
   posX: number;
   posY: number;
+  backdrop?: PhotoBackdrop;
+  backdropColor?: string;
+  // Polígono desenhado pelo usuário que fica nítido quando backdrop === "blur";
+  // o resto da foto sai desfocado. Cada nó em % do espaço da foto (0-100).
+  // Menos de 3 nós = nada nítido ainda (foto toda desfocada).
+  focusPolygon?: FocusPoint[];
+}
+
+// "blur" = foco seletivo: o polígono `focusPolygon` fica nítido e o resto
+// desfocado. "color" pinta uma cor sólida atrás de uma foto "caber inteira".
+export type PhotoBackdrop = "none" | "blur" | "color";
+
+// Nó do polígono de foco, em % do espaço da foto (0-100).
+export interface FocusPoint {
+  x: number;
+  y: number;
 }
 
 export const DEFAULT_PHOTO_ADJUSTMENT: PhotoAdjustment = {
@@ -17,6 +33,14 @@ export const DEFAULT_PHOTO_ADJUSTMENT: PhotoAdjustment = {
   posX: 50,
   posY: 50,
 };
+
+export const DEFAULT_BACKDROP_COLOR = "#ffffff";
+
+// CSS clip-path a partir dos nós; abaixo de 3 nós não há área fechada.
+export function focusPolygonCss(points: FocusPoint[]): string | undefined {
+  if (points.length < 3) return undefined;
+  return `polygon(${points.map((point) => `${point.x}% ${point.y}%`).join(", ")})`;
+}
 
 export type PhotoAdjustmentMap = Record<string, PhotoAdjustment>;
 

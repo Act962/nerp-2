@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   DownloadIcon,
   ImagePlusIcon,
+  SendIcon,
   SparklesIcon,
   TriangleAlert,
   Zap,
@@ -15,7 +16,7 @@ import {
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState } from "react";
-import { useBook, useGenerateBook } from "../hooks/use-books";
+import { useBook, useGenerateBook, useSendBook } from "../hooks/use-books";
 import { formatPeriod } from "../lib/book-format";
 import { BookPagesList } from "./book-pages/book-pages-list";
 import { BookStatusBadge } from "./book-status-badge";
@@ -57,6 +58,7 @@ interface BookEditorProps {
 export function BookEditor({ bookId }: BookEditorProps) {
   const { book, isLoading } = useBook(bookId);
   const generateBook = useGenerateBook();
+  const sendBook = useSendBook();
   const [openImport, setOpenImport] = useState(false);
   const [openSaveTemplate, setOpenSaveTemplate] = useState(false);
   const [pendingMode, setPendingMode] = useState<"queue" | "sync" | null>(null);
@@ -132,6 +134,26 @@ export function BookEditor({ bookId }: BookEditorProps) {
             <ImagePlusIcon className="size-4" />
             Importar fotos
           </Button>
+          {book.canApprove && (
+            <Button
+              variant={book.sentAt ? "outline" : "default"}
+              onClick={() =>
+                sendBook.mutate({
+                  id: bookId,
+                  undo: !!book.sentAt || undefined,
+                })
+              }
+              disabled={sendBook.isPending}
+              title={
+                book.sentAt
+                  ? `Enviado por ${book.sentByName ?? "—"}`
+                  : "Marcar como enviado à indústria/fornecedor"
+              }
+            >
+              <SendIcon className="size-4" />
+              {book.sentAt ? "Enviado ✓" : "Enviar à indústria"}
+            </Button>
+          )}
           {(isGenerating || isFailed) && (
             <Button
               variant="outline"

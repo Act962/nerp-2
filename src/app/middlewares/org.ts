@@ -23,7 +23,7 @@ export const requireOrgMiddleware = base.middleware(
     });
 
     if (!organization) {
-      throw errors.FORBIDDEN;
+      throw errors.FORBIDDEN();
     }
 
     // Adds session and user to the context

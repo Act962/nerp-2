@@ -5,8 +5,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { LinkPhotosToMapPanel } from "@/features/pdv-photos/components/link-photos-to-map-panel";
 import { PdvPhotoSection } from "@/features/pdv-photos/components/pdv-photo-section";
-import { ArrowLeft, MapIcon } from "lucide-react";
+import { StoreQrDialog } from "@/features/shopper/components/store-qr-dialog";
+import { ArrowLeft, ClipboardList, MapIcon, QrCode } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { useStore } from "../hooks/use-stores";
 
 interface StoreDetailProps {
@@ -15,6 +17,7 @@ interface StoreDetailProps {
 
 export function StoreDetail({ storeId }: StoreDetailProps) {
   const { store, isLoading } = useStore(storeId);
+  const [qrOpen, setQrOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -42,13 +45,31 @@ export function StoreDetail({ storeId }: StoreDetailProps) {
             )}
           </div>
         </div>
-        <Button asChild variant="outline">
-          <Link href={`/lojas/${storeId}/mapa`}>
-            <MapIcon className="size-4" />
-            Abrir mapa
-          </Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setQrOpen(true)}
+          >
+            <QrCode className="size-4" />
+            QR da loja
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/lojas/${storeId}/reposicao`}>
+              <ClipboardList className="size-4" />
+              Reposição
+            </Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link href={`/lojas/${storeId}/mapa`}>
+              <MapIcon className="size-4" />
+              Abrir mapa
+            </Link>
+          </Button>
+        </div>
       </div>
+
+      <StoreQrDialog open={qrOpen} onOpenChange={setQrOpen} storeId={storeId} />
 
       <LinkPhotosToMapPanel storeId={storeId} />
 

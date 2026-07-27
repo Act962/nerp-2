@@ -158,6 +158,9 @@ importers:
       html-to-image:
         specifier: ^1.11.13
         version: 1.11.13
+      immer:
+        specifier: ^11.1.15
+        version: 11.1.15
       inngest:
         specifier: ^4.5.0
         version: 4.5.0(@opentelemetry/core@2.7.1(@opentelemetry/api@1.9.1))(hono@4.10.6)(next@15.5.9(@babel/core@7.28.5)(@opentelemetry/api@1.9.1)(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)(typescript@5.9.3)(zod@4.3.5)
@@ -256,7 +259,7 @@ importers:
         version: 4.3.5
       zustand:
         specifier: ^5.0.9
-        version: 5.0.9(@types/react@19.2.7)(immer@11.1.11)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
+        version: 5.0.9(@types/react@19.2.7)(immer@11.1.15)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0))
     devDependencies:
       '@biomejs/biome':
         specifier: 2.2.0
@@ -4902,8 +4905,8 @@ packages:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
     engines: {node: '>= 4'}
 
-  immer@11.1.11:
-    resolution: {integrity: sha512-qzXuyXAkPySAGYkfsAwodDPWT8Zm7/Uo5BNt4BjhMhG5WlWyZZ4wQqnWwdS8kjlQ1Cwu6gjw3A6+0gTQwlyYtw==}
+  immer@11.1.15:
+    resolution: {integrity: sha512-VrNANlmnWQnh5COXIIOQXM9oOJw7naGKlBT74ZOOR6lpVXc3gFEu9FJLDFcpCJ2j+NWr8TIwtWD//T6ZX6TKiQ==}
 
   import-fresh@3.3.1:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
@@ -11782,8 +11785,7 @@ snapshots:
 
   ignore@5.3.2: {}
 
-  immer@11.1.11:
-    optional: true
+  immer@11.1.15: {}
 
   import-fresh@3.3.1:
     dependencies:
@@ -13256,9 +13258,9 @@ snapshots:
 
   zod@4.3.5: {}
 
-  zustand@5.0.9(@types/react@19.2.7)(immer@11.1.11)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0)):
+  zustand@5.0.9(@types/react@19.2.7)(immer@11.1.15)(react@19.1.0)(use-sync-external-store@1.6.0(react@19.1.0)):
     optionalDependencies:
       '@types/react': 19.2.7
-      immer: 11.1.11
+      immer: 11.1.15
       react: 19.1.0
       use-sync-external-store: 1.6.0(react@19.1.0)

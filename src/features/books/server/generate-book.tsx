@@ -13,6 +13,7 @@ import {
   type CoverElement,
 } from "../lib/cover-layout";
 import {
+  DEFAULT_BACKDROP_COLOR,
   DEFAULT_PHOTO_ADJUSTMENT,
   buildPhotoSlotMap,
   getSlotAspectRatio,
@@ -22,9 +23,10 @@ import {
 import {
   BookDocument,
   type BookDocumentData,
+  type PhotoBackdropSource,
   type PhotoSource,
 } from "../pdf/book-document";
-import { cropPhotoForPdf } from "./crop-photo";
+import { composeFocusPhotoForPdf, cropPhotoForPdf } from "./crop-photo";
 
 // `imageKey` de cada elemento tipo "image" vira URL completa — book-document.tsx
 // só sabe renderizar, não resolve keys do R2.
@@ -77,11 +79,26 @@ async function resolvePhotoSources(
       let aspectRatio: number;
       if (photoSlots) {
         const slot = photoSlots.get(index);
-        // Slot inexistente: a foto não entra nesta página. "Caber inteira"
-        // precisa da imagem completa — cortar aqui contradiria a opção
-        // escolhida e comeria parte da foto.
-        if (!slot || slot.objectFit === "contain") return constructUrl(key);
+        if (!slot) return constructUrl(key);
         aspectRatio = slot.aspectRatio;
+        // Foco seletivo compõe a foto inteira desfocada + o recorte nítido numa
+        // imagem só; vale mesmo em slot "caber inteira", que aí passa a
+        // preencher o espaço com a versão desfocada.
+        if (adjustment.backdrop === "blur") {
+          try {
+            const buffer = await composeFocusPhotoForPdf(
+              constructUrl(key),
+              adjustment,
+              aspectRatio,
+            );
+            return { data: buffer, format: "jpg" as const };
+          } catch {
+            return constructUrl(key);
+          }
+        }
+        // "Caber inteira" sem foco precisa da imagem completa — cortar aqui
+        // contradiria a opção e comeria parte da foto.
+        if (slot.objectFit === "contain") return constructUrl(key);
       } else {
         aspectRatio = getSlotAspectRatio(pattern, index, photos.length);
       }
@@ -100,6 +117,25 @@ async function resolvePhotoSources(
       }
     }),
   );
+}
+
+// Cor sólida atrás de uma foto "caber inteira". O desfoque com foco seletivo
+// não passa por aqui: ele é composto direto na imagem do slot
+// (composeFocusPhotoForPdf), então só a cor sobra pra este caminho.
+function resolvePhotoBackdrops(
+  photos: string[],
+  adjustments: PhotoAdjustmentMap,
+  photoSlots: Map<number, PhotoSlotShape> | null,
+): Array<PhotoBackdropSource | undefined> {
+  return photos.map((key, index) => {
+    if (adjustments[key]?.backdrop !== "color") return undefined;
+    const slot = photoSlots?.get(index);
+    if (slot && slot.objectFit !== "contain") return undefined;
+    return {
+      type: "color" as const,
+      color: adjustments[key]?.backdropColor ?? DEFAULT_BACKDROP_COLOR,
+    };
+  });
 }
 
 const MONTHS = [
@@ -217,6 +253,11 @@ export async function generateBook(bookId: string): Promise<string> {
           item.pdvPhoto.photos,
           readPhotoAdjustments(item.pdvPhoto.photoAdjustments),
           item.pdvPhoto.photoLayout,
+          photoSlots,
+        ),
+        photoBackdrops: resolvePhotoBackdrops(
+          item.pdvPhoto.photos,
+          readPhotoAdjustments(item.pdvPhoto.photoAdjustments),
           photoSlots,
         ),
         photoLayoutPattern: item.pdvPhoto.photoLayout,

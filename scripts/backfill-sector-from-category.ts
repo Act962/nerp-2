@@ -23,7 +23,9 @@ async function main() {
   const organizations = await prisma.organization.findMany({
     select: { id: true, name: true },
   });
-  console.log(`Backfilling setor de ${organizations.length} organização(ões)...`);
+  console.log(
+    `Backfilling setor de ${organizations.length} organização(ões)...`,
+  );
 
   const orphans = new Map<string, number>();
   let matched = 0;
@@ -63,10 +65,15 @@ async function main() {
         skipped++;
         continue;
       }
-      await prisma.mapObject.update({ where: { id: object.id }, data: { sectorId } });
+      await prisma.mapObject.update({
+        where: { id: object.id },
+        data: { sectorId },
+      });
       matched++;
     }
-    console.log(`  ✓ ${organization.name} (${objects.length} elemento(s) revisado(s))`);
+    console.log(
+      `  ✓ ${organization.name} (${objects.length} elemento(s) revisado(s))`,
+    );
   }
 
   console.log(`\nCasados: ${matched}. Sem match: ${skipped}.`);

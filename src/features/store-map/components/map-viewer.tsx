@@ -16,8 +16,9 @@ import {
 } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Maximize, ZoomIn, ZoomOut } from "lucide-react";
+import { Camera, Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect } from "react";
 import { useSceneStore } from "../engine/scene-store";
 import { useFloorPlanScene } from "../hooks/use-floor-plan-scene";
@@ -47,6 +48,7 @@ interface FloorPlanOption {
 
 interface MapViewerProps {
   floorPlanId: string;
+  storeId?: string;
   storeName?: string;
   floorPlans?: FloorPlanOption[];
   selectedFloorPlanId?: string;
@@ -55,6 +57,7 @@ interface MapViewerProps {
 
 export function MapViewer({
   floorPlanId,
+  storeId,
   storeName,
   floorPlans = [],
   selectedFloorPlanId,
@@ -111,6 +114,13 @@ export function MapViewer({
         <MapFilterPanel />
 
         <div className="ml-auto flex items-center gap-1">
+          {storeId && (
+            <Button asChild size="sm" className="mr-1 gap-1.5">
+              <Link href={`/promotor?storeId=${storeId}`}>
+                <Camera className="size-4" /> Registrar foto
+              </Link>
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"

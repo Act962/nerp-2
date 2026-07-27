@@ -15,6 +15,21 @@ export function useSpaceNegotiations(mapObjectId: string | null) {
   return { negotiations: data ?? [], isLoading: isPending };
 }
 
+export type ExpiryUnit = "days" | "months" | "years";
+
+export function useExpiringNegotiations(
+  unit: ExpiryUnit,
+  amount: number,
+  enabled = true,
+) {
+  return useQuery({
+    ...orpc.spaceNegotiation.listExpiring.queryOptions({
+      input: { unit, amount },
+    }),
+    enabled,
+  });
+}
+
 function useInvalidateNegotiations() {
   const queryClient = useQueryClient();
   return () =>

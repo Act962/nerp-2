@@ -17,6 +17,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { LogoUploader } from "@/components/logo-uploader/uploader";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -32,6 +33,7 @@ const storeFormSchema = z.object({
   city: z.string().optional(),
   state: z.string().optional(),
   address: z.string().optional(),
+  coverImageKey: z.string().optional(),
   notes: z.string().optional(),
   areaM2: z.string().optional(),
   monthlyCost: z.string().optional(),
@@ -47,6 +49,7 @@ const emptyValues: StoreFormValues = {
   city: "",
   state: "",
   address: "",
+  coverImageKey: "",
   notes: "",
   areaM2: "",
   monthlyCost: "",
@@ -90,6 +93,7 @@ export function StoreFormDialog({
         city: store.city ?? "",
         state: store.state ?? "",
         address: store.address ?? "",
+        coverImageKey: store.coverImageKey ?? "",
         notes: store.notes ?? "",
         areaM2: store.areaM2 != null ? String(store.areaM2) : "",
         monthlyCost: store.monthlyCost != null ? String(store.monthlyCost) : "",
@@ -107,6 +111,7 @@ export function StoreFormDialog({
   const onSubmit = (values: StoreFormValues) => {
     const payload = {
       ...values,
+      coverImageKey: values.coverImageKey || null,
       areaM2: toNullableNumber(values.areaM2),
       monthlyCost: toNullableNumber(values.monthlyCost),
       customersPerDay: toNullableNumber(values.customersPerDay),
@@ -247,11 +252,24 @@ export function StoreFormDialog({
                     </Field>
                   )}
                 />
+                <Controller
+                  name="coverImageKey"
+                  control={form.control}
+                  render={({ field }) => (
+                    <Field>
+                      <FieldLabel>Foto da fachada (vitrine pública)</FieldLabel>
+                      <LogoUploader
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </Field>
+                  )}
+                />
                 <div className="space-y-1">
                   <p className="text-sm font-medium">Métricas da loja</p>
                   <p className="text-xs text-muted-foreground">
-                    Usadas no Catálogo PDV pra sugerir preço por m² e no mapa
-                    de calor de fluxo.
+                    Usadas no Catálogo PDV pra sugerir preço por m² e no mapa de
+                    calor de fluxo.
                   </p>
                 </div>
                 <div className="flex items-start gap-4">

@@ -36,6 +36,12 @@ export type PdvPhotoLayoutPattern =
 // dois formatos como `src` de <Image>.
 export type PhotoSource = string | { data: Buffer; format: "jpg" };
 
+// Fundo atrás de uma foto "caber inteira" no PDF. O desfoque não existe em
+// react-pdf, então o buffer já vem borrado do sharp; a cor é pintada num View.
+export type PhotoBackdropSource =
+  | { type: "color"; color: string }
+  | { type: "blur"; source: PhotoSource };
+
 export interface BookDocumentItem {
   // Layout próprio desta página; null cai no `pageLayout` do documento e,
   // faltando os dois, no layout fixo legado.
@@ -51,6 +57,7 @@ export interface BookDocumentItem {
   code: string | null;
   actionValueLabel: string | null;
   photoSources: PhotoSource[];
+  photoBackdrops?: Array<PhotoBackdropSource | undefined>;
   photoLayoutPattern: PdvPhotoLayoutPattern | null;
 }
 
@@ -335,11 +342,13 @@ function CoverLayoutView({
   background,
   variableValues,
   photoSources,
+  photoBackdrops,
 }: {
   elements: ResolvedCoverElement[];
   background?: CoverBackground | null;
   variableValues?: BookVariableValues;
   photoSources?: PhotoSource[];
+  photoBackdrops?: Array<PhotoBackdropSource | undefined>;
 }) {
   return (
     <View
@@ -420,6 +429,7 @@ function CoverLayoutView({
         if (element.type === "photoSlot") {
           const source = photoSources?.[element.slotIndex];
           if (!source) return null;
+          const backdrop = photoBackdrops?.[element.slotIndex];
           const strokeWidth = element.strokeWidth ?? 0;
           const scale = element.imageScale ?? 1;
           // Moldura como View com overflow hidden: o zoom estoura as bordas da
@@ -443,6 +453,31 @@ function CoverLayoutView({
                   : {}),
               }}
             >
+              {backdrop?.type === "color" && (
+                <View
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: "100%",
+                    height: "100%",
+                    backgroundColor: backdrop.color,
+                  }}
+                />
+              )}
+              {backdrop?.type === "blur" && (
+                <Image
+                  src={backdrop.source}
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                />
+              )}
               <Image
                 src={source}
                 style={{
@@ -621,6 +656,7 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
               background={layoutBackground}
               variableValues={buildItemVariables(data, item, index)}
               photoSources={item.photoSources}
+              photoBackdrops={item.photoBackdrops}
             />
           </Page>
         ) : (
