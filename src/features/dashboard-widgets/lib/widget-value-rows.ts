@@ -1,0 +1,99 @@
+import type { WidgetValue } from "./widget-value";
+
+// Converte qualquer WidgetValue numa tabela genérica, para o popup de detalhe
+// conseguir listar os dados de qualquer widget com o mesmo componente.
+//
+// Não busca nada: usa o valor que o widget JÁ tem em mãos. Isso mantém a
+// garantia central do desenho (abrir widget não bate no ERP do cliente) e
+// significa que o popup mostra exatamente o que alimentou o gráfico/card —
+// se a consulta limita a 20 linhas, são essas 20 que aparecem aqui.
+
+export interface DetailColumn {
+  key: string;
+  label: string;
+  align: "left" | "right";
+  unit?: "currency" | "number" | "percent";
+}
+
+export interface DetailRow {
+  id: string;
+  cells: (string | number | null)[];
+}
+
+export interface DetailTable {
+  columns: DetailColumn[];
+  rows: DetailRow[];
+}
+
+export function widgetValueToTable(value: WidgetValue): DetailTable {
+  switch (value.kind) {
+    case "STAT":
+      return {
+        columns: [
+          { key: "label", label: "Métrica", align: "left" },
+          { key: "value", label: "Valor", align: "right", unit: value.unit },
+        ],
+        rows: [
+          {
+            id: "stat",
+            cells: [value.deltaLabel ?? "Valor atual", value.value],
+          },
+        ],
+      };
+
+    case "CHART":
+      return {
+        columns: [
+          { key: "label", label: "Período", align: "left" },
+          { key: "value", label: "Valor", align: "right" },
+        ],
+        rows: value.series.map((point, index) => ({
+          id: `${point.label}-${index}`,
+          cells: [point.label, point.value],
+        })),
+      };
+
+    case "LIST":
+      return {
+        columns: [
+          { key: "rank", label: "#", align: "left" },
+          { key: "label", label: "Item", align: "left" },
+          { key: "meta", label: "Detalhe", align: "left" },
+          { key: "value", label: "Valor", align: "right" },
+        ],
+        rows: value.items.map((item, index) => ({
+          id: item.id,
+          cells: [
+            item.rank ?? index + 1,
+            item.label,
+            item.meta ?? "—",
+            item.value,
+          ],
+        })),
+      };
+
+    case "MAP":
+      return {
+        columns: [
+          { key: "region", label: "Região", align: "left" },
+          {
+            key: "value",
+            label: "Valor",
+            align: "right",
+            unit: "currency",
+          },
+        ],
+        // O mapa desenha por intensidade; aqui vira ranking, que é como as
+        // pessoas realmente leem "qual região vendeu mais".
+        rows: [...value.regions]
+          .sort((a, b) => b.value - a.value)
+          .map((region) => ({
+            id: region.id,
+            cells: [region.label, region.value],
+          })),
+      };
+
+    case "TABLE":
+      return { columns: value.columns, rows: value.rows };
+  }
+}

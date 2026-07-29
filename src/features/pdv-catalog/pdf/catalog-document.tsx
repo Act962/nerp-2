@@ -6,16 +6,13 @@ import {
   Text,
   View,
 } from "@react-pdf/renderer";
+import type { CoverBackground } from "@/features/books/lib/cover-layout";
 import {
-  coverBackgroundToRgba,
-  type CoverBackground,
-  type CoverElement,
-} from "@/features/books/lib/cover-layout";
+  CoverLayoutView,
+  type ResolvedCoverElement,
+} from "@/features/books/pdf/cover-layout-view";
 
-// Elemento de capa já resolvido pra renderização: `imageKey` (quando
-// type === "image") contém a URL completa, não a key do R2 — resolução feita
-// em generate-catalog-pdf.tsx antes de montar CatalogDocumentData.
-export type ResolvedCoverElement = CoverElement;
+export type { ResolvedCoverElement };
 
 export interface CatalogDocumentRow {
   storeName: string;
@@ -156,103 +153,6 @@ const styles = StyleSheet.create({
   },
   closingText: { fontSize: 30, fontWeight: "bold", color: ACCENT },
 });
-
-// Réplica local do CoverLayoutView do Book (não exportado de lá de propósito
-// — o catálogo não depende de nenhum detalhe interno do feature de Books).
-function CoverLayoutView({
-  elements,
-  background,
-}: {
-  elements: ResolvedCoverElement[];
-  background?: CoverBackground | null;
-}) {
-  return (
-    <View
-      style={{
-        position: "relative",
-        width: "100%",
-        height: "100%",
-        backgroundColor: background?.imageKey
-          ? "#ffffff"
-          : background
-            ? coverBackgroundToRgba(background)
-            : "#ffffff",
-      }}
-    >
-      {background?.imageKey && (
-        <Image
-          src={background.imageKey}
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
-      )}
-      {background?.imageKey && (
-        <View
-          style={{
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "100%",
-            height: "100%",
-            backgroundColor: coverBackgroundToRgba(background),
-          }}
-        />
-      )}
-      {elements.map((element) => {
-        const boxStyle = {
-          position: "absolute" as const,
-          left: element.x,
-          top: element.y,
-          width: element.width,
-          height: element.height,
-        };
-
-        if (element.type === "text") {
-          return (
-            <Text
-              key={element.id}
-              style={{
-                ...boxStyle,
-                fontSize: element.fontSize,
-                color: element.color,
-                fontWeight: element.fontWeight === "bold" ? "bold" : "normal",
-                textAlign: element.align,
-              }}
-            >
-              {element.uppercase ? element.text.toUpperCase() : element.text}
-            </Text>
-          );
-        }
-
-        if (element.type === "divider") {
-          return (
-            <View
-              key={element.id}
-              style={{ ...boxStyle, backgroundColor: element.color }}
-            />
-          );
-        }
-
-        // Formas e espaços de foto existem no editor de Books, não no de
-        // catálogo — a toolbar daqui não os cria, então basta ignorá-los.
-        if (element.type !== "image" || !element.imageKey) return null;
-        return (
-          <Image
-            key={element.id}
-            src={element.imageKey}
-            style={{ ...boxStyle, objectFit: element.objectFit }}
-          />
-        );
-      })}
-    </View>
-  );
-}
 
 function CatalogPagePhotos({ urls }: { urls: string[] }) {
   const photos = urls.slice(0, 3);

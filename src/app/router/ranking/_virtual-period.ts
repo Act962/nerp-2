@@ -247,6 +247,8 @@ export async function buildVirtualPeriodFromErp(
       id: `virtual:team:${teamEntries[0]?.teamCode ?? "none"}`,
       name: teamEntries[0]?.teamName ?? "Sem equipe",
       isActive: true,
+      // Equipe vem do ERP: não há meta geral própria pra sobrescrever aqui.
+      goalAmountOverride: null,
       goalTotal: 0,
       achievedTotal: teamEntries.reduce(
         (total, entry) => total + entry.achievedAmount,
@@ -281,6 +283,8 @@ export async function buildVirtualPeriodFromErp(
     periodStart,
     periodEnd,
     label,
+    // Período vem do ERP: não há meta geral própria pra sobrescrever aqui.
+    overallGoalAmount: null,
     goalTotal: 0,
     achievedTotal,
     branches,

@@ -19,13 +19,13 @@ export const createCustomer = base
       cep: z.string().optional(),
       address: z.string().optional(),
       description: z.string().optional(),
-    })
+    }),
   )
   .output(
     z.object({
       id: z.string(),
       name: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, context, errors }) => {
     // Email é opcional; quando presente, normalizamos e garantimos unicidade

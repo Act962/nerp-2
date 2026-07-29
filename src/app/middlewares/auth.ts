@@ -39,5 +39,5 @@ export const requireAuthMiddleware = base.middleware(
         user: sessionData.user,
       },
     });
-  }
+  },
 );

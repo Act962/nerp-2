@@ -12,7 +12,7 @@ export const getUserCatalog = base
     z.object({
       email: z.string(),
       subdomain: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const organization = await prisma.organization.findUnique({

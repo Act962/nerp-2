@@ -4,7 +4,6 @@ import { ExternalLink, Plus, Settings, Sliders, Upload } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { useQueryCollaborators } from "@/features/collaborators/hooks/use-collaborators";
 import { ErpSyncBadge } from "@/features/erp-sync/components/erp-sync-badge";
 import {
@@ -109,7 +108,9 @@ export function RankingPage() {
         }
         headerActions={
           canEdit && (
-            <ButtonGroup>
+            // flex-wrap em vez de ButtonGroup: o grupo é `w-fit` sem quebra,
+            // então os 3 botões com texto vazavam da tela no mobile.
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 onClick={() => setAddEntryOpen(true)}
@@ -127,7 +128,7 @@ export function RankingPage() {
               <Button onClick={() => setSettingsOpen(true)} className="gap-2">
                 <Settings className="size-4" /> Configurações
               </Button>
-            </ButtonGroup>
+            </div>
           )
         }
         emptyStateActions={

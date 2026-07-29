@@ -9,6 +9,7 @@ import {
 import { getPlanogramFull } from "./get-full";
 import { listPlanograms } from "./list";
 import { normalizeProductPhoto } from "./normalize-product-photo";
+import { recutProductPhoto } from "./recut-product-photo";
 import { searchPlanogramProducts } from "./search-products";
 import { updatePlanogram } from "./update";
 import { updateProductDimensions } from "./update-product-dimensions";
@@ -24,6 +25,7 @@ export const planogramRoutes = {
   searchProducts: searchPlanogramProducts,
   updateProductDimensions: updateProductDimensions,
   normalizeProductPhoto: normalizeProductPhoto,
+  recutProductPhoto: recutProductPhoto,
   createVersion: createPlanogramVersion,
   listVersions: listPlanogramVersions,
   listFixtureTemplates: listFixtureTemplates,

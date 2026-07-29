@@ -3,7 +3,10 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { z } from "zod";
-import { coverBackgroundSchema, coverLayoutSchema } from "./cover-layout-schema";
+import {
+  coverBackgroundSchema,
+  coverLayoutSchema,
+} from "./cover-layout-schema";
 
 export const updateBookCoverLayout = base
   .use(requireAuthMiddleware)

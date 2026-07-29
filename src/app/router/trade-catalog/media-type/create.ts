@@ -41,7 +41,9 @@ export const createMediaType = base
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002"
       ) {
-        throw errors.BAD_REQUEST({ message: "Já existe uma mídia com esse código" });
+        throw errors.BAD_REQUEST({
+          message: "Já existe uma mídia com esse código",
+        });
       }
       throw error;
     }

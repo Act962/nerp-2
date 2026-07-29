@@ -95,6 +95,33 @@ export function useUpdateSalesGoalBranch() {
   );
 }
 
+export function useCreateSalesGoalBranch() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.ranking.createBranch.mutationOptions({
+      onSuccess: () => qc.invalidateQueries({ queryKey: orpc.ranking.key() }),
+    }),
+  );
+}
+
+export function useDeleteSalesGoalBranch() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.ranking.deleteBranch.mutationOptions({
+      onSuccess: () => qc.invalidateQueries({ queryKey: orpc.ranking.key() }),
+    }),
+  );
+}
+
+export function useUpdateSalesGoalPeriod() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.ranking.updatePeriod.mutationOptions({
+      onSuccess: () => qc.invalidateQueries({ queryKey: orpc.ranking.key() }),
+    }),
+  );
+}
+
 export function useSalesGoalEvolution(periodType?: SalesGoalPeriodType) {
   return useQuery(
     orpc.ranking.evolution.queryOptions({ input: { periodType } }),

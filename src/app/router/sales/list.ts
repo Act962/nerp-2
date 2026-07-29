@@ -20,7 +20,7 @@ export const listSales = base
       status: z.string().optional(),
       minValue: z.number().optional(),
       maxValue: z.number().optional(),
-    })
+    }),
   )
   .output(
     z.object({
@@ -39,11 +39,11 @@ export const listSales = base
               name: z.string(),
               quantity: z.number(),
               price: z.number(),
-            })
+            }),
           ),
-        })
+        }),
       ),
-    })
+    }),
   )
   .handler(async ({ context, input }) => {
     try {

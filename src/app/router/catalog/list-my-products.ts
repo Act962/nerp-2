@@ -12,7 +12,7 @@ export const listProductsOfCart = base
     z.object({
       subdomain: z.string(),
       productIds: z.array(z.string()).optional(),
-    })
+    }),
   )
   .output(
     z.object({
@@ -29,9 +29,9 @@ export const listProductsOfCart = base
           thumbnail: z.string(),
           currentStock: z.number(),
           salePrice: z.number(),
-        })
+        }),
       ),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     try {
@@ -54,7 +54,7 @@ export const listProductsOfCart = base
         },
       });
 
-      let productList = products.map((product) => ({
+      const productList = products.map((product) => ({
         id: product.id,
         organizationId: product.organizationId,
         name: product.name,

@@ -54,7 +54,9 @@ export function SectionChart({ data }: { data: Datum[] }) {
             position="right"
             className="fill-foreground"
             fontSize={12}
-            formatter={(value: number) => value.toLocaleString("pt-BR")}
+            formatter={(value) =>
+              typeof value === "number" ? value.toLocaleString("pt-BR") : value
+            }
           />
         </Bar>
       </BarChart>

@@ -29,9 +29,15 @@ export async function POST(request: Request) {
   const expectedId = process.env.NASA_CLIENT_ID;
   const expectedSecret = process.env.NASA_CLIENT_SECRET;
   if (!expectedId || !expectedSecret) {
-    return NextResponse.json({ error: "server_misconfigured" }, { status: 500 });
+    return NextResponse.json(
+      { error: "server_misconfigured" },
+      { status: 500 },
+    );
   }
-  if (!safeEqual(body.clientId, expectedId) || !safeEqual(body.clientSecret, expectedSecret)) {
+  if (
+    !safeEqual(body.clientId, expectedId) ||
+    !safeEqual(body.clientSecret, expectedSecret)
+  ) {
     return NextResponse.json({ error: "invalid_client" }, { status: 401 });
   }
 

@@ -1,27 +1,63 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { CameraOff } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 // Tipos mínimos da API nativa `BarcodeDetector` (ainda fora do lib.dom padrão).
 interface DetectedBarcode {
   rawValue: string;
 }
 interface BarcodeDetectorLike {
-  detect(source: HTMLVideoElement): Promise<DetectedBarcode[]>;
+  detect(source: CanvasImageSource): Promise<DetectedBarcode[]>;
 }
 type BarcodeDetectorCtor = new (opts?: {
   formats?: string[];
 }) => BarcodeDetectorLike;
 
-const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
+const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] as const;
+
+/** Intervalo entre tentativas de leitura. */
+const TICK_MS = 350;
+
+/**
+ * Lado maior do quadro entregue ao decodificador.
+ *
+ * O vídeo pode chegar em 4K; decodificar isso a cada tick derruba o frame rate
+ * no celular. 1080 mantém as barras finas de um EAN-13 legíveis com folga.
+ */
+const MAX_FRAME_EDGE = 1080;
 
 type Status = "starting" | "scanning" | "unsupported" | "denied" | "error";
 
-// Scanner de código de barras por câmera usando a API nativa BarcodeDetector
-// (Chrome/Android). Sem suporte (ex.: iOS Safari) → sinaliza para o pai cair no
-// campo manual. Emite `onDetect(code)` uma única vez e para a câmera.
+/**
+ * Resolve o detector: nativo quando existe (Chrome/Android — acelerado pelo
+ * sistema), senão o ponyfill em WebAssembly.
+ *
+ * O ponyfill entra por import dinâmico de propósito: são ~1 MB de wasm que só
+ * o iOS Safari e o Firefox precisam baixar, e a tela é pública, aberta no
+ * celular do cliente dentro da loja.
+ */
+async function resolveDetector(): Promise<BarcodeDetectorLike> {
+  const native = (
+    window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
+  ).BarcodeDetector;
+  if (native) return new native({ formats: [...FORMATS] });
+
+  const { BarcodeDetector, prepareZXingModule } = await import(
+    "barcode-detector/ponyfill"
+  );
+  // Sem isso o wasm vem do jsDelivr; servimos do próprio domínio (ver
+  // scripts/copy-zxing-wasm.mjs).
+  prepareZXingModule({
+    overrides: { locateFile: () => "/wasm/zxing_reader.wasm" },
+  });
+  return new BarcodeDetector({ formats: [...FORMATS] });
+}
+
+// Scanner de código de barras por câmera. Funciona em qualquer navegador com
+// acesso à câmera em contexto seguro (HTTPS), inclusive iOS Safari.
 export function BarcodeScanner({
   onDetect,
 }: {
@@ -29,61 +65,142 @@ export function BarcodeScanner({
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<Status>("starting");
+  // Recriar o efeito reinicia a câmera. O pai redefine `onDetect` a cada
+  // render (digitar no campo manual já bastava), então a referência fica num
+  // ref e sai das dependências.
+  const onDetectRef = useRef(onDetect);
+  onDetectRef.current = onDetect;
+  // Trocado para forçar uma nova tentativa depois de erro/negação — aí a
+  // chamada nasce de um toque, que é o contexto em que o iOS reabre o pedido
+  // de permissão.
+  const [attempt, setAttempt] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` não é lido dentro do efeito — é justamente o gatilho de reexecução do "Tentar novamente"
   useEffect(() => {
-    const ctor = (
-      window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
-    ).BarcodeDetector;
-    if (!ctor || !navigator.mediaDevices?.getUserMedia) {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setStatus("unsupported");
       return;
     }
 
     let stream: MediaStream | null = null;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     let done = false;
-    const detector = new ctor({ formats: FORMATS });
+    let canvas: HTMLCanvasElement | null = null;
+
+    /**
+     * Reduz o quadro antes de decodificar.
+     *
+     * Também resolve um detalhe do iOS: passar o `<video>` direto ao ponyfill
+     * exige que o navegador saiba criar um ImageBitmap dele, o que nem toda
+     * versão do Safari faz de forma confiável. O canvas é o caminho comum.
+     */
+    function grabFrame(video: HTMLVideoElement): CanvasImageSource | null {
+      const { videoWidth, videoHeight } = video;
+      if (!videoWidth || !videoHeight) return null;
+
+      const scale = Math.min(
+        1,
+        MAX_FRAME_EDGE / Math.max(videoWidth, videoHeight),
+      );
+      const width = Math.round(videoWidth * scale);
+      const height = Math.round(videoHeight * scale);
+
+      if (!canvas) canvas = document.createElement("canvas");
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return null;
+      context.drawImage(video, 0, 0, width, height);
+      return canvas;
+    }
 
     async function start() {
+      let detector: BarcodeDetectorLike;
+      try {
+        detector = await resolveDetector();
+      } catch {
+        if (!done) setStatus("unsupported");
+        return;
+      }
+      if (done) return;
+
       try {
         stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
         });
+        if (done) return;
         const video = videoRef.current;
         if (!video) return;
         video.srcObject = stream;
         await video.play();
+        if (done) return;
         setStatus("scanning");
-
-        timer = setInterval(async () => {
-          if (done || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            const hit = codes.find((code) => /^\d{8,}$/.test(code.rawValue));
-            if (hit && !done) {
-              done = true;
-              onDetect(hit.rawValue);
-            }
-          } catch {
-            // frame sem leitura — ignora e tenta no próximo tick
-          }
-        }, 400);
       } catch (error) {
+        if (done) return;
         const name = (error as { name?: string })?.name;
         setStatus(name === "NotAllowedError" ? "denied" : "error");
+        return;
       }
+
+      // Laço que se reagenda em vez de setInterval: o decodificador em wasm
+      // pode levar mais que um tick, e sobrepor leituras só enfileira trabalho.
+      const tick = async () => {
+        if (done) return;
+        const video = videoRef.current;
+        if (video) {
+          try {
+            const frame = grabFrame(video);
+            if (frame) {
+              const codes = await detector.detect(frame);
+              const hit = codes.find((code) => /^\d{8,}$/.test(code.rawValue));
+              if (hit && !done) {
+                done = true;
+                onDetectRef.current(hit.rawValue);
+                return;
+              }
+            }
+          } catch {
+            // quadro sem leitura — ignora e tenta no próximo
+          }
+        }
+        if (!done) timer = setTimeout(tick, TICK_MS);
+      };
+      timer = setTimeout(tick, TICK_MS);
     }
 
     start();
 
     return () => {
       done = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       for (const track of stream?.getTracks() ?? []) track.stop();
     };
-  }, [onDetect]);
+  }, [attempt]);
 
-  if (status === "unsupported") return null;
+  const retry = useCallback(() => {
+    setStatus("starting");
+    setAttempt((value) => value + 1);
+  }, []);
+
+  // Antes esse caso devolvia null e a área do scanner sumia sem explicação —
+  // era exatamente o que o iPhone via.
+  if (status === "unsupported") {
+    return (
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed p-6 text-center text-muted-foreground text-sm">
+        <CameraOff className="size-6" />
+        <p>
+          Este navegador não permite abrir a câmera. Digite o código de barras
+          abaixo ou envie uma foto do produto.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative aspect-square w-full overflow-hidden rounded-xl border bg-black">
@@ -92,6 +209,7 @@ export function BarcodeScanner({
         className="size-full object-cover"
         playsInline
         muted
+        autoPlay
       >
         <track kind="captions" />
       </video>
@@ -112,11 +230,16 @@ export function BarcodeScanner({
         </div>
       )}
       {(status === "denied" || status === "error") && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-white">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 p-4 text-center text-sm text-white">
           <CameraOff className="size-6" />
-          {status === "denied"
-            ? "Permita o acesso à câmera ou digite o código abaixo."
-            : "Não foi possível abrir a câmera. Digite o código abaixo."}
+          <p>
+            {status === "denied"
+              ? "Permita o acesso à câmera para escanear, ou digite o código abaixo."
+              : "Não foi possível abrir a câmera. Digite o código abaixo."}
+          </p>
+          <Button size="sm" variant="secondary" onClick={retry}>
+            Tentar novamente
+          </Button>
         </div>
       )}
     </div>

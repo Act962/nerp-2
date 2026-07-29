@@ -17,13 +17,13 @@ export const checkSubdomain = base
   .input(
     z.object({
       subdomain: z.string().min(3).max(63),
-    })
+    }),
   )
   .output(
     z.object({
       available: z.boolean(),
       message: z.string().optional(),
-    })
+    }),
   )
   .handler(async ({ input, context }) => {
     const existing = await prisma.organization.findUnique({

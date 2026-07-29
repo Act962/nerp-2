@@ -1,9 +1,28 @@
 export type CatalogConfig = {
   title: string;
   subtitle: string;
-  layout: "grid-2" | "grid-3" | "grid-4" | "list" | "featured" | "carousel" | "masonry" | "table";
-  cardStyle: "compact" | "standard" | "list" | "countdown" | "badge-hot" | "minimal";
-  sortBy: "discount-desc" | "price-asc" | "price-desc" | "name-asc" | "savings-desc";
+  layout:
+    | "grid-2"
+    | "grid-3"
+    | "grid-4"
+    | "list"
+    | "featured"
+    | "carousel"
+    | "masonry"
+    | "table";
+  cardStyle:
+    | "compact"
+    | "standard"
+    | "list"
+    | "countdown"
+    | "badge-hot"
+    | "minimal";
+  sortBy:
+    | "discount-desc"
+    | "price-asc"
+    | "price-desc"
+    | "name-asc"
+    | "savings-desc";
   backgroundColor: string;
   cardColor: string;
   showDescription: boolean;

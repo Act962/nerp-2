@@ -2,7 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
-import { MovementType } from "@/generated/prisma/enums";
+import type { MovementType } from "@/generated/prisma/enums";
 import { z } from "zod";
 
 export const listStock = base
@@ -21,7 +21,7 @@ export const listStock = base
       userIds: z.array(z.string()).optional(),
       dateInit: z.date().optional(),
       dateEnd: z.date().optional(),
-    })
+    }),
   )
   .output(
     z.object({
@@ -43,9 +43,9 @@ export const listStock = base
             id: z.string(),
             name: z.string(),
           }),
-        })
+        }),
       ),
-    })
+    }),
   )
   .handler(async ({ context, input }) => {
     console.log(input);

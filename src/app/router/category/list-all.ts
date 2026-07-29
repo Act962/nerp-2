@@ -1,7 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { Category } from "@/generated/prisma/client";
+import type { Category } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import z from "zod";
 
@@ -16,7 +16,7 @@ export const listAllCategories = base
   .output(
     z.object({
       categories: z.array(z.custom<Category>()),
-    })
+    }),
   )
   .handler(async ({ context }) => {
     const categories = await prisma.category.findMany({

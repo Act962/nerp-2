@@ -46,7 +46,7 @@ export const listDashboard = base
             id: z.string(),
             name: z.string(),
           }),
-        })
+        }),
       ),
       productWithLowStock: z.array(
         z.object({
@@ -55,9 +55,9 @@ export const listDashboard = base
           sku: z.string().nullable(),
           stock: z.number(),
           stockMin: z.number(),
-        })
+        }),
       ),
-    })
+    }),
   )
   .handler(async ({ errors, context, input }) => {
     const organizationId = context.org.id;
@@ -95,7 +95,7 @@ export const listDashboard = base
 
     const salesTotalSum = salesTotalQuery.reduce(
       (acc, sale) => acc + sale.total.toNumber(),
-      0
+      0,
     );
 
     const totalSinceLastMonth = await prisma.sale.findMany({
@@ -111,7 +111,7 @@ export const listDashboard = base
 
     const salesTotalSinceLastMonthSum = totalSinceLastMonth.reduce(
       (acc, sale) => acc + sale.total.toNumber(),
-      0
+      0,
     );
 
     // 2. Produtos ativos

@@ -225,6 +225,10 @@ model Organization {
   erpConnection             ErpConnection?
   externalSellers           ExternalSeller[]
   salesFactsDaily           SalesFactDaily[]
+  // Dashboard personalizável
+  dashboardManualMetrics    DashboardManualMetric[]
+  oracleWidgetSnapshots     OracleWidgetSnapshot[]
+  oracleQueryTemplates      OracleQueryTemplate[]
 
   @@index([slug])
   @@index([subdomain])
@@ -254,13 +258,16 @@ model Member {
   supervisor       Member?      @relation("MemberSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
   supervisees      Member[]     @relation("MemberSupervisor")
 
-  salesGoalEntries SalesGoalEntry[]
+  salesGoalEntries     SalesGoalEntry[]
   // Vínculos do promotor: indústrias que representa e lojas que cobre. Só pode
   // fotografar uma indústria numa loja se tiver vínculo com AS DUAS.
-  promoterSuppliers PromoterSupplier[]
-  promoterStores    PromoterStore[]
+  promoterSuppliers    PromoterSupplier[]
+  promoterStores       PromoterStore[]
   promoterDistributors PromoterDistributor[]
-  externalSellers  ExternalSeller[]
+  externalSellers      ExternalSeller[]
+  dashboardWidgets     DashboardWidget[]
+  updatedManualMetrics DashboardManualMetric[]
+  oracleQueryTemplates OracleQueryTemplate[]
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -632,49 +639,49 @@ model Customer {
 // ============================================
 
 model Supplier {
-  id             String             @id @default(cuid())
-  organizationId String
+  id                String                @id @default(cuid())
+  organizationId    String
   // Identificação
-  name           String
-  tradeName      String?
-  personType     PersonType         @default(JURIDICA)
-  document       String? // CPF ou CNPJ
-  email          String?
-  phone          String?
+  name              String
+  tradeName         String?
+  personType        PersonType            @default(JURIDICA)
+  document          String? // CPF ou CNPJ
+  email             String?
+  phone             String?
   // Endereço
-  address        String?
-  addressNumber  String?
-  complement     String?
-  neighborhood   String?
-  city           String?
-  state          String?
-  zipCode        String?
+  address           String?
+  addressNumber     String?
+  complement        String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  zipCode           String?
   // Informações adicionais
-  logo           String?
+  logo              String?
   // Imagem R2 do "código de ação" desta indústria, carimbada na foto do promotor.
-  actionCodeImage String?
-  contactPerson  String?
-  notes          String?            @db.Text
-  isActive       Boolean            @default(true)
+  actionCodeImage   String?
+  contactPerson     String?
+  notes             String?               @db.Text
+  isActive          Boolean               @default(true)
   // Timestamps
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
   // Relações
-  organization   Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  purchases      Purchase[]
-  products       Product[]
-  customerId     String?
-  customer       Customer?          @relation(fields: [customerId], references: [id])
+  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  purchases         Purchase[]
+  products          Product[]
+  customerId        String?
+  customer          Customer?             @relation(fields: [customerId], references: [id])
   // Trade Marketing: fornecedor atua como "Indústria"
-  brands         Brand[]
-  mapObjects     MapObject[]
-  pdvPhotos      PdvPhoto[]
-  books          Book[]
-  bookTemplates  BookTemplate[]
+  brands            Brand[]
+  mapObjects        MapObject[]
+  pdvPhotos         PdvPhoto[]
+  books             Book[]
+  bookTemplates     BookTemplate[]
   bookPageTemplates BookPageTemplate[]
-  negotiations   SpaceNegotiation[]
-  promoterLinks  PromoterSupplier[]
-  distributorLinks DistributorIndustry[]
+  negotiations      SpaceNegotiation[]
+  promoterLinks     PromoterSupplier[]
+  distributorLinks  DistributorIndustry[]
 
   @@index([organizationId])
   @@index([document])
@@ -1304,17 +1311,20 @@ enum SalesGoalRankingTheme {
 }
 
 model SalesGoalPeriod {
-  id               String              @id @default(cuid())
-  organizationId   String
-  periodType       SalesGoalPeriodType
-  periodStart      DateTime
-  periodEnd        DateTime
-  label            String?
-  sourceFileName   String?
-  importedAt       DateTime            @default(now())
-  importedByUserId String?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  id                String              @id @default(cuid())
+  organizationId    String
+  periodType        SalesGoalPeriodType
+  periodStart       DateTime
+  periodEnd         DateTime
+  label             String?
+  sourceFileName    String?
+  importedAt        DateTime            @default(now())
+  importedByUserId  String?
+  // Meta geral do mês (org inteira), digitada à mão — independente da soma das
+  // metas das equipes. Null = comportamento antigo (soma das equipes).
+  overallGoalAmount Decimal?            @db.Decimal(15, 2)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   branches     SalesGoalBranch[]
@@ -1325,13 +1335,16 @@ model SalesGoalPeriod {
 }
 
 model SalesGoalBranch {
-  id        String   @id @default(cuid())
-  periodId  String
-  name      String
-  sortOrder Int      @default(0)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  periodId           String
+  name               String
+  sortOrder          Int      @default(0)
+  isActive           Boolean  @default(true)
+  // Meta geral da equipe, digitada à mão — independente da soma das metas dos
+  // vendedores dela. Null = comportamento antigo (soma das entries).
+  goalAmountOverride Decimal? @db.Decimal(15, 2)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   period  SalesGoalPeriod  @relation(fields: [periodId], references: [id], onDelete: Cascade)
   entries SalesGoalEntry[]
@@ -1492,33 +1505,33 @@ enum SpaceVisibility {
 }
 
 model Store {
-  id              String           @id @default(cuid())
-  organizationId  String
-  name            String
-  code            String?
-  managerName     String? // Gerente da loja
-  address         String?
-  city            String?
-  state           String?
-  notes           String?          @db.Text
-  isActive        Boolean          @default(true)
-  coverImageKey   String? // chave R2 da foto de fachada — vitrine PlanoGram
+  id               String             @id @default(cuid())
+  organizationId   String
+  name             String
+  code             String?
+  managerName      String? // Gerente da loja
+  address          String?
+  city             String?
+  state            String?
+  notes            String?            @db.Text
+  isActive         Boolean            @default(true)
+  coverImageKey    String? // chave R2 da foto de fachada — vitrine PlanoGram
   // Métricas manuais p/ o Catálogo PDV (custo do m²) e a Biblioteca Nacional.
   // Nenhum contador automático existe — ponte ERP↔mapa é fora de escopo.
-  areaM2          Float?
-  monthlyCost     Decimal?         @db.Decimal(12, 2)
-  customersPerDay Int?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  floorPlans      FloorPlan[]
-  pdvPhotos       PdvPhoto[]
-  mediaTypePrices MediaTypePrice[]
-  promoterLinks   PromoterStore[]
-  spaceInterests  SpaceInterest[]
+  areaM2           Float?
+  monthlyCost      Decimal?           @db.Decimal(12, 2)
+  customersPerDay  Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  floorPlans       FloorPlan[]
+  pdvPhotos        PdvPhoto[]
+  mediaTypePrices  MediaTypePrice[]
+  promoterLinks    PromoterStore[]
+  spaceInterests   SpaceInterest[]
   distributorLinks StoreDistributor[]
-  storeProducts   StoreProduct[]
-  batches         ProductBatch[]
+  storeProducts    StoreProduct[]
+  batches          ProductBatch[]
 
   @@index([organizationId])
   @@map("stores")
@@ -2302,7 +2315,7 @@ model PdvPhoto {
   capturedLatitude   Float?
   capturedLongitude  Float?
   // Aprovação da foto pela coordenadora (QC antes de entrar no book).
-  approvalStatus     BookItemApproval @default(PENDING)
+  approvalStatus     BookItemApproval       @default(PENDING)
   approvalNote       String?
   reviewedById       String?
   reviewedByName     String?
@@ -2416,10 +2429,10 @@ model BookTemplate {
 }
 
 model BookItem {
-  id             String   @id @default(cuid())
+  id             String           @id @default(cuid())
   bookId         String
   pdvPhotoId     String
-  order          Int      @default(0)
+  order          Int              @default(0)
   // Layout próprio desta página, sobrescrevendo o do book. null = usa
   // Book.pageLayout; se este também for null, cai no layout fixo legado.
   // Permite uma página de abertura com um padrão e as de PDV com outro.
@@ -2431,9 +2444,9 @@ model BookItem {
   reviewedById   String?
   reviewedByName String?
   reviewedAt     DateTime?
-  createdAt      DateTime @default(now())
-  book           Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  pdvPhoto       PdvPhoto @relation(fields: [pdvPhotoId], references: [id], onDelete: Cascade)
+  createdAt      DateTime         @default(now())
+  book           Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  pdvPhoto       PdvPhoto         @relation(fields: [pdvPhotoId], references: [id], onDelete: Cascade)
 
   @@unique([bookId, pdvPhotoId])
   @@index([bookId])
@@ -2863,4 +2876,145 @@ model SalesFactDaily {
   @@index([organizationId, date])
   @@index([organizationId, sellerExternalCode])
   @@map("sales_facts_daily")
+}
+
+// ============================================
+// DASHBOARD PERSONALIZÁVEL (widgets)
+// ============================================
+
+enum DashboardWidgetDisplayType {
+  STAT
+  CHART
+  LIST
+  MAP
+  TABLE
+}
+
+enum DashboardWidgetChartKind {
+  LINE
+  BAR
+  DONUT
+}
+
+// Um widget do dashboard de UM membro — o dashboard é por pessoa, não por org.
+// `dataSourceKey` aponta pro registry em código (src/app/router/dashboard-widgets/_registry.ts),
+// ex.: "native.salesTotal", "ranking.teamRankingTop", "manual.<DashboardManualMetric.id>".
+model DashboardWidget {
+  id            String                     @id @default(cuid())
+  memberId      String
+  dataSourceKey String
+  // Nome escolhido pelo usuário. Null = usa o rótulo padrão da fonte. Existe
+  // como coluna (e não dentro de `options`) porque é metadado de exibição
+  // renderizado em todo widget, igual a `color`/`icon`.
+  title         String?
+  displayType   DashboardWidgetDisplayType
+  chartKind     DashboardWidgetChartKind?
+  // Chave de uma paleta pastel fixa (ex.: "rose", "sky") — nunca cor livre,
+  // valida contra a paleta em código no handler. Null = usa o padrão do tema.
+  color         String?
+  // Chave de um ícone lucide curado (ex.: "TrendingUp") — mesma validação
+  // enum-only de `color`, nunca string livre. Null = sem ícone.
+  icon          String?
+  // Overrides por instância (período, top-N, meta/targetValue…) — validado em
+  // runtime pelo registry, não pelo schema, mesmo espírito do Json solto de
+  // Book.pageLayout.
+  options       Json?
+  // Layout[] do react-grid-layout por breakpoint: { lg: {x,y,w,h}, md: {...}, sm: {...} }.
+  // xxs não guarda posição própria — mobile é sempre lista empilhada, na ordem
+  // de `sortOrder`, não de x/y (que só fazem sentido nos breakpoints largos).
+  layout        Json
+  sortOrder     Int                        @default(0)
+  // Widget aninhado: quando preenchido, este widget NÃO ocupa espaço na grade
+  // — ele é renderizado compacto dentro do card do pai (ex.: "Venda total" no
+  // topo e "Filial X"/"Filial Y" logo abaixo, cada um com filtro próprio).
+  // Um nível só: filho não tem filho, senão o card vira árvore ilegível.
+  parentId      String?
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  member   Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  parent   DashboardWidget?  @relation("WidgetChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children DashboardWidget[] @relation("WidgetChildren")
+
+  @@index([memberId])
+  @@index([parentId])
+  @@map("dashboard_widgets")
+}
+
+// Resultado materializado de uma consulta customizada ao Oracle.
+//
+// Existe para que RENDERIZAR o dashboard nunca abra conexão com o ERP do
+// cliente: `resolveValues` só lê daqui. Assim a carga no Oracle passa a ser
+// (consultas distintas × frequência de atualização) em vez de escalar com o
+// número de abas abertas. Mesmo princípio do espelho SalesFactDaily, só que
+// por consulta em vez de por fato de venda.
+//
+// Chaveado por `fingerprint` (sha256 da config canonicalizada + orgId), então
+// duas pessoas com a MESMA consulta compartilham o snapshot — de propósito,
+// menos carga no ERP. O orgId dentro do hash impede cruzamento entre orgs.
+model OracleWidgetSnapshot {
+  id             String   @id @default(cuid())
+  organizationId String
+  fingerprint    String
+  // WidgetValue serializado. Null quando a última tentativa falhou — o widget
+  // mostra o erro em vez de sumir.
+  value          Json?
+  error          String?
+  computedAt     DateTime @default(now())
+  durationMs     Int?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId])
+  @@map("oracle_widget_snapshots")
+}
+
+// Consulta salva como modelo reutilizável ("padrão de busca").
+//
+// Escopo é a ORGANIZAÇÃO, não o member: quem monta "Faturamento por filial"
+// compartilha com os outros admins em vez de cada um remontar. Só admin cria
+// widget Oracle, então o público é o mesmo.
+model OracleQueryTemplate {
+  id             String                     @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  // Config do montador (mesmo shape de DashboardWidget.options.oracle),
+  // validada em runtime pelo schema Zod, não pelo Prisma.
+  config         Json
+  displayType    DashboardWidgetDisplayType
+  createdById    String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    Member?      @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("oracle_query_templates")
+}
+
+// Métrica digitada à mão pelo admin (ex.: "Meta da diretoria: R$ 500.000") —
+// fica disponível como fonte de dado pra qualquer widget da org.
+model DashboardManualMetric {
+  id             String   @id @default(cuid())
+  organizationId String
+  label          String
+  value          Decimal  @db.Decimal(15, 2)
+  // "currency" | "number" | "percent" — validado em zod no handler, não enum,
+  // pra não precisar de migration só pra adicionar uma unidade nova.
+  unit           String   @default("number")
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    Member?      @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@map("dashboard_manual_metrics")
 }

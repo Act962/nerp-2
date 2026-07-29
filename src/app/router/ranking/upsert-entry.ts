@@ -15,6 +15,10 @@ const upsertSalesGoalEntryInputSchema = z.object({
   entryKind: entryKindSchema.optional(),
   memberId: z.string().nullable().optional(),
   photoUrl: z.string().nullable().optional(),
+  // Move a entry pra outra equipe do MESMO período (aba "Vendedores" das
+  // Configurações). Trocar de período junto viraria import por fora do fluxo
+  // normal — fora de escopo aqui.
+  branchId: z.string().optional(),
 });
 
 // Entry vinculada a um Member tem o vendido calculado das vendas, mas um
@@ -38,6 +42,11 @@ export const upsertSalesGoalEntry = base
         id: input.entryId,
         branch: { period: { organizationId: context.org.id } },
       },
+      select: {
+        id: true,
+        externalCode: true,
+        branch: { select: { periodId: true } },
+      },
     });
     if (!entry) {
       throw errors.NOT_FOUND({ message: "Meta não encontrada." });
@@ -51,6 +60,36 @@ export const upsertSalesGoalEntry = base
       if (!member) {
         throw errors.NOT_FOUND({
           message: "Membro não encontrado nesta organização.",
+        });
+      }
+    }
+
+    if (input.branchId) {
+      const targetBranch = await prisma.salesGoalBranch.findFirst({
+        where: {
+          id: input.branchId,
+          periodId: entry.branch.periodId,
+          period: { organizationId: context.org.id },
+        },
+        select: { id: true },
+      });
+      if (!targetBranch) {
+        throw errors.NOT_FOUND({
+          message: "Equipe de destino não encontrada neste período.",
+        });
+      }
+      const codeTaken = await prisma.salesGoalEntry.findFirst({
+        where: {
+          branchId: input.branchId,
+          externalCode: entry.externalCode,
+          id: { not: entry.id },
+        },
+        select: { id: true },
+      });
+      if (codeTaken) {
+        throw errors.BAD_REQUEST({
+          message:
+            "Já existe um vendedor com este código na equipe de destino.",
         });
       }
     }
@@ -69,6 +108,7 @@ export const upsertSalesGoalEntry = base
         entryKind: input.entryKind,
         memberId: input.memberId,
         photoUrl: input.photoUrl,
+        branchId: input.branchId,
       },
     });
 
@@ -84,5 +124,6 @@ export const upsertSalesGoalEntry = base
       achievedIsManual: updated.achievedIsManual,
       memberId: updated.memberId,
       photoUrl: updated.photoUrl,
+      branchId: updated.branchId,
     };
   });

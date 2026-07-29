@@ -19,12 +19,12 @@ export const createCategory = base
       slug: z.string(),
       description: z.string().optional(),
       parentId: z.string().optional(),
-    })
+    }),
   )
   .output(
     z.object({
       categoryName: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, context, errors }) => {
     // Escopado por org: o unique do banco é (organizationId, slug), então sem o

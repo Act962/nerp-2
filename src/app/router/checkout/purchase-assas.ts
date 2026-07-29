@@ -46,18 +46,18 @@ export const purchaseAssas = base
           z.object({
             id: z.string(),
             quantity: z.number().int().positive(),
-          })
+          }),
         )
         .min(1),
       domain: z.string().min(1),
       email: z.email(),
       customerId: z.string().min(1),
-    })
+    }),
   )
   .output(
     z.object({
       url: z.string().min(1),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const url = process.env.ASSAS_API_URL || "https://api-sandbox.asaas.com/v3";
@@ -127,7 +127,7 @@ export const purchaseAssas = base
         } catch (error) {
           console.error(
             `Invalid image URL for product ${product.id}:`,
-            imageUrl
+            imageUrl,
           );
         }
       }

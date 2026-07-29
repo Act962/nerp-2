@@ -159,10 +159,15 @@ export async function buildSalesGoalRanking(
           (b.achievedAmount ?? 0) - (a.achievedAmount ?? 0),
       );
 
-    const goalTotal = entries.reduce(
+    const entriesGoalTotal = entries.reduce(
       (total, entry) => total + entry.goalAmount,
       0,
     );
+    const goalAmountOverride =
+      branch.goalAmountOverride !== null
+        ? Number(branch.goalAmountOverride)
+        : null;
+    const goalTotal = goalAmountOverride ?? entriesGoalTotal;
     const achievedTotal = entries.reduce(
       (total, entry) => total + (entry.achievedAmount ?? 0),
       0,
@@ -172,16 +177,22 @@ export async function buildSalesGoalRanking(
       id: branch.id,
       name: branch.name,
       isActive: branch.isActive,
+      // Meta geral da equipe digitada à mão, quando existir — a UI usa pra
+      // saber se `goalTotal` é override ou soma das entries.
+      goalAmountOverride,
       goalTotal,
       achievedTotal,
       entries,
     };
   });
 
-  const goalTotal = branches.reduce(
+  const branchesGoalTotal = branches.reduce(
     (total, branch) => total + branch.goalTotal,
     0,
   );
+  const overallGoalAmount =
+    period.overallGoalAmount !== null ? Number(period.overallGoalAmount) : null;
+  const goalTotal = overallGoalAmount ?? branchesGoalTotal;
   const achievedTotal = branches.reduce(
     (total, branch) => total + branch.achievedTotal,
     0,
@@ -209,6 +220,9 @@ export async function buildSalesGoalRanking(
     periodStart: period.periodStart,
     periodEnd: period.periodEnd,
     label: period.label,
+    // Meta geral do mês digitada à mão, quando existir — a UI usa pra saber
+    // se `goalTotal` é override ou soma das equipes.
+    overallGoalAmount,
     goalTotal,
     achievedTotal,
     branches,

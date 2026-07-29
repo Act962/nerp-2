@@ -1,7 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
-import { Customer } from "@/generated/prisma/client";
-import { CustomerUpdateInput } from "@/generated/prisma/models";
+import type { Customer } from "@/generated/prisma/client";
+import type { CustomerUpdateInput } from "@/generated/prisma/models";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
@@ -15,7 +15,7 @@ export const updateCustomer = base
   .output(
     z.object({
       customer: z.custom<Customer>(),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const customer = await prisma.customer.findUnique({

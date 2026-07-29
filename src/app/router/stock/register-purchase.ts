@@ -19,12 +19,12 @@ export const registerEntry = base
       quantity: z.number().min(1),
       productId: z.string(),
       description: z.string().optional(),
-    })
+    }),
   )
   .output(
     z.object({
       movimentId: z.string(),
-    })
+    }),
   )
   .handler(async ({ context, input, errors }) => {
     const product = await prisma.product.findUnique({

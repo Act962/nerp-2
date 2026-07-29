@@ -21,7 +21,7 @@ export async function DELETE(request: Request) {
         },
         {
           status: 400,
-        }
+        },
       );
     }
 
@@ -38,7 +38,7 @@ export async function DELETE(request: Request) {
       },
       {
         status: 200,
-      }
+      },
     );
   } catch {
     return NextResponse.json(
@@ -47,7 +47,7 @@ export async function DELETE(request: Request) {
       },
       {
         status: 400,
-      }
+      },
     );
   }
 }

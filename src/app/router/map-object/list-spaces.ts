@@ -2,7 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { requireScope } from "@/app/middlewares/scope";
-import { MapObjectType, MapSpaceState } from "@/generated/prisma/client";
+import { type MapObjectType, MapSpaceState } from "@/generated/prisma/client";
 import { NEGOTIABLE_TYPES } from "@/features/store-map/engine/space-state";
 import prisma from "@/lib/db";
 import { z } from "zod";
@@ -33,9 +33,7 @@ export const listSpaces = base
         spaceState: input.spaceState,
         category: input.category,
         supplierId: input.supplierId,
-        ...(input.storeId
-          ? { floorPlan: { storeId: input.storeId } }
-          : {}),
+        ...(input.storeId ? { floorPlan: { storeId: input.storeId } } : {}),
       },
       select: {
         id: true,

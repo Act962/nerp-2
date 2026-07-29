@@ -29,11 +29,11 @@ export const listCategories = base
               description: z.string().nullable(),
               productsCount: z.number(),
               parentId: z.string().nullable(),
-            })
+            }),
           ),
-        })
+        }),
       ),
-    })
+    }),
   )
   .handler(async ({ context }) => {
     // Uma query só: as outras duas que existiam aqui (`categoriesWithoutChildren`

@@ -1,10 +1,13 @@
 import { base } from "@/app/middlewares/base";
-import { CheckoutMetadata, ProductMetadata } from "@/context/checkout/types";
+import type {
+  CheckoutMetadata,
+  ProductMetadata,
+} from "@/context/checkout/types";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import prisma from "@/lib/db";
 import { stripe } from "@/lib/stripe";
 import { constructUrl, getCustomDomain } from "@/lib/utils";
-import Stripe from "stripe";
+import type Stripe from "stripe";
 import { z } from "zod";
 
 export const purchase = base
@@ -15,18 +18,18 @@ export const purchase = base
           z.object({
             id: z.string(),
             quantity: z.number().int().positive(),
-          })
+          }),
         )
         .min(1),
       domain: z.string().min(1),
       email: z.email(),
       customerId: z.string().min(1),
-    })
+    }),
   )
   .output(
     z.object({
       url: z.string().min(1),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const organization = await prisma.organization.findUnique({
@@ -78,7 +81,7 @@ export const purchase = base
           } catch (error) {
             console.error(
               `Invalid image URL for product ${product.id}:`,
-              imageUrl
+              imageUrl,
             );
           }
         }

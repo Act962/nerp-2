@@ -61,7 +61,7 @@ export async function POST(request: Request) {
         },
         {
           status: 400,
-        }
+        },
       );
     }
 
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     // O nome vem do dispositivo do usuário: sem sanitizar, uma barra cria
     // objeto sob prefixo arbitrário do bucket (inclusive `trade-catalogs/`).
-    const safeFileName = fileName.replace(/[^\w.\-]/g, "_");
+    const safeFileName = fileName.replace(/[^\w.-]/g, "_");
     const uniqueKey = `${uuidv4()}-${safeFileName}`;
 
     const command = new PutObjectCommand({
@@ -96,7 +96,7 @@ export async function POST(request: Request) {
       },
       {
         status: 500,
-      }
+      },
     );
   }
 }

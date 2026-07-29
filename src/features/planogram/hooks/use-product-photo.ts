@@ -37,3 +37,18 @@ export function useNormalizeProductPhoto() {
 
   return { upload, isPending: mutation.isPending };
 }
+
+/** Recorta a foto que já está no cadastro, sem passar por upload. */
+export function useRecutProductPhoto() {
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation(
+    orpc.planogram.recutProductPhoto.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["planogram"] });
+      },
+    }),
+  );
+
+  return { recut: mutation.mutateAsync, isPending: mutation.isPending };
+}
