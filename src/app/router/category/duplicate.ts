@@ -14,13 +14,13 @@ export const duplicateCategory = base
   .input(
     z.object({
       id: z.string(),
-    })
+    }),
   )
   .output(
     z.object({
       id: z.string(),
       categoryName: z.string(),
-    })
+    }),
   )
   .handler(async ({ errors, input }) => {
     const categoryExists = await prisma.category.findUnique({

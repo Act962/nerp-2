@@ -14,7 +14,7 @@ export const deleteCategory = base
   .input(
     z.object({
       id: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const poductExists = prisma.product.findUnique({

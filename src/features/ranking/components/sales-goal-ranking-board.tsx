@@ -601,9 +601,12 @@ export function SalesGoalRankingBoard({
               <div
                 className={cn(
                   "grid grid-cols-1 gap-4",
+                  // `landscape:` além do `lg:` — sem isso, uma tela vertical
+                  // larga (ex.: tablet em retrato, ~1024px) cairia no layout
+                  // lado a lado só por causa da largura, mesmo sendo retrato.
                   tvMode
-                    ? "lg:grid-cols-[minmax(0,60%)_minmax(0,1fr)]"
-                    : "lg:grid-cols-[minmax(0,60%)_auto_minmax(0,1fr)]",
+                    ? "lg:landscape:grid-cols-[minmax(0,60%)_minmax(0,1fr)]"
+                    : "lg:landscape:grid-cols-[minmax(0,60%)_auto_minmax(0,1fr)]",
                 )}
               >
                 {/* Painel esquerdo: header do time + pódio */}

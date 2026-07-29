@@ -15,7 +15,7 @@ export const createSettingsCatalog = base
   .input(
     z.object({
       name: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, context, errors }) => {
     await prisma.catalogSettings.create({

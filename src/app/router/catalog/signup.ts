@@ -16,7 +16,7 @@ export const signupCatalog = base
       document: z.string(),
       password: z.string().min(8),
       subdomain: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const organization = await prisma.organization.findUnique({

@@ -20,7 +20,9 @@ export async function approveNasaIntegration(params: AuthorizeParams) {
     throw new Error("not_authenticated");
   }
 
-  const org = await auth.api.getFullOrganization({ headers: await nextHeaders() });
+  const org = await auth.api.getFullOrganization({
+    headers: await nextHeaders(),
+  });
   if (!org) {
     throw new Error("no_active_org");
   }
@@ -31,7 +33,10 @@ export async function approveNasaIntegration(params: AuthorizeParams) {
       code,
       nerpOrgId: org.id,
       userId: session.user.id,
-      scopes: params.scopes.split(",").map((s) => s.trim()).filter(Boolean),
+      scopes: params.scopes
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
       redirectUri: params.redirectUri,
       expiresAt: new Date(Date.now() + CONSENT_TTL_MS),
     },
@@ -43,7 +48,10 @@ export async function approveNasaIntegration(params: AuthorizeParams) {
   redirect(url.toString());
 }
 
-export async function denyNasaIntegration(params: { state: string; redirectUri: string }) {
+export async function denyNasaIntegration(params: {
+  state: string;
+  redirectUri: string;
+}) {
   const url = new URL(params.redirectUri);
   url.searchParams.set("error", "user_denied");
   url.searchParams.set("state", params.state);

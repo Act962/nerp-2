@@ -44,3 +44,6 @@ next-env.d.ts
 
 # Configuração local do Claude Code — não versionar
 .claude/
+
+# WASM do leitor de código de barras — copiado de node_modules em dev/build
+/public/wasm

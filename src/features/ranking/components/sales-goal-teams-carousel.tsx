@@ -23,14 +23,21 @@ export function SalesGoalTeamsCarousel({
   onSelect,
   autoAdvanceSeconds,
   accent,
+  defaultPlaying = false,
 }: {
   teams: { id: string; name: string }[];
   selectedId: string;
   onSelect: (id: string) => void;
   autoAdvanceSeconds: number;
   accent: string;
+  /**
+   * Já começa girando. Default `false` mantém o board como sempre foi (quem
+   * está operando a tela não quer o time trocando sozinho); o widget do
+   * dashboard liga, porque ali a rotação é o objetivo.
+   */
+  defaultPlaying?: boolean;
 }) {
-  const [playing, setPlaying] = useState(false);
+  const [playing, setPlaying] = useState(defaultPlaying);
   const [remaining, setRemaining] = useState(autoAdvanceSeconds);
 
   useEffect(() => {

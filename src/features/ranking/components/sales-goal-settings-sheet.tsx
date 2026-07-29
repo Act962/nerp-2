@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import {
   CartesianGrid,
   Legend,
@@ -38,10 +39,13 @@ import {
   CheckCircle2,
   Loader2,
   Play,
+  Plus,
   RotateCcw,
   Sliders,
+  Trash2,
   UserPlus,
   UserRoundSearch,
+  X,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
@@ -53,11 +57,16 @@ import {
   useUpdateSalesGoalRankingSettings,
   useSalesGoalRanking,
   useUpdateSalesGoalBranch,
+  useCreateSalesGoalBranch,
+  useDeleteSalesGoalBranch,
+  useCreateSalesGoalEntry,
+  useDeleteSalesGoalEntry,
   useUpsertSalesGoalEntry,
   useSalesGoalEvolution,
 } from "../hooks/use-ranking";
 import { normalizeCollaboratorName } from "../lib/collaborator-name-match";
 import { formatBrlAmountInput, parseBrlAmount } from "../lib/parse-brl-amount";
+import { currentPeriodBounds } from "../lib/sales-goal-period-bounds";
 import type { SalesGoalPeriodType } from "../lib/sales-goal-xlsx-parser";
 import {
   SALES_GOAL_SOUND_PRESETS,
@@ -195,24 +204,140 @@ function SoundPresetPicker({
   );
 }
 
+// Roster de vendedores de uma equipe: lista com "remover" + form compacto de
+// "+ vendedor" — usado dentro do card da equipe nas Configurações.
+function BranchSellersEditor({
+  entries,
+  onAddSeller,
+  addPending,
+}: {
+  entries: { id: string; sellerName: string; entryKind: "SELLER" | "BUCKET" }[];
+  onAddSeller: (name: string, goalAmount: number) => void;
+  addPending: boolean;
+}) {
+  const deleteEntry = useDeleteSalesGoalEntry();
+  const [draftName, setDraftName] = useState("");
+  const [draftGoal, setDraftGoal] = useState("");
+
+  const handleAdd = () => {
+    const goalAmountValue = parseBrlAmount(draftGoal);
+    if (!draftName.trim() || goalAmountValue === null || goalAmountValue < 0) {
+      toast.error("Preencha nome e meta do vendedor.");
+      return;
+    }
+    onAddSeller(draftName.trim(), goalAmountValue);
+    setDraftName("");
+    setDraftGoal("");
+  };
+
+  return (
+    <div className="space-y-1.5 pl-4 sm:pl-6">
+      {entries.length === 0 ? (
+        <p className="text-[11px] text-muted-foreground">
+          Nenhum vendedor nesta equipe ainda.
+        </p>
+      ) : (
+        <ul className="flex flex-wrap gap-1.5">
+          {entries.map((entry) => (
+            <li
+              key={entry.id}
+              className="flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs"
+            >
+              {entry.sellerName}
+              <button
+                type="button"
+                title="Remover vendedor"
+                disabled={deleteEntry.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(`Remover "${entry.sellerName}" da equipe?`)
+                  ) {
+                    deleteEntry.mutate({ entryId: entry.id });
+                  }
+                }}
+                className="flex items-center justify-center rounded-full size-4 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+              >
+                <X className="size-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input
+          placeholder="Nome do vendedor"
+          value={draftName}
+          onChange={(event) => setDraftName(event.target.value)}
+          className="h-7 text-xs flex-1 min-w-[120px]"
+        />
+        <Input
+          placeholder="Meta R$"
+          inputMode="decimal"
+          value={draftGoal}
+          onChange={(event) => setDraftGoal(event.target.value)}
+          className="h-7 text-xs w-24"
+        />
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="outline"
+          disabled={addPending}
+          onClick={handleAdd}
+          title="Adicionar vendedor"
+        >
+          <Plus className="size-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function TeamsTab({ periodType }: { periodType: SalesGoalPeriodType }) {
   const query = useSalesGoalRanking(periodType, undefined, undefined, true);
   const updateBranch = useUpdateSalesGoalBranch();
+  const createBranch = useCreateSalesGoalBranch();
+  const deleteBranch = useDeleteSalesGoalBranch();
+  const createEntry = useCreateSalesGoalEntry();
   const branches = query.data?.branches ?? [];
   // Com ERP ativo o ranking usa as equipes do Winthor (período virtual, ids
   // sintéticos). Editar não persiste — mostra read-only em vez de controles que
   // falhariam em silêncio (NOT_FOUND).
   const isErpSourced = query.data?.achievedSourceKind === "ERP";
+  const [newTeamName, setNewTeamName] = useState("");
+
+  const bounds = query.data
+    ? {
+        periodStart: new Date(query.data.periodStart)
+          .toISOString()
+          .slice(0, 10),
+        periodEnd: new Date(query.data.periodEnd).toISOString().slice(0, 10),
+      }
+    : currentPeriodBounds(periodType);
+
+  const handleAddTeam = () => {
+    if (!newTeamName.trim()) {
+      toast.error("Informe o nome da equipe.");
+      return;
+    }
+    createBranch.mutate(
+      {
+        periodType,
+        periodStart: bounds.periodStart,
+        periodEnd: bounds.periodEnd,
+        branchName: newTeamName.trim(),
+      },
+      {
+        onSuccess: () => {
+          toast.success("Equipe adicionada!");
+          setNewTeamName("");
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
 
   if (query.isLoading)
     return <Loader2 className="size-5 animate-spin text-muted-foreground" />;
-  if (branches.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Nenhuma equipe importada ainda para este período.
-      </p>
-    );
-  }
 
   if (isErpSourced) {
     return (
@@ -238,65 +363,156 @@ function TeamsTab({ periodType }: { periodType: SalesGoalPeriodType }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <p className="text-xs text-muted-foreground">
         Renomear/reordenar aqui vale até o próximo import da planilha (que
-        recria a equipe pelo nome original).
+        recria a equipe pelo nome original). "Meta geral" da equipe, quando
+        preenchida, sobrescreve a soma das metas dos vendedores dela.
       </p>
-      {branches.map((branch, index) => (
-        <div
-          key={branch.id}
-          className="flex items-center gap-2 rounded-md border p-2"
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Input
+          placeholder="Nome da nova equipe"
+          value={newTeamName}
+          onChange={(event) => setNewTeamName(event.target.value)}
+          className="h-8 text-sm flex-1 min-w-[140px]"
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="gap-1.5"
+          disabled={createBranch.isPending}
+          onClick={handleAddTeam}
         >
-          <div className="flex flex-col gap-1">
+          <Plus className="size-3.5" /> Nova equipe
+        </Button>
+      </div>
+
+      {branches.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          Nenhuma equipe cadastrada ainda para este período.
+        </p>
+      )}
+
+      {branches.map((branch, index) => (
+        <div key={branch.id} className="space-y-2 rounded-md border p-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                className="disabled:opacity-30"
+                disabled={index === 0}
+                onClick={() =>
+                  updateBranch.mutate({
+                    branchId: branch.id,
+                    sortOrder: index - 1,
+                  })
+                }
+              >
+                <ArrowUp className="size-3.5" />
+              </button>
+              <button
+                type="button"
+                className="disabled:opacity-30"
+                disabled={index === branches.length - 1}
+                onClick={() =>
+                  updateBranch.mutate({
+                    branchId: branch.id,
+                    sortOrder: index + 1,
+                  })
+                }
+              >
+                <ArrowDown className="size-3.5" />
+              </button>
+            </div>
+            <Input
+              defaultValue={branch.name}
+              className="flex-1 min-w-[140px]"
+              onBlur={(event) => {
+                if (event.target.value !== branch.name) {
+                  updateBranch.mutate({
+                    branchId: branch.id,
+                    name: event.target.value,
+                  });
+                }
+              }}
+            />
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Label className="text-xs">Ativa</Label>
+              <Switch
+                checked={branch.isActive}
+                onCheckedChange={(checked) =>
+                  updateBranch.mutate({
+                    branchId: branch.id,
+                    isActive: checked,
+                  })
+                }
+              />
+            </div>
             <button
               type="button"
-              className="disabled:opacity-30"
-              disabled={index === 0}
-              onClick={() =>
-                updateBranch.mutate({
-                  branchId: branch.id,
-                  sortOrder: index - 1,
-                })
-              }
+              title="Remover equipe"
+              disabled={deleteBranch.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Remover a equipe "${branch.name}" e todos os seus vendedores?`,
+                  )
+                ) {
+                  deleteBranch.mutate({ branchId: branch.id });
+                }
+              }}
+              className="flex items-center justify-center rounded-md size-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
             >
-              <ArrowUp className="size-3.5" />
-            </button>
-            <button
-              type="button"
-              className="disabled:opacity-30"
-              disabled={index === branches.length - 1}
-              onClick={() =>
-                updateBranch.mutate({
-                  branchId: branch.id,
-                  sortOrder: index + 1,
-                })
-              }
-            >
-              <ArrowDown className="size-3.5" />
+              <Trash2 className="size-4" />
             </button>
           </div>
-          <Input
-            defaultValue={branch.name}
-            className="flex-1"
-            onBlur={(event) => {
-              if (event.target.value !== branch.name) {
-                updateBranch.mutate({
-                  branchId: branch.id,
-                  name: event.target.value,
-                });
+
+          <div className="flex flex-wrap items-center gap-1.5 pl-4 sm:pl-6">
+            <Label className="text-[11px] text-muted-foreground">
+              Meta geral da equipe (opcional)
+            </Label>
+            <Input
+              key={branch.goalAmountOverride ?? "empty"}
+              defaultValue={
+                branch.goalAmountOverride !== null
+                  ? formatBrlAmountInput(branch.goalAmountOverride)
+                  : ""
               }
-            }}
-          />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Label className="text-xs">Ativa</Label>
-            <Switch
-              checked={branch.isActive}
-              onCheckedChange={(checked) =>
-                updateBranch.mutate({ branchId: branch.id, isActive: checked })
-              }
+              placeholder="Soma dos vendedores"
+              inputMode="decimal"
+              className="h-7 text-xs w-32"
+              onBlur={(event) => {
+                const raw = event.target.value.trim();
+                const nextValue = raw ? parseBrlAmount(raw) : null;
+                if (nextValue !== branch.goalAmountOverride) {
+                  updateBranch.mutate({
+                    branchId: branch.id,
+                    goalAmountOverride: nextValue,
+                  });
+                }
+              }}
             />
           </div>
+
+          <BranchSellersEditor
+            entries={branch.entries}
+            addPending={createEntry.isPending}
+            onAddSeller={(name, goalAmountValue) =>
+              createEntry.mutate(
+                {
+                  periodType,
+                  periodStart: bounds.periodStart,
+                  periodEnd: bounds.periodEnd,
+                  branchName: branch.name,
+                  sellerName: name,
+                  goalAmount: goalAmountValue,
+                },
+                { onError: (error) => toast.error(error.message) },
+              )
+            }
+          />
         </div>
       ))}
     </div>
@@ -304,6 +520,59 @@ function TeamsTab({ periodType }: { periodType: SalesGoalPeriodType }) {
 }
 
 const UNLINKED_MEMBER_VALUE = "__unlinked__";
+
+// Form compacto de "+ vendedor" no rodapé de cada equipe, na aba Vendedores.
+function AddSellerInline({
+  branchName,
+  onAdd,
+  addPending,
+}: {
+  branchName: string;
+  onAdd: (name: string, goalAmount: number) => void;
+  addPending: boolean;
+}) {
+  const [draftName, setDraftName] = useState("");
+  const [draftGoal, setDraftGoal] = useState("");
+
+  const handleAdd = () => {
+    const goalAmountValue = parseBrlAmount(draftGoal);
+    if (!draftName.trim() || goalAmountValue === null || goalAmountValue < 0) {
+      toast.error("Preencha nome e meta do vendedor.");
+      return;
+    }
+    onAdd(draftName.trim(), goalAmountValue);
+    setDraftName("");
+    setDraftGoal("");
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      <Input
+        placeholder={`Novo vendedor em ${branchName}`}
+        value={draftName}
+        onChange={(event) => setDraftName(event.target.value)}
+        className="h-7 text-xs flex-1 min-w-[140px]"
+      />
+      <Input
+        placeholder="Meta R$"
+        inputMode="decimal"
+        value={draftGoal}
+        onChange={(event) => setDraftGoal(event.target.value)}
+        className="h-7 text-xs w-24"
+      />
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="outline"
+        disabled={addPending}
+        onClick={handleAdd}
+        title="Adicionar vendedor"
+      >
+        <Plus className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
 
 function SellersTab({ periodType }: { periodType: SalesGoalPeriodType }) {
   const rankingQuery = useSalesGoalRanking(
@@ -315,6 +584,8 @@ function SellersTab({ periodType }: { periodType: SalesGoalPeriodType }) {
   const membersQuery = useQuery(orpc.members.list.queryOptions({ input: {} }));
   const collaboratorsQuery = useQueryCollaborators(true);
   const upsertEntry = useUpsertSalesGoalEntry();
+  const deleteEntry = useDeleteSalesGoalEntry();
+  const createEntry = useCreateSalesGoalEntry();
   const branches = rankingQuery.data?.branches ?? [];
   const members = membersQuery.data ?? [];
   const collaborators = collaboratorsQuery.data ?? [];
@@ -328,11 +599,21 @@ function SellersTab({ periodType }: { periodType: SalesGoalPeriodType }) {
   >(null);
 
   const isLoading = rankingQuery.isLoading || membersQuery.isLoading;
+  const bounds = rankingQuery.data
+    ? {
+        periodStart: new Date(rankingQuery.data.periodStart)
+          .toISOString()
+          .slice(0, 10),
+        periodEnd: new Date(rankingQuery.data.periodEnd)
+          .toISOString()
+          .slice(0, 10),
+      }
+    : currentPeriodBounds(periodType);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <p className="text-xs text-muted-foreground min-w-[200px] flex-1">
           Vincule cada vendedor da planilha a um membro do NERP para que o valor
           vendido seja calculado automaticamente das vendas do sistema. Mesmo
           vinculado, digitar um valor em "Vendido" sobrescreve esse cálculo
@@ -376,9 +657,9 @@ function SellersTab({ periodType }: { periodType: SalesGoalPeriodType }) {
               return (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-2 rounded-md border p-2"
+                  className="flex flex-wrap items-center gap-2 rounded-md border p-2"
                 >
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-[160px]">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium truncate">
                         {entry.sellerName}
@@ -505,34 +786,92 @@ function SellersTab({ periodType }: { periodType: SalesGoalPeriodType }) {
                       />
                     </div>
                   </div>
-                  <Select
-                    disabled={entry.entryKind === "BUCKET"}
-                    value={entry.memberId ?? UNLINKED_MEMBER_VALUE}
-                    onValueChange={(value) =>
-                      upsertEntry.mutate({
-                        entryId: entry.id,
-                        memberId:
-                          value === UNLINKED_MEMBER_VALUE ? null : value,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Sem vínculo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value={UNLINKED_MEMBER_VALUE}>
-                        Sem vínculo (manual)
-                      </SelectItem>
-                      {members.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.name}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Select
+                      value={branch.id}
+                      onValueChange={(value) => {
+                        if (value !== branch.id) {
+                          upsertEntry.mutate(
+                            { entryId: entry.id, branchId: value },
+                            { onError: (error) => toast.error(error.message) },
+                          );
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-32" title="Equipe">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {branches.map((b) => (
+                          <SelectItem key={b.id} value={b.id}>
+                            {b.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Select
+                      disabled={entry.entryKind === "BUCKET"}
+                      value={entry.memberId ?? UNLINKED_MEMBER_VALUE}
+                      onValueChange={(value) =>
+                        upsertEntry.mutate({
+                          entryId: entry.id,
+                          memberId:
+                            value === UNLINKED_MEMBER_VALUE ? null : value,
+                        })
+                      }
+                    >
+                      <SelectTrigger className="w-40">
+                        <SelectValue placeholder="Sem vínculo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={UNLINKED_MEMBER_VALUE}>
+                          Sem vínculo (manual)
                         </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                        {members.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <button
+                      type="button"
+                      title="Remover vendedor"
+                      disabled={deleteEntry.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Remover "${entry.sellerName}" do ranking?`,
+                          )
+                        ) {
+                          deleteEntry.mutate({ entryId: entry.id });
+                        }
+                      }}
+                      className="flex items-center justify-center rounded-md size-8 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  </div>
                 </div>
               );
             })}
+            <AddSellerInline
+              branchName={branch.name}
+              addPending={createEntry.isPending}
+              onAdd={(name, goalAmountValue) =>
+                createEntry.mutate(
+                  {
+                    periodType,
+                    periodStart: bounds.periodStart,
+                    periodEnd: bounds.periodEnd,
+                    branchName: branch.name,
+                    sellerName: name,
+                    goalAmount: goalAmountValue,
+                  },
+                  { onError: (error) => toast.error(error.message) },
+                )
+              }
+            />
           </div>
         ))}
       <CollaboratorForm
@@ -579,7 +918,7 @@ function EvolutionTab() {
             tickFormatter={(value) => formatBrl(value)}
             width={90}
           />
-          <Tooltip formatter={(value: number) => formatBrl(value)} />
+          <Tooltip formatter={(value) => formatBrl(Number(value ?? 0))} />
           <Legend />
           <Line
             type="monotone"

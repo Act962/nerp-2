@@ -1,11 +1,9 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { normalizeProductImage } from "@/features/planogram/server/normalize-product-image";
+import { storeNormalizedPhoto } from "@/features/planogram/server/product-photo-storage";
 import prisma from "@/lib/db";
-import { S3 } from "@/lib/s3-client";
-import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
 // Recebe a foto já reduzida no cliente (compressImage, borda máx. 1400px),
@@ -61,15 +59,7 @@ export const normalizeProductPhoto = base
       });
     }
 
-    const key = `planogram/normalized/${uuidv4()}.webp`;
-    await S3.send(
-      new PutObjectCommand({
-        Bucket: process.env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
-        Key: key,
-        Body: normalized.buffer,
-        ContentType: "image/webp",
-      }),
-    );
+    const key = await storeNormalizedPhoto(normalized.buffer);
 
     await prisma.product.update({
       where: { id: input.productId },

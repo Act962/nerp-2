@@ -1,7 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { Organization } from "@/generated/prisma/client";
+import type { Organization } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
@@ -18,7 +18,7 @@ export const getOrganization = base
   .output(
     z.object({
       organization: z.custom<Organization>(),
-    })
+    }),
   )
   .handler(async ({ context, errors }) => {
     const organization = await prisma.organization.findUnique({

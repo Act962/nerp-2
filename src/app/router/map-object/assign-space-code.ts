@@ -103,9 +103,14 @@ export const assignSpaceCode = base
 
       // Regenerar um código já existente pra um valor diferente reescreve o
       // identificador impresso na prateleira — só com confirmação explícita.
-      if (object.spaceCode && object.spaceCode !== code && !input.confirmRegenerate) {
+      if (
+        object.spaceCode &&
+        object.spaceCode !== code &&
+        !input.confirmRegenerate
+      ) {
         throw errors.BAD_REQUEST({
-          message: "O ID mudaria de acordo com a mídia/setor atuais. Confirme a regeneração.",
+          message:
+            "O ID mudaria de acordo com a mídia/setor atuais. Confirme a regeneração.",
         });
       }
 

@@ -1,7 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { Customer, Sale } from "@/generated/prisma/client";
+import type { Customer, Sale } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import z from "zod";
 
@@ -15,7 +15,7 @@ export const getCustomer = base
   .input(
     z.object({
       id: z.string(),
-    })
+    }),
   )
   // .output(
   //   z.object({

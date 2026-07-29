@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1000" width="1000" height="1000">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4F6BF6"/>
+      <stop offset="0.5" stop-color="#A855F7"/>
+      <stop offset="1" stop-color="#F45BC0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1000" height="1000" rx="92" fill="url(#g)"/>
+
+  <!-- Anel, barra horizontal de ponta a ponta e haste vertical até a base:
+    desenhados nesta ordem para as barras cobrirem o anel, como no original. -->
+  <circle cx="500" cy="500" r="318" fill="none" stroke="#fff" stroke-width="74"/>
+  <rect x="0" y="437" width="1000" height="68" fill="#fff"/>
+  <rect x="466" y="500" width="68" height="500" fill="#fff"/>
+</svg>

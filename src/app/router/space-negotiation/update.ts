@@ -45,7 +45,11 @@ export const updateSpaceNegotiation = base
               ? new Date(startDate)
               : null,
         endDate:
-          endDate === undefined ? undefined : endDate ? new Date(endDate) : null,
+          endDate === undefined
+            ? undefined
+            : endDate
+              ? new Date(endDate)
+              : null,
       },
     });
 

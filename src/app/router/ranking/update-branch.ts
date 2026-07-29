@@ -10,6 +10,9 @@ const updateSalesGoalBranchInputSchema = z.object({
   name: z.string().min(1).optional(),
   sortOrder: z.number().int().optional(),
   isActive: z.boolean().optional(),
+  // Meta geral da equipe — sobrescreve a soma das metas dos vendedores dela.
+  // `null` limpa o override e volta pra soma; `undefined` não mexe no campo.
+  goalAmountOverride: z.number().nonnegative().nullable().optional(),
 });
 
 // Renomear/reordenar aqui vale só até o próximo import da planilha: o
@@ -39,6 +42,7 @@ export const updateSalesGoalBranch = base
         name: input.name,
         sortOrder: input.sortOrder,
         isActive: input.isActive,
+        goalAmountOverride: input.goalAmountOverride,
       },
     });
 
@@ -47,5 +51,9 @@ export const updateSalesGoalBranch = base
       name: updated.name,
       sortOrder: updated.sortOrder,
       isActive: updated.isActive,
+      goalAmountOverride:
+        updated.goalAmountOverride !== null
+          ? Number(updated.goalAmountOverride)
+          : null,
     };
   });

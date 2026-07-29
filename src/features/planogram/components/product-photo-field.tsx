@@ -7,7 +7,10 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { AlertTriangle, Scissors, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { useNormalizeProductPhoto } from "../hooks/use-product-photo";
+import {
+  useNormalizeProductPhoto,
+  useRecutProductPhoto,
+} from "../hooks/use-product-photo";
 
 interface PhotoResult {
   thumbnail: string;
@@ -16,6 +19,8 @@ interface PhotoResult {
   status: "OK" | "SUSPECT";
   reason?: string;
   keyedBackground: boolean;
+  /** Só o recorte da foto atual pode terminar sem gravar nada. */
+  applied?: boolean;
 }
 
 interface ProductPhotoFieldProps {
@@ -41,7 +46,13 @@ export function ProductPhotoField({
 }: ProductPhotoFieldProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [result, setResult] = useState<PhotoResult | null>(null);
-  const { upload, isPending } = useNormalizeProductPhoto();
+  // Proporção da foto que está na tela agora, mesmo sem nenhuma ação nesta
+  // sessão — é o que permite avisar sobre medida errada em produto que veio do
+  // catálogo, em vez de só depois de um envio.
+  const [previewRatio, setPreviewRatio] = useState<number | null>(null);
+  const { upload, isPending: isUploading } = useNormalizeProductPhoto();
+  const { recut, isPending: isRecutting } = useRecutProductPhoto();
+  const isPending = isUploading || isRecutting;
 
   const previewKey = result?.thumbnail ?? currentThumbnail;
 
@@ -50,6 +61,7 @@ export function ProductPhotoField({
     try {
       const uploaded = await upload(productId, file);
       setResult(uploaded);
+      setPreviewRatio(null);
       onPhotoChange(uploaded.thumbnail);
       if (uploaded.status === "SUSPECT") {
         toast.warning("Foto salva, mas sem recorte", {
@@ -69,9 +81,33 @@ export function ProductPhotoField({
     }
   }
 
+  async function handleRecut() {
+    try {
+      const recutResult = await recut({ productId });
+      setResult(recutResult);
+      setPreviewRatio(null);
+      if (!recutResult.applied) {
+        toast.warning("Foto mantida como está", {
+          description: recutResult.reason,
+        });
+        return;
+      }
+      onPhotoChange(recutResult.thumbnail);
+      toast.success(
+        recutResult.keyedBackground
+          ? "Fundo removido e foto recortada"
+          : "Foto recortada",
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Falha ao recortar a foto",
+      );
+    }
+  }
+
   // A proporção do recorte deveria bater com a da embalagem. Divergir muito
   // quase sempre significa medida errada — é o momento de avisar, não depois.
-  const photoRatio = result ? result.widthPx / result.heightPx : null;
+  const photoRatio = result ? result.widthPx / result.heightPx : previewRatio;
   const boxRatio = widthMm && heightMm ? widthMm / heightMm : null;
   const hasRatioConflict =
     photoRatio != null &&
@@ -101,6 +137,14 @@ export function ProductPhotoField({
               src={constructUrl(previewKey)}
               alt="Prévia do recorte"
               className="max-h-full max-w-full object-contain"
+              onLoad={(event) => {
+                const image = event.currentTarget;
+                setPreviewRatio(
+                  image.naturalHeight > 0
+                    ? image.naturalWidth / image.naturalHeight
+                    : null,
+                );
+              }}
             />
           ) : (
             <span className="px-2 text-center text-[10px] text-muted-foreground">
@@ -132,13 +176,27 @@ export function ProductPhotoField({
             {previewKey ? "Trocar foto" : "Enviar foto"}
           </Button>
 
+          {previewKey && (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="gap-2"
+              disabled={isPending}
+              onClick={handleRecut}
+            >
+              <Scissors className="size-4" />
+              Recortar fundo da foto atual
+            </Button>
+          )}
+
           <p className="flex items-start gap-1.5 text-[10px] leading-snug text-muted-foreground">
             <Scissors className="mt-0.5 size-3 shrink-0" />O fundo é removido e
             a foto recortada até o contorno da embalagem — é isso que faz o
             produto assentar no tamanho certo da gôndola.
           </p>
 
-          {result && (
+          {result && result.applied !== false && (
             <p className="text-[10px] text-muted-foreground">
               Recorte: {result.widthPx}×{result.heightPx} px
               {result.keyedBackground ? " · fundo removido" : ""}
@@ -150,8 +208,11 @@ export function ProductPhotoField({
       {result?.status === "SUSPECT" && (
         <p className="flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 p-2 text-[11px] text-amber-700">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-          {result.reason}. A foto foi salva sem recorte — para recortar, use uma
-          imagem com fundo liso.
+          {result.reason}.{" "}
+          {result.applied === false
+            ? "A foto do cadastro foi mantida"
+            : "A foto foi salva sem recorte"}{" "}
+          — para recortar, use uma imagem com fundo liso.
         </p>
       )}
 

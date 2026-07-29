@@ -19,9 +19,9 @@ export const listWithoutSubcategory = base
         z.object({
           id: z.string(),
           name: z.string(),
-        })
+        }),
       ),
-    })
+    }),
   )
   .handler(async ({ context }) => {
     const categories = await prisma.category.findMany({

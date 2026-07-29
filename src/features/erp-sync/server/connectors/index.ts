@@ -22,6 +22,35 @@ export function parseOracleConfig(ciphertext: string): OracleConfig {
 }
 
 /**
+ * Config Oracle decifrada da organização, sem montar conector.
+ *
+ * `resolveSalesConnector` consome a config internamente e só expõe verbos de
+ * negócio (sellers/salesBySellerDaily) — contrato proposital de `types.ts`. O
+ * explorador de consultas customizadas precisa da config crua para montar SQL
+ * própria, então entra por aqui em vez de alargar `SalesConnector`.
+ */
+export async function loadOracleConfig(
+  organizationId: string,
+): Promise<OracleConfig> {
+  const connection = await prisma.erpConnection.findUnique({
+    where: { organizationId },
+    select: { kind: true, status: true, configCiphertext: true },
+  });
+
+  if (!connection || connection.kind !== "WINTHOR_ORACLE") {
+    throw new Error(
+      `Organização ${organizationId} não tem conexão Oracle configurada.`,
+    );
+  }
+  if (!connection.configCiphertext) {
+    throw new Error(
+      `Conexão Winthor da organização ${organizationId} está sem credenciais configuradas.`,
+    );
+  }
+  return parseOracleConfig(connection.configCiphertext);
+}
+
+/**
  * Devolve o conector de vendas da organização — só para ERP externo.
  *
  * Organização NATIVE (sem ERP) não sincroniza: o vendido dela vem direto de

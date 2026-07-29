@@ -19,7 +19,13 @@ export const listPromotionalProducts = base
       categoryFilter: z.array(z.string()).optional(),
       name: z.string().optional(),
       sortBy: z
-        .enum(["discount-desc", "price-asc", "price-desc", "name-asc", "savings-desc"])
+        .enum([
+          "discount-desc",
+          "price-asc",
+          "price-desc",
+          "name-asc",
+          "savings-desc",
+        ])
         .optional(),
     }),
   )
@@ -70,14 +76,17 @@ export const listPromotionalProducts = base
       },
     });
 
-    let result = products.map((p) => {
+    const result = products.map((p) => {
       const salePrice = p.salePrice.toNumber();
-      const promotionalPrice = p.promotionalPrice ? p.promotionalPrice.toNumber() : null;
+      const promotionalPrice = p.promotionalPrice
+        ? p.promotionalPrice.toNumber()
+        : null;
       const discount =
         promotionalPrice !== null
           ? ((salePrice - promotionalPrice) / salePrice) * 100
           : null;
-      const savings = promotionalPrice !== null ? salePrice - promotionalPrice : null;
+      const savings =
+        promotionalPrice !== null ? salePrice - promotionalPrice : null;
 
       return {
         id: p.id,
@@ -100,9 +109,17 @@ export const listPromotionalProducts = base
     } else if (sortBy === "savings-desc") {
       result.sort((a, b) => (b.savings ?? 0) - (a.savings ?? 0));
     } else if (sortBy === "price-asc") {
-      result.sort((a, b) => (a.promotionalPrice ?? a.salePrice) - (b.promotionalPrice ?? b.salePrice));
+      result.sort(
+        (a, b) =>
+          (a.promotionalPrice ?? a.salePrice) -
+          (b.promotionalPrice ?? b.salePrice),
+      );
     } else if (sortBy === "price-desc") {
-      result.sort((a, b) => (b.promotionalPrice ?? b.salePrice) - (a.promotionalPrice ?? a.salePrice));
+      result.sort(
+        (a, b) =>
+          (b.promotionalPrice ?? b.salePrice) -
+          (a.promotionalPrice ?? a.salePrice),
+      );
     } else if (sortBy === "name-asc") {
       result.sort((a, b) => a.name.localeCompare(b.name));
     }

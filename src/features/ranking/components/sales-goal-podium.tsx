@@ -53,8 +53,8 @@ export const MEDALS: Record<
 // intermediário, 3º visivelmente mais baixo que o 2º.
 const HEIGHT_PERCENT_BY_RANK: Record<number, number> = {
   1: 96,
-  2: 78,
-  3: 60,
+  2: 84,
+  3: 72,
 };
 
 function PodiumCard({
@@ -110,11 +110,15 @@ function PodiumCard({
         </div>
       )}
       <div
-        className="relative w-full flex flex-col items-center pt-[6%] pb-[4%] px-2"
+        className="relative w-full flex flex-col items-center pt-[6%] pb-[10%] px-2"
         style={{
           height: `${heightPercent}%`,
+          // Faixa de largura cheia vai até 82% (não 68%) — as linhas de
+          // "X% da meta" / "Vendido R$..." ficam perto do fundo do losango
+          // e eram cortadas pelo afunilamento quando ele começava mais cedo,
+          // sobretudo no card do 3º lugar (mais baixo, menos espaço vertical).
           clipPath:
-            "polygon(50% 0%, 100% 12%, 100% 68%, 50% 100%, 0% 68%, 0% 12%)",
+            "polygon(50% 0%, 100% 10%, 100% 82%, 50% 100%, 0% 82%, 0% 10%)",
           background: `linear-gradient(180deg, ${medal.border}2e, ${medal.border}0d)`,
           border: `2px solid ${medal.border}`,
           animation: "salesGoalFloat 4s ease-in-out infinite",

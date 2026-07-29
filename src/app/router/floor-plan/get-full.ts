@@ -74,8 +74,12 @@ export const getFullFloorPlan = base
       flowLevel: object.flowLevel,
       visibility: object.visibility,
       isExclusive: object.isExclusive,
-      revenuePotential: object.revenuePotential ? Number(object.revenuePotential) : null,
-      avgSalesAmount: object.avgSalesAmount ? Number(object.avgSalesAmount) : null,
+      revenuePotential: object.revenuePotential
+        ? Number(object.revenuePotential)
+        : null,
+      avgSalesAmount: object.avgSalesAmount
+        ? Number(object.avgSalesAmount)
+        : null,
       properties: (object.properties as Record<string, unknown> | null) ?? {},
       activeNegotiation: object.negotiations[0]
         ? {

@@ -10,7 +10,7 @@ export const deleteCustomer = base
   .input(
     z.object({
       id: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, errors }) => {
     const { id } = input;

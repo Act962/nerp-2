@@ -17,13 +17,13 @@ export const updateSubdomain = base
   .input(
     z.object({
       subdomain: z.string().min(3).max(63),
-    })
+    }),
   )
   .output(
     z.object({
       organizationId: z.string(),
       subdomain: z.string(),
-    })
+    }),
   )
   .handler(async ({ input, context, errors }) => {
     const existing = await prisma.organization.findUnique({

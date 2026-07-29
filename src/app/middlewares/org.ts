@@ -32,5 +32,5 @@ export const requireOrgMiddleware = base.middleware(
         org: organization,
       },
     });
-  }
+  },
 );

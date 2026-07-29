@@ -253,7 +253,9 @@ export default async function Page({
             <div className="flex items-start gap-3">
               <Avatar className="size-10">
                 <AvatarFallback className="bg-primary/10 text-primary font-semibold">
-                  {(session.user.name?.[0] ?? session.user.email[0]).toUpperCase()}
+                  {(
+                    session.user.name?.[0] ?? session.user.email[0]
+                  ).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div className="min-w-0">
@@ -327,8 +329,8 @@ export default async function Page({
       </div>
 
       <p className="text-muted-foreground mt-4 text-center text-xs">
-        Powered by{" "}
-        <span className="text-foreground font-medium">nerp</span> · ERP Lima
+        Powered by <span className="text-foreground font-medium">nerp</span> ·
+        TradeGram
       </p>
     </PageShell>
   );
