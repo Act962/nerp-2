@@ -7,6 +7,11 @@ export const PAGE_PERMISSIONS = [
     href: "/dashboard",
   },
   {
+    key: "dashboard-org",
+    label: "Dashboard da organização (editor)",
+    href: "/dashboard-organizacao",
+  },
+  {
     key: "pedidos",
     label: "Pedidos (cozinha)",
     href: "/pedidos",
@@ -80,6 +85,11 @@ export const PAGE_PERMISSIONS = [
     key: "planograma",
     label: "Planograma",
     href: "/trade/planograma",
+  },
+  {
+    key: "qr-preco",
+    label: "App QR Preço",
+    href: "/trade/qr-preco",
   },
   {
     key: "tradegram",

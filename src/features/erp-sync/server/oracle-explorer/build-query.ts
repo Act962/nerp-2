@@ -160,7 +160,7 @@ export function buildWhereConditions(
 
   if (config.dateFilter) {
     const column = resolveColumn(table, config.dateFilter.column);
-    const { from, to } = resolveDatePreset(config.dateFilter.preset);
+    const { from, to } = resolveDatePreset(config.dateFilter);
     // Coluna crua nos dois lados: é isso que permite index range scan.
     conditions.push(
       `T.${column.name} >= :dtStart AND T.${column.name} < :dtEnd`,

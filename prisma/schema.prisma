@@ -229,6 +229,7 @@ model Organization {
   dashboardManualMetrics    DashboardManualMetric[]
   oracleWidgetSnapshots     OracleWidgetSnapshot[]
   oracleQueryTemplates      OracleQueryTemplate[]
+  orgDashboard              OrgDashboard?
 
   @@index([slug])
   @@index([subdomain])
@@ -268,6 +269,9 @@ model Member {
   dashboardWidgets     DashboardWidget[]
   updatedManualMetrics DashboardManualMetric[]
   oracleQueryTemplates OracleQueryTemplate[]
+  // Modelo compartilhado da org: autor (opcional) e permissões por widget.
+  authoredOrgDashboards      OrgDashboard[]                 @relation("OrgDashboardCreator")
+  orgDashboardPermissions    OrgDashboardMemberPermission[] @relation("OrgDashboardMemberPermissions")
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -3017,4 +3021,127 @@ model DashboardManualMetric {
 
   @@index([organizationId])
   @@map("dashboard_manual_metrics")
+}
+
+// "Dashboard da organização" — modelo compartilhado que o owner/admin monta e
+// os outros membros consomem, sujeito a permissão por widget. Existe UM por
+// organização (constraint `@unique` em organizationId). Convivendo com os
+// dashboards pessoais em `DashboardWidget` — cada gerente continua com o
+// próprio, e ganha uma aba a mais para ver o modelo da organização.
+model OrgDashboard {
+  id                     String   @id @default(cuid())
+  organizationId         String   @unique
+  name                   String   @default("Dashboard da organização")
+  createdById            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  // Compartilhamento público (leitura, sem login) — mesmo padrão dos QRs
+  // públicos do TradeGram. Rotacionar o token = revogar todos os links
+  // anteriores. Ausente = não compartilhado.
+  shareToken             String?  @unique
+  publicName             String?
+  // Subconjunto dos widgets que aparecem no link público. Vazio = nenhum
+  // visível (o link cai numa tela vazia com aviso, e não escapa dado).
+  publicVisibleWidgetIds String[] @default([])
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    Member?              @relation("OrgDashboardCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  widgets      OrgDashboardWidget[]
+  panels       OrgDashboardPanel[]
+
+  @@index([shareToken])
+  @@map("org_dashboards")
+}
+
+// "Painel" = agrupamento visual de widgets por categoria (Comercial, Estoque,
+// Frota, Logística, Operacional, Financeiro, Mapa, IA). Cada painel tem cor,
+// título editável e sua própria ordem de widgets DENTRO dele — o dashboard
+// como um todo é uma coleção de painéis + widgets fora de painel (legado).
+//
+// `templateKey` guarda de qual template o painel nasceu — permite futuramente
+// oferecer "restaurar padrão" ou identificar visualmente qual pré-configurado
+// o admin escolheu.
+model OrgDashboardPanel {
+  id             String   @id @default(cuid())
+  orgDashboardId String
+  // Categoria fixa (enum lógica, string aqui pra evitar migration a cada
+  // nova categoria adicionada no catálogo de templates).
+  category       String
+  title          String
+  // Cor do cabeçalho do painel: chave da paleta OU hex livre (mesmo shape
+  // que `WidgetColor` do widget). null = cor padrão da categoria.
+  color          String?
+  sortOrder      Int      @default(0)
+  /// Layout do painel na grade do dashboard (por breakpoint). Se null, o
+  /// painel entra empilhado abaixo dos existentes na primeira renderização.
+  layout         Json?
+  /// Slug do template usado para criar o painel (`comercial-basico`,
+  /// `logistica-detalhada`, ...). Nunca varia depois de criado.
+  templateKey    String?
+  /// Personalização visual do painel (fundo, contorno, cor do contorno, fonte
+  /// do título). Mesmo padrão de `options.appearance` do widget — JSON pra não
+  /// virar 6 colunas opcionais. null = padrão (só a `color`).
+  appearance     Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orgDashboard OrgDashboard         @relation(fields: [orgDashboardId], references: [id], onDelete: Cascade)
+  widgets      OrgDashboardWidget[]
+
+  @@index([orgDashboardId])
+  @@map("org_dashboard_panels")
+}
+
+// Widget do dashboard da organização. Mesmo shape de `DashboardWidget` no que
+// importa (dataSourceKey, options, layout, parent) — mas dono é o
+// OrgDashboard, não o Member. Nada de `sortOrder` compartilhado com o
+// pessoal: a ordem aqui é independente da lista pessoal do member.
+model OrgDashboardWidget {
+  id             String                     @id @default(cuid())
+  orgDashboardId String
+  /// Se preenchido, o widget vive DENTRO de um painel — o layout dele é
+  /// interno ao painel, e ele some do grid raiz quando o painel é
+  /// removido. null = widget "solto" na raiz (compatível com o modo antigo).
+  panelId        String?
+  dataSourceKey  String
+  title          String?
+  displayType    DashboardWidgetDisplayType
+  chartKind      DashboardWidgetChartKind?
+  color          String?
+  icon           String?
+  options        Json?
+  layout         Json
+  sortOrder      Int                        @default(0)
+  parentId       String?
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+
+  orgDashboard OrgDashboard                   @relation(fields: [orgDashboardId], references: [id], onDelete: Cascade)
+  panel        OrgDashboardPanel?             @relation(fields: [panelId], references: [id], onDelete: Cascade)
+  parent       OrgDashboardWidget?            @relation("OrgWidgetChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  children     OrgDashboardWidget[]           @relation("OrgWidgetChildren")
+  permissions  OrgDashboardMemberPermission[]
+
+  @@index([orgDashboardId])
+  @@index([panelId])
+  @@index([parentId])
+  @@map("org_dashboard_widgets")
+}
+
+// Deny-by-default: se não existe linha para (member, widget), o membro NÃO
+// vê o widget. Owner/admin ignora essa tabela (mesmo comportamento de
+// `PAGE_PERMISSIONS`) — não precisa ser configurado item a item pra eles.
+model OrgDashboardMemberPermission {
+  memberId             String
+  orgDashboardWidgetId String
+  createdAt            DateTime @default(now())
+
+  member             Member             @relation("OrgDashboardMemberPermissions", fields: [memberId], references: [id], onDelete: Cascade)
+  orgDashboardWidget OrgDashboardWidget @relation(fields: [orgDashboardWidgetId], references: [id], onDelete: Cascade)
+
+  @@id([memberId, orgDashboardWidgetId])
+  @@index([memberId])
+  @@index([orgDashboardWidgetId])
+  @@map("org_dashboard_member_permissions")
 }

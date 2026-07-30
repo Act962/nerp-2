@@ -48,6 +48,7 @@ import { tradeInterestRoutes } from "./trade-interest";
 import { erpSyncRoutes } from "./erp-sync";
 import { oracleExplorerRoutes } from "./oracle-explorer";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
+import { orgDashboardRoutes } from "./org-dashboard";
 
 export const router = {
   products: productsRoutes,
@@ -100,4 +101,5 @@ export const router = {
   erpSync: erpSyncRoutes,
   oracleExplorer: oracleExplorerRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
+  orgDashboard: orgDashboardRoutes,
 };

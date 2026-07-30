@@ -93,6 +93,10 @@ export const DATE_PRESETS = [
   "next60",
   "next90",
   "overdue",
+  // "custom" leva `from`/`to` no próprio dateFilter (ISO YYYY-MM-DD). É o
+  // caminho para intervalos que não cabem em preset — relatório fechado de um
+  // mês específico, período de campanha, etc.
+  "custom",
 ] as const;
 export type OracleDatePreset = (typeof DATE_PRESETS)[number];
 
@@ -108,7 +112,12 @@ export const DATE_PRESET_LABEL: Record<OracleDatePreset, string> = {
   next60: "Próximos 60 dias",
   next90: "Próximos 90 dias",
   overdue: "Já vencido",
+  custom: "Data personalizada",
 };
+
+// ISO YYYY-MM-DD — o `<input type="date">` já entrega exatamente nesse formato,
+// então dispensa parser.
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 const filterSchema = z
   .object({
@@ -168,7 +177,23 @@ export const oracleQueryConfigSchema = z.object({
     ])
     .default({ kind: "none" }),
   dateFilter: z
-    .object({ column: z.string().min(1), preset: z.enum(DATE_PRESETS) })
+    .object({
+      column: z.string().min(1),
+      preset: z.enum(DATE_PRESETS),
+      // Só usados quando preset === "custom" — nas demais janelas o intervalo
+      // vem do `resolveDatePreset`.
+      from: z.string().regex(ISO_DATE).optional(),
+      to: z.string().regex(ISO_DATE).optional(),
+    })
+    .refine(
+      (filter) =>
+        filter.preset !== "custom" ||
+        (!!filter.from && !!filter.to && filter.from <= filter.to),
+      {
+        message:
+          "Intervalo personalizado precisa de data inicial e final, com início ≤ fim.",
+      },
+    )
     .nullable()
     .default(null),
   filters: z.array(filterSchema).max(8).default([]),
@@ -202,6 +227,23 @@ export function allowedDisplayTypes(
   if (config.groupBy.kind === "none") return ["STAT"];
   if (config.groupBy.kind === "date") return ["CHART", "LIST", "TABLE"];
   return ["LIST", "CHART", "TABLE"];
+}
+
+/**
+ * A consulta está montada o bastante para virar widget? Sem isso o usuário
+ * conseguia clicar "Adicionar" com o montador intocado (`state.oracle` nulo) e
+ * criava um widget Oracle SEM consulta — que resolvia como "Consulta não
+ * configurada", sem dado. Exige tabela e ao menos uma medida resolvível
+ * (coluna definida, ou COUNT que vira `COUNT(*)` e dispensa coluna).
+ */
+export function isOracleDraftRunnable(
+  config: Pick<OracleQueryConfig, "table" | "measures"> | null | undefined,
+): boolean {
+  if (!config) return false;
+  if (!config.table) return false;
+  return config.measures.some(
+    (measure) => measure.column !== null || measure.aggregation === "COUNT",
+  );
 }
 
 // Códigos de dimensão mais comuns do Winthor, para o nome sugerido não sair
@@ -246,11 +288,24 @@ export function describeOracleQuery(
   return `${measures} por ${DIMENSION_LABEL[column] ?? column}`;
 }
 
-/** Janela de datas de um preset. Fim é EXCLUSIVO (usado com `<`). */
+/**
+ * Janela de datas de um filtro. Fim é EXCLUSIVO (usado com `<`).
+ *
+ * Aceita o filtro inteiro em vez de só o preset porque `custom` traz o
+ * intervalo consigo (from/to em ISO). O caller do SQL passa o objeto direto e
+ * não precisa saber que a fonte da janela mudou dependendo do preset.
+ */
 export function resolveDatePreset(
-  preset: OracleDatePreset,
+  filter:
+    | OracleDatePreset
+    | Pick<
+        NonNullable<OracleQueryConfig["dateFilter"]>,
+        "preset" | "from" | "to"
+      >,
   now: Date = new Date(),
 ): { from: Date; to: Date } {
+  const preset = typeof filter === "string" ? filter : filter.preset;
+
   const startOfToday = new Date(now);
   startOfToday.setHours(0, 0, 0, 0);
   const endExclusive = new Date(startOfToday);
@@ -301,5 +356,25 @@ export function resolveDatePreset(
     // de negócio do Winthor é anterior a isso.
     case "overdue":
       return { from: new Date(1900, 0, 1), to: startOfToday };
+    case "custom": {
+      // Só chega aqui pelo objeto — o refine do schema já garante that from/to
+      // estão presentes.
+      if (typeof filter === "string" || !filter.from || !filter.to) {
+        throw new Error("Intervalo personalizado sem datas.");
+      }
+      // Parse manual em vez de `new Date("YYYY-MM-DD")`, que assume UTC e
+      // atrasa um dia dependendo do fuso — "2026-08-01" viraria 31/07 no
+      // horário de Brasília.
+      const parse = (iso: string) => {
+        const [year, month, day] = iso.split("-").map(Number);
+        return new Date(year, month - 1, day);
+      };
+      const from = parse(filter.from);
+      const to = parse(filter.to);
+      // Fim EXCLUSIVO: a UI pergunta pelo último dia que o usuário quer VER, o
+      // predicado SQL é `< to`. Empurrar 1 dia à frente.
+      to.setDate(to.getDate() + 1);
+      return { from, to };
+    }
   }
 }

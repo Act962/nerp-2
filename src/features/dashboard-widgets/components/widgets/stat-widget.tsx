@@ -1,5 +1,16 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+import { pastelHex, type WidgetColor } from "../../lib/pastel-colors";
+import {
+  alignClass,
+  justifyClass,
+  valueFontSize,
+  weightClass,
+  type WidgetAlign,
+  type WidgetTextSize,
+  type WidgetTextWeight,
+} from "../../lib/widget-appearance";
 import { widgetIcon } from "../../lib/widget-icons";
 import { formatWidgetValue, type WidgetValue } from "../../lib/widget-value";
 
@@ -62,23 +73,76 @@ export function StatWidget({
   value,
   icon,
   progressPercent,
+  valueAlign = "left",
+  valueColor,
+  valueSize = "md",
+  valueWeight = "semibold",
+  iconColor,
+  sparkline,
 }: {
   value: Extract<WidgetValue, { kind: "STAT" }>;
   icon?: string | null;
   progressPercent?: number;
+  /** Alinhamento horizontal do número — a barra de progresso segue no fim. */
+  valueAlign?: WidgetAlign;
+  /** Cor do número; null = herdar do tema. */
+  valueColor?: WidgetColor | null;
+  /**
+   * Escala aplicada sobre o `clamp` responsivo. `md` = tamanho antigo. Passa
+   * por `valueFontSize` porque o número precisa continuar encolhendo/crescendo
+   * com o card — não é um px fixo.
+   */
+  valueSize?: WidgetTextSize;
+  /** Peso do número. `semibold` = comportamento antigo. */
+  valueWeight?: WidgetTextWeight;
+  /** Cor do ícone e do círculo em volta; null = tom padrão (primary). */
+  iconColor?: WidgetColor | null;
+  /**
+   * Série curta de valores (últimos N pontos) — se presente, é desenhada
+   * como polyline SVG discreta ABAIXO do número. Usa a `valueColor` como
+   * tom quando definida, senão o `primary` do tema.
+   */
+  sparkline?: number[];
 }) {
   const Icon = widgetIcon(icon);
+  const valueHex = pastelHex(valueColor);
+  const iconHex = pastelHex(iconColor);
   return (
     <div className="@container flex h-full flex-col gap-1">
-      <div className="flex min-w-0 items-center gap-2">
+      <div
+        className={cn(
+          "flex min-w-0 items-center gap-2",
+          justifyClass(valueAlign),
+        )}
+      >
         {Icon && (
-          <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <span
+            className={cn(
+              "flex size-7 shrink-0 items-center justify-center rounded-full",
+              !iconHex && "bg-primary/10 text-primary",
+            )}
+            style={
+              iconHex
+                ? { background: `${iconHex}33`, color: iconHex }
+                : undefined
+            }
+          >
             <Icon className="size-3.5" />
           </span>
         )}
         <p
-          className="min-w-0 flex-1 font-semibold tabular-nums leading-tight"
-          style={{ fontSize: "clamp(1rem, 8cqw, 1.75rem)" }}
+          className={cn(
+            // `flex-1` só quando ancora à esquerda: com center/right o número
+            // deixa de esticar e o alinhamento passa a mandar de fato.
+            "min-w-0 tabular-nums leading-tight",
+            weightClass(valueWeight),
+            valueAlign === "left" && "flex-1",
+            alignClass(valueAlign),
+          )}
+          style={{
+            fontSize: valueFontSize(valueSize),
+            ...(valueHex ? { color: valueHex } : {}),
+          }}
         >
           {formatWidgetValue(value.value, value.unit)}
         </p>
@@ -87,8 +151,61 @@ export function StatWidget({
         )}
       </div>
       {value.deltaLabel && (
-        <p className="text-xs text-muted-foreground">{value.deltaLabel}</p>
+        <p
+          className={cn(
+            "text-muted-foreground text-xs",
+            alignClass(valueAlign),
+          )}
+        >
+          {value.deltaLabel}
+        </p>
+      )}
+      {sparkline && sparkline.length >= 2 && (
+        <Sparkline points={sparkline} color={valueHex ?? "currentColor"} />
       )}
     </div>
+  );
+}
+
+/**
+ * Sparkline SVG minimalista — normaliza os pontos para o viewBox 100×24 e
+ * desenha uma polyline. Sem eixos, sem labels: é indicador de tendência,
+ * não gráfico. Fica na base do StatWidget para dar contexto do "vs. ontem"
+ * sem ocupar espaço vertical significativo.
+ */
+function Sparkline({ points, color }: { points: number[]; color: string }) {
+  const min = Math.min(...points);
+  const max = Math.max(...points);
+  const range = max - min || 1;
+  const width = 100;
+  const height = 24;
+  const step = width / (points.length - 1);
+  const path = points
+    .map((value, index) => {
+      const x = index * step;
+      const y = height - ((value - min) / range) * height;
+      return `${index === 0 ? "M" : "L"}${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+  const areaPath = `${path} L${width},${height} L0,${height} Z`;
+  return (
+    <svg
+      className="mt-1 h-6 w-full opacity-70"
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Tendência recente"
+    >
+      <path d={areaPath} fill={color} fillOpacity={0.15} />
+      <path
+        d={path}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
+      />
+    </svg>
   );
 }

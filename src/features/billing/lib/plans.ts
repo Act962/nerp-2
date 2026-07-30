@@ -36,6 +36,8 @@ export const MODULE_MIN_PLAN: Partial<
   Record<PagePermissionKey, TradePlanTier>
 > = {
   tradegram: "BRONZE",
+  // Atalho para o app público do TradeGram — mesmo plano do módulo que o serve.
+  "qr-preco": "BRONZE",
   lojas: "BRONZE",
   "trade-cadastros": "BRONZE",
   "catalogo-pdv": "BRONZE",

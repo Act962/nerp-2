@@ -38,7 +38,38 @@ export type WidgetValue =
         unit?: "currency" | "number" | "percent";
       }[];
       rows: { id: string; cells: (string | number | null)[] }[];
+    }
+  // Frota: uma linha por caminhão, com barra de ocupação de carga. Renderer
+  // dedicado (FleetWidget) — não cabe na TABLE genérica por causa da barra e
+  // do badge de status.
+  | {
+      kind: "FLEET";
+      trucks: {
+        id: string;
+        plate: string;
+        driver: string;
+        route: string;
+        /** Ocupação de carga 0–100. */
+        loadPercent: number;
+        eta?: string;
+        status?: string;
+        statusTone?: WidgetTone;
+      }[];
+    }
+  // Feed de alertas (IA operacional): itens com tom, título, subtítulo e hora.
+  | {
+      kind: "FEED";
+      items: {
+        id: string;
+        tone: WidgetTone;
+        title: string;
+        subtitle?: string;
+        time?: string;
+      }[];
     };
+
+// Tom semântico compartilhado por FLEET (badge) e FEED (ícone/cor).
+export type WidgetTone = "info" | "success" | "warning" | "danger" | "neutral";
 
 export function formatWidgetValue(
   value: number,

@@ -3,7 +3,10 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import type { Prisma } from "@/generated/prisma/client";
-import { PASTEL_COLORS } from "@/features/dashboard-widgets/lib/pastel-colors";
+import {
+  HEX_COLOR_RE,
+  PASTEL_COLORS,
+} from "@/features/dashboard-widgets/lib/pastel-colors";
 import { WIDGET_ICONS } from "@/features/dashboard-widgets/lib/widget-icons";
 import prisma from "@/lib/db";
 import { isOracleWidget, validateOracleWidget } from "./_oracle-widget";
@@ -34,10 +37,14 @@ const addWidgetInputSchema = z.object({
   parentId: z.string().nullable().optional(),
   displayType: z.enum(["STAT", "CHART", "LIST", "MAP", "TABLE"]),
   chartKind: z.enum(["LINE", "BAR", "DONUT"]).nullable().optional(),
-  // Sempre uma das 8 chaves da paleta pastel — nunca hex livre, mesma
-  // restrição de produto validada de novo aqui (nunca confiar só no client).
+  // Chave da paleta OU hex `#rrggbb` livre (conta-gotas). Union em vez de
+  // string livre porque tudo que não bater aqui pode chegar a inline style —
+  // é o que evita `red`/`javascript:`/whatever virar CSS injection.
   color: z
-    .enum(PASTEL_KEYS as [string, ...string[]])
+    .union([
+      z.enum(PASTEL_KEYS as [string, ...string[]]),
+      z.string().regex(HEX_COLOR_RE),
+    ])
     .nullable()
     .optional(),
   // Mesma validação enum-only de `color`, nunca string livre.

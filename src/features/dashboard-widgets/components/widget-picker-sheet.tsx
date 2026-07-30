@@ -30,7 +30,13 @@ import {
   useMyDashboardWidgets,
 } from "../hooks/use-dashboard-widgets";
 import { useWidgetCatalog } from "../hooks/use-widget-catalog";
-import { describeOracleQuery } from "../lib/oracle-query-config";
+import {
+  describeOracleQuery,
+  isOracleDraftRunnable,
+  ORACLE_CUSTOM_KEY,
+} from "../lib/oracle-query-config";
+import { DEFAULT_ALERT } from "../lib/widget-alert";
+import { DEFAULT_APPEARANCE } from "../lib/widget-appearance";
 import {
   buildOptions,
   type ChartKind,
@@ -59,17 +65,60 @@ interface CatalogEntry {
   available: boolean;
 }
 
+// Formato do input dos dois `add` — pessoal e org compartilham a MESMA
+// forma. Extraído aqui para o tipo da mutation ser um só.
+export interface WidgetPickerAddInput {
+  dataSourceKey: string;
+  title: string | null;
+  displayType: DisplayType;
+  chartKind?: ChartKind;
+  color: string | null;
+  icon: string | null;
+  parentId: string | null;
+  options: Record<string, unknown> | null;
+}
+
+// Widget existente para deduplicar por chave (contagem "já adicionado") e
+// listar como pai potencial. `never` para reforçar que só usamos o que
+// nomeamos aqui — chega mais campo no `useMyDashboardWidgets` do que
+// precisamos ler.
+export interface WidgetPickerExisting {
+  id: string;
+  title: string | null;
+  dataSourceKey: string;
+  parentId: string | null;
+}
+
+// Assinatura mínima da mutation — não usamos `UseMutationResult` cheio pra
+// não travar em diferenças de generic entre pessoal e org (ambos usam oRPC
+// mas com tipos de erro/retorno específicos). Só `.mutate` e `.isPending`
+// interessam aqui.
+export interface WidgetPickerAddMutation {
+  mutate: (
+    input: WidgetPickerAddInput,
+    options?: { onSuccess?: () => void; onError?: (error: Error) => void },
+  ) => void;
+  isPending: boolean;
+}
+
+export interface WidgetPickerDataSource {
+  addMutation: WidgetPickerAddMutation;
+  existingWidgets: WidgetPickerExisting[];
+}
+
 function WidgetCatalogRow({
   entry,
   addedCount,
   parents,
+  addMutation,
 }: {
   entry: CatalogEntry;
   addedCount: number;
   /** Cards de topo que podem receber este widget como desdobramento. */
   parents: { id: string; label: string }[];
+  addMutation: WidgetPickerDataSource["addMutation"];
 }) {
-  const addWidget = useAddDashboardWidget();
+  const addWidget = addMutation;
   const [state, setState] = useState<CustomizeState>({
     displayType: entry.supportedDisplayTypes[0],
     chartKind: entry.supportedChartKinds[0] ?? "LINE",
@@ -78,10 +127,19 @@ function WidgetCatalogRow({
     targetValue: "",
     title: "",
     oracle: null,
+    appearance: DEFAULT_APPEARANCE,
+    alert: DEFAULT_ALERT,
   });
   const [parentId, setParentId] = useState<string>("");
 
   const targetValue = Number(state.targetValue.replace(",", "."));
+
+  // Widget Oracle SÓ pode ser criado com uma consulta montada — sem isso o
+  // widget nasce como "Consulta não configurada" e nunca mostra dado. Trava o
+  // botão até a consulta ficar rodável (tabela + medida).
+  const isOracleEntry = entry.key === ORACLE_CUSTOM_KEY;
+  const oracleIncomplete =
+    isOracleEntry && !isOracleDraftRunnable(state.oracle);
 
   const row = (
     <div className="flex flex-col gap-2 rounded-md border p-3">
@@ -137,7 +195,7 @@ function WidgetCatalogRow({
           type="button"
           size="sm"
           className="h-7 text-xs"
-          disabled={!entry.available || addWidget.isPending}
+          disabled={!entry.available || addWidget.isPending || oracleIncomplete}
           onClick={() =>
             addWidget.mutate({
               dataSourceKey: entry.key,
@@ -158,8 +216,13 @@ function WidgetCatalogRow({
           }
         >
           {addWidget.isPending && <Loader2 className="size-3 animate-spin" />}
-          Adicionar
+          Adicionar campo
         </Button>
+        {oracleIncomplete && (
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            Escolha a tabela e ao menos uma medida para adicionar.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -178,6 +241,8 @@ function WidgetCatalogRow({
   );
 }
 
+// Componente EXPORTADO padrão — usado direto pelo dashboard pessoal (não
+// muda o comportamento antigo).
 export function WidgetPickerSheet({
   open,
   onOpenChange,
@@ -185,12 +250,44 @@ export function WidgetPickerSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
-  const { data, isLoading } = useWidgetCatalog();
+  const addMutation = useAddDashboardWidget();
   const { data: myWidgets } = useMyDashboardWidgets();
+  return (
+    <WidgetPickerSheetCore
+      open={open}
+      onOpenChange={onOpenChange}
+      dataSource={{
+        addMutation,
+        existingWidgets: (myWidgets?.widgets ?? []).map((widget) => ({
+          id: widget.id,
+          title: widget.title,
+          dataSourceKey: widget.dataSourceKey,
+          parentId: widget.parentId,
+        })),
+      }}
+    />
+  );
+}
+
+/**
+ * Core parametrizado. Reaproveitado pelo editor do dashboard da org, que
+ * passa uma `addMutation` diferente (chama `orpc.orgDashboard.addWidget`)
+ * e uma outra lista de widgets existentes.
+ */
+export function WidgetPickerSheetCore({
+  open,
+  onOpenChange,
+  dataSource,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  dataSource: WidgetPickerDataSource;
+}) {
+  const { data, isLoading } = useWidgetCatalog();
   const entries = (data?.widgets ?? []) as CatalogEntry[];
 
   const addedCountByKey = new Map<string, number>();
-  for (const widget of myWidgets?.widgets ?? []) {
+  for (const widget of dataSource.existingWidgets) {
     addedCountByKey.set(
       widget.dataSourceKey,
       (addedCountByKey.get(widget.dataSourceKey) ?? 0) + 1,
@@ -199,7 +296,7 @@ export function WidgetPickerSheet({
 
   const labelByKey = new Map(entries.map((entry) => [entry.key, entry.label]));
   // Só card de topo pode receber desdobramento — aninhar é de um nível só.
-  const parentOptions = (myWidgets?.widgets ?? [])
+  const parentOptions = dataSource.existingWidgets
     .filter((widget) => !widget.parentId)
     .map((widget) => ({
       id: widget.id,
@@ -249,6 +346,7 @@ export function WidgetPickerSheet({
                         entry={entry}
                         addedCount={addedCountByKey.get(entry.key) ?? 0}
                         parents={parentOptions}
+                        addMutation={dataSource.addMutation}
                       />
                     ))}
                   {entries.filter((entry) => entry.category === tab.value)

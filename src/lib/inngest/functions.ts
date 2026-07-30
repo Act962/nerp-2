@@ -10,6 +10,7 @@ import { runCustomerImport } from "@/features/custom/server/customer-import-runn
 import { generateBook } from "@/features/books/server/generate-book";
 import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-catalog-pdf";
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
+import { checkWidgetAlerts } from "@/features/dashboard-widgets/server/check-widget-alerts";
 import {
   bookGenerateRequested,
   customerImportRequested,
@@ -341,6 +342,33 @@ export const erpSyncRun = inngest.createFunction(
   },
 );
 
+/**
+ * Cron dos alertas do dashboard.
+ *
+ * Roda a cada 5 minutos entre 6h e 22h em dias úteis (mesma janela do
+ * `erpSyncSchedule`). Cada execução verifica TODOS os widgets com alerta
+ * habilitado — a fan-out é interna à função para não pagar por N funções
+ * agendadas separadamente (Inngest cobra por definição, não por linha).
+ *
+ * A tolerância de disparo é de ~6 min por padrão (ver
+ * `ALERT_TOLERANCE_MINUTES`): o alerta configurado para 14h aceita cron
+ * batendo até 14:06 — cobre a granularidade de 5 min sem duplicar disparo
+ * (o `lastFiredAt` deduplica no mesmo dia).
+ *
+ * Se ninguém tiver alerta habilitado, a função sai em <10ms — barato o
+ * suficiente para o cron rodar mesmo em orgs sem uso do módulo.
+ */
+export const dashboardAlertCheck = inngest.createFunction(
+  {
+    id: "dashboard-alert-check",
+    triggers: [{ cron: "TZ=America/Fortaleza */5 6-22 * * 1-6" }],
+  },
+  async ({ step }) => {
+    const fired = await step.run("check", () => checkWidgetAlerts());
+    return { fired: fired.length };
+  },
+);
+
 export const functions = [
   syncNasaDelivery,
   productImportProcess,
@@ -352,4 +380,5 @@ export const functions = [
   erpSyncSchedule,
   erpSyncDeepSchedule,
   erpSyncRun,
+  dashboardAlertCheck,
 ];

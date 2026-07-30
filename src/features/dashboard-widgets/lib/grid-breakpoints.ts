@@ -5,6 +5,21 @@ export const GRID_BREAKPOINTS = { lg: 1024, md: 768, sm: 480, xxs: 0 } as const;
 export const GRID_COLS = { lg: 12, md: 8, sm: 4, xxs: 1 } as const;
 export const GRID_ROW_HEIGHT = 64;
 
+// Breakpoints do grid de widgets DENTRO de um painel — o container ali é o
+// painel, não a página. `GRID_BREAKPOINTS` foi calibrado para largura de
+// página inteira (lg a partir de 1024px); um painel raramente chega perto
+// disso mesmo ocupando metade de uma tela desktop, então usar os mesmos
+// limiares fazia o grid interno cair sempre no breakpoint mais estreito
+// (poucas colunas) e os widgets nunca ficarem lado a lado — sempre
+// empilhados, mesmo com o painel bem largo. Mesma contagem de colunas
+// (`GRID_COLS`), limiares recalibrados pra um container tipicamente menor.
+export const PANEL_WIDGET_BREAKPOINTS = {
+  lg: 480,
+  md: 320,
+  sm: 200,
+  xxs: 0,
+} as const;
+
 export type GridBreakpoint = keyof typeof GRID_BREAKPOINTS;
 
 /** Altura (em linhas da grade) que o card ocupa recolhido: só o cabeçalho. */

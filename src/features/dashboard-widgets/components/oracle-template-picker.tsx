@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BookmarkPlus, Sparkles, Trash2 } from "lucide-react";
+import { BookmarkPlus, ChevronDown, Sparkles, Trash2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -47,17 +48,35 @@ export function OracleTemplatePicker({
   const deleteTemplate = useDeleteOracleQueryTemplate();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
+  // Nasce recolhido — os modelos são atalho, não parte do fluxo padrão de
+  // montar uma consulta.
+  const [collapsed, setCollapsed] = useState(true);
 
   const saved = data?.templates ?? [];
   const canSave = Boolean(currentConfig.table) && currentDisplayType !== "MAP";
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border bg-background p-2">
-      <div className="flex items-center justify-between">
-        <Label className="flex items-center gap-1 text-[10px] text-muted-foreground">
-          <Sparkles className="size-3" /> Padrões de busca
-        </Label>
-        {canSave && !saving && (
+    <div className="flex flex-col rounded-md border bg-background">
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+        <button
+          type="button"
+          onClick={() => setCollapsed((value) => !value)}
+          aria-expanded={!collapsed}
+          aria-controls="oracle-templates-body"
+          className="-mx-1 flex flex-1 items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-muted/40"
+        >
+          <ChevronDown
+            className={cn(
+              "size-3.5 shrink-0 text-muted-foreground transition-transform",
+              collapsed && "-rotate-90",
+            )}
+          />
+          <Sparkles className="size-3 text-muted-foreground" />
+          <Label className="cursor-pointer text-[10px] text-muted-foreground">
+            Padrões de busca
+          </Label>
+        </button>
+        {!collapsed && canSave && !saving && (
           <Button
             type="button"
             size="sm"
@@ -70,137 +89,144 @@ export function OracleTemplatePicker({
         )}
       </div>
 
-      {saving && (
-        <div className="flex items-center gap-1.5">
-          <Input
-            autoFocus
-            className="h-7 text-xs"
-            placeholder="Nome do modelo"
-            maxLength={60}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-          <Button
-            type="button"
-            size="sm"
-            className="h-7 text-xs"
-            disabled={!name.trim() || saveTemplate.isPending}
-            onClick={() => {
-              saveTemplate.mutate(
-                {
-                  name: name.trim(),
-                  config: currentConfig,
-                  displayType: currentDisplayType as
-                    | "STAT"
-                    | "CHART"
-                    | "LIST"
-                    | "TABLE",
-                },
-                {
-                  onSuccess: () => {
-                    setName("");
-                    setSaving(false);
-                  },
-                },
+      {!collapsed && (
+        <div
+          id="oracle-templates-body"
+          className="flex flex-col gap-1.5 px-2 pt-0 pb-2"
+        >
+          {saving && (
+            <div className="flex items-center gap-1.5">
+              <Input
+                autoFocus
+                className="h-7 text-xs"
+                placeholder="Nome do modelo"
+                maxLength={60}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+              <Button
+                type="button"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={!name.trim() || saveTemplate.isPending}
+                onClick={() => {
+                  saveTemplate.mutate(
+                    {
+                      name: name.trim(),
+                      config: currentConfig,
+                      displayType: currentDisplayType as
+                        | "STAT"
+                        | "CHART"
+                        | "LIST"
+                        | "TABLE",
+                    },
+                    {
+                      onSuccess: () => {
+                        setName("");
+                        setSaving(false);
+                      },
+                    },
+                  );
+                }}
+              >
+                Salvar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setName("");
+                  setSaving(false);
+                }}
+              >
+                Cancelar
+              </Button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-1">
+            {ORACLE_QUERY_TEMPLATES.map((template) => {
+              // Winthor varia entre clientes — modelo cuja tabela não existe aqui
+              // fica desabilitado em vez de dar erro no "Testar consulta".
+              const missing =
+                availableTables.length > 0 &&
+                !availableTables.includes(template.config.table);
+              const chip = (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={missing}
+                  className="h-6 px-2 text-[10px]"
+                  onClick={() =>
+                    onApply({
+                      config: template.config,
+                      displayType: template.displayType,
+                      name: template.label,
+                    })
+                  }
+                >
+                  {template.label}
+                </Button>
               );
-            }}
-          >
-            Salvar
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
-            onClick={() => {
-              setName("");
-              setSaving(false);
-            }}
-          >
-            Cancelar
-          </Button>
+              return (
+                <Tooltip key={template.key}>
+                  <TooltipTrigger asChild>
+                    {missing ? <span>{chip}</span> : chip}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {missing
+                      ? `Tabela ${template.config.table} não disponível nesta conexão.`
+                      : template.description}
+                  </TooltipContent>
+                </Tooltip>
+              );
+            })}
+
+            {saved.map((template) => {
+              const parsed = oracleQueryConfigSchema.safeParse(template.config);
+              if (!parsed.success) return null;
+              return (
+                <span
+                  key={template.id}
+                  className="flex items-center rounded-md border border-primary/40 bg-primary/5"
+                >
+                  <button
+                    type="button"
+                    className="px-2 py-1 text-[10px]"
+                    onClick={() =>
+                      onApply({
+                        config: parsed.data,
+                        displayType: template.displayType as
+                          | "STAT"
+                          | "CHART"
+                          | "LIST"
+                          | "TABLE",
+                        name: template.name,
+                      })
+                    }
+                  >
+                    {template.name}
+                  </button>
+                  <button
+                    type="button"
+                    title="Remover modelo"
+                    className="pr-1.5 text-muted-foreground hover:text-destructive"
+                    disabled={deleteTemplate.isPending}
+                    onClick={() =>
+                      deleteTemplate.mutate({ templateId: template.id })
+                    }
+                  >
+                    <Trash2 className="size-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
         </div>
       )}
-
-      <div className="flex flex-wrap items-center gap-1">
-        {ORACLE_QUERY_TEMPLATES.map((template) => {
-          // Winthor varia entre clientes — modelo cuja tabela não existe aqui
-          // fica desabilitado em vez de dar erro no "Testar consulta".
-          const missing =
-            availableTables.length > 0 &&
-            !availableTables.includes(template.config.table);
-          const chip = (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={missing}
-              className="h-6 px-2 text-[10px]"
-              onClick={() =>
-                onApply({
-                  config: template.config,
-                  displayType: template.displayType,
-                  name: template.label,
-                })
-              }
-            >
-              {template.label}
-            </Button>
-          );
-          return (
-            <Tooltip key={template.key}>
-              <TooltipTrigger asChild>
-                {missing ? <span>{chip}</span> : chip}
-              </TooltipTrigger>
-              <TooltipContent>
-                {missing
-                  ? `Tabela ${template.config.table} não disponível nesta conexão.`
-                  : template.description}
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
-
-        {saved.map((template) => {
-          const parsed = oracleQueryConfigSchema.safeParse(template.config);
-          if (!parsed.success) return null;
-          return (
-            <span
-              key={template.id}
-              className="flex items-center rounded-md border border-primary/40 bg-primary/5"
-            >
-              <button
-                type="button"
-                className="px-2 py-1 text-[10px]"
-                onClick={() =>
-                  onApply({
-                    config: parsed.data,
-                    displayType: template.displayType as
-                      | "STAT"
-                      | "CHART"
-                      | "LIST"
-                      | "TABLE",
-                    name: template.name,
-                  })
-                }
-              >
-                {template.name}
-              </button>
-              <button
-                type="button"
-                title="Remover modelo"
-                className="pr-1.5 text-muted-foreground hover:text-destructive"
-                disabled={deleteTemplate.isPending}
-                onClick={() =>
-                  deleteTemplate.mutate({ templateId: template.id })
-                }
-              >
-                <Trash2 className="size-3" />
-              </button>
-            </span>
-          );
-        })}
-      </div>
     </div>
   );
 }
