@@ -7,6 +7,7 @@ import { deliver } from "@/lib/sync-deliver";
 import { runProductImport } from "@/features/products/server/import-runner";
 import { runSupplierImport } from "@/features/supplier/server/supplier-import-runner";
 import { runCustomerImport } from "@/features/custom/server/customer-import-runner";
+import { runStoreImport } from "@/features/stores/server/store-import-runner";
 import { generateBook } from "@/features/books/server/generate-book";
 import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-catalog-pdf";
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
@@ -18,6 +19,7 @@ import {
   inngest,
   productImportRequested,
   shopperPriceChanged,
+  storeImportRequested,
   supplierImportRequested,
   syncNasaRequested,
   tradeCatalogGenerateRequested,
@@ -184,6 +186,44 @@ export const customerImportProcess = inngest.createFunction(
     const { importId } = event.data;
 
     await step.run("process-import", () => runCustomerImport(importId));
+
+    return { importId, done: true };
+  },
+);
+
+/**
+ * Importação de lojas via planilha (CSV/XLSX).
+ *
+ * Disparada por `stores/import.requested`. Processa o arquivo num único
+ * `step.run` — `runStoreImport` faz importação parcial (erros por linha não
+ * abortam o lote), então o step só falha em erros de infraestrutura (S3/DB), que
+ * o Inngest reagenda com backoff. Como o step é memoizado quando bem-sucedido,
+ * ele não reexecuta após concluir. `onFailure` marca o registro como `FAILED`.
+ */
+export const storeImportProcess = inngest.createFunction(
+  {
+    id: "store-import-process",
+    triggers: [storeImportRequested],
+    retries: 2,
+    concurrency: { limit: 5 },
+    onFailure: async ({ event, error }) => {
+      const { importId } = event.data.event.data;
+      await prisma.storeImport
+        .update({
+          where: { id: importId },
+          data: {
+            status: "FAILED",
+            completedAt: new Date(),
+          },
+        })
+        .catch(() => {});
+      console.error(`[store-import] falha em ${importId}:`, error);
+    },
+  },
+  async ({ event, step }) => {
+    const { importId } = event.data;
+
+    await step.run("process-import", () => runStoreImport(importId));
 
     return { importId, done: true };
   },
@@ -374,6 +414,7 @@ export const functions = [
   productImportProcess,
   supplierImportProcess,
   customerImportProcess,
+  storeImportProcess,
   bookGenerate,
   tradeCatalogGenerate,
   shopperPriceAlert,
