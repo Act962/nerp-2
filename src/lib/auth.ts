@@ -104,6 +104,10 @@ export const auth = betterAuth({
   },
   plugins: [
     organization({
+      // O Better Auth barra convite/adição de membro em 100 por organização
+      // quando isto não é informado. Enquanto a cobrança por assento não volta,
+      // não queremos teto nenhum.
+      membershipLimit: 100_000,
       // O envio do convite NÃO fica aqui: o Better Auth executa
       // `sendInvitationEmail` como background task e engole exceções, o que
       // faria um convite sem e-mail parecer sucesso. Quem envia é o handler

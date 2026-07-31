@@ -34,7 +34,6 @@ export const acceptJoinLink = base
         permissions: true,
         expiresAt: true,
         organizationId: true,
-        organization: { select: { maxUsers: true } },
       },
     });
 
@@ -52,17 +51,9 @@ export const acceptJoinLink = base
     });
 
     if (!existing) {
-      // Limite de usuários do plano. Existe no schema desde sempre e nunca foi
-      // aplicado — um link aberto é justamente o caminho por onde a conta
-      // estouraria o plano sem ninguém perceber.
-      const total = await prisma.member.count({ where: { organizationId } });
-      if (total >= link.organization.maxUsers) {
-        throw errors.BAD_REQUEST({
-          message:
-            "Esta empresa atingiu o limite de usuários do plano. Fale com o administrador.",
-        });
-      }
-
+      // O limite de usuários do plano (`organization.maxUsers`) está desativado
+      // por ora: bloqueava entradas legítimas em produção. O campo continua no
+      // schema para quando a cobrança por assento voltar.
       const member = await prisma.member.create({
         data: {
           organizationId,
