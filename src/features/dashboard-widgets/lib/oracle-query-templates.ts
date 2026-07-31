@@ -95,6 +95,213 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
     },
   },
   {
+    // Espelha o relatório Winthor "146 - Resumo de Vendas / Por Supervisor".
+    // O motor faz uma tabela de UMA fonte (PCPEDC), então cobre as colunas que
+    // saem só de lá: venda, nº de pedidos, ticket e custo. Meta, projeção,
+    // %acum, itens e peso vêm de outras tabelas/cálculo e não cabem neste
+    // modelo — ver observação no dashboard.
+    //
+    // "Qt RCAs" (COUNT_DISTINCT CODUSUR) foi removida de propósito: o pré-voo
+    // do servidor (preflight.ts) recusa COUNT_DISTINCT em qualquer tabela
+    // acima de 1M linhas — custo de ordenação/hash da tabela inteira, mesmo
+    // com filtro de data — e PCPEDC passa disso na maioria dos clientes reais
+    // (Gotham tem 2,38M). Incluir essa medida derruba a consulta INTEIRA
+    // (preflight recusa o pacote todo, não só a coluna), então nenhuma linha
+    // da tabela aparecia.
+    key: "resumo-por-supervisor",
+    label: "Resumo de vendas por supervisor",
+    description:
+      "Venda, pedidos, ticket e custo por supervisor — mês corrente.",
+    displayType: "TABLE",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [
+        receita("Vl venda"),
+        {
+          aggregation: "COUNT",
+          column: null,
+          label: "Qt pedidos",
+          unit: "number",
+        },
+        {
+          aggregation: "AVG",
+          column: "VLTOTAL",
+          label: "Ticket médio",
+          unit: "currency",
+        },
+        {
+          aggregation: "SUM",
+          column: "VLCUSTOREAL",
+          label: "Custo",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "dimension", column: "CODSUPERVISOR" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 30,
+    },
+  },
+  // --- KPIs agregados do mesmo relatório 146 (sem agrupar por supervisor) ---
+  // Mesmo filtro EXATO de "resumo-por-supervisor" (tabela, período, salesFilter)
+  // — combinados como tiras de STAT + gráfico, os números batem 1:1 com o total
+  // do rodapé do relatório e com a soma das linhas da tabela detalhada.
+  {
+    key: "vl-venda-mes",
+    label: "Vl. venda (mês)",
+    description:
+      "Total vendido no mês corrente — mesmo filtro do relatório 146.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [receita("Vl venda")],
+      groupBy: { kind: "none" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  {
+    key: "qt-pedidos-mes",
+    label: "Qt. pedidos (mês)",
+    description: "Total de pedidos no mês corrente.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [
+        {
+          aggregation: "COUNT",
+          column: null,
+          label: "Qt pedidos",
+          unit: "number",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  {
+    key: "vl-medio-pedido-mes",
+    label: "Vl. médio pedido (mês)",
+    description: "Ticket médio dos pedidos no mês corrente.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [
+        {
+          aggregation: "AVG",
+          column: "VLTOTAL",
+          label: "Vl médio pedido",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  {
+    // Substitui um antigo "Qt. RCAs ativos" (COUNT_DISTINCT CODUSUR) — o
+    // pré-voo do servidor recusa COUNT_DISTINCT em tabelas acima de 1M linhas
+    // (PCPEDC costuma passar disso), então esse KPI nunca resolvia em
+    // produção. SUM não tem essa restrição.
+    key: "custo-mes",
+    label: "Custo (mês)",
+    description: "Custo total das vendas no mês corrente.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [
+        {
+          aggregation: "SUM",
+          column: "VLCUSTOREAL",
+          label: "Custo",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  {
+    key: "vendas-por-supervisor-chart",
+    label: "Vendas por supervisor (gráfico)",
+    description: "Comparativo visual de venda por supervisor — mês corrente.",
+    displayType: "CHART",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [receita("Vl venda")],
+      groupBy: { kind: "dimension", column: "CODSUPERVISOR" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 15,
+    },
+  },
+  {
+    // Espelha "114 - Vendas por Superv./Rca/Cliente / Por RCA". Ranking de RCAs
+    // por venda, com pedidos, ticket e custo — base para margem/contribuição
+    // (venda − custo) que o front pode derivar.
+    key: "ranking-rca-detalhado",
+    label: "Ranking de RCAs (detalhado)",
+    description:
+      "Venda, pedidos, ticket e custo por RCA — mês corrente, maior venda primeiro.",
+    displayType: "TABLE",
+    config: {
+      version: 1,
+      table: "PCPEDC",
+      measures: [
+        receita("Vl venda"),
+        {
+          aggregation: "COUNT",
+          column: null,
+          label: "Qt ped.",
+          unit: "number",
+        },
+        {
+          aggregation: "AVG",
+          column: "VLTOTAL",
+          label: "Vl médio ped.",
+          unit: "currency",
+        },
+        {
+          aggregation: "SUM",
+          column: "VLCUSTOREAL",
+          label: "Custo",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "dimension", column: "CODUSUR" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: "valid",
+      orderBy: "measureDesc",
+      limit: 30,
+    },
+  },
+  {
     key: "top-clientes",
     label: "Top clientes",
     description: "Quem mais comprou nos últimos 90 dias.",
@@ -448,6 +655,118 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
       salesFilter: null,
       orderBy: "measureDesc",
       limit: 15,
+    },
+  },
+  // --- Inadimplência ---
+  //
+  // PCPREST é a tabela de PRESTAÇÕES do Winthor — cada parcela de venda. É o
+  // padrão para "contas a receber": uma parcela em aberto e vencida ontem é o
+  // que define inadimplência.
+  //
+  // Filtro combinado: `DTVENC overdue` (data no passado) + `DTPAG isNull` (não
+  // pago). DTVENC costuma ser primeira coluna de índice em PCPREST — sustenta
+  // o pré-voo mesmo em bases grandes. DTPAG raramente é indexada, então pode
+  // sair "warning" (o segundo filtro não reduz varredura), mas DTVENC já
+  // recorta o suficiente.
+  //
+  // `salesFilter` fica null: essa opção só se aplica às tabelas de venda
+  // (PCPEDC). Coluna de valor é VALOR (não começa com "VL", então o
+  // dicionário classifica como dimensão, mas SUM em NUMBER passa no pré-voo —
+  // isso já é o comportamento estabelecido de outros modelos).
+  {
+    key: "inadimplencia-total",
+    label: "Total em atraso",
+    description: "Soma das parcelas vencidas e não pagas.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCPREST",
+      measures: [
+        {
+          aggregation: "SUM",
+          column: "VALOR",
+          label: "Em atraso",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: { column: "DTVENC", preset: "overdue" },
+      filters: [{ column: "DTPAG", operator: "isNull", values: [] }],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  {
+    key: "inadimplencia-por-filial",
+    label: "Inadimplência por filial",
+    description: "Onde se concentra o atraso.",
+    displayType: "LIST",
+    config: {
+      version: 1,
+      table: "PCPREST",
+      measures: [
+        {
+          aggregation: "SUM",
+          column: "VALOR",
+          label: "Em atraso",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "dimension", column: "CODFILIAL" },
+      dateFilter: { column: "DTVENC", preset: "overdue" },
+      filters: [{ column: "DTPAG", operator: "isNull", values: [] }],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 10,
+    },
+  },
+  {
+    key: "top-clientes-inadimplentes",
+    label: "Top clientes inadimplentes",
+    description: "Quem mais deve em parcelas vencidas.",
+    displayType: "LIST",
+    config: {
+      version: 1,
+      table: "PCPREST",
+      measures: [
+        {
+          aggregation: "SUM",
+          column: "VALOR",
+          label: "Em atraso",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "dimension", column: "CODCLI" },
+      dateFilter: { column: "DTVENC", preset: "overdue" },
+      filters: [{ column: "DTPAG", operator: "isNull", values: [] }],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 10,
+    },
+  },
+  {
+    key: "vencendo-proximos-30d",
+    label: "Vencendo em 30 dias",
+    description: "Parcelas ainda em dia mas próximas do vencimento.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCPREST",
+      measures: [
+        {
+          aggregation: "SUM",
+          column: "VALOR",
+          label: "A vencer",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: { column: "DTVENC", preset: "next30" },
+      filters: [{ column: "DTPAG", operator: "isNull", values: [] }],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 20,
     },
   },
   {

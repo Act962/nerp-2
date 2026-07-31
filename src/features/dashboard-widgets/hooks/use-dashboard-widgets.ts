@@ -14,11 +14,26 @@ export function useMyDashboardWidgets() {
 // de atualizar no widget.
 export const WIDGET_POLL_INTERVAL_MS = 5 * 60_000;
 
+// Enquanto AlGUM widget estiver com o marker "Calculando…" (snapshot Oracle
+// nunca gerado antes), poll rápido — a primeira computação leva segundos, não
+// minutos, e sem isso um widget recém-criado ficava aparentando "erro" por 5
+// minutos até o próximo poll. Bate exatamente com o literal em _oracle-custom.ts.
+const CALCULATING_MARKER = "Calculando…";
+const CALCULATING_POLL_INTERVAL_MS = 5_000;
+
 export function useDashboardWidgetValues(widgetIds?: string[]) {
   return useQuery(
     orpc.dashboardWidgets.resolveValues.queryOptions({
       input: { widgetIds },
-      refetchInterval: WIDGET_POLL_INTERVAL_MS,
+      refetchInterval: (query) => {
+        const values = query.state.data?.values ?? [];
+        const anyCalculating = values.some(
+          (entry) => entry.error === CALCULATING_MARKER,
+        );
+        return anyCalculating
+          ? CALCULATING_POLL_INTERVAL_MS
+          : WIDGET_POLL_INTERVAL_MS;
+      },
     }),
   );
 }

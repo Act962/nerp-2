@@ -4,8 +4,10 @@ import "react-grid-layout/css/styles.css";
 import { useEffect, useRef, useState } from "react";
 import { ResponsiveGridLayout, useContainerWidth } from "react-grid-layout";
 import type { Layout, ResponsiveLayouts } from "react-grid-layout";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatWidgetValue } from "../lib/widget-value";
 import {
   useAddDashboardWidget,
   useDashboardWidgetValues,
@@ -14,8 +16,17 @@ import {
   useRemoveDashboardWidget,
   useSaveDashboardLayout,
 } from "../hooks/use-dashboard-widgets";
+import { useAlertDismissal } from "../hooks/use-alert-dismissal";
+import { useNotificationPermission } from "../hooks/use-notification-permission";
 import { useWidgetCatalog } from "../hooks/use-widget-catalog";
+import { playAlertSound } from "../lib/alert-sound";
 import { ORACLE_CUSTOM_KEY } from "../lib/oracle-query-config";
+import {
+  ALERT_TOLERANCE_MINUTES,
+  readAlert,
+  renderAlertMessage,
+} from "../lib/widget-alert";
+import { readAppearance } from "../lib/widget-appearance";
 import {
   BREAKPOINTS_WITH_LAYOUT,
   COLLAPSED_ROWS,
@@ -29,8 +40,14 @@ import {
 import { WidgetChildren } from "./widget-children";
 import { WidgetDetailDialog } from "./widget-detail-dialog";
 import { WidgetEditSheet } from "./widget-edit-sheet";
-import { WIDGET_DRAG_HANDLE_CLASS, WidgetFrame } from "./widget-frame";
+import {
+  WIDGET_DRAG_HANDLE_CLASS,
+  WIDGET_NO_DRAG_CLASS,
+  WidgetFrame,
+} from "./widget-frame";
 import { ChartWidget } from "./widgets/chart-widget";
+import { FeedWidget } from "./widgets/feed-widget";
+import { FleetWidget } from "./widgets/fleet-widget";
 import { ListWidget } from "./widgets/list-widget";
 import { MapWidget } from "./widgets/map-widget";
 import { RankingWidget } from "./widgets/ranking-widget";
@@ -81,6 +98,8 @@ export function DashboardGrid({
   const addWidget = useAddDashboardWidget();
   const saveLayout = useSaveDashboardLayout();
   const refreshOracle = useRefreshOracleWidget();
+  const { isDismissed, dismiss } = useAlertDismissal();
+  const { notify: notifySystem } = useNotificationPermission();
 
   const labelByKey = new Map(
     (catalogData?.widgets ?? []).map((entry) => [entry.key, entry.label]),
@@ -140,6 +159,65 @@ export function DashboardGrid({
       addWidget.mutate({ dataSourceKey: key, displayType });
     }
   }, [isLoadingWidgets, widgets.length, catalogData]);
+
+  // Toast dos alertas que dispararam desde a última visita: reroda quando
+  // qualquer widget muda de `lastFiredAt`. A dispensa é local (localStorage),
+  // então o toast some assim que o usuário fecha; se o cron disparar de novo
+  // amanhã, o novo timestamp invalida a dispensa e o toast reaparece.
+  //
+  // Só considera disparos recentes (última janela horária, com tolerância)
+  // para não bombardear o gerente com alertas antigos ao abrir o dashboard
+  // no fim do dia.
+  const alertLookup = allWidgets
+    .map((widget) => {
+      const alert = readAlert(widget.options);
+      if (!alert.enabled || !alert.lastFiredAt) return null;
+      const ageMinutes =
+        (Date.now() - new Date(alert.lastFiredAt).getTime()) / 60_000;
+      // Janela de "recente": 24h. Suficiente para o gerente abrir depois do
+      // almoço e ainda ver o alerta das 14h.
+      if (ageMinutes > 24 * 60 + ALERT_TOLERANCE_MINUTES) return null;
+      const title =
+        widget.title ?? labelByKey.get(widget.dataSourceKey) ?? "Widget";
+      const options = widget.options as { targetValue?: unknown } | null;
+      const target =
+        typeof options?.targetValue === "number"
+          ? (options.targetValue as number)
+          : null;
+      const message = renderAlertMessage(alert.message, {
+        valor:
+          alert.lastFiredValue !== null
+            ? formatWidgetValue(alert.lastFiredValue)
+            : "—",
+        meta: target !== null ? formatWidgetValue(target) : "—",
+      });
+      return {
+        widgetId: widget.id,
+        title,
+        firedAt: alert.lastFiredAt,
+        message,
+        playSound: alert.playSound,
+        showNotification: alert.showNotification,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: só quero disparar quando um NOVO firedAt entra em cena; `dismiss`/`isDismissed`/`notifySystem` são refs estáveis de closure
+  useEffect(() => {
+    for (const entry of alertLookup) {
+      if (isDismissed(entry.widgetId, entry.firedAt)) continue;
+      toast.warning(entry.title, {
+        description: entry.message,
+        duration: 8000,
+        onDismiss: () => dismiss(entry.widgetId, entry.firedAt),
+        onAutoClose: () => dismiss(entry.widgetId, entry.firedAt),
+      });
+      // Som e notificação do sistema são best-effort: rodam se o usuário já
+      // ativou; se não, o toast já cobriu.
+      if (entry.playSound) playAlertSound();
+      if (entry.showNotification) notifySystem(entry.title, entry.message);
+    }
+  }, [alertLookup.map((entry) => `${entry.widgetId}:${entry.firedAt}`).join()]);
 
   if (isLoadingWidgets) {
     return (
@@ -258,6 +336,9 @@ export function DashboardGrid({
           margin={[16, 16]}
           dragConfig={{
             handle: `.${WIDGET_DRAG_HANDLE_CLASS}`,
+            // Sem isto os botões do cabeçalho (que É a alça) não recebem toque
+            // no mobile — o arraste engole o touchstart antes de virar clique.
+            cancel: `.${WIDGET_NO_DRAG_CLASS}`,
             enabled: dragEnabled,
           }}
           resizeConfig={{ enabled: resizeEnabled }}
@@ -271,11 +352,30 @@ export function DashboardGrid({
               widget.title ?? labelByKey.get(widget.dataSourceKey) ?? "Widget";
             const meta = metaByWidgetId.get(widget.id);
             const isOracle = widget.dataSourceKey === ORACLE_CUSTOM_KEY;
+            const appearance = readAppearance(widget.options);
+            const alertEntry = alertLookup.find(
+              (entry) => entry.widgetId === widget.id,
+            );
+            // Só destaca o card se o alerta é RECENTE (na janela do lookup) e
+            // ainda não foi dispensado. Alerta velho ou dispensado volta ao
+            // visual padrão.
+            const alertActive =
+              !!alertEntry && !isDismissed(widget.id, alertEntry.firedAt);
+            const alertConfig = readAlert(widget.options);
             return (
               <div key={widget.id}>
                 <WidgetFrame
                   title={label}
+                  titleAlign={appearance.titleAlign}
+                  titleColor={appearance.titleColor}
+                  titleSize={appearance.titleSize}
+                  titleWeight={appearance.titleWeight}
                   color={widget.color}
+                  background={appearance.background}
+                  border={appearance.border}
+                  borderColor={appearance.borderColor}
+                  alertColor={alertActive ? alertConfig.color : null}
+                  alertMessage={alertActive ? alertEntry?.message : null}
                   editable={editable}
                   onEdit={() => setEditingWidgetId(widget.id)}
                   onRemove={() => removeWidget.mutate({ widgetId: widget.id })}
@@ -321,6 +421,11 @@ export function DashboardGrid({
                       value={value}
                       icon={widget.icon}
                       progressPercent={progressByWidgetId.get(widget.id)}
+                      valueAlign={appearance.valueAlign}
+                      valueColor={appearance.valueColor}
+                      valueSize={appearance.valueSize}
+                      valueWeight={appearance.valueWeight}
+                      iconColor={appearance.iconColor}
                     />
                   ) : value.kind === "CHART" ? (
                     <ChartWidget value={value} chartKind={widget.chartKind} />
@@ -328,6 +433,10 @@ export function DashboardGrid({
                     <MapWidget value={value} />
                   ) : value.kind === "TABLE" ? (
                     <TableWidget value={value} />
+                  ) : value.kind === "FLEET" ? (
+                    <FleetWidget value={value} />
+                  ) : value.kind === "FEED" ? (
+                    <FeedWidget value={value} />
                   ) : (
                     <ListWidget value={value} />
                   )}

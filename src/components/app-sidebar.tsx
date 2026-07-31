@@ -39,6 +39,7 @@ import {
   Package,
   Plug,
   Plus,
+  ScanBarcode,
   Settings,
   ShoppingCart,
   Store,
@@ -106,6 +107,15 @@ const navigation: NavItem[] = [
     href: "/dashboard",
     icon: LayoutDashboard,
     permission: "dashboard",
+    children: [
+      { name: "Meu dashboard", href: "/dashboard", icon: LayoutDashboard },
+      {
+        name: "Dashboard da organização",
+        href: "/dashboard-organizacao",
+        icon: LayoutDashboard,
+        permission: "dashboard-org",
+      },
+    ],
   },
   {
     name: "Produtos",
@@ -200,12 +210,6 @@ const navigation: NavItem[] = [
         permission: "catalogo-pdv",
       },
       {
-        name: "App Promotor",
-        href: "/promotor",
-        icon: Camera,
-        permission: "promotor",
-      },
-      {
         name: "Planograma",
         href: "/trade/planograma",
         icon: LayoutGrid,
@@ -222,6 +226,20 @@ const navigation: NavItem[] = [
         href: "/trade/interesses",
         icon: Inbox,
         permission: "trade-interesses",
+      },
+      // Os dois apps de campo ficam juntos no fim da lista: é o par que o
+      // gestor abre no celular, não algo que ele configura.
+      {
+        name: "App Promotor",
+        href: "/promotor",
+        icon: Camera,
+        permission: "promotor",
+      },
+      {
+        name: "App QR Preço",
+        href: "/trade/qr-preco",
+        icon: ScanBarcode,
+        permission: "qr-preco",
       },
       {
         name: "Configurações",

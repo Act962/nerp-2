@@ -44,6 +44,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/ranking-publico") ||
     pathname.startsWith("/pedidos") ||
     pathname.startsWith("/dashboard") ||
+    pathname.startsWith("/dashboard-organizacao") ||
+    pathname.startsWith("/publico/dashboard") ||
     pathname.startsWith("/integracoes") ||
     pathname.startsWith("/colaboradores")
   ) {

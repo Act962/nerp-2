@@ -25,10 +25,54 @@ import {
 } from "../hooks/use-dashboard-widgets";
 import { useWidgetCatalog } from "../hooks/use-widget-catalog";
 import { oracleQueryConfigSchema } from "../lib/oracle-query-config";
-import type { PastelColorKey } from "../lib/pastel-colors";
+import type { WidgetColor } from "../lib/pastel-colors";
+import { readAlert } from "../lib/widget-alert";
+import { readAppearance } from "../lib/widget-appearance";
 import type { CustomizeState } from "./widget-customize-fields";
 import { buildOptions, WidgetCustomizeFields } from "./widget-customize-fields";
 
+// Shape universal do widget para o edit sheet — pessoal e org têm o mesmo
+// esqueleto (options + layout + campos de exibição).
+export interface WidgetEditRow {
+  id: string;
+  dataSourceKey: string;
+  title: string | null;
+  displayType: "STAT" | "CHART" | "LIST" | "MAP" | "TABLE";
+  chartKind: "LINE" | "BAR" | "DONUT" | null;
+  color: string | null;
+  icon: string | null;
+  parentId: string | null;
+  options: unknown;
+}
+
+export interface WidgetEditUpdateInput {
+  widgetId: string;
+  title: string | null;
+  parentId: string | null;
+  displayType: "STAT" | "CHART" | "LIST" | "MAP" | "TABLE";
+  chartKind: "LINE" | "BAR" | "DONUT" | null;
+  color: string | null;
+  icon: string | null;
+  options: Record<string, unknown> | null;
+}
+
+// Mesma decisão de assinatura mínima do picker — evita colisão de generics
+// entre as duas mutations oRPC (pessoal vs. org).
+export interface WidgetEditUpdateMutation {
+  mutate: (
+    input: WidgetEditUpdateInput,
+    options?: { onSuccess?: () => void; onError?: (error: Error) => void },
+  ) => void;
+  isPending: boolean;
+}
+
+export interface WidgetEditDataSource {
+  widgets: WidgetEditRow[];
+  updateMutation: WidgetEditUpdateMutation;
+}
+
+// Wrapper padrão — dashboard PESSOAL. Preserva a API antiga (mesma
+// assinatura, comportamento idêntico).
 export function WidgetEditSheet({
   widgetId,
   onOpenChange,
@@ -37,10 +81,47 @@ export function WidgetEditSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data: myWidgets } = useMyDashboardWidgets();
-  const { data: catalog } = useWidgetCatalog();
-  const updateWidget = useUpdateDashboardWidget();
+  const updateMutation = useUpdateDashboardWidget();
+  return (
+    <WidgetEditSheetCore
+      widgetId={widgetId}
+      onOpenChange={onOpenChange}
+      dataSource={{
+        widgets: (myWidgets?.widgets ?? []).map((widget) => ({
+          id: widget.id,
+          dataSourceKey: widget.dataSourceKey,
+          title: widget.title,
+          displayType: widget.displayType,
+          chartKind: widget.chartKind,
+          color: widget.color,
+          icon: widget.icon,
+          parentId: widget.parentId,
+          options: widget.options,
+        })),
+        updateMutation,
+      }}
+    />
+  );
+}
 
-  const widget = myWidgets?.widgets.find((item) => item.id === widgetId);
+/**
+ * Core parametrizado. `WidgetEditSheet` (pessoal) e a versão da org
+ * chamam este componente injetando as próprias mutações e a própria lista
+ * de widgets.
+ */
+export function WidgetEditSheetCore({
+  widgetId,
+  onOpenChange,
+  dataSource,
+}: {
+  widgetId: string | null;
+  onOpenChange: (open: boolean) => void;
+  dataSource: WidgetEditDataSource;
+}) {
+  const { data: catalog } = useWidgetCatalog();
+  const updateWidget = dataSource.updateMutation;
+
+  const widget = dataSource.widgets.find((item) => item.id === widgetId);
   const entry = catalog?.widgets.find(
     (item) => item.key === widget?.dataSourceKey,
   );
@@ -56,12 +137,12 @@ export function WidgetEditSheet({
   // Destinos possíveis: cards de topo, menos ele mesmo. Um card COM
   // desdobramentos não pode entrar em outro (empurraria os filhos para o
   // segundo nível), então nesse caso a lista fica vazia e o campo some.
-  const temFilhos = (myWidgets?.widgets ?? []).some(
+  const temFilhos = dataSource.widgets.some(
     (item) => item.parentId === widgetId,
   );
   const parentOptions = temFilhos
     ? []
-    : (myWidgets?.widgets ?? [])
+    : dataSource.widgets
         .filter((item) => !item.parentId && item.id !== widgetId)
         .map((item) => ({ id: item.id, label: labelFor(item) }));
 
@@ -81,7 +162,7 @@ export function WidgetEditSheet({
     setState({
       displayType: widget.displayType,
       chartKind: widget.chartKind ?? entry.supportedChartKinds[0] ?? "LINE",
-      color: widget.color as PastelColorKey | null,
+      color: widget.color as WidgetColor | null,
       icon: widget.icon,
       targetValue:
         typeof options?.targetValue === "number"
@@ -89,6 +170,8 @@ export function WidgetEditSheet({
           : "",
       title: widget.title ?? "",
       oracle: oracle.success ? oracle.data : null,
+      appearance: readAppearance(widget.options),
+      alert: readAlert(widget.options),
     });
     setParentId(widget.parentId ?? "");
   }, [widget?.id, entry?.key]);

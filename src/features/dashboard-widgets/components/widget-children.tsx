@@ -1,10 +1,15 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { widgetIcon } from "../lib/widget-icons";
 import { formatWidgetValue, type WidgetValue } from "../lib/widget-value";
+
+// Mensagem que o resolver devolve quando ainda não há snapshot: NÃO é um erro
+// de verdade, é o widget calculando pela primeira vez. Precisa bater com o
+// literal usado em _oracle-custom.ts.
+const CALCULATING_MARKER = "Calculando…";
 
 export interface ChildWidget {
   id: string;
@@ -35,6 +40,10 @@ function compactValue(value: WidgetValue | null | undefined): string {
     }
     case "TABLE":
       return `${value.rows.length} linha(s)`;
+    case "FLEET":
+      return `${value.trucks.length} caminhão(ões)`;
+    case "FEED":
+      return `${value.items.length} alerta(s)`;
   }
 }
 
@@ -75,15 +84,40 @@ export function WidgetChildren({
               >
                 {child.title}
               </span>
-              <span
-                className={cn(
-                  "shrink-0 text-xs font-semibold tabular-nums",
-                  child.error && "text-destructive",
-                )}
-                title={child.error ?? undefined}
-              >
-                {child.error ? "erro" : compactValue(child.value)}
-              </span>
+              {(() => {
+                // "Calculando…" acontece no primeiro carregamento de uma
+                // consulta Oracle, antes do snapshot existir. Antes caía no
+                // ramo de erro e o desdobramento aparecia como "erro" —
+                // usuário lia como bug ("as informações não estão indo para
+                // dentro do widget") em vez de "ainda vou terminar". O top-
+                // level já diferenciava; o desdobramento não.
+                const isCalculating = child.error === CALCULATING_MARKER;
+                const isRealError = !!child.error && !isCalculating;
+
+                if (isCalculating) {
+                  return (
+                    <span
+                      className="flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground"
+                      title="Calculando pela primeira vez — reabra em alguns segundos."
+                    >
+                      <Loader2 className="size-3 animate-spin" />
+                      calculando
+                    </span>
+                  );
+                }
+
+                return (
+                  <span
+                    className={cn(
+                      "shrink-0 font-semibold text-xs tabular-nums",
+                      isRealError && "text-destructive",
+                    )}
+                    title={child.error ?? undefined}
+                  >
+                    {isRealError ? "erro" : compactValue(child.value)}
+                  </span>
+                );
+              })()}
               {editable && onRemove && (
                 <Button
                   type="button"

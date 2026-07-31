@@ -95,5 +95,39 @@ export function widgetValueToTable(value: WidgetValue): DetailTable {
 
     case "TABLE":
       return { columns: value.columns, rows: value.rows };
+
+    case "FLEET":
+      return {
+        columns: [
+          { key: "plate", label: "Placa", align: "left" },
+          { key: "driver", label: "Motorista", align: "left" },
+          { key: "route", label: "Rota", align: "left" },
+          { key: "status", label: "Status", align: "left" },
+          { key: "load", label: "Carga", align: "right", unit: "percent" },
+        ],
+        rows: value.trucks.map((truck) => ({
+          id: truck.id,
+          cells: [
+            truck.plate,
+            truck.driver,
+            truck.route,
+            truck.status ?? "—",
+            truck.loadPercent,
+          ],
+        })),
+      };
+
+    case "FEED":
+      return {
+        columns: [
+          { key: "time", label: "Hora", align: "left" },
+          { key: "title", label: "Alerta", align: "left" },
+          { key: "subtitle", label: "Detalhe", align: "left" },
+        ],
+        rows: value.items.map((item) => ({
+          id: item.id,
+          cells: [item.time ?? "—", item.title, item.subtitle ?? "—"],
+        })),
+      };
   }
 }

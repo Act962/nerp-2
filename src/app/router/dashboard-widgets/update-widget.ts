@@ -3,7 +3,10 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { Prisma } from "@/generated/prisma/client";
-import { PASTEL_COLORS } from "@/features/dashboard-widgets/lib/pastel-colors";
+import {
+  HEX_COLOR_RE,
+  PASTEL_COLORS,
+} from "@/features/dashboard-widgets/lib/pastel-colors";
 import { WIDGET_ICONS } from "@/features/dashboard-widgets/lib/widget-icons";
 import prisma from "@/lib/db";
 import { isOracleWidget, validateOracleWidget } from "./_oracle-widget";
@@ -28,7 +31,10 @@ const updateWidgetInputSchema = z.object({
   displayType: z.enum(["STAT", "CHART", "LIST", "MAP", "TABLE"]).optional(),
   chartKind: z.enum(["LINE", "BAR", "DONUT"]).nullable().optional(),
   color: z
-    .enum(PASTEL_KEYS as [string, ...string[]])
+    .union([
+      z.enum(PASTEL_KEYS as [string, ...string[]]),
+      z.string().regex(HEX_COLOR_RE),
+    ])
     .nullable()
     .optional(),
   icon: z
