@@ -2,7 +2,7 @@ import "server-only";
 import type { OracleQueryConfig } from "@/features/dashboard-widgets/lib/oracle-query-config";
 import { loadOracleConfig } from "../connectors";
 import { type OracleBinds, withOracleReadOnly } from "../oracle-client";
-import { buildWhereConditions } from "./build-query";
+import { buildWhereConditions, resolveDomainJoin } from "./build-query";
 import {
   loadSchemaDictionary,
   resolveTable,
@@ -10,6 +10,7 @@ import {
 } from "./dictionary";
 import { resolveDetailColumns } from "./detail-columns";
 import { assertIdentifier } from "./identifier";
+import { quickFilterForColumn } from "./quick-filters";
 
 // Detalhamento: os REGISTROS por trás do número agregado.
 //
@@ -45,8 +46,9 @@ export async function runOracleDrilldown(
 ): Promise<DrilldownPage> {
   const dictionary: SchemaDictionary =
     await loadSchemaDictionary(organizationId);
-  const schema = assertIdentifier(dictionary.schema);
   const table = resolveTable(dictionary, config.table);
+  // Dono da própria tabela — ver buildOracleQuery.
+  const schema = assertIdentifier(table.owner);
   const columns = resolveDetailColumns(table);
 
   if (columns.length === 0) {
@@ -61,9 +63,28 @@ export async function runOracleDrilldown(
   const limit = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.trunc(pageSize)));
   const offset = Math.max(0, Math.trunc(page)) * limit;
 
+  // Coluna que é código de domínio (CODCLI, CODUSUR…) sai como NOME, igual ao
+  // agrupamento do widget. Sem isso o card dizia "REDECARD…" e o detalhamento
+  // por trás dele dizia "27600". Cada join tem alias próprio (D0, D1…) porque
+  // a mesma linha pode traduzir cliente E vendedor.
+  const joins: string[] = [];
   const selectList = columns
-    .map((column) => `T.${column.name} AS "C${columns.indexOf(column)}"`)
+    .map((column, index) => {
+      const raw = `T.${column.name}`;
+      const domain = quickFilterForColumn(table.name, column.name);
+      const joined = domain ? resolveDomainJoin(dictionary, domain) : null;
+      if (!joined) return `${raw} AS "C${index}"`;
+
+      const alias = `D${index}`;
+      joins.push(
+        `LEFT JOIN ${joined.owner}.${joined.table} ${alias} ON ${alias}.${joined.valueColumn} = ${raw}`,
+      );
+      // COALESCE: registro sem cadastro correspondente continua mostrando o
+      // código em vez de virar célula vazia.
+      return `COALESCE(${alias}.${joined.labelColumn}, TO_CHAR(${raw})) AS "C${index}"`;
+    })
     .join(", ");
+  const joinClause = joins.join(" ");
 
   const oracleConfig = await loadOracleConfig(organizationId);
 
@@ -80,6 +101,7 @@ export async function runOracleDrilldown(
         query<Record<string, unknown>>(
           `SELECT ${selectList}
              FROM ${schema}.${table.name} T
+             ${joinClause}
              ${where}
             ORDER BY T.${columns[0].name}
             OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`,

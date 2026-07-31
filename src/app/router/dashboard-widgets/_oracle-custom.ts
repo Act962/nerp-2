@@ -23,6 +23,35 @@ import prisma from "@/lib/db";
 /** Acima disso o snapshot é considerado velho e uma recomputação é agendada. */
 export const SNAPSHOT_MAX_AGE_MS = 5 * 60 * 1000;
 
+/**
+ * Idade a partir da qual o snapshot é descartado como órfão.
+ *
+ * Snapshot é chaveado pela consulta + versão de render, então mudar a config
+ * de um widget (ou subir o RENDER_VERSION numa correção) deixa a linha antiga
+ * sem ninguém que a procure — ela nunca mais casa e ficaria acumulando.
+ *
+ * 7 dias é conservador de propósito: widget ativo é recalculado a cada 5
+ * minutos, então só passa desse prazo o que está órfão de verdade ou o que
+ * ninguém abre há uma semana. No segundo caso não há perda — o snapshot é
+ * cache, e o próximo acesso recalcula do ERP.
+ */
+const SNAPSHOT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Apaga snapshots vencidos da organização. Fire-and-forget: é higiene, não
+ * pode derrubar a atualização do widget se falhar.
+ */
+function pruneStaleSnapshots(organizationId: string): void {
+  void prisma.oracleWidgetSnapshot
+    .deleteMany({
+      where: {
+        organizationId,
+        computedAt: { lt: new Date(Date.now() - SNAPSHOT_TTL_MS) },
+      },
+    })
+    .catch(() => {});
+}
+
 export interface OracleWidgetResolution {
   value: WidgetValue | null;
   error: string | null;
@@ -73,6 +102,7 @@ export async function refreshOracleSnapshot(
         durationMs: result.elapsedMs,
       },
     });
+    pruneStaleSnapshots(organizationId);
   } catch (error) {
     const message = (error as Error).message.slice(0, 300);
     await prisma.oracleWidgetSnapshot.upsert({

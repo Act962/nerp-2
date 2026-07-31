@@ -81,6 +81,35 @@ const PROFILES: Record<string, DetailColumnDef[]> = {
     { column: "QT", label: "Quantidade" },
     { column: "CODCLI", label: "Cliente" },
   ],
+  // Contas a receber: o que se quer ver ao clicar num card de inadimplência é
+  // QUAL título está em aberto — cliente, documento, valor e as duas datas que
+  // definem o atraso. Sem este perfil caía no fallback, que trazia as 8
+  // primeiras colunas físicas (incluindo TXPERM e outros campos internos).
+  PCPREST: [
+    { column: "CODCLI", label: "Cliente" },
+    { column: "DUPLIC", label: "Duplicata" },
+    { column: "PREST", label: "Parcela" },
+    { column: "VALOR", label: "Valor" },
+    { column: "DTVENC", label: "Vencimento" },
+    { column: "DTPAG", label: "Pagamento" },
+    { column: "CODCOB", label: "Cobrança" },
+    { column: "CODFILIAL", label: "Filial" },
+    { column: "CODUSUR", label: "Vendedor" },
+  ],
+  // Saldo de estoque: ao clicar num card de estoque quer-se ver PRODUTO a
+  // produto o que há e o que já está comprometido, com as datas do último
+  // movimento — não as 8 primeiras colunas físicas da tabela.
+  PCEST: [
+    { column: "CODPROD", label: "Produto" },
+    { column: "CODFILIAL", label: "Filial" },
+    { column: "QTESTGER", label: "Estoque" },
+    { column: "QTRESERV", label: "Reservado" },
+    { column: "QTPENDENTE", label: "Pendente" },
+    { column: "QTTRANSITO", label: "Em trânsito" },
+    { column: "QTBLOQUEADA", label: "Bloqueado" },
+    { column: "DTULTENT", label: "Última entrada" },
+    { column: "DTULTSAIDA", label: "Última saída" },
+  ],
   PCSUPERV: [
     { column: "CODSUPERVISOR", label: "Código" },
     { column: "NOME", label: "Supervisor" },

@@ -16,6 +16,11 @@ export interface QuickFilterDomain {
   table: string;
   valueColumn: string;
   labelColumn: string;
+  /** Coluna EXTRA do cadastro, exibida como coluna própria nas tabelas
+   * agrupadas por esta dimensão. Existe porque "estoque = 1" é ambíguo sem
+   * saber se a unidade de venda do item é dúzia, caixa ou pacote — e essa
+   * informação mora no cadastro do produto, não na tabela de saldo. */
+  extraColumn?: { column: string; label: string };
 }
 
 export interface QuickFilterDef {
@@ -66,6 +71,10 @@ const PRODUTO: QuickFilterDef = {
     table: "PCPRODUT",
     valueColumn: "CODPROD",
     labelColumn: "DESCRICAO",
+    // Saldo no Winthor é contado na UNIDADE DE VENDA do item, que varia por
+    // produto (DZ, CX, PC, DP…). Sem esta coluna, "estoque = 1" não diz se é
+    // uma dúzia ou uma caixa.
+    extraColumn: { column: "UNIDADE", label: "Unidade" },
   },
 };
 
@@ -110,9 +119,24 @@ const QUICK_FILTERS_BY_TABLE: Record<string, QuickFilterDef[]> = {
   PCPEDI: [CLIENTE, PRODUTO, VENDEDOR],
   PCMOV: [FILIAL, PRODUTO, CLIENTE, FORNECEDOR],
   PCPRODUT: [MARCA, DEPARTAMENTO, SECAO, FORNECEDOR],
-  PCCLIENT: [VENDEDOR],
+  // CLIENTE aqui é um self-join (PCCLIENT como fato E como domínio) — existe
+  // só para o groupBy por CODCLI trazer o nome (`quickFilterForColumn`) em vez
+  // do código cru; o join é barato porque CODCLI é índice líder dos dois lados.
+  PCCLIENT: [VENDEDOR, CLIENTE],
   PCUSUARI: [SUPERVISOR],
   PCMETA: [VENDEDOR, SUPERVISOR],
+  // Prestações (contas a receber). As quatro colunas são índice líder aqui,
+  // então servem tanto de filtro quanto de agrupamento com nome — sem isso
+  // "Top clientes inadimplentes" listava só o código do cliente.
+  PCPREST: [FILIAL, CLIENTE, VENDEDOR, SUPERVISOR],
+  // Saldo de estoque por filial/produto — as duas chaves são índice líder.
+  PCEST: [FILIAL, PRODUTO],
+  // WMS (schema SWMS). O tipo das chaves NÃO bate com o do cadastro —
+  // CODPROD é VARCHAR2 aqui e NUMBER em PCPRODUT — mas o Oracle converte e o
+  // join foi validado contra a base: todos os CODPROD são numéricos, então
+  // não há risco de ORA-01722. Custa uma conversão por linha, aceitável nas
+  // ~90 mil que a tabela tem.
+  TBCMS0027: [FILIAL, PRODUTO],
 };
 
 const ALL_BY_KEY = new Map<string, QuickFilterDef>(

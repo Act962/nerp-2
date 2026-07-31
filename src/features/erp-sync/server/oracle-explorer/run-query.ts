@@ -25,6 +25,26 @@ export interface RunQueryResult {
 }
 
 /**
+ * Versão do RESULTADO — não da consulta.
+ *
+ * O snapshot é chaveado pela config, então mudar só o código que monta o valor
+ * (rótulo de coluna, tradução de código para nome, formato de data) deixava o
+ * dashboard servindo o resultado antigo indefinidamente: a config não mudou,
+ * logo a chave não mudou. Quem via "27600" continuava vendo "27600" mesmo
+ * depois da correção que traz "REDECARD…".
+ *
+ * Suba este número sempre que mudar a FORMA do valor devolvido por
+ * `toWidgetValue` ou pelo `buildOracleQuery` (colunas, rótulos, formatação).
+ * Todas as chaves mudam, os snapshots antigos deixam de casar e cada widget
+ * recalcula uma vez — o dashboard se conserta sozinho no primeiro acesso.
+ *
+ *   2 — join de domínio no agrupamento/detalhamento (código → nome) e
+ *       MIN/MAX de data saindo como data em vez de zero.
+ *   3 — coluna extra do cadastro na TABLE (ex.: "Unidade" do produto).
+ */
+const RENDER_VERSION = 3;
+
+/**
  * Identidade estável de uma consulta. Chaves ordenadas para que a mesma
  * consulta escrita em ordem diferente colapse no mesmo snapshot/single-flight.
  * Inclui `organizationId` — snapshot é compartilhado dentro da org, nunca entre.
@@ -35,7 +55,9 @@ export function queryFingerprint(
   displayType: OracleDisplayType,
 ): string {
   return createHash("sha256")
-    .update(`${organizationId}|${displayType}|${canonicalize(config)}`)
+    .update(
+      `v${RENDER_VERSION}|${organizationId}|${displayType}|${canonicalize(config)}`,
+    )
     .digest("hex");
 }
 
@@ -55,10 +77,22 @@ function toNumber(value: unknown): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/**
+ * Célula de uma medida na TABLE. MIN/MAX sobre coluna de data devolvem um
+ * `Date` do driver — passar isso por `toNumber` viraria 0 silenciosamente
+ * (foi assim que "Última compra" aparecia zerada). Data vira string formatada;
+ * a TableWidget renderiza célula string como veio.
+ */
+function toMeasureCell(value: unknown): string | number {
+  if (value instanceof Date) return value.toLocaleDateString("pt-BR");
+  return toNumber(value);
+}
+
 function toWidgetValue(
   config: OracleQueryConfig,
   displayType: OracleDisplayType,
   groupLabel: string | null,
+  groupExtraLabel: string | null,
   rows: Record<string, unknown>[],
 ): WidgetValue {
   const first = config.measures[0];
@@ -94,11 +128,17 @@ function toWidgetValue(
     };
   }
 
+  // Coluna extra do cadastro (ex.: "Unidade") entra logo depois do rótulo do
+  // grupo — só na TABLE, porque STAT/LIST/CHART exibem um valor por linha e
+  // não teriam onde mostrá-la.
   return {
     kind: "TABLE",
     columns: [
       ...(groupLabel
         ? [{ key: "G", label: groupLabel, align: "left" as const }]
+        : []),
+      ...(groupExtraLabel
+        ? [{ key: "GX", label: groupExtraLabel, align: "left" as const }]
         : []),
       ...config.measures.map((measure, index) => ({
         key: `M${index}`,
@@ -111,7 +151,10 @@ function toWidgetValue(
       id: `${row.GID ?? row.G ?? index}`,
       cells: [
         ...(groupLabel ? [String(row.G ?? "—")] : []),
-        ...config.measures.map((_, position) => toNumber(row[`M${position}`])),
+        ...(groupExtraLabel ? [row.GX == null ? "—" : String(row.GX)] : []),
+        ...config.measures.map((_, position) =>
+          toMeasureCell(row[`M${position}`]),
+        ),
       ],
     })),
   };
@@ -140,7 +183,10 @@ async function execute(
   const preflight = preflightOracleQuery(dictionary, config);
   if (!preflight.ok) throw new OracleQueryRefusedError(preflight.errors);
 
-  const { sql, binds, groupLabel } = buildOracleQuery(dictionary, config);
+  const { sql, binds, groupLabel, groupExtraLabel } = buildOracleQuery(
+    dictionary,
+    config,
+  );
   const oracleConfig = await loadOracleConfig(organizationId);
 
   const startedAt = Date.now();
@@ -153,7 +199,13 @@ async function execute(
   const elapsedMs = Date.now() - startedAt;
 
   return {
-    value: toWidgetValue(config, displayType, groupLabel, rows),
+    value: toWidgetValue(
+      config,
+      displayType,
+      groupLabel,
+      groupExtraLabel,
+      rows,
+    ),
     rowCount: rows.length,
     elapsedMs,
   };

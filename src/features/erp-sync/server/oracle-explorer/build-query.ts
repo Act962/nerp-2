@@ -35,6 +35,9 @@ export interface BuiltQuery {
   binds: OracleBinds;
   /** Rótulo da coluna de agrupamento, quando existe. */
   groupLabel: string | null;
+  /** Rótulo da coluna extra vinda do cadastro (ex.: "Unidade"), quando o
+   * domínio da dimensão define uma. Sai como coluna "GX". */
+  groupExtraLabel: string | null;
   measureLabels: string[];
 }
 
@@ -80,17 +83,43 @@ function salesFilterSql(
  * Valida a tabela de domínio de um atalho contra o dicionário. Se o cliente
  * não tiver a tabela/coluna (Winthor varia entre versões), devolve null e o
  * agrupamento cai no código cru em vez de quebrar a consulta.
+ *
+ * Exportada porque o detalhamento (drilldown-query) precisa da MESMA tradução
+ * código→nome que o agrupamento faz aqui — sem isso o card mostra
+ * "REDECARD…" e a lista por trás dele mostra "27600".
  */
-function resolveDomainJoin(
+export function resolveDomainJoin(
   dictionary: SchemaDictionary,
   definition: QuickFilterDef,
-): { table: string; valueColumn: string; labelColumn: string } | null {
+): {
+  table: string;
+  owner: string;
+  valueColumn: string;
+  labelColumn: string;
+  extra: { column: string; label: string } | null;
+} | null {
   try {
     const domain = resolveTable(dictionary, definition.domain.table);
+    const wanted = definition.domain.extraColumn;
+    // Coluna extra é opcional e some em silêncio se o Winthor do cliente não
+    // tiver ela — o resto do agrupamento continua funcionando.
+    let extra: { column: string; label: string } | null = null;
+    if (wanted) {
+      try {
+        extra = {
+          column: resolveColumn(domain, wanted.column).name,
+          label: wanted.label,
+        };
+      } catch {
+        extra = null;
+      }
+    }
     return {
       table: domain.name,
+      owner: assertIdentifier(domain.owner),
       valueColumn: resolveColumn(domain, definition.domain.valueColumn).name,
       labelColumn: resolveColumn(domain, definition.domain.labelColumn).name,
+      extra,
     };
   } catch {
     return null;
@@ -184,14 +213,17 @@ export function buildOracleQuery(
   dictionary: SchemaDictionary,
   config: OracleQueryConfig,
 ): BuiltQuery {
-  const schema = assertIdentifier(dictionary.schema);
   const table = resolveTable(dictionary, config.table);
+  // Dono da PRÓPRIA tabela, não o schema principal: tabela de outro schema
+  // (o WMS, por exemplo) qualificada com o principal dá ORA-00942.
+  const schema = assertIdentifier(table.owner);
   const binds: OracleBinds = {};
 
   // --- SELECT ---
   const selectParts: string[] = [];
   let groupExpression: string | null = null;
   let groupLabel: string | null = null;
+  let groupExtraLabel: string | null = null;
   let joinClause: string | null = null;
   // Quantas colunas do SELECT são de agrupamento — define a posição ordinal da
   // primeira medida no ORDER BY.
@@ -225,10 +257,22 @@ export function buildOracleQuery(
       // nome fantasia (acontece nas filiais deste cliente) e aí o rótulo
       // sozinho não serve de chave.
       selectParts.push(`TO_CHAR(T.${column.name}) AS "GID"`);
-      joinClause = `LEFT JOIN ${schema}.${joined.table} D ON D.${joined.valueColumn} = T.${column.name}`;
+      // `joined.owner`, não `schema`: a tabela de fatos e a de domínio podem
+      // estar em schemas diferentes (fato no WMS, cadastro no principal).
+      joinClause = `LEFT JOIN ${joined.owner}.${joined.table} D ON D.${joined.valueColumn} = T.${column.name}`;
       groupExpression = `T.${column.name}, D.${joined.labelColumn}`;
       groupLabel = domain.label;
       groupSelectCount = 2;
+
+      // Coluna extra do cadastro (ex.: unidade de venda do produto). Entra
+      // também no GROUP BY — sem risco de multiplicar linha, porque a tabela
+      // de domínio tem uma linha por código.
+      if (joined.extra) {
+        selectParts.push(`D.${joined.extra.column} AS "GX"`);
+        groupExpression += `, D.${joined.extra.column}`;
+        groupExtraLabel = joined.extra.label;
+        groupSelectCount = 3;
+      }
     } else {
       selectParts.push(`TO_CHAR(T.${column.name}) AS "G"`);
       groupExpression = `T.${column.name}`;
@@ -282,5 +326,5 @@ export function buildOracleQuery(
     .filter(Boolean)
     .join("\n");
 
-  return { sql, binds, groupLabel, measureLabels };
+  return { sql, binds, groupLabel, groupExtraLabel, measureLabels };
 }

@@ -20,7 +20,10 @@ import {
   type OracleQueryConfig,
   oracleQueryConfigSchema,
 } from "../lib/oracle-query-config";
-import { ORACLE_QUERY_TEMPLATES } from "../lib/oracle-query-templates";
+import {
+  ORACLE_QUERY_TEMPLATES,
+  ORACLE_TEMPLATE_CATEGORIES,
+} from "../lib/oracle-query-templates";
 import type { ReportTableConfig } from "../lib/report-table";
 
 type ApplyPayload = {
@@ -150,46 +153,72 @@ export function OracleTemplatePicker({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-1">
-            {ORACLE_QUERY_TEMPLATES.map((template) => {
-              // Winthor varia entre clientes — modelo cuja tabela não existe aqui
-              // fica desabilitado em vez de dar erro no "Testar consulta".
-              const missing =
-                availableTables.length > 0 &&
-                !availableTables.includes(template.config.table);
-              const chip = (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={missing}
-                  className="h-6 px-2 text-[10px]"
-                  onClick={() =>
-                    onApply({
-                      config: template.config,
-                      displayType: template.displayType,
-                      name: template.label,
-                      report: template.report,
-                    })
-                  }
-                >
-                  {template.label}
-                </Button>
-              );
-              return (
-                <Tooltip key={template.key}>
-                  <TooltipTrigger asChild>
-                    {missing ? <span>{chip}</span> : chip}
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {missing
-                      ? `Tabela ${template.config.table} não disponível nesta conexão.`
-                      : template.description}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
+          {/* Agrupado por assunto: com mais de 40 modelos, uma fileira única
+           * de chips virava uma parede onde não se achava nada. Categoria
+           * vazia (nenhum modelo compatível com esta conexão) some inteira em
+           * vez de deixar um título órfão. */}
+          {ORACLE_TEMPLATE_CATEGORIES.map((category) => {
+            const items = ORACLE_QUERY_TEMPLATES.filter(
+              (template) => template.category === category,
+            );
+            if (items.length === 0) return null;
 
+            return (
+              <div key={category} className="flex flex-col gap-1">
+                <span className="font-medium text-[9px] text-muted-foreground uppercase tracking-wide">
+                  {category}
+                </span>
+                <div className="flex flex-wrap items-center gap-1">
+                  {items.map((template) => {
+                    // Winthor varia entre clientes — modelo cuja tabela não
+                    // existe aqui fica desabilitado em vez de dar erro no
+                    // "Testar consulta".
+                    const missing =
+                      availableTables.length > 0 &&
+                      !availableTables.includes(template.config.table);
+                    const chip = (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={missing}
+                        className="h-6 px-2 text-[10px]"
+                        onClick={() =>
+                          onApply({
+                            config: template.config,
+                            displayType: template.displayType,
+                            name: template.label,
+                            report: template.report,
+                          })
+                        }
+                      >
+                        {template.label}
+                      </Button>
+                    );
+                    return (
+                      <Tooltip key={template.key}>
+                        <TooltipTrigger asChild>
+                          {missing ? <span>{chip}</span> : chip}
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {missing
+                            ? `Tabela ${template.config.table} não disponível nesta conexão.`
+                            : template.description}
+                        </TooltipContent>
+                      </Tooltip>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {saved.length > 0 && (
+            <span className="font-medium text-[9px] text-muted-foreground uppercase tracking-wide">
+              Salvos pela organização
+            </span>
+          )}
+          <div className="flex flex-wrap items-center gap-1">
             {saved.map((template) => {
               const parsed = oracleQueryConfigSchema.safeParse(template.config);
               if (!parsed.success) return null;
