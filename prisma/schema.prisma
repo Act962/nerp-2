@@ -162,6 +162,7 @@ model Organization {
   // Relações de membros (mantido do seu schema)
   members                   Member[]
   invitations               Invitation[]
+  joinLink                  OrganizationJoinLink?
   // Relações do ERP
   products                  Product[]
   categories                Category[]
@@ -227,7 +228,6 @@ model Organization {
   salesFactsDaily           SalesFactDaily[]
   // Dashboard personalizável
   dashboardManualMetrics    DashboardManualMetric[]
-  dashboardSalesGoals       DashboardSalesGoal[]
   oracleWidgetSnapshots     OracleWidgetSnapshot[]
   oracleQueryTemplates      OracleQueryTemplate[]
   orgDashboard              OrgDashboard?
@@ -269,7 +269,6 @@ model Member {
   externalSellers      ExternalSeller[]
   dashboardWidgets     DashboardWidget[]
   updatedManualMetrics DashboardManualMetric[]
-  updatedSalesGoals    DashboardSalesGoal[]
   oracleQueryTemplates OracleQueryTemplate[]
   // Modelo compartilhado da org: autor (opcional) e permissões por widget.
   authoredOrgDashboards      OrgDashboard[]                 @relation("OrgDashboardCreator")
@@ -300,6 +299,32 @@ model Invitation {
   @@index([organizationId])
   @@index([email])
   @@map("invitation")
+}
+
+// Link aberto de entrada na organização: qualquer pessoa com a URL (ou que leia
+// o QR Code) se cadastra e vira membro, sem convite nominal por e-mail.
+//
+// Diferente da `Invitation`, que é para UMA pessoa e morre ao ser aceita, este
+// é reutilizável — por isso o token precisa ser imprevisível e revogável, e o
+// papel concedido fica travado em "member": link que circula em grupo de
+// WhatsApp nunca deve dar admin. As permissões são escolhidas por quem gera o
+// link (sem elas o novo membro entra sem acesso a página nenhuma).
+model OrganizationJoinLink {
+  id             String    @id @default(cuid())
+  organizationId String    @unique
+  token          String    @unique
+  role           String    @default("member")
+  permissions    String[]  @default([])
+  // Opcional: null = vale até ser revogado.
+  expiresAt      DateTime?
+  createdById    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@map("organization_join_links")
 }
 
 // ============================================
@@ -3052,37 +3077,6 @@ model DashboardManualMetric {
 
   @@index([organizationId])
   @@map("dashboard_manual_metrics")
-}
-
-// Meta de vendas NERP-nativa (não vem do Winthor/Oracle) — combinada no client
-// com dado real de vendas resolvido via Oracle (report-table.ts) pra calcular
-// Vl.meta/%Meta nos widgets tipo TABLE. Histórico por período (mês/ano).
-model DashboardSalesGoal {
-  id             String   @id @default(cuid())
-  organizationId String
-  // "geral" | "supervisor" | "usuario" — validado em zod no handler, não enum,
-  // mesmo motivo do `unit` acima.
-  scope          String
-  // Código Winthor (CODSUPERVISOR ou CODUSUR, conforme `scope`) — bate com o
-  // `id` das linhas resolvidas em report-table.ts (row.GID ?? row.G). "" só
-  // quando scope = "geral" (não há código); precisa ser string fixa (não
-  // null) pra @@unique funcionar — Postgres trata cada NULL como distinto.
-  scopeCode      String   @default("")
-  // Rótulo de exibição (nome do supervisor/RCA, ou descrição livre p/ "geral")
-  label          String
-  year           Int
-  month          Int
-  value          Decimal  @db.Decimal(15, 2)
-  updatedById    String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  updatedBy    Member?      @relation(fields: [updatedById], references: [id], onDelete: SetNull)
-
-  @@unique([organizationId, scope, scopeCode, year, month])
-  @@index([organizationId, year, month])
-  @@map("dashboard_sales_goals")
 }
 
 // "Dashboard da organização" — modelo compartilhado que o owner/admin monta e

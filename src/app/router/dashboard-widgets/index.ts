@@ -1,9 +1,7 @@
 import { addDashboardWidget } from "./add-widget";
 import { listDashboardWidgetCatalog } from "./catalog";
 import { createDashboardManualMetric } from "./create-manual-metric";
-import { createDashboardSalesGoal } from "./create-sales-goal";
 import { deleteDashboardManualMetric } from "./delete-manual-metric";
-import { deleteDashboardSalesGoal } from "./delete-sales-goal";
 import { listDashboardManualMetrics } from "./list-manual-metrics";
 import { listDashboardSalesGoals } from "./list-sales-goals";
 import { listMyDashboardWidgets } from "./list-my-widgets";
@@ -13,7 +11,6 @@ import { removeDashboardWidget } from "./remove-widget";
 import { resolveDashboardWidgetValues } from "./resolve-values";
 import { saveDashboardLayout } from "./save-layout";
 import { updateDashboardManualMetric } from "./update-manual-metric";
-import { updateDashboardSalesGoal } from "./update-sales-goal";
 import { updateDashboardWidget } from "./update-widget";
 
 export const dashboardWidgetsRoutes = {
@@ -32,10 +29,9 @@ export const dashboardWidgetsRoutes = {
     update: updateDashboardManualMetric,
     delete: deleteDashboardManualMetric,
   },
+  // Só leitura: a meta é editada no módulo de Ranking (que tem importação de
+  // planilha e histórico). Aqui ela é apenas projetada para os widgets.
   salesGoals: {
     list: listDashboardSalesGoals,
-    create: createDashboardSalesGoal,
-    update: updateDashboardSalesGoal,
-    delete: deleteDashboardSalesGoal,
   },
 };
