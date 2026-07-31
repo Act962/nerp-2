@@ -75,13 +75,21 @@ export function StampEditor({
   const save = async () => {
     setSaving(true);
     try {
-      const blob = await bakePhoto({
+      const { blob, codigoFaltando } = await bakePhoto({
         file,
         textLines,
-        codigo: codigoUrl
-          ? { url: codigoUrl, x: pos.x, y: pos.y, scale: pos.scale }
+        // Chave, não URL: o carimbo é lido pelo proxy de mesma origem.
+        codigo: codigoKey
+          ? { key: codigoKey, x: pos.x, y: pos.y, scale: pos.scale }
           : null,
       });
+      if (codigoFaltando) {
+        toast.warning("A foto foi salva SEM a imagem do código", {
+          description:
+            "Não foi possível carregar o código desta indústria. Avise a coordenação.",
+          duration: 10000,
+        });
+      }
       const baked = new File([blob], `promotor-${Date.now()}.jpg`, {
         type: "image/jpeg",
       });

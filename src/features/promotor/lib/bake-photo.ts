@@ -3,11 +3,34 @@
 // canvas e devolve um JPEG. Rodar no client, é ele quem sobe pro R2 depois.
 
 export interface CodigoStamp {
-  url: string;
+  /**
+   * CHAVE do objeto no R2 — não a URL pública.
+   *
+   * Desenhar no canvas exige ler os bytes, e ler do domínio do R2 depende de
+   * CORS: sem o cabeçalho, o `fetch` falha e a foto era salva sem o código,
+   * em silêncio (o promotor via o código na prévia, que é só um `<img>` e não
+   * precisa de CORS, e só descobria depois). Buscando pela chave, passamos
+   * pelo proxy `/api/s3/image`, que é mesma origem — o mesmo caminho que o
+   * catálogo promocional já usa para compor em canvas.
+   */
+  key: string;
   // Posição do canto superior-esquerdo e largura, em fração 0..1 do tamanho da foto.
   x: number;
   y: number;
   scale: number;
+}
+
+export interface BakeResult {
+  blob: Blob;
+  /** true quando havia código para carimbar e ele NÃO pôde ser carregado. */
+  codigoFaltando: boolean;
+}
+
+/** Bytes da imagem do código, sempre por origem própria. */
+function codigoSource(key: string): string {
+  // Chave já absoluta (legado): usa como está — nesse caso o CORS ainda vale.
+  if (key.startsWith("http://") || key.startsWith("https://")) return key;
+  return `/api/s3/image?key=${encodeURIComponent(key)}`;
 }
 
 async function drawSeal(
@@ -41,7 +64,7 @@ export async function bakePhoto(opts: {
   textLines: string[];
   codigo: CodigoStamp | null;
   sealUrl?: string;
-}): Promise<Blob> {
+}): Promise<BakeResult> {
   // `from-image` normaliza a orientação EXIF (fotos de celular vêm giradas).
   const bitmap = await createImageBitmap(opts.file, {
     imageOrientation: "from-image",
@@ -54,13 +77,14 @@ export async function bakePhoto(opts: {
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
 
+  let codigoFaltando = false;
   if (opts.codigo) {
     try {
-      // Buscar como blob evita "tainted canvas": a imagem do R2 é cross-origin
-      // e desenhá-la direto quebraria o toBlob por segurança.
-      const blob = await fetch(opts.codigo.url).then((response) =>
-        response.blob(),
-      );
+      // Buscar como blob evita "tainted canvas": desenhar imagem de outra
+      // origem direto quebraria o `toBlob` por segurança.
+      const response = await fetch(codigoSource(opts.codigo.key));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
       const codeBitmap = await createImageBitmap(blob);
       const width = opts.codigo.scale * canvas.width;
       const height = width * (codeBitmap.height / codeBitmap.width);
@@ -73,7 +97,10 @@ export async function bakePhoto(opts: {
       );
       codeBitmap.close?.();
     } catch {
-      // Código indisponível: segue sem ele (o texto ainda é carimbado).
+      // Segue salvando (o promotor está em campo e a foto não pode ser
+      // perdida), mas AVISA: antes isso era engolido e a foto ia para
+      // aprovação sem o código, sem ninguém perceber.
+      codigoFaltando = true;
     }
   }
 
@@ -99,12 +126,14 @@ export async function bakePhoto(opts: {
   // Selo de autenticidade Órbita no canto oposto ao texto (inferior direito).
   await drawSeal(ctx, canvas, opts.sealUrl ?? "/orbita-hub.svg");
 
-  return await new Promise<Blob>((resolve, reject) => {
+  const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
-      (blob) =>
-        blob ? resolve(blob) : reject(new Error("Falha ao gerar a imagem")),
+      (result) =>
+        result ? resolve(result) : reject(new Error("Falha ao gerar a imagem")),
       "image/jpeg",
       0.85,
     );
   });
+
+  return { blob, codigoFaltando };
 }
