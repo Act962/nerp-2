@@ -13,8 +13,44 @@ type SalesGoalPeriodType = (typeof ALL_PERIOD_TYPES)[number];
 // cadastrado continua tendo prioridade, e no dia em que a planilha trouxer metas
 // para aquele tipo, ela assume o lugar.
 //
-// Sem meta, `goalAmount` é 0 — a mesma convenção do bootstrap. O board já sabe
-// mostrar "Sem meta definida" e ordenar por valor vendido nesse caso.
+// O ERP entrega o VENDIDO; a meta continua vindo do período cadastrado (a
+// planilha importada). Antes era um ou outro: com conexão ativa o board usava
+// este período virtual e as metas cadastradas eram simplesmente ignoradas —
+// 30 metas de julho existiam no banco e o board mostrava zero para todo mundo.
+// Agora os dois se somam, casando pelo `externalCode` (CODUSUR), que é a chave
+// estável dos dois lados. Sem meta cadastrada, `goalAmount` segue 0 e o board
+// mostra "Sem meta definida", ordenando por valor vendido como antes.
+
+export interface PeriodPace {
+  totalDays: number;
+  elapsedDays: number;
+  /** Fração do período já decorrida, entre 0 e 1. */
+  elapsedRatio: number;
+  isClosed: boolean;
+}
+
+// `periodEnd` chega como 00:00 do último dia (convenção do parser da planilha),
+// então o último dia conta inteiro.
+export function computePeriodPace(
+  periodStart: Date,
+  periodEnd: Date,
+): PeriodPace {
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  const totalDays = Math.max(
+    Math.round((periodEnd.getTime() - periodStart.getTime()) / ONE_DAY) + 1,
+    1,
+  );
+  const elapsed =
+    Math.floor((Date.now() - periodStart.getTime()) / ONE_DAY) + 1;
+  const elapsedDays = Math.min(Math.max(elapsed, 0), totalDays);
+
+  return {
+    totalDays,
+    elapsedDays,
+    elapsedRatio: elapsedDays / totalDays,
+    isClosed: elapsedDays >= totalDays,
+  };
+}
 
 const MONTHS_PT = [
   "JANEIRO",
@@ -164,10 +200,49 @@ export async function buildVirtualPeriodFromErp(
   const coverageStart = coverage._min.date;
   const isPartial = coverageStart ? periodStart < coverageStart : false;
 
+  // Meta do período CADASTRADO com a mesma janela. É o único lugar de onde a
+  // meta sai — o Oracle não tem meta (PCMETA está abandonada nesta base).
+  // Casa por `externalCode`, não por nome: os nomes das equipes da planilha
+  // ("NORTE") não batem com os do Winthor ("PI - NORTE"), mas o CODUSUR do
+  // vendedor é o mesmo dos dois lados.
+  const storedPeriod = await prisma.salesGoalPeriod.findUnique({
+    where: {
+      organizationId_periodType_periodStart: {
+        organizationId,
+        periodType,
+        periodStart,
+      },
+    },
+    select: {
+      overallGoalAmount: true,
+      branches: {
+        select: {
+          entries: { select: { externalCode: true, goalAmount: true } },
+        },
+      },
+    },
+  });
+  const goalByCode = new Map<string, number>();
+  for (const branch of storedPeriod?.branches ?? []) {
+    for (const entry of branch.entries) {
+      goalByCode.set(entry.externalCode, Number(entry.goalAmount));
+    }
+  }
+  const pace = computePeriodPace(periodStart, periodEnd);
+
+  const factCodes = facts.map((fact) => fact.sellerExternalCode);
+  // Quem TEM meta mas não vendeu nada na janela precisa aparecer zerado: num
+  // board de metas, sumir com o vendedor que não vendeu esconde justamente o
+  // caso que exige ação. (Sem meta, a regra antiga continua: só entra quem
+  // vendeu — uma lista de zeros num "Diário" enterraria quem vendeu.)
+  const missingGoalCodes = [...goalByCode.keys()].filter(
+    (code) => !factCodes.includes(code),
+  );
+
   const sellers = await prisma.externalSeller.findMany({
     where: {
       organizationId,
-      externalCode: { in: facts.map((fact) => fact.sellerExternalCode) },
+      externalCode: { in: [...factCodes, ...missingGoalCodes] },
     },
   });
   const sellerByCode = new Map(
@@ -199,6 +274,12 @@ export async function buildVirtualPeriodFromErp(
     );
     const name = seller?.name ?? `Código ${fact.sellerExternalCode}`;
 
+    // Meta cadastrada para este vendedor, quando existir. Ausente = 0, que o
+    // board já trata como "sem meta definida".
+    const goalAmount = goalByCode.get(fact.sellerExternalCode) ?? 0;
+    const projectedAmount =
+      pace.elapsedRatio > 0 ? revenue / pace.elapsedRatio : null;
+
     return {
       // Período virtual não existe no banco: id sintético e estável, para o
       // React ter key e a UI não tentar editar o que não é persistido.
@@ -207,10 +288,10 @@ export async function buildVirtualPeriodFromErp(
       goalName: name,
       sellerName: name,
       entryKind: seller?.isBucket ? ("BUCKET" as const) : ("SELLER" as const),
-      goalAmount: 0,
+      goalAmount,
       achievedAmount: revenue,
-      percentAchieved: null,
-      remainingAmount: 0,
+      percentAchieved: goalAmount > 0 ? (revenue / goalAmount) * 100 : null,
+      remainingAmount: Math.max(goalAmount - revenue, 0),
       memberId: seller?.memberId ?? null,
       photoUrl: null,
       achievedSource: "AUTO" as const,
@@ -223,8 +304,11 @@ export async function buildVirtualPeriodFromErp(
         customers,
         averageTicket: orders > 0 ? revenue / orders : null,
       },
-      projectedAmount: null,
-      projectedPercent: null,
+      projectedAmount,
+      projectedPercent:
+        projectedAmount !== null && goalAmount > 0
+          ? (projectedAmount / goalAmount) * 100
+          : null,
       // Equipe = supervisor (PCSUPERV), a divisão comercial do Winthor. Campos
       // intermediários só para agrupar/rotular abaixo — removidos da entry final.
       teamCode: seller?.supervisorCode ?? null,
@@ -232,7 +316,48 @@ export async function buildVirtualPeriodFromErp(
     };
   });
 
-  entries.sort((a, b) => b.achievedAmount - a.achievedAmount);
+  // Vendedores com meta e sem NENHUMA venda na janela: entram zerados, para a
+  // meta deles pesar no total da equipe e a ausência ficar visível.
+  for (const code of missingGoalCodes) {
+    const seller = sellerByCode.get(code);
+    const name = seller?.name ?? `Código ${code}`;
+    const goalAmount = goalByCode.get(code) ?? 0;
+    entries.push({
+      id: `virtual:${periodType}:${code}`,
+      externalCode: code,
+      goalName: name,
+      sellerName: name,
+      entryKind: seller?.isBucket ? ("BUCKET" as const) : ("SELLER" as const),
+      goalAmount,
+      achievedAmount: 0,
+      percentAchieved: goalAmount > 0 ? 0 : null,
+      remainingAmount: goalAmount,
+      memberId: seller?.memberId ?? null,
+      photoUrl: null,
+      achievedSource: "AUTO" as const,
+      metrics: {
+        revenue: 0,
+        cost: 0,
+        margin: 0,
+        marginPercent: null,
+        orders: 0,
+        customers: 0,
+        averageTicket: null,
+      },
+      projectedAmount: 0,
+      projectedPercent: goalAmount > 0 ? 0 : null,
+      teamCode: seller?.supervisorCode ?? null,
+      teamName: seller?.supervisorName?.trim() || null,
+    });
+  }
+
+  // Mesmo desempate do período cadastrado: com meta, ordena por % atingido;
+  // sem meta (percentAchieved null) cai no valor vendido.
+  entries.sort(
+    (a, b) =>
+      (b.percentAchieved ?? -1) - (a.percentAchieved ?? -1) ||
+      b.achievedAmount - a.achievedAmount,
+  );
 
   const byTeam = new Map<string, typeof entries>();
   for (const entry of entries) {
@@ -247,9 +372,15 @@ export async function buildVirtualPeriodFromErp(
       id: `virtual:team:${teamEntries[0]?.teamCode ?? "none"}`,
       name: teamEntries[0]?.teamName ?? "Sem equipe",
       isActive: true,
-      // Equipe vem do ERP: não há meta geral própria pra sobrescrever aqui.
+      // A equipe aqui vem do ERP (agrupada por supervisor), então não há
+      // override próprio: a meta da equipe é a soma das metas dos vendedores
+      // dela. O override por equipe da planilha não é aplicado porque os nomes
+      // não são a mesma chave — depende do `supervisorCode` na SalesGoalBranch.
       goalAmountOverride: null,
-      goalTotal: 0,
+      goalTotal: teamEntries.reduce(
+        (total, entry) => total + entry.goalAmount,
+        0,
+      ),
       achievedTotal: teamEntries.reduce(
         (total, entry) => total + entry.achievedAmount,
         0,
@@ -277,15 +408,24 @@ export async function buildVirtualPeriodFromErp(
     0,
   );
 
+  // Meta geral: honra o override do período cadastrado, quando houver; senão
+  // soma as metas das equipes (que somam as dos vendedores).
+  const overallGoalAmount =
+    storedPeriod?.overallGoalAmount != null
+      ? Number(storedPeriod.overallGoalAmount)
+      : null;
+  const goalTotal =
+    overallGoalAmount ??
+    branches.reduce((total, branch) => total + branch.goalTotal, 0);
+
   return {
     id: `virtual:${periodType}:${periodStart.toISOString().slice(0, 10)}`,
     periodType,
     periodStart,
     periodEnd,
     label,
-    // Período vem do ERP: não há meta geral própria pra sobrescrever aqui.
-    overallGoalAmount: null,
-    goalTotal: 0,
+    overallGoalAmount,
+    goalTotal,
     achievedTotal,
     branches,
     achievedSourceKind: "ERP" as const,
@@ -295,10 +435,17 @@ export async function buildVirtualPeriodFromErp(
       isPartial && coverageStart
         ? coverageStart.toISOString().slice(0, 10)
         : null,
-    // Sem meta não há o que projetar contra; a faixa de performance omite.
-    pace: undefined,
-    projectedTotal: null,
-    projectedPercent: null,
+    // Ritmo/projeção só fazem sentido contra uma meta. Sem meta cadastrada
+    // segue `undefined` e a UI omite a faixa de performance, como antes.
+    pace: goalTotal > 0 ? pace : undefined,
+    projectedTotal:
+      goalTotal > 0 && pace.elapsedRatio > 0
+        ? achievedTotal / pace.elapsedRatio
+        : null,
+    projectedPercent:
+      goalTotal > 0 && pace.elapsedRatio > 0
+        ? (achievedTotal / pace.elapsedRatio / goalTotal) * 100
+        : null,
     marginTotal: revenueTotal > 0 ? revenueTotal - costTotal : null,
     marginPercent:
       revenueTotal > 0

@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ListChecks, Maximize2, Minimize2, Plus, Target } from "lucide-react";
+import { ListChecks, Maximize2, Minimize2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DashboardGrid } from "@/features/dashboard-widgets/components/dashboard-grid";
 import { ManualMetricsAdmin } from "@/features/dashboard-widgets/components/manual-metrics-admin";
-import { SalesGoalsAdmin } from "@/features/dashboard-widgets/components/sales-goals-admin";
 import { WidgetDetailDialog } from "@/features/dashboard-widgets/components/widget-detail-dialog";
 import { WidgetEditSheetCore } from "@/features/dashboard-widgets/components/widget-edit-sheet";
 import { WidgetPickerSheet } from "@/features/dashboard-widgets/components/widget-picker-sheet";
@@ -32,9 +31,7 @@ export default function DashboardPage() {
   const isAdmin = hasFullAccess(member?.role);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [metricsOpen, setMetricsOpen] = useState(false);
-  const [goalsOpen, setGoalsOpen] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
-  const now = new Date();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Mesmo padrão do "Modo TV" do ranking: Fullscreen API de verdade, com
@@ -91,17 +88,6 @@ export default function DashboardPage() {
               <ListChecks className="size-4" /> Métricas manuais
             </Button>
           )}
-          {!fullscreen && isAdmin && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setGoalsOpen(true)}
-            >
-              <Target className="size-4" /> Metas de vendas
-            </Button>
-          )}
           {!fullscreen && (
             <Button
               type="button"
@@ -139,14 +125,6 @@ export default function DashboardPage() {
       <WidgetPickerSheet open={pickerOpen} onOpenChange={setPickerOpen} />
       {isAdmin && (
         <ManualMetricsAdmin open={metricsOpen} onOpenChange={setMetricsOpen} />
-      )}
-      {isAdmin && (
-        <SalesGoalsAdmin
-          open={goalsOpen}
-          onOpenChange={setGoalsOpen}
-          defaultYear={now.getFullYear()}
-          defaultMonth={now.getMonth() + 1}
-        />
       )}
     </div>
   );

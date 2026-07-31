@@ -42,6 +42,7 @@ export function CaptureWizard({
   promoterName,
   initialStore,
   initialSupplierId,
+  onCaptured,
 }: {
   promoterName: string;
   // Loja vinda por contexto (do /mapa): pula a etapa de escolher a loja e
@@ -50,6 +51,8 @@ export function CaptureWizard({
   // Indústria vinda por contexto (da página de mídia): resolve na lista de
   // indústrias do promotor e pula direto para tirar a foto.
   initialSupplierId?: string;
+  /** Chamado após a foto ser aceita — a página usa para abrir "Minhas fotos". */
+  onCaptured?: () => void;
 }) {
   const hasFixedStore = !!initialStore;
   const minStep = hasFixedStore ? 2 : 1;
@@ -141,7 +144,12 @@ export function CaptureWizard({
         capturedCity: geo.city ?? undefined,
         capturedState: geo.state ?? undefined,
       },
-      { onSuccess: reset },
+      {
+        onSuccess: () => {
+          reset();
+          onCaptured?.();
+        },
+      },
     );
   };
 

@@ -93,6 +93,13 @@ export const DATE_PRESETS = [
   "next60",
   "next90",
   "overdue",
+  // Janelas "há mais de N dias": tudo ANTERIOR ao corte. É o recorte de
+  // inatividade — estoque sem saída, cliente sem compra — que `overdue`
+  // (qualquer coisa antes de hoje) não expressa: com ele, item vendido hoje
+  // de manhã entrava na lista de "parado".
+  "before30",
+  "before90",
+  "before180",
   // "custom" leva `from`/`to` no próprio dateFilter (ISO YYYY-MM-DD). É o
   // caminho para intervalos que não cabem em preset — relatório fechado de um
   // mês específico, período de campanha, etc.
@@ -112,6 +119,9 @@ export const DATE_PRESET_LABEL: Record<OracleDatePreset, string> = {
   next60: "Próximos 60 dias",
   next90: "Próximos 90 dias",
   overdue: "Já vencido",
+  before30: "Há mais de 30 dias",
+  before90: "Há mais de 90 dias",
+  before180: "Há mais de 180 dias",
   custom: "Data personalizada",
 };
 
@@ -356,6 +366,15 @@ export function resolveDatePreset(
     // de negócio do Winthor é anterior a isso.
     case "overdue":
       return { from: new Date(1900, 0, 1), to: startOfToday };
+    // "Há mais de N dias": mesmo formato do `overdue`, mas com o corte
+    // recuado — o fim EXCLUSIVO é o dia N atrás, então o que aconteceu
+    // dentro da janela recente fica de fora.
+    case "before30":
+      return { from: new Date(1900, 0, 1), to: daysAgo(30) };
+    case "before90":
+      return { from: new Date(1900, 0, 1), to: daysAgo(90) };
+    case "before180":
+      return { from: new Date(1900, 0, 1), to: daysAgo(180) };
     case "custom": {
       // Só chega aqui pelo objeto — o refine do schema já garante that from/to
       // estão presentes.

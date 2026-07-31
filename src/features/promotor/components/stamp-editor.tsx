@@ -1,11 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { compressImage } from "@/lib/compress-image";
 import { uploadToR2 } from "@/lib/upload-to-r2";
-import { Check, Minus, Plus, RotateCcw } from "lucide-react";
+import { Check, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { bakePhoto } from "../lib/bake-photo";
@@ -13,6 +14,16 @@ import { bakePhoto } from "../lib/bake-photo";
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
+
+/** Largura do código como fração da foto. Teto em 50%: acima disso ele começa
+ * a cobrir a própria ação fotografada. */
+const MIN_SCALE = 0.1;
+const MAX_SCALE = 0.5;
+
+// Espelha o `drawSeal` do bake-photo.ts, para a prévia mostrar o selo no mesmo
+// lugar e tamanho em que ele será gravado.
+const SEAL_WIDTH_RATIO = 0.24;
+const SEAL_PAD_RATIO = 0.02;
 
 // Editor do carimbo: mostra a foto, deixa arrastar a imagem do código de ação e
 // exibe as linhas de texto que serão gravadas. Ao confirmar, compõe + sobe pro
@@ -33,6 +44,7 @@ export function StampEditor({
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [pos, setPos] = useState({ x: 0.62, y: 0.06, scale: 0.3 });
+  const [sealLoaded, setSealLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const dragging = useRef(false);
 
@@ -63,13 +75,21 @@ export function StampEditor({
   const save = async () => {
     setSaving(true);
     try {
-      const blob = await bakePhoto({
+      const { blob, codigoFaltando } = await bakePhoto({
         file,
         textLines,
-        codigo: codigoUrl
-          ? { url: codigoUrl, x: pos.x, y: pos.y, scale: pos.scale }
+        // Chave, não URL: o carimbo é lido pelo proxy de mesma origem.
+        codigo: codigoKey
+          ? { key: codigoKey, x: pos.x, y: pos.y, scale: pos.scale }
           : null,
       });
+      if (codigoFaltando) {
+        toast.warning("A foto foi salva SEM a imagem do código", {
+          description:
+            "Não foi possível carregar o código desta indústria. Avise a coordenação.",
+          duration: 10000,
+        });
+      }
       const baked = new File([blob], `promotor-${Date.now()}.jpg`, {
         type: "image/jpeg",
       });
@@ -93,9 +113,14 @@ export function StampEditor({
         localização são carimbados no rodapé.
       </p>
 
+      {/* `w-fit` para a caixa acompanhar EXATAMENTE a foto renderizada. Antes
+        ela ocupava a largura toda e, em foto retrato (o normal no celular), a
+        imagem ficava centralizada com barras nas laterais — o selo e as
+        coordenadas do arraste eram medidos contra a caixa, não contra a foto,
+        então saíam deslocados do que o `bakePhoto` grava. */}
       <div
         ref={containerRef}
-        className="relative w-full touch-none overflow-hidden rounded-lg border bg-neutral-900"
+        className="relative mx-auto w-fit touch-none overflow-hidden rounded-lg border bg-neutral-900"
         onPointerMove={(event) => {
           if (dragging.current) moveTo(event.clientX, event.clientY);
         }}
@@ -108,7 +133,7 @@ export function StampEditor({
           <img
             src={previewUrl}
             alt=""
-            className="max-h-[60vh] w-full object-contain"
+            className="block max-h-[60vh] w-auto max-w-full"
           />
         )}
 
@@ -129,9 +154,34 @@ export function StampEditor({
               width: `${pos.scale * 100}%`,
               cursor: "grab",
               touchAction: "none",
+              // Acima do texto e do selo, igual ao `bakePhoto`, que desenha o
+              // código por último. Sem isto a prévia mostraria o código
+              // coberto pelas tarjas e o arquivo salvo mostraria o contrário.
+              zIndex: 10,
             }}
           />
         )}
+
+        {/* Selo Órbita: só prévia. Quem grava de fato é o `drawSeal` do
+          bake-photo. Mostrar aqui evita o promotor posicionar o código
+          justamente em cima dele e só descobrir depois de salvar. */}
+        <div
+          className="pointer-events-none absolute bg-black/55"
+          style={{
+            right: `${SEAL_PAD_RATIO * 100}%`,
+            bottom: `${SEAL_PAD_RATIO * 100}%`,
+            width: `${(SEAL_WIDTH_RATIO + SEAL_PAD_RATIO * 2) * 100}%`,
+            padding: `${SEAL_PAD_RATIO * 100}%`,
+          }}
+        >
+          {/* biome-ignore lint/performance/noImgElement: selo estático em public/ */}
+          <img
+            src="/orbita-hub.svg"
+            alt=""
+            onLoad={() => setSealLoaded(true)}
+            className={`w-full ${sealLoaded ? "" : "opacity-0"}`}
+          />
+        </div>
 
         {/* Prévia das linhas de texto (canto inferior esquerdo). */}
         <div className="pointer-events-none absolute bottom-2 left-2 space-y-1">
@@ -147,38 +197,33 @@ export function StampEditor({
       </div>
 
       {codigoUrl ? (
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            Tamanho do código
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-9"
-            onClick={() =>
+        // Slider no lugar dos botões +/-: com o dedo, arrastar até o tamanho
+        // certo é mais rápido que tocar N vezes de 5% em 5%.
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              Tamanho do código
+            </span>
+            <span className="text-xs font-medium tabular-nums">
+              {Math.round(pos.scale * 100)}%
+            </span>
+          </div>
+          <Slider
+            value={[pos.scale]}
+            min={MIN_SCALE}
+            max={MAX_SCALE}
+            step={0.01}
+            onValueChange={([value]) =>
               setPos((prev) => ({
                 ...prev,
-                scale: clamp(prev.scale - 0.05, 0.1, 0.6),
+                scale: clamp(value, MIN_SCALE, MAX_SCALE),
+                // Reposiciona se o novo tamanho jogaria o código para fora
+                // pela direita.
+                x: clamp(prev.x, 0, 1 - value),
               }))
             }
-          >
-            <Minus className="size-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="size-9"
-            onClick={() =>
-              setPos((prev) => ({
-                ...prev,
-                scale: clamp(prev.scale + 0.05, 0.1, 0.6),
-              }))
-            }
-          >
-            <Plus className="size-4" />
-          </Button>
+            aria-label="Tamanho do código"
+          />
         </div>
       ) : (
         <p className="text-center text-xs text-amber-600">

@@ -1,7 +1,10 @@
 import prisma from "@/lib/db";
 import { buildAchievedLookup } from "./_sales-aggregation";
 import { ALL_PERIOD_TYPES, type SalesMode } from "./_schemas";
-import { buildVirtualPeriodFromErp } from "./_virtual-period";
+import {
+  buildVirtualPeriodFromErp,
+  computePeriodPace,
+} from "./_virtual-period";
 
 type SalesGoalPeriodType = (typeof ALL_PERIOD_TYPES)[number];
 
@@ -251,33 +254,11 @@ export async function buildSalesGoalRanking(
   };
 }
 
-export interface PeriodPace {
-  totalDays: number;
-  elapsedDays: number;
-  /** Fração do período já decorrida, entre 0 e 1. */
-  elapsedRatio: number;
-  isClosed: boolean;
-}
-
-// `periodEnd` chega como 00:00 do último dia (convenção do parser da planilha),
-// então o último dia conta inteiro.
-function computePeriodPace(periodStart: Date, periodEnd: Date): PeriodPace {
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-  const totalDays = Math.max(
-    Math.round((periodEnd.getTime() - periodStart.getTime()) / ONE_DAY) + 1,
-    1,
-  );
-  const elapsed =
-    Math.floor((Date.now() - periodStart.getTime()) / ONE_DAY) + 1;
-  const elapsedDays = Math.min(Math.max(elapsed, 0), totalDays);
-
-  return {
-    totalDays,
-    elapsedDays,
-    elapsedRatio: elapsedDays / totalDays,
-    isClosed: elapsedDays >= totalDays,
-  };
-}
+// `PeriodPace` e `computePeriodPace` moraram aqui até o período virtual passar
+// a calcular projeção também. Vivem em `_virtual-period.ts` para os dois
+// caminhos usarem a MESMA conta — e porque este arquivo já importa de lá, o
+// que evita import circular. Reexportado para não quebrar quem importa daqui.
+export type { PeriodPace } from "./_virtual-period";
 
 // Sem registro ainda? Devolve os defaults (nada persistido) pra UI já
 // renderizar o formulário preenchido — evita side-effect de criar linha
