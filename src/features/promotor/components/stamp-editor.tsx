@@ -154,6 +154,10 @@ export function StampEditor({
               width: `${pos.scale * 100}%`,
               cursor: "grab",
               touchAction: "none",
+              // Acima do texto e do selo, igual ao `bakePhoto`, que desenha o
+              // código por último. Sem isto a prévia mostraria o código
+              // coberto pelas tarjas e o arquivo salvo mostraria o contrário.
+              zIndex: 10,
             }}
           />
         )}

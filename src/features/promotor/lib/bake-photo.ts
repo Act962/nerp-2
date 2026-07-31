@@ -77,6 +77,35 @@ export async function bakePhoto(opts: {
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
 
+  const fontSize = Math.max(14, Math.round(canvas.width * 0.03));
+  const pad = fontSize * 0.4;
+  ctx.font = `600 ${fontSize}px sans-serif`;
+  ctx.textBaseline = "alphabetic";
+
+  // Linhas empilhadas de baixo pra cima, cada uma numa pílula semitransparente.
+  let bottom = canvas.height - pad;
+  for (const line of [...opts.textLines].reverse()) {
+    if (!line) continue;
+    const metrics = ctx.measureText(line);
+    const boxWidth = metrics.width + pad * 2;
+    const boxHeight = fontSize + pad;
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fillRect(pad, bottom - boxHeight, boxWidth, boxHeight);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(line, pad * 2, bottom - pad * 0.9);
+    bottom -= boxHeight + pad * 0.5;
+  }
+
+  // Selo de autenticidade Órbita no canto oposto ao texto (inferior direito).
+  await drawSeal(ctx, canvas, opts.sealUrl ?? "/orbita-hub.svg");
+
+  // O CÓDIGO VAI POR ÚLTIMO, por cima de tudo.
+  //
+  // Antes era desenhado logo depois da foto, e então o texto (rodapé
+  // esquerdo) e o selo (rodapé direito) passavam por cima. Quando o promotor
+  // posicionava o código embaixo — o lugar natural, já que a gôndola ocupa o
+  // meio da foto — as tarjas cobriam justamente o código que a indústria
+  // precisa conferir. O código é o motivo da foto existir: nada o encobre.
   let codigoFaltando = false;
   if (opts.codigo) {
     try {
@@ -103,28 +132,6 @@ export async function bakePhoto(opts: {
       codigoFaltando = true;
     }
   }
-
-  const fontSize = Math.max(14, Math.round(canvas.width * 0.03));
-  const pad = fontSize * 0.4;
-  ctx.font = `600 ${fontSize}px sans-serif`;
-  ctx.textBaseline = "alphabetic";
-
-  // Linhas empilhadas de baixo pra cima, cada uma numa pílula semitransparente.
-  let bottom = canvas.height - pad;
-  for (const line of [...opts.textLines].reverse()) {
-    if (!line) continue;
-    const metrics = ctx.measureText(line);
-    const boxWidth = metrics.width + pad * 2;
-    const boxHeight = fontSize + pad;
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(pad, bottom - boxHeight, boxWidth, boxHeight);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillText(line, pad * 2, bottom - pad * 0.9);
-    bottom -= boxHeight + pad * 0.5;
-  }
-
-  // Selo de autenticidade Órbita no canto oposto ao texto (inferior direito).
-  await drawSeal(ctx, canvas, opts.sealUrl ?? "/orbita-hub.svg");
 
   const blob = await new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
