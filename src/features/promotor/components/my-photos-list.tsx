@@ -114,7 +114,7 @@ export function MyPhotosList() {
               key={photo.id}
               className="overflow-hidden rounded-lg border bg-card"
             >
-              <div className="aspect-square bg-neutral-100">
+              <div className="aspect-square bg-neutral-900">
                 {photo.photoKey && (
                   <button
                     type="button"
@@ -122,12 +122,15 @@ export function MyPhotosList() {
                     className="size-full cursor-zoom-in"
                     title="Ampliar foto"
                   >
+                    {/* `object-contain` pelo mesmo motivo da fila de aprovação:
+                      com `cover`, foto em retrato perdia as pontas e o carimbo
+                      do código (a 6% do topo) ficava fora do quadro. */}
                     {/* biome-ignore lint/performance/noImgElement: thumbnail de key do R2 */}
                     <img
                       src={constructUrl(photo.photoKey)}
                       alt={`Foto em ${photo.storeName}`}
                       loading="lazy"
-                      className="size-full object-cover"
+                      className="size-full object-contain"
                     />
                   </button>
                 )}

@@ -98,15 +98,20 @@ export function PhotosForApprovalList({
                 href={photo.photoKey ? constructUrl(photo.photoKey) : "#"}
                 target="_blank"
                 rel="noreferrer"
-                className="block aspect-video bg-neutral-100"
+                className="block aspect-video bg-neutral-900"
               >
                 {photo.photoKey && (
+                  // `object-contain`, nunca `cover`: foto de celular vem em
+                  // retrato e o corte para 16:9 escondia as pontas — só os 42%
+                  // centrais apareciam. O carimbo do código fica a 6% do topo e
+                  // o texto no rodapé, ou seja, exatamente o que era cortado.
+                  // Quem aprova precisa ver justamente isso.
                   // biome-ignore lint/performance/noImgElement: thumbnail de key do R2
                   <img
                     src={constructUrl(photo.photoKey)}
                     alt=""
                     loading="lazy"
-                    className="size-full object-cover"
+                    className="size-full object-contain"
                   />
                 )}
               </a>
