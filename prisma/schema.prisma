@@ -227,6 +227,7 @@ model Organization {
   salesFactsDaily           SalesFactDaily[]
   // Dashboard personalizável
   dashboardManualMetrics    DashboardManualMetric[]
+  dashboardSalesGoals       DashboardSalesGoal[]
   oracleWidgetSnapshots     OracleWidgetSnapshot[]
   oracleQueryTemplates      OracleQueryTemplate[]
   orgDashboard              OrgDashboard?
@@ -268,6 +269,7 @@ model Member {
   externalSellers      ExternalSeller[]
   dashboardWidgets     DashboardWidget[]
   updatedManualMetrics DashboardManualMetric[]
+  updatedSalesGoals    DashboardSalesGoal[]
   oracleQueryTemplates OracleQueryTemplate[]
   // Modelo compartilhado da org: autor (opcional) e permissões por widget.
   authoredOrgDashboards      OrgDashboard[]                 @relation("OrgDashboardCreator")
@@ -1539,6 +1541,35 @@ model Store {
 
   @@index([organizationId])
   @@map("stores")
+}
+
+model StoreImport {
+  id             String            @id @default(cuid())
+  organizationId String
+  createdById    String
+  fileKey        String // chave do objeto no S3
+  fileName       String
+  mapping        Json // { campoLoja: nomeColunaArquivo }
+  status         StoreImportStatus @default(PENDING)
+  totalRows      Int               @default(0)
+  processedRows  Int               @default(0)
+  createdRows    Int               @default(0)
+  skippedRows    Int               @default(0) // duplicados (mesmo código) pulados
+  failedRows     Int               @default(0)
+  errors         Json              @default("[]") // [{ row, message }]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  completedAt    DateTime?
+
+  @@index([organizationId, status])
+  @@map("store_imports")
+}
+
+enum StoreImportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
 }
 
 // Vínculo promotor → indústria: as indústrias que o promotor representa.
@@ -3021,6 +3052,37 @@ model DashboardManualMetric {
 
   @@index([organizationId])
   @@map("dashboard_manual_metrics")
+}
+
+// Meta de vendas NERP-nativa (não vem do Winthor/Oracle) — combinada no client
+// com dado real de vendas resolvido via Oracle (report-table.ts) pra calcular
+// Vl.meta/%Meta nos widgets tipo TABLE. Histórico por período (mês/ano).
+model DashboardSalesGoal {
+  id             String   @id @default(cuid())
+  organizationId String
+  // "geral" | "supervisor" | "usuario" — validado em zod no handler, não enum,
+  // mesmo motivo do `unit` acima.
+  scope          String
+  // Código Winthor (CODSUPERVISOR ou CODUSUR, conforme `scope`) — bate com o
+  // `id` das linhas resolvidas em report-table.ts (row.GID ?? row.G). "" só
+  // quando scope = "geral" (não há código); precisa ser string fixa (não
+  // null) pra @@unique funcionar — Postgres trata cada NULL como distinto.
+  scopeCode      String   @default("")
+  // Rótulo de exibição (nome do supervisor/RCA, ou descrição livre p/ "geral")
+  label          String
+  year           Int
+  month          Int
+  value          Decimal  @db.Decimal(15, 2)
+  updatedById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  updatedBy    Member?      @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, scope, scopeCode, year, month])
+  @@index([organizationId, year, month])
+  @@map("dashboard_sales_goals")
 }
 
 // "Dashboard da organização" — modelo compartilhado que o owner/admin monta e
