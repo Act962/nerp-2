@@ -29,13 +29,17 @@ interface WidgetSeed {
   displayType: "STAT" | "CHART" | "LIST" | "TABLE";
   chartKind?: "LINE" | "BAR" | "DONUT";
   layout: { x: number; y: number; w: number; h: number };
-  /** Só a tabela 146 recebe: deriva % Part./Contrib./% Lucro/% MC/% Acum. */
+  /** Override manual — só usado quando o TEMPLATE não já carrega `report`
+   * (caso de "ranking-rca-detalhado", que ainda não foi migrado). Quando o
+   * template já tem `report` embutido (ex.: "resumo-por-supervisor"), o script
+   * usa o dele — nunca fica desatualizado se o template mudar de novo. */
   report?: { valueKey: string; costKey: string };
 }
 
 // Grade interna do painel: 12 colunas (breakpoint 'lg' de PANEL_WIDGET_BREAKPOINTS).
-// Linha 0: 4 KPIs lado a lado. Linha 2: gráfico full-width. Linha 6: as duas
-// tabelas detalhadas, lado a lado.
+// Linha 0: 4 KPIs lado a lado. Linha 2: gráfico full-width. Linha 6: 146
+// (agora com 14 colunas — venda/pedidos/custo/itens/tabela/peso + 8
+// derivadas — larga demais pra dividir com a 114). Linha 12: 114.
 const WIDGETS: WidgetSeed[] = [
   {
     templateKey: "vl-venda-mes",
@@ -72,16 +76,14 @@ const WIDGETS: WidgetSeed[] = [
     templateKey: "resumo-por-supervisor",
     title: "146 — Resumo por supervisor",
     displayType: "TABLE",
-    layout: { x: 0, y: 6, w: 6, h: 5 },
-    // Custo agora é M3 — "Qt RCAs" (COUNT_DISTINCT) foi removida do template,
-    // então o índice das medidas seguintes andou uma casa pra trás.
-    report: { valueKey: "M0", costKey: "M3" },
+    layout: { x: 0, y: 6, w: 12, h: 6 },
+    // Sem override — usa o `report` já embutido no template.
   },
   {
     templateKey: "ranking-rca-detalhado",
     title: "114 — Ranking de RCAs",
     displayType: "TABLE",
-    layout: { x: 6, y: 6, w: 6, h: 5 },
+    layout: { x: 0, y: 12, w: 12, h: 5 },
     report: { valueKey: "M0", costKey: "M3" },
   },
 ];
@@ -112,9 +114,10 @@ async function main() {
     data: {
       title: "Comercial — Vendas por supervisor (Winthor 146 / 114)",
       layout: {
-        lg: { x: 0, y, w: 12, h: 12 },
-        md: { x: 0, y, w: 8, h: 12 },
-        sm: { x: 0, y, w: 4, h: 12 },
+        // 114 termina em y:12+h:5=17 — painel um pouco mais alto que isso.
+        lg: { x: 0, y, w: 12, h: 18 },
+        md: { x: 0, y, w: 8, h: 18 },
+        sm: { x: 0, y, w: 4, h: 18 },
       },
     },
   });
@@ -125,7 +128,10 @@ async function main() {
   for (const [index, widget] of WIDGETS.entries()) {
     const tpl = template(widget.templateKey);
     const options: Record<string, unknown> = { oracle: tpl.config };
-    if (widget.report) options.report = widget.report;
+    // Prioriza o `report` embutido no TEMPLATE — só cai no override manual
+    // (`widget.report`) quando o template ainda não carrega um.
+    const report = tpl.report ?? widget.report;
+    if (report) options.report = report;
 
     await prisma.orgDashboardWidget.create({
       data: {

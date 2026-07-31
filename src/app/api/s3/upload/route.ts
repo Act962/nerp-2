@@ -22,6 +22,14 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "image/heif",
   "image/avif",
   "application/pdf",
+  // Planilhas de importação (clientes/fornecedores/produtos/lojas) — o
+  // wizard sobe o CSV/XLSX bruto aqui antes de disparar o processamento.
+  // "application/octet-stream" cobre o caso comum de `file.type` vir vazio
+  // (alguns navegadores/SOs não reconhecem .csv/.xlsx).
+  "text/csv",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/octet-stream",
 ]);
 
 const fileUploadSchema = z.object({

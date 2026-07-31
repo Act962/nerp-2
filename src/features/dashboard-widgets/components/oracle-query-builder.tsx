@@ -2,11 +2,27 @@
 
 import { useState, type ReactNode } from "react";
 import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
   Database,
   Filter,
+  GripVertical,
   Layers,
   Loader2,
   PlayCircle,
@@ -41,10 +57,16 @@ import {
   type OracleAggregation,
   type OracleDatePreset,
   type OracleQueryConfig,
+  type OracleQueryMeasure,
 } from "../lib/oracle-query-config";
+import type { ReportTableConfig } from "../lib/report-table";
 import { OracleFilterRow, OracleQuickFilterChips } from "./oracle-filter-row";
 import { OracleTemplatePicker } from "./oracle-template-picker";
 import { OracleTermOption } from "./oracle-term-option";
+
+type OracleColumnInfo = NonNullable<
+  ReturnType<typeof useOracleColumns>["data"]
+>["columns"][number];
 
 export type OracleDraft = OracleQueryConfig;
 
@@ -146,6 +168,167 @@ const SALES_FILTER_OPTIONS = [
   },
 ] as const;
 
+// Uma medida arrastável dentro de "Cálculo". A ordem do array de medidas É a
+// ordem das colunas no resultado (M0, M1…) — arrastar aqui reordena a
+// consulta de verdade, então widgets já configurados com `report.valueKey`/
+// `costKey` etc. (que referenciam M0/M1/… por posição) podem precisar de
+// ajuste manual depois de reordenar.
+function OracleMeasureRow({
+  id,
+  index,
+  measure,
+  canRemove,
+  measureColumns,
+  columns,
+  isLargeTable,
+  onChange,
+  onRemove,
+}: {
+  id: string;
+  index: number;
+  measure: OracleQueryMeasure;
+  canRemove: boolean;
+  measureColumns: OracleColumnInfo[];
+  columns: OracleColumnInfo[];
+  isLargeTable: boolean;
+  onChange: (next: Partial<OracleQueryMeasure>) => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn(
+        "flex flex-col gap-1.5 rounded-md border bg-background p-2",
+        isDragging && "z-10 opacity-50",
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          className="-ml-1 flex size-6 shrink-0 cursor-grab items-center justify-center rounded text-muted-foreground hover:bg-muted active:cursor-grabbing"
+          title="Arraste para reordenar a coluna"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="size-3.5" />
+        </button>
+        <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
+          Medida {index + 1}
+        </span>
+        {canRemove && (
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            className="ml-auto text-muted-foreground hover:text-destructive"
+            onClick={onRemove}
+            aria-label={`Remover Medida ${index + 1}`}
+          >
+            <X className="size-3" />
+          </Button>
+        )}
+      </div>
+
+      {/* Duas colunas fixas (agregação/unidade) — sempre cabem lado a lado
+       * mesmo na largura estreita do Sheet. Coluna e rótulo ficam em linhas
+       * próprias, largura cheia, porque o nome da coluna Oracle pode ser
+       * longo. */}
+      <div className="flex gap-1.5">
+        <Select
+          value={measure.aggregation}
+          onValueChange={(value) =>
+            onChange({
+              aggregation: value as OracleAggregation,
+              column: value === "COUNT" ? null : (measure.column ?? null),
+            })
+          }
+        >
+          <SelectTrigger
+            className="h-7 min-w-0 flex-1 text-xs"
+            aria-label="Agregação"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {AGGREGATIONS.filter(
+              (aggregation) =>
+                !(aggregation === "COUNT_DISTINCT" && isLargeTable),
+            ).map((aggregation) => (
+              <SelectItem key={aggregation} value={aggregation}>
+                {AGGREGATION_LABEL[aggregation]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select
+          value={measure.unit}
+          onValueChange={(value) =>
+            onChange({ unit: value as "currency" | "number" | "percent" })
+          }
+        >
+          <SelectTrigger
+            className="h-7 min-w-0 flex-1 text-xs"
+            aria-label="Unidade"
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="number">Número</SelectItem>
+            <SelectItem value="currency">R$</SelectItem>
+            <SelectItem value="percent">%</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {measure.aggregation !== "COUNT" && (
+        <Select
+          value={measure.column ?? ""}
+          onValueChange={(value) => onChange({ column: value })}
+        >
+          <SelectTrigger
+            className="h-7 w-full min-w-0 text-xs"
+            aria-label="Coluna"
+          >
+            <SelectValue placeholder="coluna" />
+          </SelectTrigger>
+          <SelectContent>
+            {(measureColumns.length > 0 ? measureColumns : columns).map(
+              (column) => (
+                <SelectItem key={column.name} value={column.name}>
+                  <OracleTermOption
+                    code={column.name}
+                    label={column.label}
+                    description={column.description}
+                  />
+                </SelectItem>
+              ),
+            )}
+          </SelectContent>
+        </Select>
+      )}
+
+      <Input
+        className="h-7 w-full text-xs"
+        placeholder="rótulo"
+        aria-label="Rótulo da medida"
+        value={measure.label}
+        onChange={(event) => onChange({ label: event.target.value })}
+      />
+    </div>
+  );
+}
+
 export function OracleQueryBuilder({
   draft,
   displayType,
@@ -160,6 +343,8 @@ export function OracleQueryBuilder({
     config: OracleDraft;
     displayType: "STAT" | "CHART" | "LIST" | "TABLE";
     name: string;
+    /** Colunas derivadas (% Part., Contrib., % Lucro…) do modelo aplicado. */
+    report?: ReportTableConfig;
   }) => void;
 }) {
   const { data: tablesData, isLoading: loadingTables } = useOracleTables(true);
@@ -192,6 +377,23 @@ export function OracleQueryBuilder({
       table,
       salesFilter: null,
     });
+  };
+
+  // Ordem das medidas = ordem das colunas no resultado (M0, M1…) — arrastar
+  // aqui reordena de verdade a consulta, não é só cosmético. Usa o ÍNDICE
+  // como id de arraste: como a medida em si não tem um id próprio e o array
+  // só é reordenado (nunca mutado) durante o gesto, isso é suficiente e evita
+  // ter que manter uma lista de ids em sincronia com adicionar/remover/trocar
+  // de tabela (que substitui `measures` inteiro vindo de fora).
+  const measureSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+  );
+  const handleMeasureDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = Number(active.id);
+    const newIndex = Number(over.id);
+    patch({ measures: arrayMove(draft.measures, oldIndex, newIndex) });
   };
 
   return (
@@ -262,143 +464,43 @@ export function OracleQueryBuilder({
               )
             }
           >
-            <div className="flex flex-col gap-2">
-              {draft.measures.map((measure, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-1 gap-1.5 rounded-md border bg-background p-2 sm:grid-cols-[auto_1fr_auto_auto]"
-                >
-                  <div className="flex items-center gap-1.5 sm:col-span-full sm:mb-1">
-                    <span className="font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
-                      Medida {index + 1}
-                    </span>
-                    {draft.measures.length > 1 && (
-                      <Button
-                        type="button"
-                        size="icon-sm"
-                        variant="ghost"
-                        className="ml-auto text-muted-foreground hover:text-destructive"
-                        onClick={() =>
-                          patch({
-                            measures: draft.measures.filter(
-                              (_, position) => position !== index,
-                            ),
-                          })
-                        }
-                        aria-label={`Remover Medida ${index + 1}`}
-                      >
-                        <X className="size-3" />
-                      </Button>
-                    )}
-                  </div>
-                  <Select
-                    value={measure.aggregation}
-                    onValueChange={(value) => {
-                      const measures = [...draft.measures];
-                      measures[index] = {
-                        ...measure,
-                        aggregation: value as OracleAggregation,
-                        column:
-                          value === "COUNT" ? null : (measure.column ?? null),
-                      };
-                      patch({ measures });
-                    }}
-                  >
-                    <SelectTrigger
-                      className="h-7 text-xs sm:w-32"
-                      aria-label="Agregação"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {AGGREGATIONS.filter(
-                        (aggregation) =>
-                          !(aggregation === "COUNT_DISTINCT" && isLargeTable),
-                      ).map((aggregation) => (
-                        <SelectItem key={aggregation} value={aggregation}>
-                          {AGGREGATION_LABEL[aggregation]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {measure.aggregation !== "COUNT" ? (
-                    <Select
-                      value={measure.column ?? ""}
-                      onValueChange={(value) => {
+            <DndContext
+              sensors={measureSensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleMeasureDragEnd}
+            >
+              <SortableContext
+                items={draft.measures.map((_, index) => String(index))}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="flex flex-col gap-2">
+                  {draft.measures.map((measure, index) => (
+                    <OracleMeasureRow
+                      key={index}
+                      id={String(index)}
+                      index={index}
+                      measure={measure}
+                      canRemove={draft.measures.length > 1}
+                      measureColumns={measureColumns}
+                      columns={columns}
+                      isLargeTable={isLargeTable}
+                      onChange={(next) => {
                         const measures = [...draft.measures];
-                        measures[index] = { ...measure, column: value };
+                        measures[index] = { ...measure, ...next };
                         patch({ measures });
                       }}
-                    >
-                      <SelectTrigger
-                        className="h-7 min-w-0 text-xs"
-                        aria-label="Coluna"
-                      >
-                        <SelectValue placeholder="coluna" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {(measureColumns.length > 0
-                          ? measureColumns
-                          : columns
-                        ).map((column) => (
-                          <SelectItem key={column.name} value={column.name}>
-                            <OracleTermOption
-                              code={column.name}
-                              label={column.label}
-                              description={column.description}
-                            />
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    // Placeholder invisível pra grade não colapsar quando o
-                    // agregado não pede coluna.
-                    <span className="hidden sm:block" />
-                  )}
-
-                  <Input
-                    className="h-7 text-xs sm:w-28"
-                    placeholder="rótulo"
-                    aria-label="Rótulo da medida"
-                    value={measure.label}
-                    onChange={(event) => {
-                      const measures = [...draft.measures];
-                      measures[index] = {
-                        ...measure,
-                        label: event.target.value,
-                      };
-                      patch({ measures });
-                    }}
-                  />
-
-                  <Select
-                    value={measure.unit}
-                    onValueChange={(value) => {
-                      const measures = [...draft.measures];
-                      measures[index] = {
-                        ...measure,
-                        unit: value as "currency" | "number" | "percent",
-                      };
-                      patch({ measures });
-                    }}
-                  >
-                    <SelectTrigger
-                      className="h-7 text-xs sm:w-24"
-                      aria-label="Unidade"
-                    >
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="number">Número</SelectItem>
-                      <SelectItem value="currency">R$</SelectItem>
-                      <SelectItem value="percent">%</SelectItem>
-                    </SelectContent>
-                  </Select>
+                      onRemove={() =>
+                        patch({
+                          measures: draft.measures.filter(
+                            (_, position) => position !== index,
+                          ),
+                        })
+                      }
+                    />
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+            </DndContext>
           </OracleSection>
 
           <OracleSection icon={Layers} title="Agrupar por">
