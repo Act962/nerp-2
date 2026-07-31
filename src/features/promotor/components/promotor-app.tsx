@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStore } from "@/features/stores/hooks/use-stores";
@@ -23,11 +24,14 @@ export function PromotorApp({
   const initialStore =
     initialStoreId && store ? { id: store.id, name: store.name } : undefined;
   const waitingStore = !!initialStoreId && isLoading;
+  // Abas controladas para o envio da foto poder trocar de aba sozinho: depois
+  // de capturar, o promotor quer ver a foto na fila, não o formulário vazio.
+  const [tab, setTab] = useState("capture");
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-6">
       <h1 className="mb-4 text-xl font-semibold">Captura de fotos</h1>
-      <Tabs defaultValue="capture">
+      <Tabs value={tab} onValueChange={setTab}>
         <TabsList className="w-full">
           <TabsTrigger value="capture" className="flex-1">
             Capturar
@@ -46,6 +50,7 @@ export function PromotorApp({
               promoterName={promoterName}
               initialStore={initialStore}
               initialSupplierId={initialSupplierId}
+              onCaptured={() => setTab("mine")}
             />
           )}
         </TabsContent>

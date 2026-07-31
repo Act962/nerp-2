@@ -1,6 +1,13 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { Check, Clock, MapPin, X } from "lucide-react";
@@ -43,6 +50,10 @@ function StatusBadge({
 export function MyPhotosList() {
   const [filter, setFilter] = useState<PromotorPhotoStatus>("ALL");
   const { photos, counts, isLoading } = useMyPhotos(filter);
+  // Guarda o ID, não a foto: assim o conteúdo aberto acompanha um refetch
+  // (ex.: a foto ser aprovada enquanto está na tela) em vez de congelar.
+  const [openedId, setOpenedId] = useState<string | null>(null);
+  const opened = photos.find((photo) => photo.id === openedId) ?? null;
 
   const countFor = (value: PromotorPhotoStatus) =>
     value === "ALL"
@@ -105,13 +116,20 @@ export function MyPhotosList() {
             >
               <div className="aspect-square bg-neutral-100">
                 {photo.photoKey && (
-                  // biome-ignore lint/performance/noImgElement: thumbnail de key do R2
-                  <img
-                    src={constructUrl(photo.photoKey)}
-                    alt=""
-                    loading="lazy"
-                    className="size-full object-cover"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setOpenedId(photo.id)}
+                    className="size-full cursor-zoom-in"
+                    title="Ampliar foto"
+                  >
+                    {/* biome-ignore lint/performance/noImgElement: thumbnail de key do R2 */}
+                    <img
+                      src={constructUrl(photo.photoKey)}
+                      alt={`Foto em ${photo.storeName}`}
+                      loading="lazy"
+                      className="size-full object-cover"
+                    />
+                  </button>
                 )}
               </div>
               <div className="space-y-1 p-2">
@@ -140,6 +158,53 @@ export function MyPhotosList() {
           ))}
         </div>
       )}
+
+      <Dialog
+        open={opened !== null}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setOpenedId(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          {opened && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-base">
+                  {opened.storeName}
+                </DialogTitle>
+                <DialogDescription>
+                  {opened.supplierName ?? "Sem indústria"}
+                  {(opened.capturedCity || opened.capturedState) &&
+                    ` · ${[opened.capturedCity, opened.capturedState]
+                      .filter(Boolean)
+                      .join("/")}`}
+                </DialogDescription>
+              </DialogHeader>
+
+              {opened.photoKey && (
+                // `max-h-[70vh]` + `object-contain`: foto de PDV costuma ser
+                // retrato, e sem o teto ela empurra o rodapé do diálogo para
+                // fora da tela no celular.
+                // biome-ignore lint/performance/noImgElement: imagem de key do R2
+                <img
+                  src={constructUrl(opened.photoKey)}
+                  alt={`Foto em ${opened.storeName}`}
+                  className="max-h-[70vh] w-full rounded-md object-contain"
+                />
+              )}
+
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={opened.status} />
+                {opened.status === "REJECTED" && opened.rejectionNote && (
+                  <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
+                    Motivo: {opened.rejectionNote}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
