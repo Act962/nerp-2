@@ -21,7 +21,10 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/cadastro") ||
     pathname.startsWith("/auth") ||
-    pathname.startsWith("/accept-invitation")
+    pathname.startsWith("/accept-invitation") ||
+    // Link aberto de entrada: sem isto, abrir por um subdomínio cairia na
+    // reescrita de vitrine (/<subdominio>/entrar/...) e daria 404.
+    pathname.startsWith("/entrar")
   ) {
     return NextResponse.next();
   }

@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { InvitationsPanel } from "@/features/invitations/components/invitations-panel";
+import { JoinLinkCard } from "@/features/invitations/components/join-link-card";
 import { MembersPanel } from "@/features/members/components/members-panel";
 import { useCurrentMember } from "@/features/members/hooks/use-members";
 import { hasFullAccess } from "@/lib/permissions";
@@ -28,7 +29,8 @@ export function OrganizationSettingsTabs() {
         />
       </TabsContent>
 
-      <TabsContent value="invitations" className="mt-4">
+      <TabsContent value="invitations" className="mt-4 space-y-4">
+        <JoinLinkCard canManage={canManage} />
         <InvitationsPanel canManage={canManage} />
       </TabsContent>
 
