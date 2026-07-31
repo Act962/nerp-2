@@ -127,6 +127,7 @@ function WidgetCatalogRow({
     targetValue: "",
     title: "",
     oracle: null,
+    report: null,
     appearance: DEFAULT_APPEARANCE,
     alert: DEFAULT_ALERT,
   });

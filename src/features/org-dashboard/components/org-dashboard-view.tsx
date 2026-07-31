@@ -20,6 +20,7 @@ import type { WidgetValue } from "@/features/dashboard-widgets/lib/widget-value"
 import {
   augmentReportTable,
   readReportConfig,
+  type ReportGoalScope,
 } from "@/features/dashboard-widgets/lib/report-table";
 import { panelStyles, readPanelAppearance } from "../lib/panel-appearance";
 import {
@@ -91,6 +92,7 @@ export function OrgDashboardView({
   emptyState,
   labelFallback,
   canEdit = false,
+  goalsByScope,
   onSaveLayout,
   onSavePanelLayout,
   onEditWidget,
@@ -108,6 +110,11 @@ export function OrgDashboardView({
   /** Admin: liga redimensionar/arrastar/editar/remover (edita o modelo
    * compartilhado). Membro comum e link público ficam só-leitura. */
   canEdit?: boolean;
+  /** Metas do período corrente (scope → scopeCode → valor), pra widgets-
+   * relatório com `options.report.goalScope`. Ausente = sem colunas de meta
+   * (caso da rota pública, que não tem acesso — meta não é dado exposto por
+   * link sem login). */
+  goalsByScope?: Map<ReportGoalScope, Map<string, number>>;
   onSaveLayout?: (items: OrgLayoutSaveItem[]) => void;
   /** Persiste posição/tamanho DOS PAINÉIS (grade externa). */
   onSavePanelLayout?: (items: OrgLayoutSaveItem[]) => void;
@@ -143,6 +150,9 @@ export function OrgDashboardView({
     // Colunas derivadas (% part./acum., contrib., % lucro) para widgets-
     // relatório — só quando `options.report` está presente.
     const reportConfig = readReportConfig(widget.options);
+    const goalsByCode = reportConfig?.goalScope
+      ? goalsByScope?.get(reportConfig.goalScope)
+      : undefined;
     const value = entry?.value;
     return (
       <div className="h-full">
@@ -193,7 +203,9 @@ export function OrgDashboardView({
           ) : value.kind === "TABLE" ? (
             <TableWidget
               value={
-                reportConfig ? augmentReportTable(value, reportConfig) : value
+                reportConfig
+                  ? augmentReportTable(value, reportConfig, goalsByCode)
+                  : value
               }
             />
           ) : value.kind === "FLEET" ? (

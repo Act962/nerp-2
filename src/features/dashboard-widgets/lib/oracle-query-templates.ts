@@ -1,4 +1,5 @@
 import type { OracleQueryConfig } from "./oracle-query-config";
+import type { ReportTableConfig } from "./report-table";
 
 // Modelos prontos de consulta — ponto de partida para não começar do zero.
 //
@@ -15,6 +16,9 @@ export interface OracleQueryTemplate {
   description: string;
   displayType: "STAT" | "CHART" | "LIST" | "TABLE";
   config: OracleQueryConfig;
+  /** Colunas derivadas (% Part., Contrib., % Lucro…) aplicadas junto com a
+   * consulta — sem isso o widget nasce só com as colunas RAW do Oracle. */
+  report?: ReportTableConfig;
 }
 
 const receita = (label = "Receita") =>
@@ -96,23 +100,32 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
   },
   {
     // Espelha o relatório Winthor "146 - Resumo de Vendas / Por Supervisor".
-    // O motor faz uma tabela de UMA fonte (PCPEDC), então cobre as colunas que
-    // saem só de lá: venda, nº de pedidos, ticket e custo. Meta, projeção,
-    // %acum, itens e peso vêm de outras tabelas/cálculo e não cabem neste
-    // modelo — ver observação no dashboard.
+    // O motor Oracle limita a 6 medidas por consulta (oracleQueryConfigSchema)
+    // e faz UMA tabela só — então "Ticket médio" vira coluna DERIVADA (Vl
+    // venda ÷ Qt pedidos, via `report.countKey`) em vez de medida AVG própria,
+    // liberando espaço pras 3 colunas novas (Qt.média itens, Peso, e o
+    // denominador de %Desc). % Part./% Desc/Contrib./% Lucro/% MC/% Acum.
+    // também são derivadas (ver `report-table.ts`) — nenhuma delas custa
+    // measure slot.
     //
-    // "Qt RCAs" (COUNT_DISTINCT CODUSUR) foi removida de propósito: o pré-voo
-    // do servidor (preflight.ts) recusa COUNT_DISTINCT em qualquer tabela
-    // acima de 1M linhas — custo de ordenação/hash da tabela inteira, mesmo
-    // com filtro de data — e PCPEDC passa disso na maioria dos clientes reais
-    // (Gotham tem 2,38M). Incluir essa medida derruba a consulta INTEIRA
-    // (preflight recusa o pacote todo, não só a coluna), então nenhuma linha
-    // da tabela aparecia.
+    // Ainda fora do alcance: "Qt RCAs" (COUNT_DISTINCT CODUSUR — o pré-voo do
+    // servidor recusa COUNT_DISTINCT em tabela acima de 1M linhas, e PCPEDC
+    // passa disso na maioria dos clientes reais; a consulta INTEIRA seria
+    // recusada, não só essa coluna) e "Vl.meta/%Meta/Proj.vendas" (exigem a
+    // tabela PCMETA — o motor só agrega UMA tabela por consulta, sem join).
     key: "resumo-por-supervisor",
-    label: "Resumo de vendas por supervisor",
+    label: "146 — Resumo de vendas (por supervisor)",
     description:
-      "Venda, pedidos, ticket e custo por supervisor — mês corrente.",
+      "Venda, pedidos, ticket médio, custo, itens, peso e as razões (%Part/%Desc/%Lucro/%MC/%Acum) por supervisor — mês corrente. Espelha o relatório Winthor 146.",
     displayType: "TABLE",
+    report: {
+      valueKey: "M0",
+      countKey: "M1",
+      countLabel: "Ticket médio",
+      costKey: "M2",
+      tabelaKey: "M4",
+      goalScope: "supervisor",
+    },
     config: {
       version: 1,
       table: "PCPEDC",
@@ -125,16 +138,28 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
           unit: "number",
         },
         {
-          aggregation: "AVG",
-          column: "VLTOTAL",
-          label: "Ticket médio",
-          unit: "currency",
-        },
-        {
           aggregation: "SUM",
           column: "VLCUSTOREAL",
           label: "Custo",
           unit: "currency",
+        },
+        {
+          aggregation: "AVG",
+          column: "NUMITENS",
+          label: "Qt.média itens",
+          unit: "number",
+        },
+        {
+          aggregation: "SUM",
+          column: "VLTABELA",
+          label: "Vl. tabela",
+          unit: "currency",
+        },
+        {
+          aggregation: "SUM",
+          column: "TOTPESO",
+          label: "Peso (Kg)",
+          unit: "number",
         },
       ],
       groupBy: { kind: "dimension", column: "CODSUPERVISOR" },
@@ -151,7 +176,7 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
   // do rodapé do relatório e com a soma das linhas da tabela detalhada.
   {
     key: "vl-venda-mes",
-    label: "Vl. venda (mês)",
+    label: "146 — Vl. venda (mês)",
     description:
       "Total vendido no mês corrente — mesmo filtro do relatório 146.",
     displayType: "STAT",
@@ -169,7 +194,7 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
   },
   {
     key: "qt-pedidos-mes",
-    label: "Qt. pedidos (mês)",
+    label: "146 — Qt. pedidos (mês)",
     description: "Total de pedidos no mês corrente.",
     displayType: "STAT",
     config: {
@@ -193,7 +218,7 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
   },
   {
     key: "vl-medio-pedido-mes",
-    label: "Vl. médio pedido (mês)",
+    label: "146 — Vl. médio pedido (mês)",
     description: "Ticket médio dos pedidos no mês corrente.",
     displayType: "STAT",
     config: {
@@ -221,7 +246,7 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
     // (PCPEDC costuma passar disso), então esse KPI nunca resolvia em
     // produção. SUM não tem essa restrição.
     key: "custo-mes",
-    label: "Custo (mês)",
+    label: "146 — Custo (mês)",
     description: "Custo total das vendas no mês corrente.",
     displayType: "STAT",
     config: {
@@ -245,7 +270,7 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
   },
   {
     key: "vendas-por-supervisor-chart",
-    label: "Vendas por supervisor (gráfico)",
+    label: "146 — Vendas por supervisor (gráfico)",
     description: "Comparativo visual de venda por supervisor — mês corrente.",
     displayType: "CHART",
     config: {
@@ -261,14 +286,47 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
     },
   },
   {
+    // Tabela "Meta" (PCMETA), confirmada na conexão real da Gotham (6.914
+    // linhas — pequena, bem abaixo do limiar de tabela grande). Meta é
+    // lançada por RCA (CODUSUR); não existe CODSUPERVISOR em PCMETA, então
+    // "Vl.meta por SUPERVISOR" (como no relatório 146) exigiria um segundo
+    // salto PCMETA → PCUSUARI → agrupar por supervisor, que o motor de
+    // consulta de UMA tabela não faz. Isto aqui é o nível que dá pra buscar
+    // direto: meta por RCA, pareável com o relatório 114.
+    key: "vl-meta-por-rca",
+    label: "Vl. meta (por RCA)",
+    description:
+      "Valor de venda previsto (meta) por RCA — mês corrente. Tabela PCMETA.",
+    displayType: "TABLE",
+    config: {
+      version: 1,
+      table: "PCMETA",
+      measures: [
+        {
+          aggregation: "SUM",
+          column: "VLVENDAPREV",
+          label: "Vl. meta",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "dimension", column: "CODUSUR" },
+      dateFilter: { column: "DATA", preset: "currentMonth" },
+      filters: [],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 30,
+    },
+  },
+  {
     // Espelha "114 - Vendas por Superv./Rca/Cliente / Por RCA". Ranking de RCAs
     // por venda, com pedidos, ticket e custo — base para margem/contribuição
     // (venda − custo) que o front pode derivar.
     key: "ranking-rca-detalhado",
-    label: "Ranking de RCAs (detalhado)",
+    label: "114 — Vendas por RCA (detalhado)",
     description:
-      "Venda, pedidos, ticket e custo por RCA — mês corrente, maior venda primeiro.",
+      "Venda, pedidos, ticket e custo por RCA — mês corrente, maior venda primeiro. Espelha o relatório Winthor 114.",
     displayType: "TABLE",
+    report: { valueKey: "M0", costKey: "M3", goalScope: "usuario" },
     config: {
       version: 1,
       table: "PCPEDC",
@@ -764,6 +822,103 @@ export const ORACLE_QUERY_TEMPLATES: OracleQueryTemplate[] = [
       groupBy: { kind: "none" },
       dateFilter: { column: "DTVENC", preset: "next30" },
       filters: [{ column: "DTPAG", operator: "isNull", values: [] }],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  // --- Inadimplência (sem PCPREST) ---
+  //
+  // Os modelos acima dependem de PCPREST (prestações), que só existe em
+  // conexões que expõem o módulo financeiro do Winthor. Confirmado ao vivo
+  // (schema da Gotham) que várias conexões trazem só um recorte comercial —
+  // PCCLIENT, PCPEDC/PCPEDI, PCMOV, PCPRODUT etc., sem PCPREST/PCTITULO. A UI
+  // já desabilita modelo com tabela ausente (comentário no topo do arquivo),
+  // então isso não quebra nada — só fica sem opção de inadimplência nessas
+  // conexões. Os 3 modelos abaixo cobrem esse caso com o que PCCLIENT tem:
+  //
+  //   • CLIENTPROTESTO = 'S' — cliente com título protestado. É o sinal mais
+  //     limpo de inadimplência real (~1% da base da Gotham). Verificado ao
+  //     vivo: NUMDIASPROTESTO vem 0 pra toda a amostra (campo não mantido
+  //     nesta base), por isso o ranking usa LIMCRED, não dias de protesto.
+  //   • BLOQUEIODEFINITIVO = 'S' — bloqueio específico e raro (~0,3% da
+  //     base). NÃO usar o BLOQUEIO geral: na Gotham ele vem 'S' pra ~90% dos
+  //     clientes (cobre inatividade/fiscal/etc., não é sinal de dívida).
+  {
+    key: "clientes-protesto-total",
+    label: "Clientes com título protestado",
+    description:
+      "Quantos clientes têm protesto ativo — inadimplência real, sem depender de PCPREST.",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCCLIENT",
+      measures: [
+        {
+          aggregation: "COUNT",
+          column: null,
+          label: "Clientes protestados",
+          unit: "number",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: null,
+      filters: [{ column: "CLIENTPROTESTO", operator: "eq", values: ["S"] }],
+      salesFilter: null,
+      orderBy: "measureDesc",
+      limit: 20,
+    },
+  },
+  {
+    key: "clientes-protesto-lista",
+    label: "Lista de clientes protestados",
+    description:
+      "Um por linha, com o limite de crédito atual — clique numa linha pra ver telefone/CNPJ/cidade.",
+    displayType: "LIST",
+    config: {
+      version: 1,
+      table: "PCCLIENT",
+      measures: [
+        {
+          aggregation: "MAX",
+          column: "LIMCRED",
+          label: "Limite de crédito",
+          unit: "currency",
+        },
+      ],
+      groupBy: { kind: "dimension", column: "CODCLI" },
+      dateFilter: null,
+      filters: [{ column: "CLIENTPROTESTO", operator: "eq", values: ["S"] }],
+      salesFilter: null,
+      // "groupAsc" (por código) em vez de medida: a maioria dos protestados
+      // tem LIMCRED zerado (verificado ao vivo), então ordenar pela medida só
+      // empataria — ordem por código é honesta e determinística.
+      orderBy: "groupAsc",
+      limit: 50,
+    },
+  },
+  {
+    key: "clientes-bloqueio-definitivo",
+    label: "Clientes com bloqueio definitivo",
+    description:
+      "BLOQUEIODEFINITIVO — bloqueio específico, não o BLOQUEIO geral (que também pega inatividade/fiscal).",
+    displayType: "STAT",
+    config: {
+      version: 1,
+      table: "PCCLIENT",
+      measures: [
+        {
+          aggregation: "COUNT",
+          column: null,
+          label: "Clientes bloqueados",
+          unit: "number",
+        },
+      ],
+      groupBy: { kind: "none" },
+      dateFilter: null,
+      filters: [
+        { column: "BLOQUEIODEFINITIVO", operator: "eq", values: ["S"] },
+      ],
       salesFilter: null,
       orderBy: "measureDesc",
       limit: 20,
