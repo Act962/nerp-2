@@ -11,6 +11,13 @@ import {
   type WidgetPickerAddMutation,
   WidgetPickerSheetCore,
 } from "@/features/dashboard-widgets/components/widget-picker-sheet";
+import { ChartWidget } from "@/features/dashboard-widgets/components/widgets/chart-widget";
+import { FeedWidget } from "@/features/dashboard-widgets/components/widgets/feed-widget";
+import { FleetWidget } from "@/features/dashboard-widgets/components/widgets/fleet-widget";
+import { ListWidget } from "@/features/dashboard-widgets/components/widgets/list-widget";
+import { MapWidget } from "@/features/dashboard-widgets/components/widgets/map-widget";
+import { StatWidget } from "@/features/dashboard-widgets/components/widgets/stat-widget";
+import { TableWidget } from "@/features/dashboard-widgets/components/widgets/table-widget";
 import {
   GripVertical,
   LayoutGrid,
@@ -31,9 +38,16 @@ import {
   useSaveOrgPanelLayout,
   useUpdateOrgWidget,
 } from "../hooks/use-org-dashboard";
-import { formatWidgetValue } from "@/features/dashboard-widgets/lib/widget-value";
 import type { WidgetValue } from "@/features/dashboard-widgets/lib/widget-value";
 import { PANEL_WIDGET_BREAKPOINTS } from "@/features/dashboard-widgets/lib/grid-breakpoints";
+import { readAppearance } from "@/features/dashboard-widgets/lib/widget-appearance";
+import {
+  augmentReportTable,
+  buildGoalsByScope,
+  readReportConfig,
+  type ReportGoalScope,
+} from "@/features/dashboard-widgets/lib/report-table";
+import { useSalesGoals } from "@/features/dashboard-widgets/hooks/use-sales-goals";
 import { cn } from "@/lib/utils";
 import { panelStyles, readPanelAppearance } from "../lib/panel-appearance";
 import { OrgDashboardPermissionsMatrix } from "./org-dashboard-permissions-matrix";
@@ -200,95 +214,79 @@ interface OrgValueEntry {
   computedAt: string | null;
 }
 
-// Prévia compacta do valor de um widget dentro do card de gestão. Não é o
-// render completo (isso vive no `OrgDashboardView`) — aqui basta o número, a
-// contagem ou o erro, para o admin conferir que a fonte está trazendo dado
-// sem sair do editor.
-function WidgetValuePreview({ entry }: { entry?: OrgValueEntry }) {
+// Corpo de UM widget dentro do card de gestão — mesmo dispatch e MESMOS
+// componentes de render que o dashboard de verdade (`OrgDashboardView`).
+// Antes era um resumo custom (só a contagem/1ª linha); trocado porque um
+// resumo nunca prova que o dado está completo — o admin precisa ver a lista
+// inteira, com todas as colunas, sem sair do editor.
+function WidgetBody({
+  widget,
+  entry,
+  goalsByScope,
+}: {
+  widget: WidgetRow;
+  entry?: OrgValueEntry;
+  goalsByScope?: Map<ReportGoalScope, Map<string, number>>;
+}) {
   if (!entry) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className="text-muted-foreground text-xs">—</span>;
   }
   if (entry.error) {
     const calculating = entry.error === "Calculando…";
     return (
-      <span
+      <p
         className={cn(
-          "min-w-0 truncate",
+          "text-xs",
           calculating ? "text-muted-foreground" : "text-destructive",
         )}
-        title={entry.error}
       >
         {entry.error}
-      </span>
+      </p>
     );
   }
   const value = entry.value;
   if (!value) {
-    return <span className="text-muted-foreground">Sem dado</span>;
+    return <p className="text-muted-foreground text-xs">Sem dado.</p>;
   }
+  const appearance = readAppearance(widget.options);
+  const reportConfig = readReportConfig(widget.options);
+  const goalsByCode = reportConfig?.goalScope
+    ? goalsByScope?.get(reportConfig.goalScope)
+    : undefined;
   switch (value.kind) {
     case "STAT":
       return (
-        <span className="truncate font-medium text-foreground tabular-nums">
-          {formatWidgetValue(value.value, value.unit)}
-        </span>
-      );
-    case "LIST":
-      return (
-        <span className="text-muted-foreground">
-          {value.items.length} {value.items.length === 1 ? "item" : "itens"}
-        </span>
+        <StatWidget
+          value={value}
+          icon={widget.icon}
+          progressPercent={entry.progressPercent}
+          valueAlign={appearance.valueAlign}
+          valueColor={appearance.valueColor}
+          valueSize={appearance.valueSize}
+          valueWeight={appearance.valueWeight}
+          iconColor={appearance.iconColor}
+        />
       );
     case "CHART":
-      return (
-        <span className="text-muted-foreground">
-          {value.series.length} pontos
-        </span>
-      );
-    case "TABLE": {
-      // Só a contagem ("29 linhas") não prova que o dado é real — mostra as
-      // duas primeiras células da linha de topo (já vem ordenada por
-      // measureDesc, então é o maior valor) junto com a contagem.
-      const first = value.rows[0];
-      if (!first) {
-        return <span className="text-muted-foreground">Sem linhas</span>;
-      }
-      const preview = first.cells
-        .slice(0, 2)
-        .map((cell, index) => {
-          const column = value.columns[index];
-          return typeof cell === "number"
-            ? formatWidgetValue(cell, column?.unit)
-            : (cell ?? "—");
-        })
-        .join(" · ");
-      return (
-        <span className="min-w-0 truncate" title={preview}>
-          <span className="font-medium text-foreground">{preview}</span>{" "}
-          <span className="text-[10px] text-muted-foreground">
-            ({value.rows.length} linhas)
-          </span>
-        </span>
-      );
-    }
+      return <ChartWidget value={value} chartKind={widget.chartKind} />;
     case "MAP":
+      return <MapWidget value={value} />;
+    case "TABLE":
       return (
-        <span className="text-muted-foreground">
-          {value.regions.length} regiões
-        </span>
+        <TableWidget
+          value={
+            reportConfig
+              ? augmentReportTable(value, reportConfig, goalsByCode)
+              : value
+          }
+        />
       );
     case "FLEET":
-      return (
-        <span className="text-muted-foreground">
-          {value.trucks.length} caminhões
-        </span>
-      );
+      return <FleetWidget value={value} />;
     case "FEED":
-      return (
-        <span className="text-muted-foreground">
-          {value.items.length} alertas
-        </span>
-      );
+      return <FeedWidget value={value} />;
+    default:
+      return <ListWidget value={value} />;
   }
 }
 
@@ -342,6 +340,13 @@ function WidgetsTab({
       ),
     [valuesData],
   );
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const { data: goalsData } = useSalesGoals(currentYear);
+  const goalsByScope = useMemo(
+    () => buildGoalsByScope(goalsData?.goals ?? [], currentYear, currentMonth),
+    [goalsData, currentYear, currentMonth],
+  );
   const labelByKey = useMemo(
     () =>
       new Map(
@@ -371,9 +376,12 @@ function WidgetsTab({
   const widgetById = new Map(widgets.map((widget) => [widget.id, widget]));
   const panelById = new Map(panels.map((panel) => [panel.id, panel]));
 
-  // Card de gestão de UM widget. Preenche a célula do RGL (`h-full`); a alça
-  // `ORG_WIDGET_DRAG_HANDLE` é o que o RGL usa para arrastar — o resto do card
-  // (botões) continua clicável.
+  // Card de gestão de UM widget. Preenche a célula do RGL (`h-full`), no
+  // MESMO tamanho que o widget terá no dashboard real (a célula usa o layout
+  // salvo do próprio widget) — então o corpo mostra o widget de verdade
+  // (WidgetBody), não um resumo. A alça `ORG_WIDGET_DRAG_HANDLE` é o que o
+  // RGL usa para arrastar; editar/remover ficam no cabeçalho pra sobrar
+  // espaço inteiro pro conteúdo.
   const renderWidgetCard = (id: string) => {
     const widget = widgetById.get(id);
     if (!widget) return null;
@@ -397,37 +405,43 @@ function WidgetsTab({
                   widget.dataSourceKey}
               </span>
             </span>
-            <span className="shrink-0 font-normal text-[10px] text-muted-foreground uppercase tracking-wide">
-              {widget.displayType}
-            </span>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="font-normal text-[10px] text-muted-foreground uppercase tracking-wide">
+                {widget.displayType}
+              </span>
+              {!fullscreen && (
+                <>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-6"
+                    title="Personalizar"
+                    onClick={() => setEditingId(widget.id)}
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-6 text-destructive"
+                    title="Remover"
+                    onClick={() => remove.mutate({ widgetId: widget.id })}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </>
+              )}
+            </div>
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-1 items-center justify-between gap-2 text-xs">
-          <WidgetValuePreview entry={valueById.get(widget.id)} />
-          {!fullscreen && (
-            <div className="flex shrink-0 items-center gap-0.5">
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7"
-                title="Personalizar"
-                onClick={() => setEditingId(widget.id)}
-              >
-                <Pencil className="size-3.5" />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="ghost"
-                className="size-7 text-destructive"
-                title="Remover"
-                onClick={() => remove.mutate({ widgetId: widget.id })}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
-          )}
+        <CardContent className="min-h-0 flex-1 overflow-hidden p-3">
+          <WidgetBody
+            widget={widget}
+            entry={valueById.get(widget.id)}
+            goalsByScope={goalsByScope}
+          />
         </CardContent>
       </Card>
     );

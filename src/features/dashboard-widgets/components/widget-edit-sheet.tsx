@@ -26,6 +26,7 @@ import {
 import { useWidgetCatalog } from "../hooks/use-widget-catalog";
 import { oracleQueryConfigSchema } from "../lib/oracle-query-config";
 import type { WidgetColor } from "../lib/pastel-colors";
+import { readReportConfig } from "../lib/report-table";
 import { readAlert } from "../lib/widget-alert";
 import { readAppearance } from "../lib/widget-appearance";
 import type { CustomizeState } from "./widget-customize-fields";
@@ -170,6 +171,7 @@ export function WidgetEditSheetCore({
           : "",
       title: widget.title ?? "",
       oracle: oracle.success ? oracle.data : null,
+      report: readReportConfig(widget.options),
       appearance: readAppearance(widget.options),
       alert: readAlert(widget.options),
     });

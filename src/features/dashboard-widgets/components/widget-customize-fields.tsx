@@ -36,6 +36,7 @@ import {
   PASTEL_COLORS,
   type WidgetColor,
 } from "../lib/pastel-colors";
+import type { ReportTableConfig } from "../lib/report-table";
 import {
   hasCustomAppearance,
   TEXT_SIZE_LABEL,
@@ -100,6 +101,9 @@ export interface CustomizeState {
   title: string;
   /** Só para a entrada `oracle.custom`. */
   oracle: OracleDraft | null;
+  /** Colunas derivadas (% Part., Contrib., % Lucro…) — só quando o modelo
+   * aplicado (`Padrões de busca`) declara `report`. */
+  report: ReportTableConfig | null;
   /** Alinhamento/cores dos textos do card e do ícone. */
   appearance: WidgetAppearance;
   /** Alerta programado (cron server-side). */
@@ -116,6 +120,7 @@ export function buildOptions(
 ): Record<string, unknown> | null {
   const options: Record<string, unknown> = {};
   if (state.oracle) options.oracle = state.oracle;
+  if (state.report) options.report = state.report;
   if (
     state.displayType === "STAT" &&
     Number.isFinite(targetValue) &&
@@ -614,9 +619,13 @@ export function WidgetCustomizeFields({
                 : { displayType: allowed[0] as DisplayType }),
             });
           }}
-          onApplyTemplate={({ config, displayType, name }) =>
+          onApplyTemplate={({ config, displayType, name, report }) =>
             onChange({
               oracle: config,
+              // Modelo sem `report` (ex.: consulta salva pela org) limpa a
+              // derivação anterior — evita ficar com colunas de um modelo
+              // diferente do que acabou de ser aplicado.
+              report: report ?? null,
               displayType: displayType as DisplayType,
               // Só sugere o nome do modelo se o usuário ainda não digitou o
               // dele — aplicar um modelo não deve apagar o que ele escreveu.

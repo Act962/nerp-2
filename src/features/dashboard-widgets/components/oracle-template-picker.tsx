@@ -21,11 +21,15 @@ import {
   oracleQueryConfigSchema,
 } from "../lib/oracle-query-config";
 import { ORACLE_QUERY_TEMPLATES } from "../lib/oracle-query-templates";
+import type { ReportTableConfig } from "../lib/report-table";
 
 type ApplyPayload = {
   config: OracleQueryConfig;
   displayType: "STAT" | "CHART" | "LIST" | "TABLE";
   name: string;
+  /** Colunas derivadas do modelo (% Part., Contrib.…) — ausente nos modelos
+   * salvos pela org (esses guardam só a consulta crua). */
+  report?: ReportTableConfig;
 };
 
 /**
@@ -165,6 +169,7 @@ export function OracleTemplatePicker({
                       config: template.config,
                       displayType: template.displayType,
                       name: template.label,
+                      report: template.report,
                     })
                   }
                 >
