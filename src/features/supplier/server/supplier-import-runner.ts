@@ -4,7 +4,11 @@ import prisma from "@/lib/db";
 import { S3 } from "@/lib/s3-client";
 import type { ImportMapping } from "@/features/supplier/import-fields";
 import { createSupplierForOrg } from "./create-supplier-for-org";
-import { mapSupplierRow, parseSheet, type SheetRow } from "./parse-supplier-import";
+import {
+  mapSupplierRow,
+  parseSheet,
+  type SheetRow,
+} from "./parse-supplier-import";
 
 interface RowError {
   row: number;
@@ -57,9 +61,7 @@ export async function runSupplierImport(importId: string): Promise<void> {
     select: { document: true },
   });
   const seenDocuments = new Set(
-    existing
-      .map((s) => documentDigits(s.document))
-      .filter((d) => d.length > 0),
+    existing.map((s) => documentDigits(s.document)).filter((d) => d.length > 0),
   );
 
   // 4. Processa linha a linha.

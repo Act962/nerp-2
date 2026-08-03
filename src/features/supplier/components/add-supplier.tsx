@@ -37,6 +37,7 @@ import { cepMask } from "@/utils/format-cep";
 import { getAddressByCep } from "@/utils/get-address-by-cep";
 import { Spinner } from "@/components/ui/spinner";
 import { LogoUploader } from "@/components/logo-uploader/uploader";
+import { SenhaImageField } from "./senha-image-field";
 
 const createSupplierSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
@@ -110,7 +111,7 @@ export const AddSupplierModal = ({
 
   useEffect(() => {
     if (!open) form.reset();
-  }, [open]);
+  }, [open, form.reset]);
 
   const isLoading = createSupplier.isPending;
 
@@ -145,8 +146,8 @@ export const AddSupplierModal = ({
                 control={form.control}
                 render={({ field }) => (
                   <Field>
-                    <FieldLabel>Imagem do código de ação</FieldLabel>
-                    <LogoUploader
+                    <FieldLabel>Imagem da senha do mês</FieldLabel>
+                    <SenhaImageField
                       value={field.value}
                       onChange={field.onChange}
                     />

@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { normalizeDocument } from "@/lib/document";
 import { hasFullAccess } from "@/lib/permissions";
 import { z } from "zod";
 import { distributorInput } from "./create";
@@ -32,7 +33,7 @@ export const updateDistributor = base
       where: { id: distributor.id },
       data: {
         name: input.name,
-        document: input.document || null,
+        document: normalizeDocument(input.document) ?? input.document ?? null,
         contactName: input.contactName || null,
         contactPhone: input.contactPhone || null,
         contactEmail: input.contactEmail || null,

@@ -31,7 +31,7 @@ export const DeleteSupplier = ({
       { id },
       {
         onSuccess: () => onOpenChange(false),
-      }
+      },
     );
   };
 

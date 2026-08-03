@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { normalizeDocument } from "@/lib/document";
 import { hasFullAccess } from "@/lib/permissions";
 import { z } from "zod";
 
@@ -34,7 +35,8 @@ export const createDistributor = base
       data: {
         organizationId: context.org.id,
         name: input.name,
-        document: input.document || undefined,
+        document:
+          normalizeDocument(input.document) ?? input.document ?? undefined,
         contactName: input.contactName || undefined,
         contactPhone: input.contactPhone || undefined,
         contactEmail: input.contactEmail || undefined,

@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { normalizeDocument } from "@/lib/document";
 import { z } from "zod";
 
 export const createSupplier = base
@@ -37,7 +38,8 @@ export const createSupplier = base
         name: input.name,
         tradeName: input.tradeName,
         personType: input.personType,
-        document: input.document,
+        // Só dígitos no banco: com máscara, a dedupe por documento nunca casa.
+        document: normalizeDocument(input.document) ?? input.document,
         phone: input.phone,
         email: input.email,
         contactPerson: input.contactPerson,

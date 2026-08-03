@@ -2,7 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { useCallback, useEffect, useState } from "react";
-import { FileRejection, useDropzone } from "react-dropzone";
+import { type FileRejection, useDropzone } from "react-dropzone";
 import { v4 as uuidv4 } from "uuid";
 
 import {
@@ -11,7 +11,6 @@ import {
   RenderLogoUploadingState,
 } from "./render-state";
 import { useConstructUrl } from "@/hooks/use-construct-url";
-import { RenderUploadedState } from "../file-uploader/render-state";
 import { toast } from "sonner";
 
 const MAX_SIZE = 1024 * 1024 * 2;
@@ -44,9 +43,40 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
     progress: 0,
     isDeleting: false,
     fileType: "image",
-    key: value,
+    key: value || undefined,
     objectUrl: value ? fileUrl : undefined,
   });
+
+  /**
+   * Adota o `value` que chega DEPOIS da montagem.
+   *
+   * Em todo formulário que carrega dados async — abrir "Editar fornecedor",
+   * esperar a query, `form.reset()` preencher o campo — o `value` na primeira
+   * renderização é `""`. O inicializador do `useState` roda só uma vez, então
+   * sem esta sincronia o estado vazio vencia para sempre e a imagem só aparecia
+   * na SEGUNDA abertura, quando a query já estava em cache e o valor existia na
+   * montagem. Sem erro nenhum no caminho — só um avatar em branco.
+   */
+  useEffect(() => {
+    setFileState((prev) => {
+      // Upload ou remoção em curso mandam: o estado local é mais novo que a
+      // prop, e trocar aqui apagaria a prévia no meio do envio.
+      if (prev.uploading || prev.isDeleting) return prev;
+
+      const key = value || undefined;
+      if (prev.key === key) return prev;
+
+      return {
+        ...prev,
+        file: null,
+        id: null,
+        progress: 0,
+        error: false,
+        key,
+        objectUrl: key ? fileUrl : undefined,
+      };
+    });
+  }, [value, fileUrl]);
 
   const uploadFile = useCallback(
     async (file: File) => {
@@ -135,7 +165,7 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
         }));
       }
     },
-    [onChange]
+    [onChange],
   );
 
   async function removeFile() {
@@ -221,17 +251,17 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
         uploadFile(file);
       }
     },
-    [fileState.objectUrl, uploadFile]
+    [fileState.objectUrl, uploadFile],
   );
 
   function rejectedFiles(fileRejection: FileRejection[]) {
     if (fileRejection.length) {
       const tooManyFiles = fileRejection.find(
-        (rejection) => rejection.errors[0].code === "too-many-files"
+        (rejection) => rejection.errors[0].code === "too-many-files",
       );
 
       const fileSizeToBig = fileRejection.find(
-        (rejection) => rejection.errors[0].code === "file-too-large"
+        (rejection) => rejection.errors[0].code === "file-too-large",
       );
 
       if (fileSizeToBig) {
@@ -293,7 +323,7 @@ export function LogoUploader({ value, onChange }: LogoUploaderProps) {
             "group/avatar relative h-24 w-24 cursor-pointer overflow-hidden rounded-full border border-dashed transition-colors",
             isDragActive
               ? "border-primary bg-primary/5"
-              : "border-muted-foreground/25 hover:border-muted-foreground/20"
+              : "border-muted-foreground/25 hover:border-muted-foreground/20",
           )}
         >
           <input type="file" {...getInputProps()} />

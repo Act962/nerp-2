@@ -31,7 +31,14 @@ function normalizePersonType(value: unknown): PersonType {
     .toLowerCase();
   if (!str) return PersonType.JURIDICA;
 
-  const fisica = ["fisica", "física", "pf", "pessoa fisica", "pessoa física", "cpf"];
+  const fisica = [
+    "fisica",
+    "física",
+    "pf",
+    "pessoa fisica",
+    "pessoa física",
+    "cpf",
+  ];
   const juridica = [
     "juridica",
     "jurídica",
