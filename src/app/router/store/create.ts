@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { mintStoreSlug } from "@/lib/store-slug";
 import { z } from "zod";
 
 export const createStore = base
@@ -41,5 +42,6 @@ export const createStore = base
       },
     });
 
+    await mintStoreSlug(store.id, store.name, store.city);
     return { id: store.id, name: store.name };
   });

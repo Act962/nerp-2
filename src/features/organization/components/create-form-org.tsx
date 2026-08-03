@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import z from "zod";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -22,11 +22,56 @@ import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { MarketSizeRibbon } from "@/features/tradegram/components/market-size-ribbon";
+import { SEGMENT_HINTS, SEGMENT_LABELS } from "@/lib/org-segment";
+
+const UFS = [
+  "AC",
+  "AL",
+  "AP",
+  "AM",
+  "BA",
+  "CE",
+  "DF",
+  "ES",
+  "GO",
+  "MA",
+  "MT",
+  "MS",
+  "MG",
+  "PA",
+  "PB",
+  "PR",
+  "PE",
+  "PI",
+  "RJ",
+  "RN",
+  "RS",
+  "RO",
+  "RR",
+  "SC",
+  "SP",
+  "SE",
+  "TO",
+] as const;
 
 const createOrgSchema = z.object({
   name: z.string().min(1, ""),
   slug: z.string().min(1, "Slug é obrigatório"),
   logo: z.string().optional(),
+  // O segmento redesenha o menu; a UF é o que faz o cadastro mostrar o tamanho
+  // do mercado da praça da pessoa. CNPJ fica de fora de propósito — ver
+  // `org.updateProfile`.
+  segment: z.enum(["VAREJO", "INDUSTRIA", "DISTRIBUIDOR"]),
+  state: z.string().length(2, "Informe a UF"),
+  city: z.string().trim().max(120).optional(),
 });
 
 type CreateOrgSchema = z.infer<typeof createOrgSchema>;
@@ -41,6 +86,9 @@ export function CreateFormOrg({
       name: "",
       slug: "",
       logo: "",
+      segment: "VAREJO",
+      state: "",
+      city: "",
     },
   });
 
@@ -83,7 +131,7 @@ export function CreateFormOrg({
   }
 
   const mutationCreateSettingsCatalog = useMutation(
-    orpc.catalogSettings.create.mutationOptions()
+    orpc.catalogSettings.create.mutationOptions(),
   );
 
   const onSubmit = async (formData: CreateOrgSchema) => {
@@ -115,12 +163,31 @@ export function CreateFormOrg({
       organizationSlug: organization.slug,
     });
 
+    // `await`, não fire-and-forget: se o perfil não gravar, a pessoa precisa
+    // saber — redirecionar por cima de um erro engolido é o que faz uma
+    // organização nascer sem segmento e ninguém descobrir.
+    try {
+      await orpc.org.updateProfile.call({
+        segment: formData.segment,
+        state: formData.state,
+        city: formData.city || null,
+        seedModules: true,
+      });
+    } catch {
+      toast.error(
+        "Organização criada, mas o perfil não foi salvo. Ajuste em Configurações.",
+      );
+      return;
+    }
+
     mutationCreateSettingsCatalog.mutate({
       name: name,
     });
 
     toast.success("Organização criada com sucesso");
-    router.push("/dashboard");
+    // O diretório, não o dashboard: é a única tela que já mostra o mercado, e
+    // dashboard de organização recém-criada é o pior primeiro contato possível.
+    router.push("/trade/diretorio");
   };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>
@@ -170,6 +237,85 @@ export function CreateFormOrg({
                   placeholder="empresa-de-vendas"
                 />
               </Field>
+
+              {/* Três cartões, não um <Select>: é a pergunta que redesenha o
+                produto inteiro, e merece o espaço visual. */}
+              <Field>
+                <FieldLabel>O que a sua empresa é?</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="segment"
+                  render={({ field }) => (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {(["VAREJO", "INDUSTRIA", "DISTRIBUIDOR"] as const).map(
+                        (value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            onClick={() => field.onChange(value)}
+                            className={`rounded-lg border p-3 text-left transition ${
+                              field.value === value
+                                ? "border-primary bg-accent"
+                                : "hover:bg-accent/50"
+                            }`}
+                          >
+                            <span className="block text-sm font-medium">
+                              {SEGMENT_LABELS[value]}
+                            </span>
+                            <span className="block text-xs text-muted-foreground">
+                              {SEGMENT_HINTS[value]}
+                            </span>
+                          </button>
+                        ),
+                      )}
+                    </div>
+                  )}
+                />
+              </Field>
+
+              <div className="grid gap-4 sm:grid-cols-[8rem_1fr]">
+                <Field>
+                  <FieldLabel htmlFor="state">UF</FieldLabel>
+                  <Controller
+                    control={form.control}
+                    name="state"
+                    render={({ field }) => (
+                      <Select
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        disabled={isLoading}
+                      >
+                        <SelectTrigger id="state">
+                          <SelectValue placeholder="UF" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {UFS.map((uf) => (
+                            <SelectItem key={uf} value={uf}>
+                              {uf}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                </Field>
+
+                <Field>
+                  <FieldLabel htmlFor="city">Cidade</FieldLabel>
+                  <Input
+                    id="city"
+                    disabled={isLoading}
+                    {...form.register("city")}
+                    placeholder="Teresina"
+                  />
+                </Field>
+              </div>
+
+              {/* O argumento de venda no instante exato da decisão. */}
+              <MarketSizeRibbon
+                state={form.watch("state") || null}
+                city={form.watch("city") || null}
+              />
 
               <Field>
                 <FieldLabel htmlFor="logo">Logo</FieldLabel>

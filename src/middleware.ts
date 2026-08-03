@@ -24,7 +24,12 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/accept-invitation") ||
     // Link aberto de entrada: sem isto, abrir por um subdomínio cairia na
     // reescrita de vitrine (/<subdominio>/entrar/...) e daria 404.
-    pathname.startsWith("/entrar")
+    pathname.startsWith("/entrar") ||
+    // O app público do TradeGram vive na raiz e é o mesmo em qualquer domínio.
+    // Sem esta linha, abri-lo por um subdomínio de inquilino seria reescrito
+    // para /<subdominio>/tradegram/... e daria 404 — e é justamente o link que
+    // as pessoas compartilham.
+    pathname.startsWith("/tradegram")
   ) {
     return NextResponse.next();
   }

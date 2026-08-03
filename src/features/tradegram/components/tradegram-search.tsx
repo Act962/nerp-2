@@ -10,11 +10,11 @@ import {
   Lock,
   Search,
   ShieldCheck,
-  Star,
   Store,
   Users,
 } from "lucide-react";
 import Link from "next/link";
+import { MarketSizeRibbon } from "./market-size-ribbon";
 import { useState } from "react";
 import { useTradegramSearch } from "../hooks/use-tradegram";
 
@@ -122,24 +122,6 @@ function TrustBadge() {
   );
 }
 
-function SocialProof() {
-  return (
-    <div className="flex flex-col items-center gap-2">
-      <p className="text-muted-foreground text-sm">
-        <span className="font-semibold text-foreground">
-          Mais de 8.500 clientes
-        </span>{" "}
-        confiam no TradeGram
-      </p>
-      <div className="flex gap-0.5 text-amber-400">
-        {[0, 1, 2, 3, 4].map((index) => (
-          <Star key={index} className="size-4 fill-amber-400" />
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function Avatar({
   logoKey,
   fallback,
@@ -216,7 +198,7 @@ export function TradeGramSearch() {
 
           {!hasQuery && (
             <div className="flex w-full flex-col items-center gap-6 pt-1">
-              <SocialProof />
+              <MarketSizeRibbon variant="hero" />
               <BrandStrip />
             </div>
           )}
@@ -323,9 +305,10 @@ export function TradeGramSearch() {
                 Empresas (diretório)
               </h2>
               {data.companies.map((company) => (
-                <div
+                <Link
                   key={company.companyId}
-                  className="flex items-center gap-3 rounded-lg p-2"
+                  href={company.href}
+                  className="flex items-center gap-3 rounded-lg p-2 hover:bg-accent"
                 >
                   <Avatar
                     logoKey={company.logoKey}
@@ -343,9 +326,9 @@ export function TradeGramSearch() {
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full border px-2 py-0.5 text-muted-foreground text-xs">
-                    Não reivindicada
+                    {company.badge}
                   </span>
-                </div>
+                </Link>
               ))}
             </section>
           )}

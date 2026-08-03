@@ -2,7 +2,7 @@ import { TradeGramMediaDetail } from "@/features/tradegram/components/tradegram-
 import type { Metadata } from "next";
 
 interface Props {
-  params: Promise<{ orgSlug: string; storeId: string; mediaCode: string }>;
+  params: Promise<{ slug: string; storeId: string; mediaCode: string }>;
 }
 
 export const metadata: Metadata = {
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 // Página pública de um tipo de mídia numa loja: as fotos de cada espaço.
 export default async function TradeGramMediaPage({ params }: Props) {
-  const { orgSlug, storeId, mediaCode } = await params;
+  const { slug: orgSlug, storeId, mediaCode } = await params;
   return (
     <TradeGramMediaDetail
       orgSlug={orgSlug}
