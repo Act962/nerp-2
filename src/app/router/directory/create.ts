@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { normalizeDocument } from "@/lib/document";
 import { z } from "zod";
 
 // Adiciona uma empresa ao diretório global. Qualquer membro pode contribuir com
@@ -21,7 +22,10 @@ export const createDirectoryCompany = base
     }),
   )
   .handler(async ({ input }) => {
-    const document = input.document?.trim() || undefined;
+    // Normalizado ANTES da checagem: gravar com máscara é o que fazia esta
+    // dedupe nunca disparar quando um lado digitou "12.345.678/0001-95" e o
+    // outro digitou os mesmos catorze dígitos.
+    const document = normalizeDocument(input.document) ?? undefined;
 
     if (document) {
       const existing = await prisma.directoryCompany.findUnique({

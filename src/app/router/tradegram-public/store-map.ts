@@ -8,6 +8,7 @@ import type {
 } from "@/features/store-map/engine/types";
 import prisma from "@/lib/db";
 import { z } from "zod";
+import { resolvePublicStore } from "./_resolve-public-store";
 
 // Mapa Konva público read-only. Espelha floor-plan/get-full.ts, mas com
 // ALLOWLIST explícita: devolve só o que desenha e classifica o espaço. Zera
@@ -38,28 +39,25 @@ export const getPublicStoreMap = base
       // Setores da org, para o painel público resolver sectorId → nome.
       sectors: { id: string; name: string }[];
     }> => {
-      const org = await prisma.organization.findUnique({
-        where: { slug: input.orgSlug },
-        select: { id: true, isPublicProfile: true },
-      });
-      if (!org || !org.isPublicProfile) {
-        throw errors.NOT_FOUND({ message: "Perfil não encontrado" });
-      }
+      // Usa o resolvedor comum em vez de reimplementar o portão: a checagem
+      // inline daqui esquecia `store.isActive`, então a planta de uma loja
+      // desativada continuava pública para quem tivesse a URL. Agora que o mapa
+      // de campo distribui essas URLs, o descuido deixa de ser teórico.
+      const { organizationId, storeId } = await resolvePublicStore(
+        input.orgSlug,
+        input.storeId,
+        errors,
+      );
 
-      const floorPlan = input.floorPlanId
-        ? await prisma.floorPlan.findFirst({
-            where: {
-              id: input.floorPlanId,
-              organizationId: org.id,
-              storeId: input.storeId,
-            },
-            include: { layers: { orderBy: { order: "asc" } }, objects: true },
-          })
-        : await prisma.floorPlan.findFirst({
-            where: { organizationId: org.id, storeId: input.storeId },
-            orderBy: { createdAt: "asc" },
-            include: { layers: { orderBy: { order: "asc" } }, objects: true },
-          });
+      const floorPlan = await prisma.floorPlan.findFirst({
+        where: {
+          organizationId,
+          storeId,
+          ...(input.floorPlanId ? { id: input.floorPlanId } : {}),
+        },
+        orderBy: { createdAt: "asc" },
+        include: { layers: { orderBy: { order: "asc" } }, objects: true },
+      });
 
       if (!floorPlan)
         throw errors.NOT_FOUND({ message: "Mapa não encontrado" });
@@ -106,13 +104,13 @@ export const getPublicStoreMap = base
       const [mediaTypes, sectors] = await Promise.all([
         mediaTypeIds.length > 0
           ? prisma.mediaType.findMany({
-              where: { organizationId: org.id, id: { in: mediaTypeIds } },
+              where: { organizationId, id: { in: mediaTypeIds } },
               select: { id: true, code: true, name: true },
               orderBy: { sortOrder: "asc" },
             })
           : [],
         prisma.storeSector.findMany({
-          where: { organizationId: org.id },
+          where: { organizationId },
           select: { id: true, name: true },
           orderBy: { sortOrder: "asc" },
         }),

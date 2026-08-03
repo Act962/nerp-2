@@ -57,6 +57,16 @@ export const PAGE_PERMISSIONS = [
     href: "/trade/painel",
   },
   {
+    key: "trade-calendario",
+    label: "Calendário de Ações",
+    href: "/trade/calendario",
+  },
+  {
+    key: "mapa-de-campo",
+    label: "Mapa de Campo",
+    href: "/trade/mapa-de-campo",
+  },
+  {
     key: "lojas",
     label: "Lojas e Mapas",
     href: "/lojas",
@@ -164,6 +174,10 @@ export const ACTION_PERMISSIONS = [
     key: "books-aprovar",
     label: "Aprovar fotos de Books",
   },
+  {
+    key: "mapa-ver-todos",
+    label: "Ver o trajeto de todos os promotores",
+  },
 ] as const;
 
 export type ActionPermissionKey = (typeof ACTION_PERMISSIONS)[number]["key"];
@@ -199,6 +213,39 @@ export const INVITABLE_ROLES: {
     description: "Vê apenas as páginas liberadas nas permissões.",
   },
 ];
+
+// ── Cargo no Trade ──────────────────────────────────────────────────────────
+// Papel de campo, NÃO permissão. Fica fora do `role` porque o Better Auth
+// valida `role` contra os cargos do plugin organization (owner/admin/member) e
+// recusaria valores próprios; e porque coordenar o trade não implica ver mais
+// páginas — quem decide acesso continua sendo `role` + `permissions`.
+export const TRADE_ROLE_VALUES = ["COORDENADOR_TRADE", "SUPERVISOR"] as const;
+
+export type TradeRoleValue = (typeof TRADE_ROLE_VALUES)[number];
+
+export const TRADE_ROLES: {
+  value: TradeRoleValue;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "COORDENADOR_TRADE",
+    label: "Coordenador(a) de Trade",
+    description: "Aprova as fotos dos promotores e responde pelas indústrias.",
+  },
+  {
+    value: "SUPERVISOR",
+    label: "Supervisor",
+    description: "Acompanha os promotores em campo.",
+  },
+];
+
+export function tradeRoleLabel(
+  value: string | null | undefined,
+): string | null {
+  if (!value) return null;
+  return TRADE_ROLES.find((role) => role.value === value)?.label ?? value;
+}
 
 // `role` chega do banco como string livre; estreita para um cargo convidável.
 export function toInvitableRole(
@@ -248,6 +295,49 @@ export function memberCan(
   if (!member) return false;
   if (hasFullAccess(member.role)) return true;
   return (member.permissions ?? []).includes(key);
+}
+
+interface CalendarManagerLike extends MemberLike {
+  tradeRole?: string | null;
+}
+
+/**
+ * Pode criar/editar eventos do calendário.
+ *
+ * Três portas: owner/admin, quem tem cargo no Trade (coordenação/supervisão) e
+ * quem recebeu a permissão da página. Promotor sem nenhuma delas só lê e cria
+ * as próprias anotações.
+ *
+ * Vive aqui, e não no `org-access.ts`, porque componentes "use client"
+ * precisam da mesma resposta para mostrar ou não o botão "Novo evento" — e
+ * aquele arquivo é `server-only`.
+ */
+function isFieldLeadership(
+  member: CalendarManagerLike | null | undefined,
+): boolean {
+  if (!member) return false;
+  if (hasFullAccess(member.role)) return true;
+  return Boolean(member.tradeRole);
+}
+
+export function canManageCalendar(
+  member: CalendarManagerLike | null | undefined,
+): boolean {
+  return isFieldLeadership(member) || memberCan(member, "trade-calendario");
+}
+
+/**
+ * Vê o trajeto dos OUTROS no Mapa de Campo. Quem não passa aqui abre a página
+ * normalmente, mas enxerga só o próprio dia.
+ *
+ * Separado da chave da página de propósito: juntar as duas entregaria a um
+ * promotor o histórico de localização da equipe inteira só por ele ter o item
+ * no menu.
+ */
+export function canSeeAllTrails(
+  member: CalendarManagerLike | null | undefined,
+): boolean {
+  return isFieldLeadership(member) || memberCan(member, "mapa-ver-todos");
 }
 
 // ── Visibilidade de módulos ─────────────────────────────────────────────────

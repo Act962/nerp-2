@@ -75,7 +75,10 @@ export const searchPublic = base
       // (aparecem na busca desde o dia 1, mesmo sem org por trás).
       prisma.directoryCompany.findMany({
         where: {
-          claimedByOrgId: null,
+          // SEM `claimedByOrgId: null`. Esse filtro era a inversão exata do
+          // funil: no instante em que uma empresa se cadastrava e reivindicava
+          // sua ficha, ela SUMIA da vitrine pública. Reivindicar tem de
+          // aumentar a visibilidade, não reduzir.
           OR: [
             { name: { contains: term, mode: "insensitive" } },
             { tradeName: { contains: term, mode: "insensitive" } },
@@ -91,9 +94,16 @@ export const searchPublic = base
           city: true,
           state: true,
           logoKey: true,
+          claimedByOrg: {
+            select: { slug: true, name: true, isPublicProfile: true },
+          },
         },
       }),
     ]);
+
+    // Quem reivindicou e é público já aparece na seção de grupos — sem isto a
+    // mesma URL sairia duas vezes na mesma tela.
+    const groupSlugs = new Set(groups.map((group) => group.slug));
 
     return {
       groups: groups.map((group) => ({
@@ -118,14 +128,37 @@ export const searchPublic = base
         name: supplier.name,
         logoKey: supplier.logo,
       })),
-      companies: companies.map((company) => ({
-        type: "company" as const,
-        companyId: company.id,
-        companyType: company.type,
-        name: company.name,
-        city: company.city,
-        state: company.state,
-        logoKey: company.logoKey,
-      })),
+      companies: companies.flatMap((company) => {
+        const owner = company.claimedByOrg;
+        const ownerIsPublic = Boolean(owner?.isPublicProfile && owner.slug);
+        if (ownerIsPublic && owner?.slug && groupSlugs.has(owner.slug)) {
+          return [];
+        }
+
+        return [
+          {
+            type: "company" as const,
+            companyId: company.id,
+            companyType: company.type,
+            name: company.name,
+            city: company.city,
+            state: company.state,
+            logoKey: company.logoKey,
+            // O caminho é montado NO SERVIDOR: o cliente não conhece a forma
+            // da URL, e quando o slug da empresa existir só este trecho muda.
+            href:
+              ownerIsPublic && owner?.slug
+                ? `/tradegram/${owner.slug}`
+                : `/tradegram/empresa/${company.id}`,
+            // Nome do dono só quando ele é público — senão a busca vira
+            // oráculo de quem é cliente da plataforma.
+            badge: ownerIsPublic
+              ? "Perfil verificado"
+              : company.claimedByOrg
+                ? "Reivindicada"
+                : "Não reivindicada",
+          },
+        ];
+      }),
     };
   });
