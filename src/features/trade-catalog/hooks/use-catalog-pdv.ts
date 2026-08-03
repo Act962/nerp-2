@@ -76,7 +76,9 @@ export function useRegionCostBenchmarks() {
 function useInvalidateBenchmarks() {
   const queryClient = useQueryClient();
   return () =>
-    queryClient.invalidateQueries({ queryKey: orpc.regionCostBenchmark.list.key() });
+    queryClient.invalidateQueries({
+      queryKey: orpc.regionCostBenchmark.list.key(),
+    });
 }
 
 export function useCreateRegionCostBenchmark() {

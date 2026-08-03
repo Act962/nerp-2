@@ -68,7 +68,9 @@ export function MediaTypeDetailsDialog({
         <div className="space-y-4">
           {mediaType && (
             <Field>
-              <FieldLabel>Fotos modelo do Órbita (biblioteca global)</FieldLabel>
+              <FieldLabel>
+                Fotos modelo do Órbita (biblioteca global)
+              </FieldLabel>
               <MediaModelPhotoLibrary code={mediaType.code} />
             </Field>
           )}
@@ -128,7 +130,11 @@ export function MediaTypeDetailsDialog({
           >
             Cancelar
           </Button>
-          <Button type="button" onClick={handleSave} disabled={update.isPending}>
+          <Button
+            type="button"
+            onClick={handleSave}
+            disabled={update.isPending}
+          >
             Salvar
           </Button>
         </DialogFooter>

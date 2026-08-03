@@ -18,7 +18,9 @@ export function PricingSettingsCard() {
   useEffect(() => {
     if (!settings) return;
     setMarkup(String(settings.markup));
-    setFloorPrice(settings.floorPrice != null ? String(settings.floorPrice) : "");
+    setFloorPrice(
+      settings.floorPrice != null ? String(settings.floorPrice) : "",
+    );
   }, [settings]);
 
   const commitMarkup = () => {
@@ -40,8 +42,11 @@ export function PricingSettingsCard() {
       </CardHeader>
       <CardContent className="flex flex-wrap gap-6">
         <div className="w-40 space-y-1.5">
-          <label className="text-sm text-muted-foreground">Markup</label>
+          <label htmlFor="markup" className="text-sm text-muted-foreground">
+            Markup
+          </label>
           <Input
+            id="markup"
             type="number"
             min={0}
             step="0.1"
@@ -51,10 +56,14 @@ export function PricingSettingsCard() {
           />
         </div>
         <div className="w-40 space-y-1.5">
-          <label className="text-sm text-muted-foreground">
+          <label
+            htmlFor="preco-minimo"
+            className="text-sm text-muted-foreground"
+          >
             Preço mínimo (R$)
           </label>
           <Input
+            id="preco-minimo"
             type="number"
             min={0}
             step="0.01"

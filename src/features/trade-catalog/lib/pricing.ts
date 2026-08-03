@@ -87,7 +87,8 @@ export function resolveDisplayPrice(
 ): ResolvedPrice {
   if (manualPrice != null) return { value: manualPrice, source: "MANUAL" };
   if (basePrice != null) return { value: basePrice, source: "BASE" };
-  if (suggestedPrice != null) return { value: suggestedPrice, source: "SUGGESTED" };
+  if (suggestedPrice != null)
+    return { value: suggestedPrice, source: "SUGGESTED" };
   return { value: null, source: "NONE" };
 }
 

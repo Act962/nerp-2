@@ -42,6 +42,9 @@ export const MODULE_MIN_PLAN: Partial<
   "trade-cadastros": "BRONZE",
   "catalogo-pdv": "BRONZE",
   "trade-painel": "BRONZE",
+  "trade-calendario": "BRONZE",
+  // O trajeto deriva das fotos do promotor, que já é OURO.
+  "mapa-de-campo": "OURO",
   "trade-interesses": "BRONZE",
   diretorio: "BRONZE",
   planograma: "PRATA",
