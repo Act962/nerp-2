@@ -4,6 +4,7 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { memberCan } from "@/lib/permissions";
 import { z } from "zod";
+import { capturedAtFilter, dateRangeSchema } from "./_date-range";
 
 // Lista de fotos dos promotores para a coordenadora revisar. Só fotos vindas do
 // fluxo do promotor (promoterName preenchido).
@@ -15,6 +16,9 @@ export const listPhotosForApproval = base
       status: z
         .enum(["ALL", "APPROVED", "REJECTED", "PENDING"])
         .default("PENDING"),
+      storeId: z.string().optional(),
+      supplierId: z.string().nullable().optional(),
+      ...dateRangeSchema,
     }),
   )
   .handler(async ({ input, context, errors }) => {
@@ -28,13 +32,23 @@ export const listPhotosForApproval = base
       });
     }
 
+    const scope = {
+      organizationId: context.org.id,
+      promoterName: { not: null },
+      ...(input.storeId ? { storeId: input.storeId } : {}),
+      ...(input.supplierId !== undefined
+        ? { supplierId: input.supplierId }
+        : {}),
+      ...capturedAtFilter(input.from, input.to),
+    };
+
     const photos = await prisma.pdvPhoto.findMany({
       where: {
-        organizationId: context.org.id,
-        promoterName: { not: null },
+        ...scope,
         ...(input.status === "ALL" ? {} : { approvalStatus: input.status }),
       },
       orderBy: { capturedAt: "desc" },
+      take: 120,
       select: {
         id: true,
         photos: true,
@@ -45,14 +59,15 @@ export const listPhotosForApproval = base
         capturedState: true,
         approvalStatus: true,
         approvalNote: true,
+        sealMissing: true,
         store: { select: { name: true } },
-        supplier: { select: { name: true } },
+        supplier: { select: { id: true, name: true, actionCodeImage: true } },
       },
     });
 
     const counts = await prisma.pdvPhoto.groupBy({
       by: ["approvalStatus"],
-      where: { organizationId: context.org.id, promoterName: { not: null } },
+      where: scope,
       _count: true,
     });
     const countBy = (status: string) =>
@@ -69,6 +84,8 @@ export const listPhotosForApproval = base
         capturedState: photo.capturedState,
         storeName: photo.store.name,
         supplierName: photo.supplier?.name ?? null,
+        supplierActionCodeImage: photo.supplier?.actionCodeImage ?? null,
+        sealMissing: photo.sealMissing,
         approvalStatus: photo.approvalStatus,
         approvalNote: photo.approvalNote,
       })),

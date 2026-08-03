@@ -3,13 +3,20 @@
 import { Button } from "@/components/ui/button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Camera, ImagePlus, Loader2 } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 interface PhotoCaptureInputProps {
   onFiles: (files: File[]) => void;
   disabled?: boolean;
   isUploading?: boolean;
   className?: string;
+  /**
+   * Abre a câmera assim que monta (usado pelo "Refazer foto" do promotor).
+   * Best-effort: alguns navegadores — iOS Safari em especial — só abrem o
+   * seletor de arquivo dentro do gesto do usuário, e aí o toque no botão
+   * continua sendo necessário.
+   */
+  autoOpen?: boolean;
 }
 
 // Dois inputs irmãos em vez de um com `capture` condicional: na prática
@@ -21,10 +28,16 @@ export function PhotoCaptureInput({
   disabled,
   isUploading,
   className,
+  autoOpen,
 }: PhotoCaptureInputProps) {
   const isMobile = useIsMobile();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!autoOpen || !isMobile || disabled) return;
+    cameraInputRef.current?.click();
+  }, [autoOpen, isMobile, disabled]);
 
   const handleChange = (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;

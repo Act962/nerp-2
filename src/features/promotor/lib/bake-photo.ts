@@ -1,4 +1,4 @@
-// Composição do carimbo na foto do promotor: desenha a foto, o código de ação
+// Composição do carimbo na foto do promotor: desenha a foto, a senha do mês
 // (posicionado pelo promotor) e as linhas de texto (nome, data, cidade/UF) num
 // canvas e devolve um JPEG. Rodar no client, é ele quem sobe pro R2 depois.
 
@@ -26,44 +26,129 @@ export interface BakeResult {
   codigoFaltando: boolean;
 }
 
-/** Bytes da imagem do código, sempre por origem própria. */
-function codigoSource(key: string): string {
+/** Bytes da imagem da senha do mês, sempre por origem própria. */
+export function codigoSource(key: string): string {
   // Chave já absoluta (legado): usa como está — nesse caso o CORS ainda vale.
   if (key.startsWith("http://") || key.startsWith("https://")) return key;
   return `/api/s3/image?key=${encodeURIComponent(key)}`;
 }
 
-async function drawSeal(
+/** Largura da logo TradeGram como fração da largura da foto. */
+export const BRAND_WIDTH_RATIO = 0.198;
+export const BRAND_PAD_RATIO = 0.02;
+/** Altura/largura da arte da logo (SVG 300x90). */
+export const BRAND_ASPECT = 0.3;
+
+/** Rodapé de texto: as proporções que o `bakePhoto` usa, para a prévia e o
+ * limite de arraste medirem a mesma coisa. */
+export const FOOTER_FONT_RATIO = 0.03;
+
+/** Opacidade do quadrado branco sob o selo da indústria. */
+export const SEAL_BOX_ALPHA = 0.3;
+
+/** Altura total do bloco de rodapé, em px de canvas. */
+export function footerHeightPx(canvasWidth: number, lineCount: number): number {
+  const fontSize = Math.max(14, Math.round(canvasWidth * FOOTER_FONT_RATIO));
+  const pad = fontSize * 0.4;
+  return lineCount * (fontSize + pad + pad * 0.5) + pad;
+}
+
+/**
+ * Assinatura TradeGram no canto superior direito, sem tarja atrás.
+ *
+ * Sem retângulo a logo depende do próprio contraste; é o custo de não tapar
+ * pedaço da gôndola, que é o conteúdo pelo qual a foto existe.
+ */
+async function drawBrand(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
-  sealUrl: string,
+  brandUrl: string,
 ) {
   try {
     // Image (não createImageBitmap) rasteriza SVG de forma confiável; asset
     // same-origin em /public, então não contamina o canvas.
     const image = new Image();
-    image.src = sealUrl;
+    image.src = brandUrl;
     await image.decode();
 
-    const sealWidth = canvas.width * 0.24;
-    const sealHeight = sealWidth * (image.height / image.width || 0.27);
-    const pad = canvas.width * 0.02;
-    const boxX = canvas.width - sealWidth - pad * 2;
-    const boxY = canvas.height - sealHeight - pad * 2;
+    const width = canvas.width * BRAND_WIDTH_RATIO;
+    const height = width * (image.height / image.width || BRAND_ASPECT);
+    const pad = canvas.width * BRAND_PAD_RATIO;
 
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(boxX, boxY, sealWidth + pad * 2, sealHeight + pad * 2);
-    ctx.drawImage(image, boxX + pad, boxY + pad, sealWidth, sealHeight);
+    ctx.drawImage(image, canvas.width - width - pad, pad, width, height);
   } catch {
-    // Sem selo: segue sem ele.
+    // Sem logo: a foto não pode ser perdida por causa da assinatura.
   }
+}
+
+/**
+ * Aplica o selo numa foto JÁ carimbada (rodapé e logo gravados na captura).
+ *
+ * É o caminho da coordenadora em /books quando o celular do promotor não
+ * conseguiu carregar o selo da indústria: em vez de reprovar e mandar refazer
+ * a visita, ela completa a foto. Só o selo é desenhado — redesenhar o rodapé
+ * duplicaria as tarjas que já estão na imagem.
+ */
+export async function applySealToPhoto(opts: {
+  photoKey: string;
+  codigoKey: string;
+  /** Fração 0..1 da largura/altura; padrão no canto superior esquerdo, livre
+   * tanto do rodapé quanto da logo. */
+  x?: number;
+  y?: number;
+  scale?: number;
+}): Promise<Blob> {
+  const [photoResponse, codeResponse] = await Promise.all([
+    fetch(codigoSource(opts.photoKey)),
+    fetch(codigoSource(opts.codigoKey)),
+  ]);
+  if (!photoResponse.ok) throw new Error("Não foi possível carregar a foto");
+  if (!codeResponse.ok) throw new Error("Não foi possível carregar o selo");
+
+  const photoBitmap = await createImageBitmap(await photoResponse.blob());
+  const canvas = document.createElement("canvas");
+  canvas.width = photoBitmap.width;
+  canvas.height = photoBitmap.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas não suportado");
+  ctx.drawImage(photoBitmap, 0, 0);
+  photoBitmap.close?.();
+
+  const codeBitmap = await createImageBitmap(await codeResponse.blob());
+  const side = (opts.scale ?? 0.3) * canvas.width;
+  const boxX = (opts.x ?? 0.04) * canvas.width;
+  const boxY = (opts.y ?? 0.04) * canvas.height;
+
+  ctx.fillStyle = `rgba(255,255,255,${SEAL_BOX_ALPHA})`;
+  ctx.fillRect(boxX, boxY, side, side);
+
+  const ratio = codeBitmap.width / codeBitmap.height;
+  const width = ratio >= 1 ? side : side * ratio;
+  const height = ratio >= 1 ? side / ratio : side;
+  ctx.drawImage(
+    codeBitmap,
+    boxX + (side - width) / 2,
+    boxY + (side - height) / 2,
+    width,
+    height,
+  );
+  codeBitmap.close?.();
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) =>
+        result ? resolve(result) : reject(new Error("Falha ao gerar a imagem")),
+      "image/jpeg",
+      0.85,
+    );
+  });
 }
 
 export async function bakePhoto(opts: {
   file: File;
   textLines: string[];
   codigo: CodigoStamp | null;
-  sealUrl?: string;
+  brandUrl?: string;
 }): Promise<BakeResult> {
   // `from-image` normaliza a orientação EXIF (fotos de celular vêm giradas).
   const bitmap = await createImageBitmap(opts.file, {
@@ -77,7 +162,7 @@ export async function bakePhoto(opts: {
   ctx.drawImage(bitmap, 0, 0);
   bitmap.close?.();
 
-  const fontSize = Math.max(14, Math.round(canvas.width * 0.03));
+  const fontSize = Math.max(14, Math.round(canvas.width * FOOTER_FONT_RATIO));
   const pad = fontSize * 0.4;
   ctx.font = `600 ${fontSize}px sans-serif`;
   ctx.textBaseline = "alphabetic";
@@ -96,8 +181,8 @@ export async function bakePhoto(opts: {
     bottom -= boxHeight + pad * 0.5;
   }
 
-  // Selo de autenticidade Órbita no canto oposto ao texto (inferior direito).
-  await drawSeal(ctx, canvas, opts.sealUrl ?? "/orbita-hub.svg");
+  // Assinatura TradeGram no canto superior direito.
+  await drawBrand(ctx, canvas, opts.brandUrl ?? "/tradegram-logo-dark.svg");
 
   // O CÓDIGO VAI POR ÚLTIMO, por cima de tudo.
   //
@@ -115,12 +200,25 @@ export async function bakePhoto(opts: {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const blob = await response.blob();
       const codeBitmap = await createImageBitmap(blob);
-      const width = opts.codigo.scale * canvas.width;
-      const height = width * (codeBitmap.height / codeBitmap.width);
+
+      const side = opts.codigo.scale * canvas.width;
+      const boxX = opts.codigo.x * canvas.width;
+      const boxY = opts.codigo.y * canvas.height;
+
+      // Quadrado branco 1:1 translúcido. A foto atravessa o selo de propósito:
+      // recortado e colado em outra imagem, o fundo denuncia a origem — é o
+      // que impede o promotor de reaproveitar o selo num editor externo.
+      ctx.fillStyle = `rgba(255,255,255,${SEAL_BOX_ALPHA})`;
+      ctx.fillRect(boxX, boxY, side, side);
+
+      // A arte entra CONTIDA no quadrado (nunca esticada), centralizada.
+      const ratio = codeBitmap.width / codeBitmap.height;
+      const width = ratio >= 1 ? side : side * ratio;
+      const height = ratio >= 1 ? side / ratio : side;
       ctx.drawImage(
         codeBitmap,
-        opts.codigo.x * canvas.width,
-        opts.codigo.y * canvas.height,
+        boxX + (side - width) / 2,
+        boxY + (side - height) / 2,
         width,
         height,
       );

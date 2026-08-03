@@ -45,22 +45,48 @@ export const listMyIndustries = base
       });
     }
 
-    const suppliers = await prisma.supplier.findMany({
-      where: {
-        organizationId: context.org.id,
-        isActive: true,
-        ...(filters.length > 0 ? { AND: filters } : {}),
-      },
-      orderBy: { name: "asc" },
-      take: 30,
-      select: { id: true, name: true, actionCodeImage: true },
-    });
+    const where = {
+      organizationId: context.org.id,
+      isActive: true,
+      ...(filters.length > 0 ? { AND: filters } : {}),
+    };
+
+    // Favoritos vêm numa consulta própria, não do `take: 30` da lista: a
+    // indústria favorita do promotor pode estar no fim do alfabeto e sumiria
+    // do corte, justo a que ele mais usa.
+    const favoriteIds = memberId
+      ? (
+          await prisma.promoterFavoriteSupplier.findMany({
+            where: { memberId, organizationId: context.org.id },
+            select: { supplierId: true },
+          })
+        ).map((item) => item.supplierId)
+      : [];
+
+    const select = { id: true, name: true, actionCodeImage: true };
+    const [favorites, others] = await Promise.all([
+      favoriteIds.length > 0
+        ? prisma.supplier.findMany({
+            where: { AND: [where, { id: { in: favoriteIds } }] },
+            orderBy: { name: "asc" },
+            select,
+          })
+        : Promise.resolve([]),
+      prisma.supplier.findMany({
+        where:
+          favoriteIds.length > 0
+            ? { AND: [where, { id: { notIn: favoriteIds } }] }
+            : where,
+        orderBy: { name: "asc" },
+        take: 30,
+        select,
+      }),
+    ]);
 
     return {
-      suppliers: suppliers.map((supplier) => ({
-        id: supplier.id,
-        name: supplier.name,
-        actionCodeImage: supplier.actionCodeImage,
-      })),
+      suppliers: [
+        ...favorites.map((supplier) => ({ ...supplier, isFavorite: true })),
+        ...others.map((supplier) => ({ ...supplier, isFavorite: false })),
+      ],
     };
   });

@@ -3,29 +3,77 @@
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
-import { constructUrl } from "@/hooks/use-construct-url";
 import { compressImage } from "@/lib/compress-image";
 import { uploadToR2 } from "@/lib/upload-to-r2";
 import { Check, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { bakePhoto } from "../lib/bake-photo";
+import {
+  BRAND_ASPECT,
+  BRAND_PAD_RATIO,
+  BRAND_WIDTH_RATIO,
+  SEAL_BOX_ALPHA,
+  bakePhoto,
+  codigoSource,
+  footerHeightPx,
+} from "../lib/bake-photo";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-/** Largura do código como fração da foto. Teto em 50%: acima disso ele começa
- * a cobrir a própria ação fotografada. */
+/** Lado do quadrado do selo como fração da largura da foto. Teto em 50%: acima
+ * disso ele começa a cobrir a própria ação fotografada. */
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 0.5;
 
-// Espelha o `drawSeal` do bake-photo.ts, para a prévia mostrar o selo no mesmo
-// lugar e tamanho em que ele será gravado.
-const SEAL_WIDTH_RATIO = 0.24;
-const SEAL_PAD_RATIO = 0.02;
+// A prévia usa as MESMAS constantes do bake-photo (importadas, não copiadas),
+// para logo e tarja saírem no lugar e no tamanho em que serão gravadas.
 
-// Editor do carimbo: mostra a foto, deixa arrastar a imagem do código de ação e
+/**
+ * Mantém o selo fora do rodapé e da logo.
+ *
+ * Antes o arraste ia até a borda e o selo acabava por cima do nome/data ou da
+ * assinatura — e como ele é desenhado por último, encobria as duas. Aqui as
+ * zonas ocupadas viram limite: o selo esbarra nelas em vez de invadi-las.
+ *
+ * Tudo em fração: `x`/lado sobre a LARGURA, `y` sobre a ALTURA. `aspect` é
+ * largura/altura da foto, o fator que converte um pelo outro.
+ */
+function clampPosition(
+  x: number,
+  y: number,
+  scale: number,
+  boxWidth: number,
+  boxHeight: number,
+  lineCount: number,
+) {
+  const aspect = boxWidth / boxHeight;
+  const sealHeight = scale * aspect;
+
+  const footer = footerHeightPx(boxWidth, lineCount) / boxHeight;
+  const brandBottom =
+    (BRAND_WIDTH_RATIO * BRAND_ASPECT + BRAND_PAD_RATIO * 2) * aspect;
+  const brandLeft = 1 - BRAND_WIDTH_RATIO - BRAND_PAD_RATIO * 2;
+
+  const nextX = clamp(x, 0, Math.max(0, 1 - scale));
+  let nextY = clamp(y, 0, Math.max(0, 1 - sealHeight - footer));
+
+  // Faixa da logo (topo, à direita). Empurrar para baixo preserva a posição
+  // horizontal que o promotor escolheu; só quando não há altura sobrando é que
+  // ele é jogado para a esquerda da logo.
+  if (nextY < brandBottom && nextX + scale > brandLeft) {
+    if (brandBottom + sealHeight + footer <= 1) {
+      nextY = brandBottom;
+    } else {
+      return { x: Math.max(0, brandLeft - scale), y: nextY };
+    }
+  }
+
+  return { x: nextX, y: nextY };
+}
+
+// Editor do carimbo: mostra a foto, deixa arrastar a senha do mês e
 // exibe as linhas de texto que serão gravadas. Ao confirmar, compõe + sobe pro
 // R2 e devolve a chave.
 export function StampEditor({
@@ -39,12 +87,14 @@ export function StampEditor({
   codigoKey: string | null;
   textLines: string[];
   onCancel: () => void;
-  onBaked: (photoKey: string) => void;
+  onBaked: (photoKey: string, sealMissing: boolean) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [pos, setPos] = useState({ x: 0.62, y: 0.06, scale: 0.3 });
-  const [sealLoaded, setSealLoaded] = useState(false);
+  // Começa à esquerda e abaixo da faixa da logo. O `onLoad` da prévia reajusta
+  // com as medidas reais, que dependem do formato da foto.
+  const [pos, setPos] = useState({ x: 0.05, y: 0.2, scale: 0.3 });
+  const [brandLoaded, setBrandLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const dragging = useRef(false);
 
@@ -56,19 +106,28 @@ export function StampEditor({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const codigoUrl = codigoKey ? constructUrl(codigoKey) : null;
+  // Mesma origem do que o `bakePhoto` vai ler (o proxy `/api/s3/image`), não a
+  // URL pública do R2. Com duas fontes diferentes, a prévia podia mostrar o
+  // código e o arquivo salvo sair sem ele — ou, como aconteceu, a prévia
+  // quebrar enquanto a gravação funcionava.
+  const codigoUrl = codigoKey ? codigoSource(codigoKey) : null;
+
+  const lineCount = textLines.filter(Boolean).length;
 
   const moveTo = (clientX: number, clientY: number) => {
     const box = containerRef.current?.getBoundingClientRect();
     if (!box) return;
     setPos((prev) => ({
       ...prev,
-      x: clamp(
+      ...clampPosition(
         (clientX - box.left) / box.width - prev.scale / 2,
-        0,
-        1 - prev.scale,
+        (clientY - box.top) / box.height -
+          (prev.scale * (box.width / box.height)) / 2,
+        prev.scale,
+        box.width,
+        box.height,
+        lineCount,
       ),
-      y: clamp((clientY - box.top) / box.height, 0, 1),
     }));
   };
 
@@ -84,9 +143,9 @@ export function StampEditor({
           : null,
       });
       if (codigoFaltando) {
-        toast.warning("A foto foi salva SEM a imagem do código", {
+        toast.warning("A foto foi salva SEM a senha do mês", {
           description:
-            "Não foi possível carregar o código desta indústria. Avise a coordenação.",
+            "Não foi possível carregar a senha do mês desta indústria. Avise a coordenação.",
           duration: 10000,
         });
       }
@@ -94,7 +153,7 @@ export function StampEditor({
         type: "image/jpeg",
       });
       const key = await uploadToR2(await compressImage(baked), true);
-      onBaked(key);
+      onBaked(key, codigoFaltando);
     } catch (error) {
       toast.error(
         error instanceof Error && /suport|bitmap|imagem/i.test(error.message)
@@ -109,8 +168,8 @@ export function StampEditor({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        Arraste o código para o local da foto onde ele deve ficar. Nome, data e
-        localização são carimbados no rodapé.
+        Arraste a senha do mês para o local da foto onde ela deve ficar. Nome,
+        data e localização são carimbados no rodapé.
       </p>
 
       {/* `w-fit` para a caixa acompanhar EXATAMENTE a foto renderizada. Antes
@@ -133,16 +192,28 @@ export function StampEditor({
           <img
             src={previewUrl}
             alt=""
+            onLoad={(event) => {
+              const image = event.currentTarget;
+              setPos((prev) => ({
+                ...prev,
+                ...clampPosition(
+                  prev.x,
+                  prev.y,
+                  prev.scale,
+                  image.clientWidth,
+                  image.clientHeight,
+                  lineCount,
+                ),
+              }));
+            }}
             className="block max-h-[60vh] w-auto max-w-full"
           />
         )}
 
         {codigoUrl && (
-          // biome-ignore lint/performance/noImgElement: preview de key do R2, sem otimização do next/image
-          <img
-            src={codigoUrl}
-            alt="Código da ação"
-            draggable={false}
+          // Quadrado 1:1 translúcido espelhando o `bakePhoto`: a arte entra
+          // CONTIDA nele (`object-contain`), nunca esticada.
+          <div
             onPointerDown={(event) => {
               event.preventDefault();
               dragging.current = true;
@@ -152,34 +223,43 @@ export function StampEditor({
               left: `${pos.x * 100}%`,
               top: `${pos.y * 100}%`,
               width: `${pos.scale * 100}%`,
+              aspectRatio: "1 / 1",
+              backgroundColor: `rgba(255,255,255,${SEAL_BOX_ALPHA})`,
               cursor: "grab",
               touchAction: "none",
-              // Acima do texto e do selo, igual ao `bakePhoto`, que desenha o
+              // Acima do texto e da logo, igual ao `bakePhoto`, que desenha o
               // código por último. Sem isto a prévia mostraria o código
               // coberto pelas tarjas e o arquivo salvo mostraria o contrário.
               zIndex: 10,
             }}
-          />
+          >
+            {/* biome-ignore lint/performance/noImgElement: preview de key do R2, sem otimização do next/image */}
+            <img
+              src={codigoUrl}
+              alt="Senha do mês"
+              draggable={false}
+              className="size-full object-contain"
+            />
+          </div>
         )}
 
-        {/* Selo Órbita: só prévia. Quem grava de fato é o `drawSeal` do
-          bake-photo. Mostrar aqui evita o promotor posicionar o código
-          justamente em cima dele e só descobrir depois de salvar. */}
+        {/* Assinatura TradeGram: só prévia. Quem grava de fato é o `drawBrand`
+          do bake-photo. Mostrar aqui evita o promotor posicionar o código
+          justamente em cima dela e só descobrir depois de salvar. */}
         <div
-          className="pointer-events-none absolute bg-black/55"
+          className="pointer-events-none absolute"
           style={{
-            right: `${SEAL_PAD_RATIO * 100}%`,
-            bottom: `${SEAL_PAD_RATIO * 100}%`,
-            width: `${(SEAL_WIDTH_RATIO + SEAL_PAD_RATIO * 2) * 100}%`,
-            padding: `${SEAL_PAD_RATIO * 100}%`,
+            right: `${BRAND_PAD_RATIO * 100}%`,
+            top: `${BRAND_PAD_RATIO * 100}%`,
+            width: `${BRAND_WIDTH_RATIO * 100}%`,
           }}
         >
-          {/* biome-ignore lint/performance/noImgElement: selo estático em public/ */}
+          {/* biome-ignore lint/performance/noImgElement: logo estática em public/ */}
           <img
-            src="/orbita-hub.svg"
+            src="/tradegram-logo-dark.svg"
             alt=""
-            onLoad={() => setSealLoaded(true)}
-            className={`w-full ${sealLoaded ? "" : "opacity-0"}`}
+            onLoad={() => setBrandLoaded(true)}
+            className={`w-full ${brandLoaded ? "" : "opacity-0"}`}
           />
         </div>
 
@@ -202,7 +282,7 @@ export function StampEditor({
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
-              Tamanho do código
+              Tamanho da senha
             </span>
             <span className="text-xs font-medium tabular-nums">
               {Math.round(pos.scale * 100)}%
@@ -214,21 +294,33 @@ export function StampEditor({
             max={MAX_SCALE}
             step={0.01}
             onValueChange={([value]) =>
-              setPos((prev) => ({
-                ...prev,
-                scale: clamp(value, MIN_SCALE, MAX_SCALE),
-                // Reposiciona se o novo tamanho jogaria o código para fora
-                // pela direita.
-                x: clamp(prev.x, 0, 1 - value),
-              }))
+              setPos((prev) => {
+                const scale = clamp(value, MIN_SCALE, MAX_SCALE);
+                const box = containerRef.current?.getBoundingClientRect();
+                // Crescer também pode empurrar o selo para dentro do rodapé ou
+                // da logo, então o novo tamanho passa pelo mesmo limite do
+                // arraste.
+                if (!box) return { ...prev, scale };
+                return {
+                  scale,
+                  ...clampPosition(
+                    prev.x,
+                    prev.y,
+                    scale,
+                    box.width,
+                    box.height,
+                    lineCount,
+                  ),
+                };
+              })
             }
-            aria-label="Tamanho do código"
+            aria-label="Tamanho da senha do mês"
           />
         </div>
       ) : (
         <p className="text-center text-xs text-amber-600">
-          Esta indústria não tem imagem de código de ação cadastrada — a foto
-          será salva só com o texto.
+          Esta indústria não tem senha do mês cadastrada — a foto será salva só
+          com o texto.
         </p>
       )}
 

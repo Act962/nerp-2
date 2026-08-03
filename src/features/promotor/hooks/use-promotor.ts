@@ -6,10 +6,30 @@ import { toast } from "sonner";
 
 export type PromotorPhotoStatus = "ALL" | "APPROVED" | "REJECTED" | "PENDING";
 
-export function useMyPhotos(status: PromotorPhotoStatus) {
-  const query = useQuery(
-    orpc.promotor.myPhotos.queryOptions({ input: { status } }),
-  );
+export type PhotoScope = {
+  storeId?: string;
+  supplierId?: string | null;
+  from?: string;
+  to?: string;
+};
+
+export function useMyPhotos(
+  status: PromotorPhotoStatus,
+  scope?: PhotoScope,
+  enabled = true,
+) {
+  const query = useQuery({
+    ...orpc.promotor.myPhotos.queryOptions({
+      input: {
+        status,
+        storeId: scope?.storeId,
+        supplierId: scope?.supplierId,
+        from: scope?.from,
+        to: scope?.to,
+      },
+    }),
+    enabled,
+  });
   return {
     photos: query.data?.photos ?? [],
     counts: query.data?.counts ?? {
@@ -22,6 +42,42 @@ export function useMyPhotos(status: PromotorPhotoStatus) {
   };
 }
 
+// Os quatro números dos chips e o alerta de reprovadas do cabeçalho. Sempre
+// carregado: é o primeiro sinal que o promotor vê ao abrir o app.
+export function useMyPhotoCounts(scope?: PhotoScope) {
+  const query = useQuery(
+    orpc.promotor.photoCounts.queryOptions({
+      input: {
+        storeId: scope?.storeId,
+        supplierId: scope?.supplierId,
+        from: scope?.from,
+        to: scope?.to,
+      },
+    }),
+  );
+  return {
+    counts: query.data ?? { all: 0, approved: 0, rejected: 0, pending: 0 },
+    isLoading: query.isPending,
+  };
+}
+
+// Índice de "Minhas fotos": clientes (sem `storeId`) ou indústrias dentro de um
+// cliente. Só contagens — as fotos vêm depois, já recortadas.
+export function useMyPhotoGroups(
+  status: PromotorPhotoStatus,
+  storeId?: string,
+  enabled = true,
+  dates?: { from?: string; to?: string },
+) {
+  const query = useQuery({
+    ...orpc.promotor.photoGroups.queryOptions({
+      input: { status, storeId, from: dates?.from, to: dates?.to },
+    }),
+    enabled,
+  });
+  return { groups: query.data?.groups ?? [], isLoading: query.isPending };
+}
+
 // Indústrias vinculadas ao promotor (as que ele pode fotografar). Owner/admin
 // recebem todas.
 export function useMyIndustries(search?: string) {
@@ -32,6 +88,58 @@ export function useMyIndustries(search?: string) {
     suppliers: query.data?.suppliers ?? [],
     isLoading: query.isPending,
   };
+}
+
+// Identificação do promotor (foto + WhatsApp) e marca da org, para o cabeçalho
+// e para decidir se o app libera a captura.
+export function usePromotorProfile() {
+  const query = useQuery(orpc.promotor.profile.queryOptions({ input: {} }));
+  return { profile: query.data, isLoading: query.isPending };
+}
+
+export function useUpdatePromotorProfile() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotor.updateProfile.mutationOptions({
+      onSuccess: () => {
+        toast.success("Perfil atualizado");
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.profile.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// Lojas do wizard, com os favoritos do promotor no topo.
+export function useMyStores(search?: string) {
+  const query = useQuery(
+    orpc.promotor.myStores.queryOptions({ input: { search } }),
+  );
+  return {
+    stores: query.data?.stores ?? [],
+    isLoading: query.isPending,
+  };
+}
+
+// Favoritar loja/indústria. Sem toast: a estrela já é o feedback, e o promotor
+// costuma marcar várias seguidas — uma pilha de toasts atrapalharia.
+export function useTogglePromotorFavorite() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotor.toggleFavorite.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.myStores.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.myIndustries.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
 }
 
 // Gestão (admin): vínculos de um membro/promotor.
@@ -76,6 +184,12 @@ export function useCapturePromotorPhoto() {
           queryKey: orpc.promotor.myPhotos.key(),
         });
         queryClient.invalidateQueries({
+          queryKey: orpc.promotor.photoGroups.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.photoCounts.key(),
+        });
+        queryClient.invalidateQueries({
           queryKey: orpc.promotor.forApproval.key(),
         });
         queryClient.invalidateQueries({
@@ -95,10 +209,51 @@ export function reverseGeocode(latitude: number, longitude: number) {
 
 // ── Aprovação (coordenadora) ──────────────────────────────────────────────
 
-export function usePhotosForApproval(status: PromotorPhotoStatus) {
-  const query = useQuery(
-    orpc.promotor.forApproval.queryOptions({ input: { status } }),
+export function useApprovalGroups(
+  status: PromotorPhotoStatus,
+  storeId?: string,
+  enabled = true,
+  dates?: { from?: string; to?: string },
+) {
+  const query = useQuery({
+    ...orpc.promotor.approvalGroups.queryOptions({
+      input: { status, storeId, from: dates?.from, to: dates?.to },
+    }),
+    enabled,
+  });
+  return { groups: query.data?.groups ?? [], isLoading: query.isPending };
+}
+
+export function useApplySeal() {
+  const invalidate = useInvalidateApproval();
+  return useMutation(
+    orpc.promotor.applySeal.mutationOptions({
+      onSuccess: () => {
+        toast.success("Senha do mês aplicada");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
   );
+}
+
+export function usePhotosForApproval(
+  status: PromotorPhotoStatus,
+  scope?: PhotoScope,
+  enabled = true,
+) {
+  const query = useQuery({
+    ...orpc.promotor.forApproval.queryOptions({
+      input: {
+        status,
+        storeId: scope?.storeId,
+        supplierId: scope?.supplierId,
+        from: scope?.from,
+        to: scope?.to,
+      },
+    }),
+    enabled,
+  });
   return {
     photos: query.data?.photos ?? [],
     counts: query.data?.counts ?? { pending: 0, approved: 0, rejected: 0 },
@@ -114,7 +269,16 @@ function useInvalidateApproval() {
     queryClient.invalidateQueries({
       queryKey: orpc.promotor.forApproval.key(),
     });
+    queryClient.invalidateQueries({
+      queryKey: orpc.promotor.approvalGroups.key(),
+    });
     queryClient.invalidateQueries({ queryKey: orpc.promotor.myPhotos.key() });
+    queryClient.invalidateQueries({
+      queryKey: orpc.promotor.photoGroups.key(),
+    });
+    queryClient.invalidateQueries({
+      queryKey: orpc.promotor.photoCounts.key(),
+    });
     queryClient.invalidateQueries({ queryKey: orpc.book.dashboard.key() });
     queryClient.invalidateQueries({
       queryKey: orpc.promotor.approvedForImport.key(),
