@@ -31,6 +31,8 @@ import {
   INVITABLE_ROLES,
   INVITABLE_ROLE_VALUES,
   PAGE_PERMISSIONS,
+  TRADE_ROLES,
+  TRADE_ROLE_VALUES,
 } from "@/lib/permissions";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { X } from "lucide-react";
@@ -45,6 +47,9 @@ const inviteSchema = z.object({
     .min(1, "Adicione ao menos um e-mail")
     .max(20, "No máximo 20 convites por vez"),
   role: z.enum(INVITABLE_ROLE_VALUES),
+  // "nenhum" no lugar de null: o Select do Radix não aceita item de valor
+  // vazio, e um sentinela explícito evita um estado intermediário indefinido.
+  tradeRole: z.enum([...TRADE_ROLE_VALUES, "nenhum"]),
   permissions: z.array(z.string()),
 });
 
@@ -65,7 +70,12 @@ export function InviteMemberDialog({
 
   const form = useForm<InviteForm>({
     resolver: zodResolver(inviteSchema),
-    defaultValues: { emails: [], role: "member", permissions: [] },
+    defaultValues: {
+      emails: [],
+      role: "member",
+      tradeRole: "nenhum",
+      permissions: [],
+    },
   });
 
   const role = form.watch("role");
@@ -130,7 +140,11 @@ export function InviteMemberDialog({
   };
 
   const onSubmit = (data: InviteForm) => {
-    createInvitation.mutate(data, {
+    const payload = {
+      ...data,
+      tradeRole: data.tradeRole === "nenhum" ? null : data.tradeRole,
+    };
+    createInvitation.mutate(payload, {
       onSuccess: ({ failed }) => {
         // Só fecha se tudo passou; senão o admin vê o que falhou.
         if (!failed.length) setOpen(false);
@@ -252,6 +266,38 @@ export function InviteMemberDialog({
                         INVITABLE_ROLES.find((r) => r.value === field.value)
                           ?.description
                       }
+                    </p>
+                  </Field>
+                )}
+              />
+
+              <Controller
+                name="tradeRole"
+                control={form.control}
+                render={({ field }) => (
+                  <Field>
+                    <FieldLabel htmlFor={field.name}>Cargo no Trade</FieldLabel>
+                    <Select
+                      name={field.name}
+                      value={field.value}
+                      onValueChange={field.onChange}
+                    >
+                      <SelectTrigger id={field.name} disabled={isLoading}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="nenhum">Nenhum</SelectItem>
+                        {TRADE_ROLES.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {TRADE_ROLES.find((r) => r.value === field.value)
+                        ?.description ??
+                        "Função de campo. Não altera o acesso — quem define isso é o Cargo acima."}
                     </p>
                   </Field>
                 )}

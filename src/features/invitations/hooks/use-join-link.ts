@@ -4,18 +4,50 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 
-/** Link aberto de entrada da organização (admin). */
-export function useJoinLink() {
-  return useQuery(orpc.invitation.joinLink.get.queryOptions({ input: {} }));
+/** Links abertos de entrada da organização (admin). */
+export function useJoinLinks() {
+  return useQuery(orpc.invitation.joinLink.list.queryOptions({ input: {} }));
 }
 
-export function useRotateJoinLink() {
+function useInvalidateJoinLinks() {
   const qc = useQueryClient();
+  return () =>
+    qc.invalidateQueries({ queryKey: orpc.invitation.joinLink.list.key() });
+}
+
+export function useSaveJoinLink() {
+  const invalidate = useInvalidateJoinLinks();
   return useMutation(
-    orpc.invitation.joinLink.rotate.mutationOptions({
-      onSuccess: (data) => {
-        toast.success(data.link ? "Link gerado!" : "Link desativado.");
-        qc.invalidateQueries({ queryKey: orpc.invitation.joinLink.get.key() });
+    orpc.invitation.joinLink.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Link salvo!");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useRegenerateJoinLink() {
+  const invalidate = useInvalidateJoinLinks();
+  return useMutation(
+    orpc.invitation.joinLink.regenerate.mutationOptions({
+      onSuccess: () => {
+        toast.success("Novo link gerado. O anterior deixou de valer.");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteJoinLink() {
+  const invalidate = useInvalidateJoinLinks();
+  return useMutation(
+    orpc.invitation.joinLink.delete.mutationOptions({
+      onSuccess: () => {
+        toast.success("Link excluído.");
+        invalidate();
       },
       onError: (error) => toast.error(error.message),
     }),

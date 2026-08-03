@@ -105,3 +105,43 @@ export function useUpdateMemberSupervisor() {
     }),
   );
 }
+
+export function useUpdateMemberTradeRole() {
+  const invalidate = useInvalidateMembers();
+  return useMutation(
+    orpc.members.updateTradeRole.mutationOptions({
+      onSuccess: () => {
+        toast.success("Cargo no Trade atualizado!");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// Silencioso como o de módulos: o admin costuma alternar vários seguidos.
+export function useUpdateMemberPromotorVisibility() {
+  const invalidate = useInvalidateMembers();
+  return useMutation(
+    orpc.members.updatePromotorVisibility.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => {
+        toast.error(error.message);
+        invalidate();
+      },
+    }),
+  );
+}
+
+export function useSetMemberSupplierLinks() {
+  const invalidate = useInvalidateMembers();
+  return useMutation(
+    orpc.members.setSupplierLinks.mutationOptions({
+      onSuccess: () => {
+        toast.success("Indústrias salvas!");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

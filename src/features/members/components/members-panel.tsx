@@ -17,9 +17,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import { roleLabel } from "@/lib/permissions";
 import {
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/components/ui/dropdown-menu";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { TRADE_ROLES, roleLabel, tradeRoleLabel } from "@/lib/permissions";
+import {
+  Factory,
   MoreVertical,
   ShieldCheck,
   Trash2,
@@ -27,7 +34,13 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { useMembers, useUpdateMemberRole } from "../hooks/use-members";
+import {
+  useMembers,
+  useUpdateMemberPromotorVisibility,
+  useUpdateMemberRole,
+  useUpdateMemberTradeRole,
+} from "../hooks/use-members";
+import { MemberIndustriesDialog } from "./member-industries-dialog";
 import { RemoveMemberDialog } from "./remove-member-dialog";
 
 interface MembersPanelProps {
@@ -41,9 +54,16 @@ export function MembersPanel({
 }: MembersPanelProps) {
   const { members, isLoading } = useMembers();
   const updateRole = useUpdateMemberRole();
+  const updateTradeRole = useUpdateMemberTradeRole();
+  const updateVisibility = useUpdateMemberPromotorVisibility();
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(
     null,
   );
+  const [industriesFor, setIndustriesFor] = useState<{
+    id: string;
+    name: string;
+    supplierIds: string[];
+  } | null>(null);
 
   return (
     <Card>
@@ -99,10 +119,39 @@ export function MembersPanel({
                     </p>
                   </div>
 
-                  <Badge variant={isOwner ? "default" : "outline"}>
-                    {isOwner && <ShieldCheck />}
-                    {roleLabel(member.role)}
-                  </Badge>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1">
+                      <Badge variant={isOwner ? "default" : "outline"}>
+                        {isOwner && <ShieldCheck />}
+                        {roleLabel(member.role)}
+                      </Badge>
+                      {member.tradeRole && (
+                        <Badge variant="secondary">
+                          {tradeRoleLabel(member.tradeRole)}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {canManage && (
+                      <label
+                        htmlFor={`promotor-photo-${member.id}`}
+                        className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <Switch
+                          id={`promotor-photo-${member.id}`}
+                          checked={member.showInPromotorPhoto}
+                          disabled={updateVisibility.isPending}
+                          onCheckedChange={(visible) =>
+                            updateVisibility.mutate({
+                              memberId: member.id,
+                              visible,
+                            })
+                          }
+                        />
+                        Exibir no App Promotor
+                      </label>
+                    )}
+                  </div>
 
                   {canActOnMember && (
                     <DropdownMenu>
@@ -132,6 +181,47 @@ export function MembersPanel({
                             : "Tornar Administrador"}
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                          Cargo no Trade
+                        </DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={member.tradeRole ?? "nenhum"}
+                          onValueChange={(value) =>
+                            updateTradeRole.mutate({
+                              memberId: member.id,
+                              tradeRole:
+                                value === "nenhum"
+                                  ? null
+                                  : (value as (typeof TRADE_ROLES)[number]["value"]),
+                            })
+                          }
+                        >
+                          <DropdownMenuRadioItem value="nenhum">
+                            Nenhum
+                          </DropdownMenuRadioItem>
+                          {TRADE_ROLES.map((option) => (
+                            <DropdownMenuRadioItem
+                              key={option.value}
+                              value={option.value}
+                            >
+                              {option.label}
+                            </DropdownMenuRadioItem>
+                          ))}
+                        </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={() =>
+                            setIndustriesFor({
+                              id: member.id,
+                              name: member.name,
+                              supplierIds: member.supplierIds,
+                            })
+                          }
+                        >
+                          <Factory />
+                          Indústrias ({member.supplierIds.length})
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           variant="destructive"
                           onClick={() =>
@@ -150,6 +240,16 @@ export function MembersPanel({
           </div>
         )}
       </CardContent>
+
+      {industriesFor && (
+        <MemberIndustriesDialog
+          memberId={industriesFor.id}
+          memberName={industriesFor.name}
+          currentSupplierIds={industriesFor.supplierIds}
+          open={!!industriesFor}
+          onOpenChange={(open) => !open && setIndustriesFor(null)}
+        />
+      )}
 
       {removing && (
         <RemoveMemberDialog

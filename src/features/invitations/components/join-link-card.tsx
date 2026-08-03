@@ -3,6 +3,7 @@
 import { QRCodeSVG } from "qrcode.react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -12,34 +13,62 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PAGE_PERMISSIONS } from "@/lib/permissions";
-import { Copy, Link2, QrCode, RotateCw, Trash2 } from "lucide-react";
-import { useJoinLink, useRotateJoinLink } from "../hooks/use-join-link";
+import {
+  Copy,
+  Link2,
+  MoreVertical,
+  Pencil,
+  Plus,
+  QrCode,
+  RotateCw,
+  Trash2,
+} from "lucide-react";
+import {
+  useDeleteJoinLink,
+  useJoinLinks,
+  useRegenerateJoinLink,
+} from "../hooks/use-join-link";
+import { type JoinLinkDraft, JoinLinkDialog } from "./join-link-dialog";
+
+// `Map<string, string>` explícito: as chaves salvas no link são strings livres
+// vindas do banco, e a inferência a partir do `as const` fecharia a Map na união
+// literal — o `.get()` não aceitaria a chave.
+const PERMISSION_LABELS = new Map<string, string>(
+  PAGE_PERMISSIONS.map((permission) => [permission.key, permission.label]),
+);
 
 /**
- * Link aberto de entrada na empresa, com QR Code.
+ * Links abertos de entrada na empresa, com QR Code.
  *
- * Diferente do convite por e-mail (nominal, uso único), este é reutilizável:
+ * Diferente do convite por e-mail (nominal, uso único), estes são reutilizáveis:
  * qualquer pessoa com a URL ou que leia o QR entra. Por isso o papel é sempre
- * "Membro" — link que circula em grupo não pode conceder administrador — e
- * quem gera escolhe as páginas liberadas.
+ * "Membro" — link que circula em grupo não pode conceder administrador.
+ *
+ * São vários porque cada perfil de entrada libera páginas diferentes; o nome é
+ * o que separa "Promotores" de "Coordenação" numa lista de URLs idênticas à
+ * primeira vista.
  */
 export function JoinLinkCard({ canManage }: { canManage: boolean }) {
-  const { data, isLoading } = useJoinLink();
-  const rotate = useRotateJoinLink();
-  const [permissions, setPermissions] = useState<string[]>([]);
-  const [showQr, setShowQr] = useState(true);
+  const { data, isLoading } = useJoinLinks();
+  const regenerate = useRegenerateJoinLink();
+  const remove = useDeleteJoinLink();
+  const [editing, setEditing] = useState<JoinLinkDraft | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [qrFor, setQrFor] = useState<string | null>(null);
 
   if (!canManage) return null;
 
-  const link = data?.link ?? null;
-  // Ao (re)gerar, mantém o que já estava salvo se o admin não mexeu nas caixas.
-  const effectivePermissions =
-    permissions.length > 0 ? permissions : (link?.permissions ?? []);
+  const links = data?.links ?? [];
 
   const copy = async (value: string) => {
     try {
@@ -53,168 +82,185 @@ export function JoinLinkCard({ canManage }: { canManage: boolean }) {
     }
   };
 
-  const toggle = (key: string) => {
-    const base =
-      permissions.length > 0 ? permissions : (link?.permissions ?? []);
-    setPermissions(
-      base.includes(key) ? base.filter((k) => k !== key) : [...base, key],
-    );
+  const openDialog = (draft: JoinLinkDraft | null) => {
+    setEditing(draft);
+    setDialogOpen(true);
   };
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Link2 className="size-4" /> Link de convite
+          <Link2 className="size-4" /> Links de convite
         </CardTitle>
         <CardDescription>
-          Quem abrir este link (ou ler o QR Code) se cadastra e entra na empresa
-          como <strong>Membro</strong>. Marque abaixo as páginas que essa pessoa
-          poderá acessar.
+          Cada link entrega um conjunto próprio de páginas. Quem abrir (ou ler o
+          QR Code) se cadastra e entra como <strong>Membro</strong>.
         </CardDescription>
-        {link && (
-          <CardAction>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="gap-1.5"
-              onClick={() => setShowQr((value) => !value)}
-            >
-              <QrCode className="size-4" />
-              {showQr ? "Ocultar QR" : "Mostrar QR"}
-            </Button>
-          </CardAction>
-        )}
+        <CardAction>
+          <Button
+            type="button"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => openDialog(null)}
+          >
+            <Plus className="size-4" /> Gerar link
+          </Button>
+        </CardAction>
       </CardHeader>
 
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {isLoading ? (
           <Skeleton className="h-24 w-full" />
-        ) : link ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-            {showQr && (
-              // Fundo branco fixo: leitor de QR precisa de contraste, e no
-              // tema escuro o código sumiria.
-              <div className="mx-auto shrink-0 rounded-xl border bg-white p-4 sm:mx-0">
-                <QRCodeSVG value={link.url} size={168} level="M" />
-              </div>
-            )}
+        ) : links.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted-foreground">
+            Nenhum link ativo. Gere um para permitir que novas pessoas entrem
+            sem convite nominal.
+          </p>
+        ) : (
+          links.map((link) => (
+            <div key={link.id} className="space-y-3 rounded-lg border p-3">
+              <div className="flex items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-medium leading-tight">
+                    {link.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {link.permissions.length === 0
+                      ? "Nenhuma página liberada"
+                      : `${link.permissions.length} página(s) liberada(s)`}
+                  </p>
+                </div>
 
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex gap-2">
-                <Input
-                  readOnly
-                  value={link.url}
-                  className="font-mono text-xs"
-                  onFocus={(event) => event.currentTarget.select()}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  title="Copiar link"
-                  onClick={() => copy(link.url)}
-                >
-                  <Copy className="size-4" />
-                </Button>
-              </div>
-
-              {link.isExpired && (
-                <p className="text-xs text-destructive">
-                  Este link expirou — gere um novo.
-                </p>
-              )}
-
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={rotate.isPending}
-                  onClick={() =>
-                    rotate.mutate({
-                      enable: true,
-                      permissions: effectivePermissions,
-                    })
-                  }
-                >
-                  <RotateCw className="size-4" /> Gerar novo
-                </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="gap-1.5 text-destructive hover:text-destructive"
-                  disabled={rotate.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Desativar o link? Quem já tiver a URL não conseguirá mais entrar.",
-                      )
-                    ) {
-                      rotate.mutate({ enable: false, permissions: [] });
-                    }
-                  }}
+                  className="gap-1.5"
+                  onClick={() =>
+                    setQrFor((current) =>
+                      current === link.id ? null : link.id,
+                    )
+                  }
                 >
-                  <Trash2 className="size-4" /> Desativar
+                  <QrCode className="size-4" />
+                  {qrFor === link.id ? "Ocultar QR" : "QR"}
                 </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Gerar um novo link invalida o anterior.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-start gap-3">
-            <p className="text-sm text-muted-foreground">
-              Nenhum link ativo. Gere um para permitir que novas pessoas entrem
-              sem convite nominal.
-            </p>
-            <Button
-              type="button"
-              className="gap-1.5"
-              disabled={rotate.isPending}
-              onClick={() =>
-                rotate.mutate({
-                  enable: true,
-                  permissions: effectivePermissions,
-                })
-              }
-            >
-              <Link2 className="size-4" /> Gerar link
-            </Button>
-          </div>
-        )}
 
-        <div className="space-y-2 border-t pt-4">
-          <Label className="text-xs text-muted-foreground">
-            Páginas liberadas para quem entrar por este link
-          </Label>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {PAGE_PERMISSIONS.map((permission) => (
-              <label
-                key={permission.key}
-                htmlFor={`join-perm-${permission.key}`}
-                className="flex cursor-pointer items-center gap-2 text-sm"
-              >
-                <Checkbox
-                  id={`join-perm-${permission.key}`}
-                  checked={effectivePermissions.includes(permission.key)}
-                  onCheckedChange={() => toggle(permission.key)}
-                />
-                <span className="truncate">{permission.label}</span>
-              </label>
-            ))}
-          </div>
-          {link && (
-            <p className="text-xs text-muted-foreground">
-              Alterar as marcações só vale depois de clicar em “Gerar novo”.
-            </p>
-          )}
-        </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={`Ações de ${link.name}`}
+                    >
+                      <MoreVertical />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() =>
+                        openDialog({
+                          id: link.id,
+                          name: link.name,
+                          permissions: link.permissions,
+                        })
+                      }
+                    >
+                      <Pencil /> Editar nome e páginas
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={regenerate.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Gerar um novo endereço? Quem já tiver a URL atual não conseguirá mais entrar.",
+                          )
+                        ) {
+                          regenerate.mutate({ id: link.id });
+                        }
+                      }}
+                    >
+                      <RotateCw /> Gerar novo endereço
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      variant="destructive"
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `Excluir o link "${link.name}"? Quem tiver a URL não conseguirá mais entrar.`,
+                          )
+                        ) {
+                          remove.mutate({ id: link.id });
+                        }
+                      }}
+                    >
+                      <Trash2 /> Excluir link
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+                {qrFor === link.id && (
+                  // Fundo branco fixo: leitor de QR precisa de contraste, e no
+                  // tema escuro o código sumiria.
+                  <div className="mx-auto shrink-0 rounded-xl border bg-white p-4 sm:mx-0">
+                    <QRCodeSVG value={link.url} size={148} level="M" />
+                  </div>
+                )}
+
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      readOnly
+                      value={link.url}
+                      className="font-mono text-xs"
+                      onFocus={(event) => event.currentTarget.select()}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      title="Copiar link"
+                      onClick={() => copy(link.url)}
+                    >
+                      <Copy className="size-4" />
+                    </Button>
+                  </div>
+
+                  {link.isExpired && (
+                    <p className="text-xs text-destructive">
+                      Este link expirou — gere um novo endereço.
+                    </p>
+                  )}
+
+                  {link.permissions.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {link.permissions.map((key) => (
+                        <Badge key={key} variant="secondary">
+                          {PERMISSION_LABELS.get(key) ?? key}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </CardContent>
+
+      <JoinLinkDialog
+        draft={editing}
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(null);
+        }}
+      />
     </Card>
   );
 }
