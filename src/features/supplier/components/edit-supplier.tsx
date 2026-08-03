@@ -36,6 +36,7 @@ import { useEffect } from "react";
 import { getAddressByCep } from "@/utils/get-address-by-cep";
 import { Textarea } from "@/components/ui/textarea";
 import { LogoUploader } from "@/components/logo-uploader/uploader";
+import { SenhaImageField } from "./senha-image-field";
 
 interface EditSupplierProps {
   id: string;
@@ -61,7 +62,7 @@ const editSupplierSchema = z.object({
 });
 
 export const EditSupplier = ({ id, open, onOpenChange }: EditSupplierProps) => {
-  const { supplier, isLoading } = useQuerySupplier(id);
+  const { supplier } = useQuerySupplier(id);
   const form = useForm<z.infer<typeof editSupplierSchema>>({
     resolver: zodResolver(editSupplierSchema),
     defaultValues: {
@@ -179,8 +180,8 @@ export const EditSupplier = ({ id, open, onOpenChange }: EditSupplierProps) => {
                 control={form.control}
                 render={({ field }) => (
                   <Field>
-                    <FieldLabel>Imagem do código de ação</FieldLabel>
-                    <LogoUploader
+                    <FieldLabel>Imagem da senha do mês</FieldLabel>
+                    <SenhaImageField
                       value={field.value}
                       onChange={field.onChange}
                     />

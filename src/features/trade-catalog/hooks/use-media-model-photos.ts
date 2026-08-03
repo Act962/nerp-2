@@ -1,16 +1,12 @@
 "use client";
 
-import { authClient } from "@/lib/auth-client";
 import { orpc } from "@/lib/orpc";
-import { isSuperAdmin } from "@/lib/super-admin";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Só UX: esconde/mostra os controles. O gate real é no servidor.
-export function useIsSuperAdmin() {
-  const { data: session } = authClient.useSession();
-  return isSuperAdmin(session?.user.email);
-}
+// Mora em `src/hooks` desde que o mapa de campo também passou a precisar dele;
+// reexportado aqui para os call sites deste módulo não mudarem.
+export { useIsSuperAdmin } from "@/hooks/use-is-super-admin";
 
 export function useMediaModelPhotos() {
   const { data, isPending } = useQuery(
@@ -22,7 +18,9 @@ export function useMediaModelPhotos() {
 function useInvalidateModelPhotos() {
   const queryClient = useQueryClient();
   return () =>
-    queryClient.invalidateQueries({ queryKey: orpc.mediaModelPhoto.list.key() });
+    queryClient.invalidateQueries({
+      queryKey: orpc.mediaModelPhoto.list.key(),
+    });
 }
 
 export function useCreateMediaModelPhoto() {

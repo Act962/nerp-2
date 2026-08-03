@@ -1,5 +1,8 @@
 "use client";
 
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useIsSuperAdmin } from "@/hooks/use-is-super-admin";
 import { useCallback, useMemo, useState } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import * as XLSX from "xlsx";
@@ -87,6 +90,10 @@ export function ImportWizard() {
   const [file, setFile] = useState<File | null>(null);
   const [parsed, setParsed] = useState<ParsedFile | null>(null);
   const [mapping, setMapping] = useState<ImportMapping>({});
+  const [target, setTarget] = useState<"ORGANIZACAO" | "CATALOGO">(
+    "ORGANIZACAO",
+  );
+  const isSuperAdmin = useIsSuperAdmin();
   const [importId, setImportId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -183,6 +190,7 @@ export function ImportWizard() {
         fileKey: key,
         fileName: file.name,
         mapping,
+        target,
       });
 
       setImportId(result.importId);
@@ -258,6 +266,50 @@ export function ImportWizard() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Só a administração do TradeGram alimenta o catálogo nacional —
+              o servidor recusa de qualquer forma; aqui é só não oferecer. */}
+            {isSuperAdmin && (
+              <div className="rounded-lg border p-3">
+                <p className="text-sm font-medium">Destino</p>
+                <RadioGroup
+                  value={target}
+                  onValueChange={(value) =>
+                    setTarget(value as "ORGANIZACAO" | "CATALOGO")
+                  }
+                  className="mt-2 gap-2"
+                >
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="ORGANIZACAO"
+                      id="destino-org"
+                      className="mt-1"
+                    />
+                    <Label htmlFor="destino-org" className="font-normal">
+                      Clientes desta organização
+                      <span className="block text-xs text-muted-foreground">
+                        Vira loja na carteira, como sempre.
+                      </span>
+                    </Label>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <RadioGroupItem
+                      value="CATALOGO"
+                      id="destino-catalogo"
+                      className="mt-1"
+                    />
+                    <Label htmlFor="destino-catalogo" className="font-normal">
+                      Catálogo nacional de PDVs
+                      <span className="block text-xs text-muted-foreground">
+                        Vira ponto do mapa do Brasil, sem dono. Sem coordenada
+                        no arquivo, o pino é fixado pela primeira foto de um
+                        promotor na porta da loja.
+                      </span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {STORE_IMPORT_FIELDS.map((field) => (
                 <div key={field.key} className="space-y-1.5">
@@ -398,7 +450,7 @@ export function ImportWizard() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-24">Linha</TableHead>
-                  <TableHead>Erro</TableHead>
+                  <TableHead>Ocorrência</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

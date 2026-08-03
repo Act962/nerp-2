@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -8,11 +9,40 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { Check, Clock, MapPin, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Check,
+  ChevronRight,
+  Clock,
+  Download,
+  Factory,
+  MapPin,
+  Share2,
+  Store as StoreIcon,
+  X,
+} from "lucide-react";
 import { useState } from "react";
-import { type PromotorPhotoStatus, useMyPhotos } from "../hooks/use-promotor";
+import { toast } from "sonner";
+import {
+  type PhotoRef,
+  downloadPhotos,
+  sharePhotosToWhatsapp,
+} from "../lib/photo-actions";
+import {
+  type DateRange,
+  DateRangeFilter,
+  rangeToInstants,
+} from "./date-range-filter";
+import {
+  type PromotorPhotoStatus,
+  useMyPhotoCounts,
+  useMyPhotoGroups,
+  useMyPhotos,
+} from "../hooks/use-promotor";
 
 const FILTERS: { value: PromotorPhotoStatus; label: string }[] = [
   { value: "ALL", label: "Todas" },
@@ -47,13 +77,128 @@ function StatusBadge({
   );
 }
 
-export function MyPhotosList() {
-  const [filter, setFilter] = useState<PromotorPhotoStatus>("ALL");
-  const { photos, counts, isLoading } = useMyPhotos(filter);
-  // Guarda o ID, não a foto: assim o conteúdo aberto acompanha um refetch
-  // (ex.: a foto ser aprovada enquanto está na tela) em vez de congelar.
+function formatDate(iso: string | null) {
+  if (!iso) return "";
+  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
+    new Date(iso),
+  );
+}
+
+/**
+ * "Minhas fotos" em três níveis: clientes → indústrias → fotos.
+ *
+ * A versão anterior renderizava tudo de uma vez. Com 100 clientes e meses de
+ * histórico isso é um scroll interminável e centenas de miniaturas baixadas
+ * para achar uma foto. Aqui os dois primeiros níveis só trazem nome, contagem
+ * e data (agregados no banco), e as imagens só descem no terceiro.
+ */
+export interface RetakeTarget {
+  store: { id: string; name: string };
+  supplier: { id: string; name: string; actionCodeImage: string | null };
+}
+
+export function MyPhotosList({
+  initialStatus = "ALL",
+  onRetake,
+}: {
+  initialStatus?: PromotorPhotoStatus;
+  /** "Refazer foto": devolve loja + indústria da reprovada para a captura. */
+  onRetake?: (target: RetakeTarget) => void;
+}) {
+  const [filter, setFilter] = useState<PromotorPhotoStatus>(initialStatus);
+  const [store, setStore] = useState<{ id: string; name: string } | null>(null);
+  const [supplier, setSupplier] = useState<{
+    id: string | null;
+    name: string;
+  } | null>(null);
+  const [search, setSearch] = useState("");
   const [openedId, setOpenedId] = useState<string | null>(null);
+  const [range, setRange] = useState<DateRange>({});
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+
+  const exitSelection = () => {
+    setSelecting(false);
+    setSelected(new Set());
+  };
+
+  // Na raiz, um filtro de status abre a lista CORRIDA daquele status, misturando
+  // clientes e indústrias: quem clica em "Reprovadas" quer as reprovadas para
+  // refazer, não navegar cliente por cliente atrás delas. A hierarquia fica
+  // para "Todas", que é modo de consulta, e continua valendo dentro de um
+  // cliente já aberto.
+  const isFlat = store === null && filter !== "ALL";
+  const atPhotos = isFlat || (store !== null && supplier !== null);
+
+  const dates = rangeToInstants(range);
+  const { groups, isLoading: loadingGroups } = useMyPhotoGroups(
+    filter,
+    store?.id,
+    !atPhotos,
+    dates,
+  );
+  const { photos, isLoading: loadingPhotos } = useMyPhotos(
+    filter,
+    isFlat ? dates : { storeId: store?.id, supplierId: supplier?.id, ...dates },
+    atPhotos,
+  );
+  const { counts } = useMyPhotoCounts({
+    ...(store ? { storeId: store.id, supplierId: supplier?.id } : {}),
+    ...dates,
+  });
+
   const opened = photos.find((photo) => photo.id === openedId) ?? null;
+
+  const approved = photos.filter(
+    (photo) => photo.status === "APPROVED" && photo.photoKey,
+  );
+  const toRefs = (list: typeof photos): PhotoRef[] =>
+    list
+      .filter((photo) => photo.photoKey)
+      .map((photo) => ({
+        photoKey: photo.photoKey as string,
+        storeName: photo.storeName,
+        supplierName: photo.supplierName,
+        capturedAt: photo.capturedAt,
+      }));
+  const selectedPhotos = approved.filter((photo) => selected.has(photo.id));
+
+  const toggleSelected = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const download = async (list: typeof photos) => {
+    setBusy(true);
+    const failed = await downloadPhotos(toRefs(list));
+    setBusy(false);
+    if (failed > 0) {
+      toast.error(`${failed} foto(s) não puderam ser baixadas`);
+    } else if (list.length > 1) {
+      toast.success(`${list.length} fotos baixadas`);
+    }
+  };
+
+  const share = async (list: typeof photos) => {
+    setBusy(true);
+    const outcome = await sharePhotosToWhatsapp(toRefs(list), constructUrl);
+    setBusy(false);
+    if (outcome === "unsupported") {
+      toast.error("Este navegador não envia várias fotos de uma vez", {
+        description: "Baixe as fotos e anexe no WhatsApp, ou envie uma a uma.",
+      });
+    }
+  };
+
+  const visibleGroups = search.trim()
+    ? groups.filter((group) =>
+        group.name.toLowerCase().includes(search.trim().toLowerCase()),
+      )
+    : groups;
 
   const countFor = (value: PromotorPhotoStatus) =>
     value === "ALL"
@@ -64,18 +209,56 @@ export function MyPhotosList() {
           ? counts.rejected
           : counts.pending;
 
+  const goBack = () => {
+    exitSelection();
+    if (supplier) {
+      setSupplier(null);
+      return;
+    }
+    setStore(null);
+    setSearch("");
+  };
+
   return (
     <div className="space-y-4">
+      {/* Trilha: some no topo, onde não há de onde voltar. */}
+      {store && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={goBack}
+            aria-label="Voltar"
+            className="flex size-9 shrink-0 items-center justify-center rounded-md hover:bg-accent"
+          >
+            <ArrowLeft className="size-4" />
+          </button>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold leading-tight">
+              {store.name}
+            </p>
+            {supplier && (
+              <p className="truncate text-xs text-muted-foreground">
+                {supplier.name}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1.5">
         {FILTERS.map((option) => {
           const active = filter === option.value;
-          const showRejected =
-            option.value === "REJECTED" && counts.rejected > 0;
+          const count = countFor(option.value);
+          const alertRejected = option.value === "REJECTED" && count > 0;
           return (
             <button
               key={option.value}
               type="button"
-              onClick={() => setFilter(option.value)}
+              onClick={() => {
+                setFilter(option.value);
+                setSearch("");
+                exitSelection();
+              }}
               className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm transition-colors ${
                 active
                   ? "border-primary bg-primary text-primary-foreground"
@@ -85,80 +268,271 @@ export function MyPhotosList() {
               {option.label}
               <span
                 className={`rounded-full px-1.5 text-xs font-semibold ${
-                  showRejected && !active
+                  alertRejected && !active
                     ? "bg-red-600 text-white"
                     : active
                       ? "bg-primary-foreground/20"
                       : "bg-muted text-muted-foreground"
                 }`}
               >
-                {countFor(option.value)}
+                {count}
               </span>
             </button>
           );
         })}
       </div>
 
-      {isLoading ? (
+      <DateRangeFilter value={range} onChange={setRange} />
+
+      {!atPhotos && groups.length > 8 && (
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder={store ? "Buscar indústria…" : "Buscar cliente…"}
+          className="h-11"
+        />
+      )}
+
+      {(!atPhotos && loadingGroups) || (atPhotos && loadingPhotos) ? (
         <div className="flex justify-center py-12">
           <Spinner />
         </div>
+      ) : !atPhotos ? (
+        visibleGroups.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            Nenhuma foto nesta lista.
+          </p>
+        ) : (
+          <ul className="rounded-md border">
+            {visibleGroups.map((group) => (
+              <li key={group.id ?? "sem"} className="border-b last:border-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (store) {
+                      setSupplier({ id: group.id, name: group.name });
+                    } else if (group.id) {
+                      setStore({ id: group.id, name: group.name });
+                      setSearch("");
+                    }
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-3 text-left hover:bg-accent"
+                >
+                  {store ? (
+                    <Factory className="size-5 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <StoreIcon className="size-5 shrink-0 text-muted-foreground" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{group.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {group.total} foto{group.total === 1 ? "" : "s"}
+                      {group.lastCapturedAt &&
+                        ` · última em ${formatDate(group.lastCapturedAt)}`}
+                    </p>
+                  </div>
+                  {group.rejected > 0 && (
+                    <Badge variant="destructive" className="shrink-0">
+                      {group.rejected}
+                    </Badge>
+                  )}
+                  {group.pending > 0 && (
+                    <Badge variant="secondary" className="shrink-0">
+                      {group.pending}
+                    </Badge>
+                  )}
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
       ) : photos.length === 0 ? (
         <p className="py-12 text-center text-sm text-muted-foreground">
           Nenhuma foto nesta lista.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          {photos.map((photo) => (
-            <div
-              key={photo.id}
-              className="overflow-hidden rounded-lg border bg-card"
-            >
-              <div className="aspect-square bg-neutral-900">
-                {photo.photoKey && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenedId(photo.id)}
-                    className="size-full cursor-zoom-in"
-                    title="Ampliar foto"
-                  >
-                    {/* `object-contain` pelo mesmo motivo da fila de aprovação:
+        <div className="space-y-3">
+          {approved.length > 1 && (
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() =>
+                  selecting ? exitSelection() : setSelecting(true)
+                }
+                className="text-sm font-medium text-primary hover:underline"
+              >
+                {selecting ? "Cancelar seleção" : "Selecionar fotos"}
+              </button>
+              {selecting && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setSelected(
+                      selected.size === approved.length
+                        ? new Set()
+                        : new Set(approved.map((photo) => photo.id)),
+                    )
+                  }
+                  className="text-sm text-muted-foreground hover:underline"
+                >
+                  {selected.size === approved.length
+                    ? "Limpar"
+                    : "Selecionar todas"}
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {photos.map((photo) => (
+              <div
+                key={photo.id}
+                className="overflow-hidden rounded-lg border bg-card"
+              >
+                <div className="relative aspect-square bg-neutral-900">
+                  {selecting && photo.status === "APPROVED" && (
+                    <span
+                      className={`absolute right-1.5 top-1.5 z-10 flex size-6 items-center justify-center rounded-full border-2 ${
+                        selected.has(photo.id)
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-white/80 bg-black/40"
+                      }`}
+                    >
+                      {selected.has(photo.id) && <Check className="size-3.5" />}
+                    </span>
+                  )}
+                  {photo.photoKey && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        selecting && photo.status === "APPROVED"
+                          ? toggleSelected(photo.id)
+                          : setOpenedId(photo.id)
+                      }
+                      className="size-full cursor-zoom-in"
+                      title={selecting ? "Selecionar" : "Ampliar foto"}
+                    >
+                      {/* `object-contain` pelo mesmo motivo da fila de aprovação:
                       com `cover`, foto em retrato perdia as pontas e o carimbo
                       do código (a 6% do topo) ficava fora do quadro. */}
-                    {/* biome-ignore lint/performance/noImgElement: thumbnail de key do R2 */}
-                    <img
-                      src={constructUrl(photo.photoKey)}
-                      alt={`Foto em ${photo.storeName}`}
-                      loading="lazy"
-                      className="size-full object-contain"
-                    />
-                  </button>
-                )}
-              </div>
-              <div className="space-y-1 p-2">
-                <StatusBadge status={photo.status} />
-                <p className="truncate text-xs font-medium">
-                  {photo.storeName}
-                </p>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {photo.supplierName ?? "—"}
-                </p>
-                {(photo.capturedCity || photo.capturedState) && (
-                  <p className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-                    <MapPin className="size-3" />
-                    {[photo.capturedCity, photo.capturedState]
-                      .filter(Boolean)
-                      .join("/")}
+                      {/* biome-ignore lint/performance/noImgElement: thumbnail de key do R2 */}
+                      <img
+                        src={constructUrl(photo.photoKey)}
+                        alt={`Foto em ${photo.storeName}`}
+                        loading="lazy"
+                        className="size-full object-contain"
+                      />
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1 p-2">
+                  <StatusBadge status={photo.status} />
+                  {/* Na lista corrida o card é a única pista de onde a foto foi
+                  tirada — dentro de um cliente isso já está no cabeçalho. */}
+                  {isFlat && (
+                    <>
+                      <p className="truncate text-xs font-medium">
+                        {photo.storeName}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {photo.supplierName ?? "Sem indústria"}
+                      </p>
+                    </>
+                  )}
+                  <p className="text-[11px] text-muted-foreground">
+                    {formatDate(photo.capturedAt)}
                   </p>
-                )}
-                {photo.status === "REJECTED" && photo.rejectionNote && (
-                  <p className="rounded bg-red-50 px-1.5 py-1 text-[11px] text-red-700">
-                    Motivo: {photo.rejectionNote}
-                  </p>
-                )}
+                  {photo.status === "REJECTED" && photo.rejectionNote && (
+                    <p className="rounded bg-red-50 px-1.5 py-1 text-[11px] text-red-700">
+                      Motivo: {photo.rejectionNote}
+                    </p>
+                  )}
+
+                  {/* Refazer: volta à captura com a MESMA loja e indústria. Sem
+                    isso o promotor teria que reencontrar as duas no wizard —
+                    justamente quem já está no corredor esperando para repetir. */}
+                  {photo.status === "REJECTED" &&
+                    onRetake &&
+                    photo.supplierId && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="mt-1 h-9 w-full gap-1.5"
+                        onClick={() =>
+                          onRetake({
+                            store: { id: photo.storeId, name: photo.storeName },
+                            supplier: {
+                              id: photo.supplierId as string,
+                              name: photo.supplierName ?? "",
+                              actionCodeImage: photo.supplierActionCodeImage,
+                            },
+                          })
+                        }
+                      >
+                        <Camera className="size-4" /> Refazer foto
+                      </Button>
+                    )}
+
+                  {/* Só aprovadas: pendente ou reprovada não deve circular — é
+                  material que a coordenação ainda não liberou. */}
+                  {photo.status === "APPROVED" &&
+                    !selecting &&
+                    photo.photoKey && (
+                      <div className="flex gap-1 pt-0.5">
+                        <button
+                          type="button"
+                          onClick={() => share([photo])}
+                          disabled={busy}
+                          aria-label="Enviar no WhatsApp"
+                          className="flex h-9 flex-1 items-center justify-center rounded-md bg-emerald-600 text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                        >
+                          <Share2 className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => download([photo])}
+                          disabled={busy}
+                          aria-label="Baixar foto"
+                          className="flex h-9 flex-1 items-center justify-center rounded-md border transition-colors hover:bg-accent disabled:opacity-50"
+                        >
+                          <Download className="size-4" />
+                        </button>
+                      </div>
+                    )}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Barra de ação da seleção. Fixa no rodapé: no celular a lista é longa e
+        subir até o topo para confirmar seria um percurso inútil. */}
+      {selecting && (
+        <div className="sticky bottom-2 z-20 flex items-center gap-2 rounded-lg border bg-background/95 p-2 shadow-lg backdrop-blur">
+          <span className="px-1 text-sm font-medium tabular-nums">
+            {selected.size} selecionada{selected.size === 1 ? "" : "s"}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+            disabled={busy || selected.size === 0}
+            onClick={() => share(selectedPhotos)}
+          >
+            <Share2 className="size-4" /> Enviar
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={busy || selected.size === 0}
+            onClick={() => download(selectedPhotos)}
+          >
+            <Download className="size-4" /> Baixar
+          </Button>
         </div>
       )}
 
@@ -198,10 +572,42 @@ export function MyPhotosList() {
 
               <div className="flex flex-wrap items-center gap-2">
                 <StatusBadge status={opened.status} />
+                {(opened.capturedCity || opened.capturedState) && (
+                  <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                    <MapPin className="size-3" />
+                    {[opened.capturedCity, opened.capturedState]
+                      .filter(Boolean)
+                      .join("/")}
+                  </span>
+                )}
                 {opened.status === "REJECTED" && opened.rejectionNote && (
                   <p className="rounded bg-red-50 px-2 py-1 text-xs text-red-700">
                     Motivo: {opened.rejectionNote}
                   </p>
+                )}
+
+                {opened.status === "APPROVED" && opened.photoKey && (
+                  <div className="ml-auto flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                      disabled={busy}
+                      onClick={() => share([opened])}
+                    >
+                      <Share2 className="size-4" /> WhatsApp
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={busy}
+                      onClick={() => download([opened])}
+                    >
+                      <Download className="size-4" /> Baixar
+                    </Button>
+                  </div>
                 )}
               </div>
             </>

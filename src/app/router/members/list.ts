@@ -26,6 +26,9 @@ export const listMembers = base
         createdAt: z.string(),
         supervisorId: z.string().nullable(),
         supervisorName: z.string().nullable(),
+        tradeRole: z.string().nullable(),
+        showInPromotorPhoto: z.boolean(),
+        supplierIds: z.array(z.string()),
       }),
     ),
   )
@@ -36,6 +39,7 @@ export const listMembers = base
       include: {
         user: { select: { name: true, email: true, image: true } },
         supervisor: { select: { user: { select: { name: true } } } },
+        promoterSuppliers: { select: { supplierId: true } },
       },
     });
 
@@ -50,5 +54,8 @@ export const listMembers = base
       createdAt: m.createdAt.toISOString(),
       supervisorId: m.supervisorId ?? null,
       supervisorName: m.supervisor?.user.name ?? null,
+      tradeRole: m.tradeRole ?? null,
+      showInPromotorPhoto: m.showInPromotorPhoto,
+      supplierIds: m.promoterSuppliers.map((link) => link.supplierId),
     }));
   });

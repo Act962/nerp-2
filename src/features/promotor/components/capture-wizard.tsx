@@ -10,16 +10,25 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { useStores } from "@/features/stores/hooks/use-stores";
 import { PhotoCaptureInput } from "@/features/pdv-photos/components/photo-capture-input";
-import { ArrowLeft, Camera, Factory, Store as StoreIcon } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Factory,
+  Star,
+  Store as StoreIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   reverseGeocode,
   useCapturePromotorPhoto,
   useMyIndustries,
+  useMyStores,
+  useTogglePromotorFavorite,
 } from "../hooks/use-promotor";
+import { toast } from "sonner";
 import { StampEditor } from "./stamp-editor";
 
 type Selected = { id: string; name: string };
@@ -29,7 +38,22 @@ interface Geo {
   longitude?: number;
   city: string | null;
   state: string | null;
+  // Endereço resolvido junto com a cidade, na MESMA chamada de reverse-geocode.
+  // Vai para a foto e, quando a loja está sem endereço, para a loja.
+  road: string | null;
+  houseNumber: string | null;
+  suburb: string | null;
+  label: string | null;
 }
+
+const EMPTY_GEO: Geo = {
+  city: null,
+  state: null,
+  road: null,
+  houseNumber: null,
+  suburb: null,
+  label: null,
+};
 
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -38,10 +62,48 @@ function formatDateTime(date: Date) {
   }).format(date);
 }
 
+/**
+ * Estrela de favorito dentro de um `CommandItem`.
+ *
+ * O cmdk seleciona o item no clique em qualquer ponto da linha, então a estrela
+ * precisa parar a propagação — senão favoritar avançaria o passo do wizard.
+ * Alvo de 44px porque o promotor usa isso no celular, em pé, no corredor.
+ */
+function FavoriteToggle({
+  isFavorite,
+  label,
+  onToggle,
+}: {
+  isFavorite: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={isFavorite ? `Desfavoritar ${label}` : `Favoritar ${label}`}
+      aria-pressed={isFavorite}
+      onPointerDown={(event) => event.stopPropagation()}
+      onClick={(event) => {
+        event.stopPropagation();
+        onToggle();
+      }}
+      className="-mr-2 flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <Star
+        className={cn("size-5", isFavorite && "fill-amber-400 text-amber-500")}
+      />
+    </button>
+  );
+}
+
 export function CaptureWizard({
   promoterName,
   initialStore,
   initialSupplierId,
+  initialSupplier,
+  autoCapture,
+  photoCredits,
   onCaptured,
 }: {
   promoterName: string;
@@ -51,26 +113,35 @@ export function CaptureWizard({
   // Indústria vinda por contexto (da página de mídia): resolve na lista de
   // indústrias do promotor e pula direto para tirar a foto.
   initialSupplierId?: string;
+  // Indústria já resolvida (fluxo "Refazer foto"): dispensa procurá-la na lista
+  // do promotor, que é paginada e poderia não trazer justo essa.
+  initialSupplier?: (Selected & { actionCodeImage: string | null }) | null;
+  /** Abre a câmera sozinha ao chegar no passo da foto. */
+  autoCapture?: boolean;
+  /** Coordenação/supervisão marcada em Configurações para sair na foto. */
+  photoCredits?: { name: string; role: string }[];
   /** Chamado após a foto ser aceita — a página usa para abrir "Minhas fotos". */
   onCaptured?: () => void;
 }) {
   const hasFixedStore = !!initialStore;
   const minStep = hasFixedStore ? 2 : 1;
   const totalSteps = hasFixedStore ? 2 : 3;
-  const [step, setStep] = useState<1 | 2 | 3>(hasFixedStore ? 2 : 1);
+  const [step, setStep] = useState<1 | 2 | 3>(
+    initialSupplier ? 3 : hasFixedStore ? 2 : 1,
+  );
   const [store, setStore] = useState<Selected | null>(initialStore ?? null);
   const [supplier, setSupplier] = useState<
     (Selected & { actionCodeImage: string | null }) | null
-  >(null);
+  >(initialSupplier ?? null);
   const [file, setFile] = useState<File | null>(null);
-  const [geo, setGeo] = useState<Geo>({ city: null, state: null });
+  const [geo, setGeo] = useState<Geo>(EMPTY_GEO);
   const [capturedAt, setCapturedAt] = useState<Date | null>(null);
 
   const [storeSearch, setStoreSearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const debouncedStore = useDebouncedValue(storeSearch);
   const debouncedSupplier = useDebouncedValue(supplierSearch);
-  const { stores, isLoading: loadingStores } = useStores(
+  const { stores, isLoading: loadingStores } = useMyStores(
     debouncedStore || undefined,
   );
   const { suppliers, isLoading: loadingSuppliers } = useMyIndustries(
@@ -78,6 +149,12 @@ export function CaptureWizard({
   );
 
   const capture = useCapturePromotorPhoto();
+  const toggleFavorite = useTogglePromotorFavorite();
+
+  const favoriteStores = stores.filter((item) => item.isFavorite);
+  const otherStores = stores.filter((item) => !item.isFavorite);
+  const favoriteSuppliers = suppliers.filter((item) => item.isFavorite);
+  const otherSuppliers = suppliers.filter((item) => !item.isFavorite);
 
   // Indústria vinda por deep-link: quando a lista do promotor carrega, encontra
   // a indústria e pula direto para a foto. Se não estiver entre as vinculadas,
@@ -85,7 +162,7 @@ export function CaptureWizard({
   useEffect(() => {
     if (!initialSupplierId || supplier) return;
     const match = suppliers.find((item) => item.id === initialSupplierId);
-    if (match) {
+    if (match?.actionCodeImage) {
       setSupplier({
         id: match.id,
         name: match.name,
@@ -104,7 +181,7 @@ export function CaptureWizard({
       async (position) => {
         const { latitude, longitude } = position.coords;
         const place = await reverseGeocode(latitude, longitude);
-        setGeo({ latitude, longitude, city: place.city, state: place.state });
+        setGeo({ latitude, longitude, ...place });
       },
       () => {
         // Negado/indisponível: segue sem localização.
@@ -114,11 +191,11 @@ export function CaptureWizard({
   }, [step]);
 
   const reset = () => {
-    setStep(minStep);
+    setStep(initialSupplier ? 3 : minStep);
     setStore(initialStore ?? null);
-    setSupplier(null);
+    setSupplier(initialSupplier ?? null);
     setFile(null);
-    setGeo({ city: null, state: null });
+    setGeo(EMPTY_GEO);
     setCapturedAt(null);
     setStoreSearch("");
     setSupplierSearch("");
@@ -129,20 +206,26 @@ export function CaptureWizard({
     formatDateTime(capturedAt ?? new Date()),
     [geo.city, geo.state].filter(Boolean).join(" / "),
     store?.name ? `Cliente: ${store.name}` : "",
+    ...(photoCredits ?? []).map((credit) => `${credit.role}: ${credit.name}`),
   ];
 
-  const onBaked = (photoKey: string) => {
+  const onBaked = (photoKey: string, sealMissing: boolean) => {
     if (!store || !supplier) return;
     capture.mutate(
       {
         storeId: store.id,
         supplierId: supplier.id,
         photoKey,
+        sealMissing,
         capturedAt: (capturedAt ?? new Date()).toISOString(),
         latitude: geo.latitude,
         longitude: geo.longitude,
         capturedCity: geo.city ?? undefined,
         capturedState: geo.state ?? undefined,
+        capturedAddress: geo.label ?? undefined,
+        capturedRoad: geo.road ?? undefined,
+        capturedHouseNumber: geo.houseNumber ?? undefined,
+        capturedSuburb: geo.suburb ?? undefined,
       },
       {
         onSuccess: () => {
@@ -201,22 +284,63 @@ export function CaptureWizard({
                 Nenhuma loja encontrada.
               </CommandEmpty>
             )}
-            <CommandGroup>
-              {stores.map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.id}
-                  onSelect={() => {
-                    setStore({ id: item.id, name: item.name });
-                    setStep(2);
-                  }}
-                  className="min-h-12 cursor-pointer gap-2"
+            {[
+              { heading: "Favoritos", items: favoriteStores },
+              {
+                heading: favoriteStores.length > 0 ? "Todas as lojas" : "",
+                items: otherStores,
+              },
+            ]
+              .filter((group) => group.items.length > 0)
+              .map((group) => (
+                <CommandGroup
+                  key={group.heading || "todas"}
+                  heading={group.heading || undefined}
                 >
-                  <StoreIcon className="size-4 text-muted-foreground" />
-                  <span className="font-medium">{item.name}</span>
-                </CommandItem>
+                  {group.items.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={item.id}
+                      onSelect={() => {
+                        setStore({ id: item.id, name: item.name });
+                        setStep(2);
+                      }}
+                      className="min-h-12 cursor-pointer gap-2"
+                    >
+                      <StoreIcon className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{item.name}</p>
+                        {(item.city || item.state) && (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {[item.city, item.state]
+                              .filter(Boolean)
+                              .join(" / ")}
+                          </p>
+                        )}
+                      </div>
+                      <FavoriteToggle
+                        isFavorite={item.isFavorite}
+                        label={item.name}
+                        onToggle={() => {
+                          const favorite = !item.isFavorite;
+                          toggleFavorite.mutate({
+                            type: "store",
+                            id: item.id,
+                            favorite,
+                          });
+                          // Favoritar já vale como escolher: o promotor está
+                          // marcando a loja onde está agora, então segue direto
+                          // para a indústria. Desfavoritar só desmarca.
+                          if (favorite) {
+                            setStore({ id: item.id, name: item.name });
+                            setStep(2);
+                          }
+                        }}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
               ))}
-            </CommandGroup>
           </CommandList>
         </Command>
       )}
@@ -239,26 +363,84 @@ export function CaptureWizard({
                 Nenhuma indústria encontrada.
               </CommandEmpty>
             )}
-            <CommandGroup>
-              {suppliers.map((item) => (
-                <CommandItem
-                  key={item.id}
-                  value={item.id}
-                  onSelect={() => {
-                    setSupplier({
-                      id: item.id,
-                      name: item.name,
-                      actionCodeImage: item.actionCodeImage,
-                    });
-                    setStep(3);
-                  }}
-                  className="min-h-12 cursor-pointer gap-2"
+            {[
+              { heading: "Favoritos", items: favoriteSuppliers },
+              {
+                heading:
+                  favoriteSuppliers.length > 0 ? "Todas as indústrias" : "",
+                items: otherSuppliers,
+              },
+            ]
+              .filter((group) => group.items.length > 0)
+              .map((group) => (
+                <CommandGroup
+                  key={group.heading || "todas"}
+                  heading={group.heading || undefined}
                 >
-                  <Factory className="size-5 text-muted-foreground" />
-                  <span className="font-medium">{item.name}</span>
-                </CommandItem>
+                  {group.items.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      value={item.id}
+                      onSelect={() => {
+                        // Sem imagem de código não há foto válida a produzir:
+                        // deixar seguir só geraria uma captura que a
+                        // coordenação teria de corrigir depois.
+                        if (!item.actionCodeImage) {
+                          toast.error(
+                            "Indústria sem senha do mês. Solicite à coordenação.",
+                          );
+                          return;
+                        }
+                        setSupplier({
+                          id: item.id,
+                          name: item.name,
+                          actionCodeImage: item.actionCodeImage,
+                        });
+                        setStep(3);
+                      }}
+                      className={cn(
+                        "min-h-12 gap-2",
+                        item.actionCodeImage
+                          ? "cursor-pointer"
+                          : "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <Factory className="size-5 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium">{item.name}</p>
+                        {!item.actionCodeImage && (
+                          <p className="truncate text-xs text-amber-600">
+                            Sem senha do mês — solicite à coordenação
+                          </p>
+                        )}
+                      </div>
+                      <FavoriteToggle
+                        isFavorite={item.isFavorite}
+                        label={item.name}
+                        onToggle={() => {
+                          const favorite = !item.isFavorite;
+                          toggleFavorite.mutate({
+                            type: "supplier",
+                            id: item.id,
+                            favorite,
+                          });
+                          // Mesma lógica da loja: favoritar já escolhe a
+                          // indústria e segue para a foto — mas só quando há
+                          // selo, senão o atalho furaria o bloqueio acima.
+                          if (favorite && item.actionCodeImage) {
+                            setSupplier({
+                              id: item.id,
+                              name: item.name,
+                              actionCodeImage: item.actionCodeImage,
+                            });
+                            setStep(3);
+                          }
+                        }}
+                      />
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
               ))}
-            </CommandGroup>
           </CommandList>
         </Command>
       )}
@@ -268,7 +450,10 @@ export function CaptureWizard({
           <p className="text-sm text-muted-foreground">
             {store?.name} · {supplier?.name}
           </p>
-          <PhotoCaptureInput onFiles={(files) => setFile(files[0] ?? null)} />
+          <PhotoCaptureInput
+            onFiles={(files) => setFile(files[0] ?? null)}
+            autoOpen={autoCapture}
+          />
           <p className="flex items-center gap-1 text-xs text-muted-foreground">
             <Camera className="size-3" />
             Enquadre mostrando os produtos, com boa iluminação e sem poluição

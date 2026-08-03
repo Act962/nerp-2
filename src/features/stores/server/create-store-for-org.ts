@@ -1,4 +1,6 @@
 import prisma from "@/lib/db";
+import { normalizePostcode } from "@/lib/postcode";
+import { mintStoreSlug } from "@/lib/store-slug";
 
 /**
  * Dados de entrada para criar uma loja. Espelha os campos aceitos pela
@@ -13,6 +15,12 @@ export interface CreateStoreInput {
   city?: string;
   state?: string;
   notes?: string;
+  /** CNPJ do estabelecimento. Usado pelo catálogo; `Store` não o guarda. */
+  document?: string;
+  /** Bairro. Melhora o casamento; `Store` não tem coluna própria para ele. */
+  suburb?: string;
+  /** CEP, com ou sem máscara — normalizado na gravação. */
+  postcode?: string;
 }
 
 /**
@@ -23,7 +31,7 @@ export async function createStoreForOrg(
   input: CreateStoreInput,
   { orgId }: { orgId: string },
 ) {
-  return prisma.store.create({
+  const store = await prisma.store.create({
     data: {
       organizationId: orgId,
       name: input.name,
@@ -32,7 +40,12 @@ export async function createStoreForOrg(
       address: input.address,
       city: input.city,
       state: input.state,
+      postcode: normalizePostcode(input.postcode),
       notes: input.notes,
     },
   });
+
+  // Best-effort: sem slug a loja continua acessível pela URL antiga.
+  await mintStoreSlug(store.id, store.name, store.city);
+  return store;
 }

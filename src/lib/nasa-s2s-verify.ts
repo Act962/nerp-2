@@ -22,7 +22,9 @@ function hexEqual(a: string, b: string): boolean {
   return timingSafeEqual(ab, bb);
 }
 
-export async function verifyNasaS2S(request: Request): Promise<S2SContext | null> {
+export async function verifyNasaS2S(
+  request: Request,
+): Promise<S2SContext | null> {
   const apiKey = request.headers.get(API_KEY_HEADER);
   if (!apiKey) return null;
 

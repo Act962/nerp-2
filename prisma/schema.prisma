@@ -17,6 +17,9 @@ model User {
   email                    String               @unique
   emailVerified            Boolean              @default(false)
   image                    String?
+  // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
+  // fotos: é como a coordenação identifica e contata quem está em campo.
+  whatsapp                 String?
   createdAt                DateTime             @default(now())
   updatedAt                DateTime             @updatedAt
   // Relações de autenticação
@@ -117,22 +120,22 @@ enum OrganizationStatus {
 }
 
 model Organization {
-  id                        String                     @id @default(cuid())
+  id                        String                        @id @default(cuid())
   name                      String
-  slug                      String                     @unique
+  slug                      String                        @unique
   logo                      String?
-  createdAt                 DateTime                   @default(now())
-  updatedAt                 DateTime                   @updatedAt
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
   metadata                  String? // Mantido do seu schema
   // Dados da empresa
   tradeName                 String? // Nome fantasia
   sigla                     String? // Sigla curta da rede p/ Digital Space ID (ex.: "WS")
-  document                  String?                    @unique // CNPJ/CPF
+  document                  String?                       @unique // CNPJ/CPF
   email                     String?
   phone                     String?
   // Multi-tenant e Catálogo
-  subdomain                 String?                    @unique // empresa1.seuapp.com
-  customDomain              String?                    @unique // minhaloja.com.br
+  subdomain                 String?                       @unique // empresa1.seuapp.com
+  customDomain              String?                       @unique // minhaloja.com.br
   // Endereço
   address                   String?
   addressNumber             String?
@@ -141,28 +144,29 @@ model Organization {
   city                      String?
   state                     String?
   zipCode                   String?
-  country                   String                     @default("BR")
+  country                   String                        @default("BR")
   // Configurações visuais
-  primaryColor              String                     @default("#3b82f6")
+  primaryColor              String                        @default("#3b82f6")
   // Vitrine pública PlanoGram: quando true, /planogram/<slug> fica acessível
   // sem login. Opt-in por org — nenhuma rede vira pública sem ligar isto.
-  isPublicProfile           Boolean                    @default(false)
+  isPublicProfile           Boolean                       @default(false)
+  segment                   OrgSegment                    @default(VAREJO)
   // Módulos do NERP que esta empresa NÃO usa — some do menu de todo mundo.
   // Lista de exclusão: default [] = todos ativos, módulo novo entra sozinho.
-  disabledModules           String[]                   @default([])
+  disabledModules           String[]                      @default([])
   // Plano e status
-  plan                      PlanType                   @default(FREE)
-  status                    OrganizationStatus         @default(TRIAL)
+  plan                      PlanType                      @default(FREE)
+  status                    OrganizationStatus            @default(TRIAL)
   // Limites por plano
-  maxProducts               Int                        @default(100)
-  maxUsers                  Int                        @default(3)
+  maxProducts               Int                           @default(100)
+  maxUsers                  Int                           @default(3)
   // Datas importantes
   trialEndsAt               DateTime?
   subscribedAt              DateTime?
   // Relações de membros (mantido do seu schema)
   members                   Member[]
   invitations               Invitation[]
-  joinLink                  OrganizationJoinLink?
+  joinLinks                 OrganizationJoinLink[]
   // Relações do ERP
   products                  Product[]
   categories                Category[]
@@ -209,13 +213,23 @@ model Organization {
   storeSectors              StoreSector[]
   promoterSuppliers         PromoterSupplier[]
   promoterStores            PromoterStore[]
+  calendarEvents            CalendarEvent[]
+  calendarEventStores       CalendarEventStore[]
+  calendarEventSuppliers    CalendarEventSupplier[]
+  calendarEventAssignees    CalendarEventAssignee[]
+  calendarChecklistItems    CalendarChecklistItem[]
+  calendarChecklistDone     CalendarChecklistCompletion[]
+  calendarNotes             CalendarNote[]
+  calendarNoteTasks         CalendarNoteTask[]
+  promoterFavoriteStores    PromoterFavoriteStore[]
+  promoterFavoriteSuppliers PromoterFavoriteSupplier[]
   spaceInterests            SpaceInterest[]
   distributors              Distributor[]
   distributorIndustries     DistributorIndustry[]
   storeDistributors         StoreDistributor[]
   promoterDistributors      PromoterDistributor[]
-  claimedCompanies          DirectoryCompany[]         @relation("ClaimedCompanies")
-  companyClaims             CompanyClaim[]             @relation("OrgCompanyClaims")
+  claimedCompanies          DirectoryCompany[]            @relation("ClaimedCompanies")
+  companyClaims             CompanyClaim[]                @relation("OrgCompanyClaims")
   tradeSubscription         TradeSubscription?
   coupons                   Coupon[]
   // Catálogo PDV (precificação)
@@ -231,6 +245,7 @@ model Organization {
   oracleWidgetSnapshots     OracleWidgetSnapshot[]
   oracleQueryTemplates      OracleQueryTemplate[]
   orgDashboard              OrgDashboard?
+  promoterRoutes            PromoterRoute[]
 
   @@index([slug])
   @@index([subdomain])
@@ -260,19 +275,33 @@ model Member {
   supervisor       Member?      @relation("MemberSupervisor", fields: [supervisorId], references: [id], onDelete: SetNull)
   supervisees      Member[]     @relation("MemberSupervisor")
 
-  salesGoalEntries     SalesGoalEntry[]
+  // Função no Trade, separada do `role` de acesso: o Better Auth valida `role`
+  // contra os cargos do plugin organization, e coordenador/supervisor são
+  // papéis do negócio, não níveis de acesso.
+  tradeRole           TradeRole?
+  // Aparece nas informações carimbadas na foto do App Promotor.
+  showInPromotorPhoto Boolean    @default(false)
+
+  salesGoalEntries        SalesGoalEntry[]
   // Vínculos do promotor: indústrias que representa e lojas que cobre. Só pode
   // fotografar uma indústria numa loja se tiver vínculo com AS DUAS.
-  promoterSuppliers    PromoterSupplier[]
-  promoterStores       PromoterStore[]
-  promoterDistributors PromoterDistributor[]
-  externalSellers      ExternalSeller[]
-  dashboardWidgets     DashboardWidget[]
-  updatedManualMetrics DashboardManualMetric[]
-  oracleQueryTemplates OracleQueryTemplate[]
+  promoterSuppliers       PromoterSupplier[]
+  promoterStores          PromoterStore[]
+  promoterDistributors    PromoterDistributor[]
+  favoriteStores          PromoterFavoriteStore[]
+  favoriteSuppliers       PromoterFavoriteSupplier[]
+  externalSellers         ExternalSeller[]
+  dashboardWidgets        DashboardWidget[]
+  updatedManualMetrics    DashboardManualMetric[]
+  oracleQueryTemplates    OracleQueryTemplate[]
   // Modelo compartilhado da org: autor (opcional) e permissões por widget.
-  authoredOrgDashboards      OrgDashboard[]                 @relation("OrgDashboardCreator")
-  orgDashboardPermissions    OrgDashboardMemberPermission[] @relation("OrgDashboardMemberPermissions")
+  authoredOrgDashboards   OrgDashboard[]                 @relation("OrgDashboardCreator")
+  orgDashboardPermissions OrgDashboardMemberPermission[] @relation("OrgDashboardMemberPermissions")
+  authoredCalendarEvents  CalendarEvent[]                @relation("CalendarEventAuthor")
+  calendarChecklistDone   CalendarChecklistCompletion[]  @relation("CalendarChecklistDoer")
+  calendarNotes           CalendarNote[]                 @relation("CalendarNoteAuthor")
+  calendarAssignments     CalendarEventAssignee[]        @relation("CalendarEventAssignee")
+  promoterRoute           PromoterRoute?
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -283,6 +312,13 @@ model Member {
 
 // Mantido exatamente como seu schema
 
+// Função de campo no Trade. Não é permissão — quem controla acesso continua
+// sendo `Member.role` + `Member.permissions`.
+enum TradeRole {
+  COORDENADOR_TRADE
+  SUPERVISOR
+}
+
 model Invitation {
   id             String       @id @default(cuid())
   organizationId String
@@ -291,6 +327,7 @@ model Invitation {
   role           String?
   status         String       @default("pending")
   permissions    String[]     @default([]) // aplicadas ao Member em afterAcceptInvitation
+  tradeRole      TradeRole? // aplicado ao Member em afterAcceptInvitation
   expiresAt      DateTime
   createdAt      DateTime     @default(now())
   inviterId      String
@@ -311,7 +348,11 @@ model Invitation {
 // link (sem elas o novo membro entra sem acesso a página nenhuma).
 model OrganizationJoinLink {
   id             String    @id @default(cuid())
-  organizationId String    @unique
+  organizationId String
+  // Vários links por org, cada um com seu conjunto de páginas liberadas — daí
+  // o nome, que é como o admin distingue "Promotores" de "Coordenação" numa
+  // lista de URLs todas parecidas.
+  name           String
   token          String    @unique
   role           String    @default("member")
   permissions    String[]  @default([])
@@ -324,6 +365,7 @@ model OrganizationJoinLink {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([token])
+  @@index([organizationId])
   @@map("organization_join_links")
 }
 
@@ -670,12 +712,12 @@ model Customer {
 // ============================================
 
 model Supplier {
-  id                String                @id @default(cuid())
+  id                String                     @id @default(cuid())
   organizationId    String
   // Identificação
   name              String
   tradeName         String?
-  personType        PersonType            @default(JURIDICA)
+  personType        PersonType                 @default(JURIDICA)
   document          String? // CPF ou CNPJ
   email             String?
   phone             String?
@@ -692,17 +734,17 @@ model Supplier {
   // Imagem R2 do "código de ação" desta indústria, carimbada na foto do promotor.
   actionCodeImage   String?
   contactPerson     String?
-  notes             String?               @db.Text
-  isActive          Boolean               @default(true)
+  notes             String?                    @db.Text
+  isActive          Boolean                    @default(true)
   // Timestamps
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
   // Relações
-  organization      Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   purchases         Purchase[]
   products          Product[]
   customerId        String?
-  customer          Customer?             @relation(fields: [customerId], references: [id])
+  customer          Customer?                  @relation(fields: [customerId], references: [id])
   // Trade Marketing: fornecedor atua como "Indústria"
   brands            Brand[]
   mapObjects        MapObject[]
@@ -712,7 +754,9 @@ model Supplier {
   bookPageTemplates BookPageTemplate[]
   negotiations      SpaceNegotiation[]
   promoterLinks     PromoterSupplier[]
+  promoterFavorites PromoterFavoriteSupplier[]
   distributorLinks  DistributorIndustry[]
+  calendarEvents    CalendarEventSupplier[]
 
   @@index([organizationId])
   @@index([document])
@@ -1535,37 +1579,102 @@ enum SpaceVisibility {
   REGULAR
 }
 
+/// Procedência da coordenada da loja. A ordem reflete a preferência: a posição
+/// tirada das fotos do promotor no local vale mais que qualquer geocodificação
+/// de endereço em texto livre.
+enum StoreGeoSource {
+  FOTO
+  MANUAL
+  IMPORTED
+  GEOCODED
+  OSM
+}
+
+enum StoreGeoStatus {
+  PENDING
+  QUEUED
+  OK
+  NOT_FOUND
+  FAILED
+}
+
 model Store {
-  id               String             @id @default(cuid())
-  organizationId   String
-  name             String
-  code             String?
-  managerName      String? // Gerente da loja
-  address          String?
-  city             String?
-  state            String?
-  notes            String?            @db.Text
-  isActive         Boolean            @default(true)
-  coverImageKey    String? // chave R2 da foto de fachada — vitrine PlanoGram
+  id                    String                        @id @default(cuid())
+  organizationId        String
+  name                  String
+  /// URL pública legível (`/tradegram/<slug>`). Único GLOBALMENTE, porque o
+  /// segmento é compartilhado com o slug de organização. Anulável: loja de
+  /// empresa privada não tem página e NULL não colide com NULL no Postgres.
+  slug                  String?                       @unique
+  code                  String?
+  managerName           String? // Gerente da loja
+  address               String?
+  city                  String?
+  state                 String?
+  /// CEP, só dígitos.
+  postcode              String?
+  notes                 String?                       @db.Text
+  isActive              Boolean                       @default(true)
+  coverImageKey         String? // chave R2 da foto de fachada — vitrine PlanoGram
   // Métricas manuais p/ o Catálogo PDV (custo do m²) e a Biblioteca Nacional.
   // Nenhum contador automático existe — ponte ERP↔mapa é fora de escopo.
-  areaM2           Float?
-  monthlyCost      Decimal?           @db.Decimal(12, 2)
-  customersPerDay  Int?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  organization     Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  floorPlans       FloorPlan[]
-  pdvPhotos        PdvPhoto[]
-  mediaTypePrices  MediaTypePrice[]
-  promoterLinks    PromoterStore[]
-  spaceInterests   SpaceInterest[]
-  distributorLinks StoreDistributor[]
-  storeProducts    StoreProduct[]
-  batches          ProductBatch[]
+  areaM2                Float?
+  monthlyCost           Decimal?                      @db.Decimal(12, 2)
+  customersPerDay       Int?
+  // Posição no mapa. `geoSource` é o que impede a próxima rodada automática de
+  // sobrescrever um pino ajustado à mão.
+  latitude              Float?
+  longitude             Float?
+  geoSource             StoreGeoSource?
+  geoStatus             StoreGeoStatus                @default(PENDING)
+  /// Quantas fotos sustentam a posição — vira o texto de confiança na tela e
+  /// evita que uma foto solta com GPS ruim mande no pino.
+  geoSampleCount        Int                           @default(0)
+  /// `addresstype` do Nominatim. Separa pino de rua de centroide de cidade, que
+  /// o provedor devolve sem erro nenhum.
+  geoPrecision          String?
+  /// Endereço normalizado já consultado — torna "não pergunte duas vezes"
+  /// verificável, como a política do Nominatim exige.
+  geoQuery              String?
+  geoUpdatedAt          DateTime?
+  geoError              String?
+  /// Identidade do ponto no OpenStreetMap ("node/123"). É o que torna a
+  /// importação idempotente: varrer a mesma área de novo não duplica cliente.
+  osmId                 String?
+  /// O MESMO ponto físico no catálogo nacional. É identidade compartilhada, não
+  /// fronteira de inquilino: todo query continua filtrando por
+  /// `organizationId`. Sem ele, duas organizações com a mesma loja produzem
+  /// dois pinos no mapa público.
+  directoryStoreId      String?
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
+  organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  directoryStore        DirectoryStore?               @relation(fields: [directoryStoreId], references: [id], onDelete: SetNull)
+  floorPlans            FloorPlan[]
+  pdvPhotos             PdvPhoto[]
+  mediaTypePrices       MediaTypePrice[]
+  promoterLinks         PromoterStore[]
+  promoterFavorites     PromoterFavoriteStore[]
+  spaceInterests        SpaceInterest[]
+  distributorLinks      StoreDistributor[]
+  storeProducts         StoreProduct[]
+  batches               ProductBatch[]
+  calendarEvents        CalendarEventStore[]
+  calendarChecklistDone CalendarChecklistCompletion[]
+  routeStops            PromoterRouteStop[]
 
+  @@unique([organizationId, osmId])
   @@index([organizationId])
+  @@index([organizationId, geoStatus])
+  @@index([osmId])
+  @@index([directoryStoreId])
+  @@index([latitude, longitude])
   @@map("stores")
+}
+
+enum StoreImportTarget {
+  ORGANIZACAO // vira cliente desta organização
+  CATALOGO // vira ponto do catálogo nacional, sem dono
 }
 
 model StoreImport {
@@ -1575,11 +1684,14 @@ model StoreImport {
   fileKey        String // chave do objeto no S3
   fileName       String
   mapping        Json // { campoLoja: nomeColunaArquivo }
+  /// Para onde as linhas vão: a carteira desta organização, ou o catálogo
+  /// nacional de PDVs (restrito à administração do TradeGram).
+  target         StoreImportTarget @default(ORGANIZACAO)
   status         StoreImportStatus @default(PENDING)
   totalRows      Int               @default(0)
   processedRows  Int               @default(0)
   createdRows    Int               @default(0)
-  skippedRows    Int               @default(0) // duplicados (mesmo código) pulados
+  skippedRows    Int               @default(0) // duplicados pulados (código, ou nome+cidade)
   failedRows     Int               @default(0)
   errors         Json              @default("[]") // [{ row, message }]
   createdAt      DateTime          @default(now())
@@ -1629,6 +1741,42 @@ model PromoterStore {
   @@index([organizationId])
   @@index([storeId])
   @@map("promoter_stores")
+}
+
+// Favoritos do promotor. NÃO confundir com PromoterStore/PromoterSupplier: o
+// vínculo é permissão (quem o admin autorizou), o favorito é conveniência (o
+// que o promotor marcou para subir ao topo da lista). Promotor tem rota fixa de
+// marcas específicas, então favoritar poupa a busca a cada captura.
+model PromoterFavoriteStore {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  storeId        String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  store          Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, storeId])
+  @@index([organizationId])
+  @@index([storeId])
+  @@map("promoter_favorite_stores")
+}
+
+model PromoterFavoriteSupplier {
+  id             String       @id @default(cuid())
+  organizationId String
+  memberId       String
+  supplierId     String
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  supplier       Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, supplierId])
+  @@index([organizationId])
+  @@index([supplierId])
+  @@map("promoter_favorite_suppliers")
 }
 
 // Distribuidor: intermediário logístico entre indústria e loja. A indústria nem
@@ -1713,22 +1861,23 @@ model PromoterDistributor {
 // desde o dia 1. Enquanto não reivindicada (claimedByOrgId nulo), é só uma
 // vitrine pública não-editável; o dono reivindica e passa a administrar.
 model DirectoryCompany {
-  id             String         @id @default(cuid())
+  id             String           @id @default(cuid())
   type           CompanyType
   name           String
   tradeName      String?
-  document       String?        @unique // CNPJ — dedup global
+  document       String?          @unique // CNPJ — dedup global
   city           String?
   state          String?
   logoKey        String?
   website        String?
-  source         CompanySource  @default(USUARIO)
+  source         CompanySource    @default(USUARIO)
   claimedByOrgId String?
   claimedAt      DateTime?
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  claimedByOrg   Organization?  @relation("ClaimedCompanies", fields: [claimedByOrgId], references: [id], onDelete: SetNull)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  claimedByOrg   Organization?    @relation("ClaimedCompanies", fields: [claimedByOrgId], references: [id], onDelete: SetNull)
   claims         CompanyClaim[]
+  stores         DirectoryStore[]
 
   @@index([type])
   @@index([claimedByOrgId])
@@ -1738,6 +1887,109 @@ model DirectoryCompany {
 // Reivindicação de uma empresa do diretório por uma org. APROVADA na hora quando
 // a empresa está livre (first-claim-wins com evidência registrada); CONTESTADA
 // quando já tem dono (fica pra resolução futura).
+/// Ponto de venda conhecido, GLOBAL — não pertence a organização nenhuma.
+///
+/// A rede existe no mapa independente de alguém tê-la como cliente: é o que
+/// permite qualquer empresa abrir o TradeGram e já ver o varejo da sua praça,
+/// em vez de um mapa vazio à espera do primeiro cadastro. Virar cliente é uma
+/// cópia disto para `Store`, com o `osmId` ligando os dois.
+model DirectoryStore {
+  id          String              @id @default(cuid())
+  companyId   String?
+  name        String
+  /// Identidade do ponto no OpenStreetMap — dedup global.
+  osmId       String?             @unique
+  /// CNPJ do ESTABELECIMENTO, só dígitos. Matriz e filial têm CNPJs distintos,
+  /// então ele identifica a loja física — a chave mais forte que existe aqui.
+  document    String?             @unique
+  /// Opcional: a lista de PDVs entra com endereço e sem coordenada, e quem fixa
+  /// o pino é a primeira foto do promotor. Ponto sem coordenada existe, é
+  /// buscável e contável — só não vai ao mapa.
+  latitude    Float?
+  longitude   Float?
+  address     String?
+  suburb      String?
+  city        String?
+  state       String?
+  /// CEP, só dígitos. Completa o endereço e é o caminho barato para virar
+  /// coordenada: base de CEP brasileira não tem o limite do Nominatim.
+  postcode    String?
+  /// Sobrepõe a logo da rede neste ponto. Existe porque `companyId` é anulável:
+  /// ponto sem rede não teria onde guardar logo nenhuma.
+  logoKey     String?
+  source      CompanySource       @default(SEED)
+  /// Fila de revisão do super-admin: `null` = ainda não conferido. O ponto que
+  /// nasce da foto do promotor entra no mapa na hora e é auditado depois.
+  reviewedAt  DateTime?
+  /// Qual organização originou o ponto. Auditoria — NUNCA sai em payload
+  /// público, porque revelaria onde cada empresa opera.
+  sourceOrgId String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  company     DirectoryCompany?   @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  routeStops  PromoterRouteStop[]
+  stores      Store[]
+
+  @@index([companyId])
+  @@index([reviewedAt])
+  @@index([state, city])
+  @@index([latitude, longitude])
+  @@map("directory_stores")
+}
+
+/// Rota do promotor: a ordem em que ele planeja visitar as lojas.
+///
+/// Uma por promotor (`memberId @unique`) — dia da semana e data ficam para
+/// depois, sobre esta base. Não confundir com `PromoterStore`, que é PERMISSÃO
+/// dada pela coordenação: a rota é escolha de quem anda na rua.
+model PromoterRoute {
+  id             String              @id @default(cuid())
+  organizationId String
+  memberId       String              @unique
+  name           String              @default("Minha rota")
+  /// Quando a ordem foi sugerida pela última vez. Só informativo.
+  optimizedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member         Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  stops          PromoterRouteStop[]
+
+  @@index([organizationId])
+  @@map("promoter_routes")
+}
+
+/// Parada da rota. Aponta para um cliente da organização OU para um ponto
+/// global do catálogo — exatamente um dos dois, garantido por CHECK no banco,
+/// que o Prisma não sabe expressar.
+model PromoterRouteStop {
+  id               String          @id @default(cuid())
+  /// Desnormalizado de propósito: é o filtro de inquilino de TODA query aqui.
+  /// A fronteira vem da rota, nunca do alvo — o alvo pode ser uma linha global.
+  organizationId   String
+  routeId          String
+  position         Int
+  storeId          String?
+  directoryStoreId String?
+  /// Cópia da posição e do nome no momento em que a parada entrou. Desacopla a
+  /// rota de uma linha que não pertence a esta organização.
+  latitude         Float
+  longitude        Float
+  name             String
+  createdAt        DateTime        @default(now())
+  route            PromoterRoute   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  store            Store?          @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  directoryStore   DirectoryStore? @relation(fields: [directoryStoreId], references: [id], onDelete: Cascade)
+
+  /// Funcionam porque o Postgres trata NULL como distinto: muitas paradas de
+  /// catálogo convivem com `storeId` nulo, mas a mesma loja duas vezes é barrada.
+  @@unique([routeId, storeId])
+  @@unique([routeId, directoryStoreId])
+  @@index([routeId, position])
+  @@index([organizationId])
+  @@map("promoter_route_stops")
+}
+
 model CompanyClaim {
   id                String             @id @default(cuid())
   companyId         String
@@ -1765,10 +2017,23 @@ enum CompanyType {
   DISTRIBUIDOR
 }
 
+/// O que a organização é dentro do TradeGram. Semeia os módulos do menu na
+/// criação — NÃO é uma camada de permissão: já existem quatro (papel,
+/// permissões, módulos da org, módulos do usuário), e uma quinta tornaria "por
+/// que não vejo X?" impossível de responder.
+enum OrgSegment {
+  VAREJO
+  INDUSTRIA
+  DISTRIBUIDOR
+  AGENCIA
+  OUTRO
+}
+
 enum CompanySource {
   SEED // semeada pelo sistema
   IMPORTACAO // importada em lote
   USUARIO // adicionada por um usuário
+  PROMOTOR // nasceu da foto de um promotor em campo
 }
 
 enum CompanyClaimStatus {
@@ -2372,8 +2637,15 @@ model PdvPhoto {
   promoterName       String?
   capturedCity       String?
   capturedState      String?
+  /// Endereço textual resolvido na captura. Prova de onde a foto foi tirada,
+  /// independente de a loja ter sido corrigida depois.
+  capturedAddress    String?
   capturedLatitude   Float?
   capturedLongitude  Float?
+  // Captura salva SEM o selo da indústria (o carimbo não pôde ser carregado no
+  // celular do promotor). Marca a foto para a coordenadora aplicar o selo em
+  // /books em vez de reprovar e mandar refazer a visita.
+  sealMissing        Boolean                @default(false)
   // Aprovação da foto pela coordenadora (QC antes de entrar no book).
   approvalStatus     BookItemApproval       @default(PENDING)
   approvalNote       String?
@@ -2393,6 +2665,8 @@ model PdvPhoto {
 
   @@index([organizationId])
   @@index([organizationId, storeId])
+  @@index([organizationId, createdById, capturedAt])
+  @@index([organizationId, capturedAt])
   @@index([mapObjectId])
   @@index([organizationId, code])
   @@index([organizationId, supplierId])
@@ -3085,12 +3359,12 @@ model DashboardManualMetric {
 // dashboards pessoais em `DashboardWidget` — cada gerente continua com o
 // próprio, e ganha uma aba a mais para ver o modelo da organização.
 model OrgDashboard {
-  id                     String   @id @default(cuid())
-  organizationId         String   @unique
-  name                   String   @default("Dashboard da organização")
-  createdById            String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  name           String   @default("Dashboard da organização")
+  createdById    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   // Compartilhamento público (leitura, sem login) — mesmo padrão dos QRs
   // públicos do TradeGram. Rotacionar o token = revogar todos os links
@@ -3200,4 +3474,211 @@ model OrgDashboardMemberPermission {
   @@index([memberId])
   @@index([orgDashboardWidgetId])
   @@map("org_dashboard_member_permissions")
+}
+
+// ============================================
+// CALENDÁRIO DE EVENTOS (Trade Marketing)
+// ============================================
+
+enum CalendarEventType {
+  ACAO_PDV
+  CAMPANHA
+  VISITA
+  TREINAMENTO
+  REUNIAO
+  LANCAMENTO
+  OUTRO
+}
+
+enum CalendarEventStatus {
+  PLANEJADO
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+// Quem enxerga o evento. ORG = a organização inteira. LINKED = só quem tem
+// vínculo (PromoterStore/PromoterSupplier) com alguma loja ou indústria alvo.
+// Explícito de propósito: derivar de "tem alvo?" impediria uma ação de 20 lojas
+// de ser anunciada para a equipe toda.
+enum CalendarVisibility {
+  ORG
+  LINKED
+}
+
+model CalendarEvent {
+  id             String              @id @default(cuid())
+  organizationId String
+  title          String
+  description    String?             @db.Text
+  type           CalendarEventType   @default(ACAO_PDV)
+  status         CalendarEventStatus @default(PLANEJADO)
+  visibility     CalendarVisibility  @default(ORG)
+  color          String? // hex; null = cor derivada do `type`
+  // Instantes UTC. `isAllDay` diz se a hora deve ser ignorada na renderização —
+  // o dia LOCAL nunca é derivado no servidor (ele roda em UTC, o usuário não).
+  startsAt       DateTime
+  endsAt         DateTime
+  isAllDay       Boolean             @default(true)
+  location       String?
+  createdById    String // Member.id, não User.id
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      Member                  @relation("CalendarEventAuthor", fields: [createdById], references: [id], onDelete: Cascade)
+  stores         CalendarEventStore[]
+  suppliers      CalendarEventSupplier[]
+  assignees      CalendarEventAssignee[]
+  checklistItems CalendarChecklistItem[]
+
+  @@index([organizationId, startsAt, endsAt])
+  @@index([createdById])
+  @@map("calendar_events")
+}
+
+model CalendarEventStore {
+  id             String        @id @default(cuid())
+  organizationId String
+  eventId        String
+  storeId        String
+  createdAt      DateTime      @default(now())
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event          CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  store          Store         @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, storeId])
+  @@index([organizationId])
+  @@index([storeId])
+  @@map("calendar_event_stores")
+}
+
+model CalendarEventSupplier {
+  id             String        @id @default(cuid())
+  organizationId String
+  eventId        String
+  supplierId     String
+  createdAt      DateTime      @default(now())
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event          CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  supplier       Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, supplierId])
+  @@index([organizationId])
+  @@index([supplierId])
+  @@map("calendar_event_suppliers")
+}
+
+// Item do checklist: é o ROTEIRO do evento, criado pela coordenação.
+/// Promotores designados para a ação. É o vínculo DIRETO: a visibilidade por
+/// loja/indústria responde "quem atende isso"; esta tabela responde "quem a
+/// coordenação escalou", que nem sempre é a mesma pessoa.
+model CalendarEventAssignee {
+  id             String        @id @default(cuid())
+  organizationId String
+  eventId        String
+  memberId       String
+  createdAt      DateTime      @default(now())
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event          CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member         Member        @relation("CalendarEventAssignee", fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, memberId])
+  @@index([organizationId])
+  @@index([memberId])
+  @@map("calendar_event_assignees")
+}
+
+model CalendarChecklistItem {
+  id             String   @id @default(cuid())
+  organizationId String
+  eventId        String
+  title          String
+  description    String?  @db.Text
+  position       Int      @default(0)
+  isRequired     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  event        CalendarEvent                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  completions  CalendarChecklistCompletion[]
+
+  @@index([eventId, position])
+  @@index([organizationId])
+  @@map("calendar_checklist_items")
+}
+
+// Execução: uma linha por (item, promotor, loja). É isto que responde "quem fez
+// o quê" numa ação que vale para 20 lojas — por isso a conclusão não fica no
+// item, que é compartilhado.
+model CalendarChecklistCompletion {
+  id             String   @id @default(cuid())
+  organizationId String
+  itemId         String
+  memberId       String
+  storeId        String? // null quando o evento não tem loja alvo
+  note           String?  @db.Text
+  doneAt         DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  item         CalendarChecklistItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  member       Member                @relation("CalendarChecklistDoer", fields: [memberId], references: [id], onDelete: Cascade)
+  store        Store?                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  // ATENÇÃO: no Postgres NULL é distinto de NULL num UNIQUE, então isto NÃO
+  // deduplica quando `storeId` é nulo. A migração cria um índice parcial para
+  // esse caso, e o handler grava com deleteMany+create em vez de upsert.
+  @@unique([itemId, memberId, storeId])
+  @@index([organizationId, memberId])
+  @@index([itemId])
+  @@index([storeId])
+  @@map("calendar_checklist_completions")
+}
+
+// Anotação privada do promotor. Modelo à parte do CalendarEvent DE PROPÓSITO:
+// com uma flag `isPrivate`, toda consulta do módulo teria que lembrar de
+// excluir a nota alheia, e esquecer em um lugar vaza a agenda pessoal para a
+// organização inteira. Aqui é impossível uma consulta de evento devolver nota.
+/// Item do checklist da anotação privada. Sem tabela de conclusão por membro
+/// como no evento: a anotação tem um dono só, então `isDone` no próprio item
+/// já responde tudo.
+model CalendarNoteTask {
+  id             String   @id @default(cuid())
+  organizationId String
+  noteId         String
+  title          String
+  isDone         Boolean  @default(false)
+  position       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  note         CalendarNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([noteId, position])
+  @@index([organizationId])
+  @@map("calendar_note_tasks")
+}
+
+model CalendarNote {
+  id             String   @id @default(cuid())
+  organizationId String
+  memberId       String // dono; única pessoa que lê ou escreve
+  title          String
+  content        String?  @db.Text
+  color          String?
+  startsAt       DateTime
+  endsAt         DateTime
+  isAllDay       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member             @relation("CalendarNoteAuthor", fields: [memberId], references: [id], onDelete: Cascade)
+  tasks        CalendarNoteTask[]
+
+  @@index([organizationId, memberId, startsAt])
+  @@map("calendar_notes")
 }

@@ -1,6 +1,6 @@
 import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PersonType } from "@/generated/prisma/enums";
+import type { PersonType } from "@/generated/prisma/enums";
 import { toast } from "sonner";
 
 interface UseSupplierProps {
@@ -19,7 +19,7 @@ export function useSupplier({
   const { data, isPending } = useQuery(
     orpc.supplier.list.queryOptions({
       input: { personType, search, page, pageSize },
-    })
+    }),
   );
 
   return {
@@ -36,7 +36,12 @@ export const useQuerySupplier = (id: string) => {
   const { data, isPending } = useQuery(
     orpc.supplier.getOne.queryOptions({
       input: { id },
-    })
+      // Os três diálogos (ver, editar, excluir) ficam montados o tempo todo com
+      // `id: ""` até alguém clicar numa linha. Sem esta guarda, cada carregamento
+      // da lista dispara três buscas fadadas a 404 e enche o log do servidor de
+      // "Fornecedor não encontrado" que não é erro de ninguém.
+      enabled: id.length > 0,
+    }),
   );
 
   return {
@@ -59,7 +64,7 @@ export const useCreateSupplier = () => {
       onError: (error) => {
         toast.error(error.message);
       },
-    })
+    }),
   );
 };
 
@@ -76,13 +81,13 @@ export const useUpdateSupplier = () => {
         queryClient.invalidateQueries(
           orpc.supplier.getOne.queryOptions({
             input: { id: data.supplier.id },
-          })
+          }),
         );
       },
       onError: (error) => {
         toast.error(error.message);
       },
-    })
+    }),
   );
 };
 
@@ -100,6 +105,6 @@ export const useDeleteSupplier = () => {
       onError: (error) => {
         toast.error(error.message);
       },
-    })
+    }),
   );
 };

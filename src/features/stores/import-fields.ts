@@ -26,6 +26,13 @@ export interface ImportField {
 export const STORE_IMPORT_FIELDS: ImportField[] = [
   { key: "name", label: "Nome", required: true, type: "string" },
   {
+    key: "document",
+    label: "CNPJ",
+    required: false,
+    type: "string",
+    hint: "Do estabelecimento (cada filial o seu). É a dedupe mais confiável",
+  },
+  {
     key: "code",
     label: "Código",
     required: false,
@@ -34,6 +41,21 @@ export const STORE_IMPORT_FIELDS: ImportField[] = [
   },
   { key: "managerName", label: "Gerente", required: false, type: "string" },
   { key: "address", label: "Endereço", required: false, type: "string" },
+  {
+    key: "number",
+    label: "Número",
+    required: false,
+    type: "string",
+    hint: "Se vier em coluna separada, é juntado ao endereço",
+  },
+  { key: "suburb", label: "Bairro", required: false, type: "string" },
+  {
+    key: "postcode",
+    label: "CEP",
+    required: false,
+    type: "string",
+    hint: "Ajuda a completar o endereço e a posicionar o ponto",
+  },
   { key: "city", label: "Cidade", required: false, type: "string" },
   { key: "state", label: "Estado", required: false, type: "string" },
   { key: "notes", label: "Observação", required: false, type: "string" },

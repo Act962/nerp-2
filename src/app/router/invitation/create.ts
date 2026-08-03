@@ -13,6 +13,8 @@ import {
   type InvitableRole,
   PAGE_PERMISSION_KEYS,
   roleLabel,
+  TRADE_ROLE_VALUES,
+  type TradeRoleValue,
 } from "@/lib/permissions";
 import { APIError } from "better-auth/api";
 import z from "zod";
@@ -23,6 +25,7 @@ interface InviteOneParams {
   email: string;
   role: InvitableRole;
   permissions: string[];
+  tradeRole: TradeRoleValue | null;
   orgId: string;
   orgName: string;
   inviterName: string;
@@ -36,6 +39,7 @@ async function inviteOne({
   email,
   role,
   permissions,
+  tradeRole,
   orgId,
   orgName,
   inviterName,
@@ -70,7 +74,7 @@ async function inviteOne({
 
   await prisma.invitation.update({
     where: { id: invitationId },
-    data: { permissions },
+    data: { permissions, tradeRole },
   });
 
   try {
@@ -118,6 +122,7 @@ export const createInvitation = base
         .max(20, "No máximo 20 convites por vez"),
       role: z.enum(INVITABLE_ROLE_VALUES),
       permissions: z.array(z.string()).default([]),
+      tradeRole: z.enum(TRADE_ROLE_VALUES).nullable().default(null),
     }),
   )
   .output(
@@ -154,6 +159,7 @@ export const createInvitation = base
         email,
         role: input.role,
         permissions,
+        tradeRole: input.tradeRole,
         orgId: context.org.id,
         orgName: context.org.name,
         inviterName: context.user.name,

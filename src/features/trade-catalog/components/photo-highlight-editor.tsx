@@ -74,7 +74,10 @@ export function PhotoHighlightEditor({
   const [dimOpacity, setDimOpacity] = useState(0.4);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Reseta o traçado a cada foto nova.
+  // Reseta o traçado a cada foto nova. `file` não é lido no corpo — é o
+  // GATILHO. Removê-lo, como a regra sugere, faria o traçado da foto anterior
+  // sobreviver por cima da nova.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `file` é o gatilho do reset, não uma leitura
   useEffect(() => {
     setPoints([]);
     setClosed(false);
@@ -82,6 +85,9 @@ export function PhotoHighlightEditor({
     setDimOpacity(0.4);
   }, [file]);
 
+  // `blobUrl` reassina o observer quando a imagem troca: o elemento medido é
+  // outro, e sem isso a escala fica travada na dimensão da foto anterior.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `blobUrl` reassina o observer na troca de imagem
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
@@ -93,7 +99,8 @@ export function PhotoHighlightEditor({
   }, [blobUrl]);
 
   const flatPoints = useMemo(
-    () => points.flatMap((point) => [point.x * LOGICAL_W, point.y * logicalHeight]),
+    () =>
+      points.flatMap((point) => [point.x * LOGICAL_W, point.y * logicalHeight]),
     [points, logicalHeight],
   );
 
@@ -213,9 +220,7 @@ export function PhotoHighlightEditor({
         dimOpacity,
         watermark,
       );
-      await finishUpload(
-        new File([blob], "modelo.png", { type: "image/png" }),
-      );
+      await finishUpload(new File([blob], "modelo.png", { type: "image/png" }));
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Falha ao gerar a imagem",

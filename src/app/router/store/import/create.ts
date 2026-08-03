@@ -1,5 +1,6 @@
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { isSuperAdmin } from "@/lib/super-admin";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
@@ -26,10 +27,21 @@ export const createImport = base
       fileName: z.string().min(1),
       // { chaveDoCampoDaLoja: nomeDaColunaNoArquivo }
       mapping: z.record(z.string(), z.string()),
+      /**
+       * `CATALOGO` grava no catálogo NACIONAL, que não pertence a organização
+       * nenhuma — por isso é restrito à administração do TradeGram.
+       */
+      target: z.enum(["ORGANIZACAO", "CATALOGO"]).default("ORGANIZACAO"),
     }),
   )
   .output(z.object({ importId: z.string() }))
   .handler(async ({ input, context, errors }) => {
+    if (input.target === "CATALOGO" && !isSuperAdmin(context.user.email)) {
+      throw errors.FORBIDDEN({
+        message: "Só a administração do TradeGram alimenta o catálogo nacional",
+      });
+    }
+
     if (!input.mapping.name) {
       throw errors.BAD_REQUEST({
         message: "O campo Nome precisa estar mapeado",
@@ -43,6 +55,7 @@ export const createImport = base
         fileKey: input.fileKey,
         fileName: input.fileName,
         mapping: input.mapping,
+        target: input.target,
         status: "PENDING",
       },
     });

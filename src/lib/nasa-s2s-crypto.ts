@@ -7,7 +7,9 @@ const KEY_ENV = "NASA_S2S_ENCRYPTION_KEY";
 function getKey(): Buffer {
   const hex = process.env[KEY_ENV];
   if (!hex) {
-    throw new Error(`Missing env ${KEY_ENV}. Generate with 'openssl rand -hex 32'.`);
+    throw new Error(
+      `Missing env ${KEY_ENV}. Generate with 'openssl rand -hex 32'.`,
+    );
   }
   const key = Buffer.from(hex, "hex");
   if (key.length !== 32) {

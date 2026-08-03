@@ -9,6 +9,9 @@ import { customerRoutes } from "./customer";
 import { SalesRoutes } from "./sales";
 import { kitchenRoutes } from "./pedidos";
 import { collaboratorRoutes } from "./collaborators";
+import { calendarRoutes } from "./calendar";
+import { fieldMapRoutes } from "./field-map";
+import { promoterRouteRoutes } from "./promoter-route";
 import { memberRoutes } from "./members";
 import { promotionalCatalogRouter } from "./promotional-catalog";
 import { rankingRouter } from "./ranking";
@@ -62,6 +65,9 @@ export const router = {
   sales: SalesRoutes,
   kitchen: kitchenRoutes,
   collaborators: collaboratorRoutes,
+  calendar: calendarRoutes,
+  fieldMap: fieldMapRoutes,
+  promoterRoute: promoterRouteRoutes,
   members: memberRoutes,
   promotionalCatalog: promotionalCatalogRouter,
   ranking: rankingRouter,

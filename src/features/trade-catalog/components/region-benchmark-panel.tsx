@@ -34,7 +34,11 @@ function ManualBenchmarkForm() {
     const parsedCost = Number(costPerM2);
     if (state.trim().length !== 2 || !parsedCost || parsedCost <= 0) return;
     create.mutate(
-      { state: state.trim(), city: city.trim() || undefined, costPerM2: parsedCost },
+      {
+        state: state.trim(),
+        city: city.trim() || undefined,
+        costPerM2: parsedCost,
+      },
       {
         onSuccess: () => {
           setState("");
@@ -48,8 +52,11 @@ function ManualBenchmarkForm() {
   return (
     <div className="flex flex-wrap items-end gap-3">
       <div className="w-20 space-y-1.5">
-        <label className="text-xs text-muted-foreground">UF</label>
+        <label htmlFor="benchmark-uf" className="text-xs text-muted-foreground">
+          UF
+        </label>
         <Input
+          id="benchmark-uf"
           maxLength={2}
           value={state}
           onChange={(event) => setState(event.target.value.toUpperCase())}
@@ -57,14 +64,27 @@ function ManualBenchmarkForm() {
         />
       </div>
       <div className="w-48 space-y-1.5">
-        <label className="text-xs text-muted-foreground">
+        <label
+          htmlFor="benchmark-cidade"
+          className="text-xs text-muted-foreground"
+        >
           Cidade (vazio = estadual)
         </label>
-        <Input value={city} onChange={(event) => setCity(event.target.value)} />
+        <Input
+          id="benchmark-cidade"
+          value={city}
+          onChange={(event) => setCity(event.target.value)}
+        />
       </div>
       <div className="w-36 space-y-1.5">
-        <label className="text-xs text-muted-foreground">Custo/m²</label>
+        <label
+          htmlFor="benchmark-custo"
+          className="text-xs text-muted-foreground"
+        >
+          Custo/m²
+        </label>
         <Input
+          id="benchmark-custo"
           type="number"
           min={0}
           step="0.01"
@@ -93,7 +113,9 @@ export function RegionBenchmarkPanel() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Benchmark regional (manual)</CardTitle>
+          <CardTitle className="text-base">
+            Benchmark regional (manual)
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <ManualBenchmarkForm />
@@ -122,7 +144,9 @@ export function RegionBenchmarkPanel() {
                       variant="ghost"
                       className="size-7"
                       disabled={removeBenchmark.isPending}
-                      onClick={() => removeBenchmark.mutate({ id: benchmark.id })}
+                      onClick={() =>
+                        removeBenchmark.mutate({ id: benchmark.id })
+                      }
                     >
                       <Trash2 className="size-3.5" />
                     </Button>

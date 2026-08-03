@@ -191,13 +191,18 @@ export const auth = betterAuth({
         afterAcceptInvitation: async ({ invitation, member }) => {
           const record = await prisma.invitation.findUnique({
             where: { id: invitation.id },
-            select: { permissions: true },
+            select: { permissions: true, tradeRole: true },
           });
 
-          if (record?.permissions.length) {
+          if (record?.permissions.length || record?.tradeRole) {
             await prisma.member.update({
               where: { id: member.id },
-              data: { permissions: record.permissions },
+              data: {
+                ...(record.permissions.length
+                  ? { permissions: record.permissions }
+                  : {}),
+                ...(record.tradeRole ? { tradeRole: record.tradeRole } : {}),
+              },
             });
           }
         },

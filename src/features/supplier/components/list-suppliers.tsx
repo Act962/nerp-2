@@ -7,11 +7,14 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { constructUrl } from "@/hooks/use-construct-url";
 import {
+  Building2,
   EditIcon,
   EyeIcon,
   MoreVerticalIcon,
   SearchIcon,
+  Stamp,
   Trash2Icon,
 } from "lucide-react";
 import { useSupplier } from "../hooks/use-supplier";
@@ -51,10 +54,7 @@ import { cn } from "@/lib/utils";
 const PAGE_SIZE = 10;
 
 /** Gera os itens de paginação com reticências para muitas páginas. */
-function getPageItems(
-  current: number,
-  total: number,
-): (number | "ellipsis")[] {
+function getPageItems(current: number, total: number): (number | "ellipsis")[] {
   if (total <= 7) {
     return Array.from({ length: total }, (_, i) => i + 1);
   }
@@ -118,6 +118,8 @@ export function ListSuppliers() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-16">Logo</TableHead>
+                  <TableHead className="w-24">Senha do mês</TableHead>
                   <TableHead>Fornecedor</TableHead>
                   <TableHead>Tipo</TableHead>
                   <TableHead>Contato</TableHead>
@@ -130,7 +132,7 @@ export function ListSuppliers() {
               <TableBody>
                 {isLoading && (
                   <TableRow className="h-24">
-                    {Array.from({ length: 7 }).map((_, index) => (
+                    {Array.from({ length: 9 }).map((_, index) => (
                       <TableCell key={index}>
                         {Array.from({ length: 4 }).map((_, i) => (
                           <Skeleton key={i} className="h-4 w-full mt-2" />
@@ -142,7 +144,7 @@ export function ListSuppliers() {
 
                 {!isLoading && suppliers.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={9} className="text-center">
                       Nenhum fornecedor encontrado.
                     </TableCell>
                   </TableRow>
@@ -151,6 +153,45 @@ export function ListSuppliers() {
                 {!isLoading &&
                   suppliers.map((supplier) => (
                     <TableRow key={supplier.id}>
+                      <TableCell>
+                        <div className="flex size-10 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                          {supplier.logo ? (
+                            // biome-ignore lint/performance/noImgElement: miniatura de chave do R2
+                            <img
+                              src={constructUrl(supplier.logo)}
+                              alt={supplier.name}
+                              loading="lazy"
+                              className="size-full object-contain"
+                            />
+                          ) : (
+                            <Building2 className="size-4 text-muted-foreground" />
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {/* A senha do mês é o que libera a indústria para o
+                          promotor fotografar (`capture-wizard`). Sem ela a
+                          marca fica bloqueada em campo, então a falta precisa
+                          aparecer aqui, não só na hora da captura. */}
+                        {supplier.actionCodeImage ? (
+                          <div className="flex size-10 items-center justify-center overflow-hidden rounded-md border bg-muted">
+                            {/* biome-ignore lint/performance/noImgElement: miniatura de chave do R2 */}
+                            <img
+                              src={constructUrl(supplier.actionCodeImage)}
+                              alt={`Senha do mês de ${supplier.name}`}
+                              loading="lazy"
+                              className="size-full object-contain"
+                            />
+                          </div>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="gap-1 border-amber-300 text-amber-700"
+                          >
+                            <Stamp className="size-3" /> Sem senha
+                          </Badge>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <div className="flex flex-col">
                           <span className="font-medium">{supplier.name}</span>
@@ -185,9 +226,7 @@ export function ListSuppliers() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
-                        {supplier.contactPerson || "—"}
-                      </TableCell>
+                      <TableCell>{supplier.contactPerson || "—"}</TableCell>
                       <TableCell>
                         {supplier.city && supplier.state
                           ? `${supplier.city}/${supplier.state}`

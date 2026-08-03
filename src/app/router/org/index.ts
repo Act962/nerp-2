@@ -1,5 +1,6 @@
 import { checkSubdomain } from "./check-subdomain";
 import { getOrganization } from "./get";
+import { updateOrgProfile } from "./update-profile";
 import { updateOrgDisabledModules } from "./update-disabled-modules";
 import { updateOrgLogo } from "./update-logo";
 import { updateOrgPublicProfile } from "./update-public-profile";
@@ -8,6 +9,7 @@ import { updateSubdomain } from "./update-subdomain";
 
 export const orgRoutes = {
   get: getOrganization,
+  updateProfile: updateOrgProfile,
   checkSubdomain: checkSubdomain,
   updateSubdomain: updateSubdomain,
   updateSigla: updateOrgSigla,

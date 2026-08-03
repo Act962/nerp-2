@@ -86,7 +86,7 @@ export async function createKitchenOrders(
   const data = input.items.map((item) => {
     const estimatedMinutes =
       item.estimatedMinutes ??
-      (item.productId ? prepTimeByProduct.get(item.productId) ?? null : null);
+      (item.productId ? (prepTimeByProduct.get(item.productId) ?? null) : null);
 
     const dishName =
       item.quantity > 1 ? `${item.quantity}x ${item.dishName}` : item.dishName;

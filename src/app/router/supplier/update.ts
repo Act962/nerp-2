@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import type { Supplier } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { normalizeDocument } from "@/lib/document";
 import { z } from "zod";
 
 export const updateSupplier = base
@@ -49,7 +50,7 @@ export const updateSupplier = base
         name: input.name,
         tradeName: input.tradeName,
         personType: input.personType,
-        document: input.document,
+        document: normalizeDocument(input.document) ?? input.document,
         phone: input.phone,
         email: input.email,
         contactPerson: input.contactPerson,
