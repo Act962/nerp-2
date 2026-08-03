@@ -41,14 +41,24 @@ export function mapStoreRow(
     return { input: { name: "" }, error: "Nome é obrigatório" };
   }
 
+  // Número em coluna separada é o formato comum das listas de clientes, e o
+  // geocode estruturado acerta muito mais com "Rua X, 123" do que com "Rua X".
+  const street = asString("address");
+  const number = asString("number");
+  const address =
+    street && number ? `${street}, ${number}` : (street ?? undefined);
+
   const input: CreateStoreInput = {
     name,
     code: asString("code"),
     managerName: asString("managerName"),
-    address: asString("address"),
+    address,
     city: asString("city"),
     state: asString("state"),
     notes: asString("notes"),
+    document: asString("document"),
+    suburb: asString("suburb"),
+    postcode: asString("postcode"),
   };
 
   return { input };
