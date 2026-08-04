@@ -401,6 +401,8 @@ export function ImportWizard() {
   const processed = status?.processedRows ?? 0;
   const percent = total > 0 ? Math.round((processed / total) * 100) : 0;
   const isDone = status?.status === "COMPLETED" || status?.status === "FAILED";
+  // O servidor guarda só as primeiras ocorrências; os contadores são o total.
+  const occurrences = (status?.skippedRows ?? 0) + (status?.failedRows ?? 0);
 
   return (
     <Card>
@@ -445,23 +447,31 @@ export function ImportWizard() {
         </div>
 
         {status?.errors && status.errors.length > 0 && (
-          <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-24">Linha</TableHead>
-                  <TableHead>Ocorrência</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {status.errors.map((err, i) => (
-                  <TableRow key={i}>
-                    <TableCell>{err.row}</TableCell>
-                    <TableCell>{err.message}</TableCell>
+          <div className="space-y-2">
+            {occurrences > status.errors.length && (
+              <p className="text-sm text-muted-foreground">
+                Mostrando as primeiras {status.errors.length} de {occurrences}{" "}
+                ocorrências.
+              </p>
+            )}
+            <div className="rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-24">Linha</TableHead>
+                    <TableHead>Ocorrência</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {status.errors.map((err, i) => (
+                    <TableRow key={i}>
+                      <TableCell>{err.row}</TableCell>
+                      <TableCell>{err.message}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
 

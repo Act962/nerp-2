@@ -7,7 +7,10 @@ import { deliver } from "@/lib/sync-deliver";
 import { runProductImport } from "@/features/products/server/import-runner";
 import { runSupplierImport } from "@/features/supplier/server/supplier-import-runner";
 import { runCustomerImport } from "@/features/custom/server/customer-import-runner";
-import { runStoreImport } from "@/features/stores/server/store-import-runner";
+import {
+  CHUNK_ROWS,
+  runStoreImportChunk,
+} from "@/features/stores/server/store-import-runner";
 import { generateBook } from "@/features/books/server/generate-book";
 import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-catalog-pdf";
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
@@ -192,13 +195,24 @@ export const customerImportProcess = inngest.createFunction(
 );
 
 /**
+ * Teto de lotes por importação — 200 × 500 = 100 mil linhas. Bound explícito
+ * para o laço nunca ficar solto se um lote parar de avançar o offset.
+ */
+const MAX_IMPORT_BATCHES = 200;
+
+/**
  * Importação de lojas via planilha (CSV/XLSX).
  *
- * Disparada por `stores/import.requested`. Processa o arquivo num único
- * `step.run` — `runStoreImport` faz importação parcial (erros por linha não
- * abortam o lote), então o step só falha em erros de infraestrutura (S3/DB), que
- * o Inngest reagenda com backoff. Como o step é memoizado quando bem-sucedido,
- * ele não reexecuta após concluir. `onFailure` marca o registro como `FAILED`.
+ * Disparada por `stores/import.requested`. O arquivo é processado em lotes de
+ * `CHUNK_ROWS` linhas, um `step.run` por lote, porque o step precisa caber numa
+ * invocação serverless: com o arquivo inteiro num passo só, uma lista de 15 mil
+ * clientes estourava o tempo, o step nunca era memoizado e o Inngest recomeçava
+ * da primeira linha a cada tentativa. Com o lote memoizado, a retentativa
+ * reexecuta no máximo um lote.
+ *
+ * `runStoreImportChunk` faz importação parcial (erros por linha não abortam o
+ * lote), então o step só falha em erro de infraestrutura (S3/DB), que o Inngest
+ * reagenda com backoff. `onFailure` marca o registro como `FAILED`.
  */
 export const storeImportProcess = inngest.createFunction(
   {
@@ -223,9 +237,20 @@ export const storeImportProcess = inngest.createFunction(
   async ({ event, step }) => {
     const { importId } = event.data;
 
-    await step.run("process-import", () => runStoreImport(importId));
+    let offset = 0;
+    for (let batch = 0; batch < MAX_IMPORT_BATCHES; batch++) {
+      // O id do step vem do offset, que avança de forma determinística — é o
+      // que permite ao Inngest reconhecer os lotes já concluídos numa replay.
+      const result = await step.run(`import-rows-${offset}`, () =>
+        runStoreImportChunk(importId, offset),
+      );
+      if (result.done) return { importId, processedRows: result.nextOffset };
+      offset = result.nextOffset;
+    }
 
-    return { importId, done: true };
+    throw new Error(
+      `Importação ${importId} excedeu ${MAX_IMPORT_BATCHES} lotes de ${CHUNK_ROWS} linhas`,
+    );
   },
 );
 
