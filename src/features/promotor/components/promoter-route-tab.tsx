@@ -21,12 +21,14 @@ import {
   Camera,
   Check,
   Crosshair,
+  Map as MapIcon,
   MapPin,
   Navigation,
   Plus,
   SearchIcon,
   Trash2,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 /**
@@ -318,6 +320,17 @@ export function PromoterRouteTab({
               )}
               Melhor ordem
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="flex-1 gap-1.5"
+              asChild
+            >
+              <Link href="/promotor/rota/mapa">
+                <MapIcon className="size-4" />
+                Ver no mapa
+              </Link>
+            </Button>
             <Button type="button" className="flex-1 gap-1.5" asChild>
               <a
                 href={navigationUrl(stops)}
@@ -325,15 +338,16 @@ export function PromoterRouteTab({
                 rel="noopener noreferrer"
               >
                 <Navigation className="size-4" />
-                Traçar rota
+                Navegar
               </a>
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            A distância é em linha reta entre as paradas, não quilometragem de
-            rua — serve para comparar ordens.
+            "Ver no mapa" abre o traçado por ruas dentro do NERP. "Navegar" abre
+            o Google Maps com voz e trânsito. A distância é em linha reta —
+            serve para comparar ordens, não como quilometragem de rua.
             {stops.length > MAX_WAYPOINTS + 1 &&
-              ` "Traçar rota" leva as ${MAX_WAYPOINTS + 1} primeiras paradas; o Google Maps não aceita mais que isso num link.`}
+              ` "Navegar" leva as ${MAX_WAYPOINTS + 1} primeiras paradas; o Google Maps não aceita mais que isso num link.`}
           </p>
         </div>
       )}
