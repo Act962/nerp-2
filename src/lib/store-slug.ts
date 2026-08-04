@@ -18,23 +18,55 @@ export function slugify(value: string): string {
 }
 
 /**
+ * Candidatos de slug para uma loja, do mais bonito ao mais sofrido: nome,
+ * nome-cidade, e daí sufixos numéricos.
+ */
+export function storeSlugCandidates(
+  name: string,
+  city?: string | null,
+): string[] {
+  const base = slugify(name);
+  if (!base) return [];
+
+  const candidates = [base];
+  const withCity = city ? `${base}-${slugify(city)}` : null;
+  if (withCity && withCity !== base) candidates.push(withCity);
+  for (let n = 2; n <= MAX_ATTEMPTS; n += 1) {
+    candidates.push(`${withCity ?? base}-${n}`);
+  }
+  return candidates;
+}
+
+/**
  * `/tradegram/<slug>` é o MESMO segmento de `/tradegram/<slug-da-organizacao>`.
  * Por isso a checagem passa pelos dois namespaces: se um slug de loja colidisse
  * com o de uma organização, a URL resolveria a entidade errada — e o
  * despachante dá preferência à organização, então quem perderia é a loja.
  */
-async function isTaken(candidate: string): Promise<boolean> {
-  const [store, org] = await Promise.all([
-    prisma.store.findUnique({
-      where: { slug: candidate },
-      select: { id: true },
+export async function findTakenSlugs(
+  candidates: string[],
+): Promise<Set<string>> {
+  const taken = new Set<string>();
+  if (candidates.length === 0) return taken;
+
+  const [stores, orgs] = await Promise.all([
+    prisma.store.findMany({
+      where: { slug: { in: candidates } },
+      select: { slug: true },
     }),
-    prisma.organization.findUnique({
-      where: { slug: candidate },
-      select: { id: true },
+    prisma.organization.findMany({
+      where: { slug: { in: candidates } },
+      select: { slug: true },
     }),
   ]);
-  return Boolean(store || org);
+  for (const store of stores) if (store.slug) taken.add(store.slug);
+  for (const org of orgs) taken.add(org.slug);
+  return taken;
+}
+
+async function isTaken(candidate: string): Promise<boolean> {
+  const taken = await findTakenSlugs([candidate]);
+  return taken.size > 0;
 }
 
 /**
@@ -50,15 +82,8 @@ export async function mintStoreSlug(
   name: string,
   city?: string | null,
 ): Promise<string | null> {
-  const base = slugify(name);
-  if (!base) return null;
-
-  const candidates = [base];
-  const withCity = city ? `${base}-${slugify(city)}` : null;
-  if (withCity && withCity !== base) candidates.push(withCity);
-  for (let n = 2; n <= MAX_ATTEMPTS; n += 1) {
-    candidates.push(`${withCity ?? base}-${n}`);
-  }
+  const candidates = storeSlugCandidates(name, city);
+  if (candidates.length === 0) return null;
 
   for (const candidate of candidates) {
     if (await isTaken(candidate)) continue;

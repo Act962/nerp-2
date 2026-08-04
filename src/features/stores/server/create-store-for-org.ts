@@ -23,27 +23,53 @@ export interface CreateStoreInput {
   postcode?: string;
 }
 
+/** Prisma sinaliza violação de índice único com este código. */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: string }).code === "P2002"
+  );
+}
+
 /**
  * Cria uma loja para uma organização. Centraliza a persistência para que a
  * importação em massa reuse o mesmo comportamento do handler `store.create`.
+ *
+ * `slug` existe para a importação em massa: cunhar linha a linha custa duas
+ * consultas mais um update por loja, e num arquivo de 15 mil clientes isso é o
+ * que estoura o tempo da invocação. Quem importa resolve o slug em memória e
+ * grava tudo num INSERT só; o resto do sistema continua chamando sem o campo.
  */
 export async function createStoreForOrg(
   input: CreateStoreInput,
-  { orgId }: { orgId: string },
+  { orgId, slug }: { orgId: string; slug?: string | null },
 ) {
-  const store = await prisma.store.create({
-    data: {
-      organizationId: orgId,
-      name: input.name,
-      code: input.code,
-      managerName: input.managerName,
-      address: input.address,
-      city: input.city,
-      state: input.state,
-      postcode: normalizePostcode(input.postcode),
-      notes: input.notes,
-    },
-  });
+  const data = {
+    organizationId: orgId,
+    name: input.name,
+    code: input.code,
+    managerName: input.managerName,
+    address: input.address,
+    city: input.city,
+    state: input.state,
+    postcode: normalizePostcode(input.postcode),
+    notes: input.notes,
+  };
+
+  if (slug !== undefined) {
+    try {
+      return await prisma.store.create({ data: { ...data, slug } });
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+      // Alguém cravou o mesmo slug entre o cálculo em memória e o INSERT. A
+      // loja sem slug continua acessível pela URL antiga e o backfill pega
+      // depois — perder o cadastro do cliente por causa da URL bonita, não.
+      return await prisma.store.create({ data });
+    }
+  }
+
+  const store = await prisma.store.create({ data });
 
   // Best-effort: sem slug a loja continua acessível pela URL antiga.
   await mintStoreSlug(store.id, store.name, store.city);
