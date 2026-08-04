@@ -8,6 +8,7 @@ import {
   Building2,
   Factory,
   Lock,
+  MapPin,
   Search,
   ShieldCheck,
   Store,
@@ -154,7 +155,8 @@ export function TradeGramSearch() {
     (data?.groups.length ?? 0) +
     (data?.stores.length ?? 0) +
     (data?.suppliers.length ?? 0) +
-    (data?.companies.length ?? 0);
+    (data?.companies.length ?? 0) +
+    (data?.directoryStores?.length ?? 0);
   const hasQuery = debounced.trim().length > 0;
 
   return (
@@ -299,6 +301,52 @@ export function TradeGramSearch() {
             </section>
           )}
 
+          {!isFetching && data && data.directoryStores?.length > 0 && (
+            <section className="space-y-1">
+              <h2 className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+                PDVs (catálogo global)
+              </h2>
+              {data.directoryStores.map((point) => {
+                const content = (
+                  <>
+                    <Avatar
+                      logoKey={point.logoKey}
+                      fallback={
+                        <MapPin className="size-5 text-muted-foreground" />
+                      }
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-sm">
+                        {point.name}
+                      </p>
+                      <p className="truncate text-muted-foreground text-xs">
+                        {[point.location, point.address]
+                          .filter(Boolean)
+                          .join(" · ") || "Sem endereço cadastrado"}
+                      </p>
+                    </div>
+                  </>
+                );
+                return point.path ? (
+                  <Link
+                    key={point.id}
+                    href={point.path}
+                    className="flex items-center gap-3 rounded-lg p-2 hover:bg-accent"
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <div
+                    key={point.id}
+                    className="flex items-center gap-3 rounded-lg p-2 opacity-90"
+                  >
+                    {content}
+                  </div>
+                );
+              })}
+            </section>
+          )}
+
           {!isFetching && data && data.companies.length > 0 && (
             <section className="space-y-1">
               <h2 className="px-1 font-medium text-muted-foreground text-xs uppercase tracking-wide">
@@ -322,8 +370,13 @@ export function TradeGramSearch() {
                     </p>
                     <p className="truncate text-muted-foreground text-xs">
                       {COMPANY_TYPE_LABEL[company.companyType] ?? "Empresa"}
-                      {company.city ? ` · ${company.city}` : ""}
+                      {company.location ? ` · ${company.location}` : ""}
                     </p>
+                    {company.tradeName && (
+                      <p className="truncate text-muted-foreground text-[11px] italic">
+                        {company.tradeName}
+                      </p>
+                    )}
                   </div>
                   <span className="shrink-0 rounded-full border px-2 py-0.5 text-muted-foreground text-xs">
                     {company.badge}
