@@ -2,11 +2,11 @@
 
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWidgetCatalog } from "@/features/dashboard-widgets/hooks/use-widget-catalog";
 import { WidgetEditSheetCore } from "@/features/dashboard-widgets/components/widget-edit-sheet";
+import { WidgetFrame } from "@/features/dashboard-widgets/components/widget-frame";
 import {
   type WidgetPickerAddMutation,
   WidgetPickerSheetCore,
@@ -54,10 +54,10 @@ import { OrgDashboardPermissionsMatrix } from "./org-dashboard-permissions-matri
 import { OrgDashboardSharePanel } from "./org-dashboard-share-panel";
 import {
   ORG_PANEL_DRAG_HANDLE,
-  ORG_WIDGET_DRAG_HANDLE,
   OrgWidgetGrid,
   panelDefaultItem,
 } from "./org-widget-grid";
+import { WIDGET_DRAG_HANDLE_CLASS } from "@/features/dashboard-widgets/components/widget-frame";
 import { PanelEditDialog } from "./panel-edit-dialog";
 import { PanelTemplatePicker } from "./panel-template-picker";
 
@@ -379,71 +379,47 @@ function WidgetsTab({
   // Card de gestão de UM widget. Preenche a célula do RGL (`h-full`), no
   // MESMO tamanho que o widget terá no dashboard real (a célula usa o layout
   // salvo do próprio widget) — então o corpo mostra o widget de verdade
-  // (WidgetBody), não um resumo. A alça `ORG_WIDGET_DRAG_HANDLE` é o que o
-  // RGL usa para arrastar; editar/remover ficam no cabeçalho pra sobrar
-  // espaço inteiro pro conteúdo.
+  // (WidgetBody), não um resumo.
+  //
+  // O frame agora é o `WidgetFrame` (mesmo do view), então a prévia respeita
+  // cor de fundo, contorno, título estilizado e o alinhamento vertical do
+  // conteúdo salvos em `appearance`. A alça de arrasto passa a ser o próprio
+  // cabeçalho do frame (`draggable`), no lugar do `GripVertical` inline com
+  // classe `ORG_WIDGET_DRAG_HANDLE` — o RGL usa `WIDGET_DRAG_HANDLE_CLASS`
+  // (default do frame) para achar a alça, e o handle antigo escondia a cor
+  // de fundo atrás de um Card genérico.
   const renderWidgetCard = (id: string) => {
     const widget = widgetById.get(id);
     if (!widget) return null;
+    const appearance = readAppearance(widget.options);
+    const label =
+      widget.title ??
+      labelByKey.get(widget.dataSourceKey) ??
+      widget.dataSourceKey;
     return (
-      <Card className="flex h-full flex-col overflow-hidden">
-        <CardHeader className="pb-1">
-          <CardTitle className="flex items-center justify-between gap-2 text-sm">
-            <span className="flex min-w-0 items-center gap-1">
-              {!fullscreen && (
-                <button
-                  type="button"
-                  title="Arrastar widget"
-                  className={`${ORG_WIDGET_DRAG_HANDLE} -ml-1 cursor-grab touch-none rounded p-0.5 text-muted-foreground hover:bg-muted active:cursor-grabbing`}
-                >
-                  <GripVertical className="size-3.5" />
-                </button>
-              )}
-              <span className="truncate text-left">
-                {widget.title ??
-                  labelByKey.get(widget.dataSourceKey) ??
-                  widget.dataSourceKey}
-              </span>
-            </span>
-            <div className="flex shrink-0 items-center gap-1">
-              <span className="font-normal text-[10px] text-muted-foreground uppercase tracking-wide">
-                {widget.displayType}
-              </span>
-              {!fullscreen && (
-                <>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-6"
-                    title="Personalizar"
-                    onClick={() => setEditingId(widget.id)}
-                  >
-                    <Pencil className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="icon"
-                    variant="ghost"
-                    className="size-6 text-destructive"
-                    title="Remover"
-                    onClick={() => remove.mutate({ widgetId: widget.id })}
-                  >
-                    <Trash2 className="size-3.5" />
-                  </Button>
-                </>
-              )}
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="min-h-0 flex-1 overflow-hidden p-3">
-          <WidgetBody
-            widget={widget}
-            entry={valueById.get(widget.id)}
-            goalsByScope={goalsByScope}
-          />
-        </CardContent>
-      </Card>
+      <WidgetFrame
+        title={label}
+        titleAlign={appearance.titleAlign}
+        titleColor={appearance.titleColor}
+        titleSize={appearance.titleSize}
+        titleWeight={appearance.titleWeight}
+        color={widget.color}
+        background={appearance.background}
+        border={appearance.border}
+        borderColor={appearance.borderColor}
+        draggable={!fullscreen}
+        editable={!fullscreen}
+        onEdit={!fullscreen ? () => setEditingId(widget.id) : undefined}
+        onRemove={
+          !fullscreen ? () => remove.mutate({ widgetId: widget.id }) : undefined
+        }
+      >
+        <WidgetBody
+          widget={widget}
+          entry={valueById.get(widget.id)}
+          goalsByScope={goalsByScope}
+        />
+      </WidgetFrame>
     );
   };
 
@@ -463,6 +439,11 @@ function WidgetsTab({
       onSaveLayout={(items) => saveLayout.mutate({ widgets: items })}
       renderItem={renderWidgetCard}
       breakpoints={nested ? PANEL_WIDGET_BREAKPOINTS : undefined}
+      // Alça de arrasto = cabeçalho do WidgetFrame (mesma classe do
+      // dashboard pessoal e do view). Antes usava `ORG_WIDGET_DRAG_HANDLE`
+      // que casava com o Card+GripVertical inline; sem essa troca o RGL
+      // ficaria sem alça e o widget nem arrastava.
+      dragHandleClass={WIDGET_DRAG_HANDLE_CLASS}
     />
   );
 

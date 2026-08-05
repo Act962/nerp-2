@@ -46,7 +46,6 @@ import {
 } from "./widget-customize-fields";
 
 const CATEGORY_TABS = [
-  { value: "native", label: "Nativo" },
   { value: "ranking", label: "Ranking" },
   { value: "erp", label: "ERP" },
   { value: "oracle", label: "Oracle" },
@@ -325,7 +324,7 @@ export function WidgetPickerSheetCore({
           {isLoading ? (
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           ) : (
-            <Tabs defaultValue="native">
+            <Tabs defaultValue="ranking">
               <TabsList className="w-full">
                 {CATEGORY_TABS.map((tab) => (
                   <TabsTrigger key={tab.value} value={tab.value}>

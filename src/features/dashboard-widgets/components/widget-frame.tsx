@@ -179,13 +179,19 @@ export function WidgetFrame({
     >
       <CardHeader
         className={cn(
-          "flex flex-row items-center gap-1.5 py-2",
+          // Título encosta na borda superior (`pt-1`) e mantém um respiro
+          // pequeno abaixo — antes era `py-2` simétrico, que empurrava o
+          // título pro meio e sobrava um vão feio acima da linha do border-top.
+          // `relative` sustenta o grip absoluto abaixo — sem ele o handle
+          // empurrava o título 20px pra direita e desalinhava do conteúdo
+          // (número/lista), que segue o `px-6` padrão do CardContent.
+          "relative flex flex-row items-center gap-1.5 pt-1 pb-1.5",
           editable && draggable && WIDGET_DRAG_HANDLE_CLASS,
           editable && draggable && "cursor-grab active:cursor-grabbing",
         )}
       >
         {editable && draggable && (
-          <GripVertical className="size-3.5 shrink-0 text-muted-foreground" />
+          <GripVertical className="absolute left-1 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground/60" />
         )}
         {alertHex && (
           <span
@@ -273,7 +279,11 @@ export function WidgetFrame({
         pódio ou uma tabela em 60px é exatamente o que quebrava o layout. */}
       <CardContent
         className={cn(
-          "min-h-0 flex-1 overflow-hidden p-3",
+          // Horizontal: mesmo `px-6` do CardHeader — antes era `p-3` (12px),
+          // então o número/lista começava 12px à esquerda do título (24px).
+          // Vertical simétrico (`py-3`) pra o STAT centralizar no espaço real,
+          // sem colar no cabeçalho quando o cartão é pequeno.
+          "min-h-0 flex-1 overflow-hidden p-3 px-6",
           onOpenDetail && "cursor-pointer",
           collapsed && "hidden",
         )}

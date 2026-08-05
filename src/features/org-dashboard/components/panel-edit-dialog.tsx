@@ -148,6 +148,18 @@ function PanelEditForm({
             </Select>
           </div>
 
+          {appearance.background === "tint" && (
+            <div className="flex items-center gap-2">
+              <Label className="text-[10px] text-muted-foreground">
+                Cor do fundo
+              </Label>
+              <ColorSwatchPicker
+                value={appearance.backgroundColor}
+                onChange={(backgroundColor) => patch({ backgroundColor })}
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
             <Label className="text-[10px] text-muted-foreground">
               Cor do contorno
