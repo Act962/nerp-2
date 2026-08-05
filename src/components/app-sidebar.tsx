@@ -683,6 +683,38 @@ function NavUser() {
   );
 }
 
+// Logo com fallback: quando `constructUrl` devolve "" (env do bucket público
+// ausente) ou quando a chave aponta pro bucket errado (típico ao rodar local
+// contra dados de produção), o Next segura o carregamento e o cabeçalho fica
+// com um retângulo vazio piscando. Aqui, cair no ícone `Building` no `onError`
+// mantém o menu legível mesmo com a imagem quebrada.
+function OrgLogo({
+  logo,
+  name,
+  size,
+}: {
+  logo: string | null | undefined;
+  name: string;
+  size: number;
+}) {
+  const url = logo ? constructUrl(logo) : "";
+  const [broken, setBroken] = useState(false);
+  if (!url || broken) {
+    return <Building className="size-4" />;
+  }
+  return (
+    <Image
+      src={url}
+      alt={name}
+      width={size}
+      height={size}
+      style={{ width: size, height: size }}
+      className="rounded-lg"
+      onError={() => setBroken(true)}
+    />
+  );
+}
+
 function OrgMenu() {
   const { isMobile } = useSidebar();
   const [organizationActive, setOrganizationActive] =
@@ -738,13 +770,13 @@ function OrgMenu() {
               {isLoadingOrg ? (
                 <Skeleton className="size-8 aspect-square rounded-lg" />
               ) : organizationActive?.logo ? (
-                <Image
-                  src={constructUrl(organizationActive.logo)}
-                  width={32}
-                  height={32}
-                  alt="Logo"
-                  className="size-8 aspect-square rounded-lg"
-                />
+                <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border">
+                  <OrgLogo
+                    logo={organizationActive.logo}
+                    name={organizationActive.name ?? "Logo"}
+                    size={32}
+                  />
+                </div>
               ) : (
                 <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                   <GalleryVerticalEnd className="size-4" />
@@ -782,17 +814,7 @@ function OrgMenu() {
                 }
               >
                 <div className="flex size-6 items-center justify-center rounded-md border overflow-hidden">
-                  {org.logo ? (
-                    <Image
-                      src={constructUrl(org.logo)}
-                      alt={org.name}
-                      width={16}
-                      height={16}
-                      className="size-6"
-                    />
-                  ) : (
-                    <Building className="size-4" />
-                  )}
+                  <OrgLogo logo={org.logo} name={org.name} size={24} />
                 </div>
                 {org.name}
                 {/* <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut> */}
