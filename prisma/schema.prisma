@@ -317,6 +317,9 @@ model Member {
 enum TradeRole {
   COORDENADOR_TRADE
   SUPERVISOR
+  // Vendedor(a) de campo — abre o App Vendedor (mesmo motor do App Promotor,
+  // acrescido da aba "Estou aqui" com localização em tempo real).
+  VENDEDOR
 }
 
 model Invitation {

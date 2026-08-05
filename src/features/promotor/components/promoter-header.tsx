@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 export type PromotorView =
+  | "here"
   | "capture"
   | "route"
   | "photos"

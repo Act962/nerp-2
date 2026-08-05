@@ -50,6 +50,9 @@ export const MODULE_MIN_PLAN: Partial<
   planograma: "PRATA",
   books: "OURO",
   promotor: "OURO",
+  // Mesma família do promotor (motor de captura/rota/fotos + aba "Estou aqui")
+  // — mesmo tier de plano.
+  vendedor: "OURO",
   "promotor-vinculos": "OURO",
   distribuidores: "OURO",
 };
