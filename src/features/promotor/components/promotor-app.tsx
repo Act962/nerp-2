@@ -19,6 +19,7 @@ import {
   usePromotorProfile,
 } from "../hooks/use-promotor";
 import { CaptureWizard } from "./capture-wizard";
+import { HereNowTab } from "./here-now-tab";
 import { MyClientsList, MyIndustriesList } from "./my-links-list";
 import { MyPhotosList, type RetakeTarget } from "./my-photos-list";
 import { PromoterHeader, type PromotorView } from "./promoter-header";
@@ -27,10 +28,13 @@ import { PromoterOnboarding } from "./promoter-onboarding";
 import { PromoterRouteTab } from "./promoter-route-tab";
 import { PromoterProfileForm } from "./promoter-profile-form";
 
+export type PromotorAppMode = "promotor" | "vendedor";
+
 export function PromotorApp({
   promoterName,
   initialStoreId,
   initialSupplierId,
+  mode = "promotor",
 }: {
   promoterName: string;
   // Loja vinda por contexto (?storeId do /mapa): hidrata o nome e pula a etapa
@@ -39,13 +43,17 @@ export function PromotorApp({
   // Indústria vinda por contexto (?supplierId da página de mídia): pré-seleciona
   // e pula direto para tirar a foto.
   initialSupplierId?: string;
+  // "vendedor" adiciona a aba "Estou aqui" (mapa da localização) antes de
+  // Capturar e a torna a aba inicial. "promotor" mantém o layout antigo.
+  mode?: PromotorAppMode;
 }) {
+  const isSeller = mode === "vendedor";
   const { profile, isLoading: loadingProfile } = usePromotorProfile();
   const { store, isLoading } = useStore(initialStoreId ?? "");
   const initialStore =
     initialStoreId && store ? { id: store.id, name: store.name } : undefined;
   const waitingStore = !!initialStoreId && isLoading;
-  const [view, setView] = useState<PromotorView>("capture");
+  const [view, setView] = useState<PromotorView>(isSeller ? "here" : "capture");
   const [editing, setEditing] = useState<"photo" | "whatsapp" | null>(null);
   // Filtro com que "Minhas fotos" abre. Serve ao atalho de reprovadas do
   // cabeçalho; vai como `key` para a lista remontar já no filtro certo.
@@ -132,7 +140,13 @@ export function PromotorApp({
       ) : (
         <Tabs
           value={
-            view === "photos" ? "mine" : view === "route" ? "route" : "capture"
+            view === "photos"
+              ? "mine"
+              : view === "route"
+                ? "route"
+                : view === "here"
+                  ? "here"
+                  : "capture"
           }
           onValueChange={(value) =>
             setView(
@@ -140,11 +154,18 @@ export function PromotorApp({
                 ? "photos"
                 : value === "route"
                   ? "route"
-                  : "capture",
+                  : value === "here"
+                    ? "here"
+                    : "capture",
             )
           }
         >
           <TabsList className="w-full">
+            {isSeller && (
+              <TabsTrigger value="here" className="flex-1">
+                Estou aqui
+              </TabsTrigger>
+            )}
             <TabsTrigger value="capture" className="flex-1">
               Capturar
             </TabsTrigger>
@@ -155,6 +176,11 @@ export function PromotorApp({
               Minhas fotos
             </TabsTrigger>
           </TabsList>
+          {isSeller && (
+            <TabsContent value="here" className="mt-4">
+              <HereNowTab />
+            </TabsContent>
+          )}
           <TabsContent value="capture" className="mt-4">
             {waitingStore ? (
               <div className="flex justify-center py-10">

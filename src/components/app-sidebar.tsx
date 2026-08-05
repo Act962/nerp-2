@@ -250,6 +250,14 @@ const navigation: NavItem[] = [
         permission: "promotor",
       },
       {
+        // Mesmo motor do App Promotor + aba "Estou aqui" para registrar
+        // presença ao vivo — reusa `/vendedor` com `mode='vendedor'`.
+        name: "App Vendedor",
+        href: "/vendedor",
+        icon: MapPinned,
+        permission: "vendedor",
+      },
+      {
         name: "App QR Preço",
         href: "/trade/qr-preco",
         icon: ScanBarcode,

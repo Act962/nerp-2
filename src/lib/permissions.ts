@@ -92,6 +92,11 @@ export const PAGE_PERMISSIONS = [
     href: "/promotor",
   },
   {
+    key: "vendedor",
+    label: "Vendedor (campo)",
+    href: "/vendedor",
+  },
+  {
     key: "planograma",
     label: "Planograma",
     href: "/trade/planograma",
@@ -219,7 +224,11 @@ export const INVITABLE_ROLES: {
 // valida `role` contra os cargos do plugin organization (owner/admin/member) e
 // recusaria valores próprios; e porque coordenar o trade não implica ver mais
 // páginas — quem decide acesso continua sendo `role` + `permissions`.
-export const TRADE_ROLE_VALUES = ["COORDENADOR_TRADE", "SUPERVISOR"] as const;
+export const TRADE_ROLE_VALUES = [
+  "COORDENADOR_TRADE",
+  "SUPERVISOR",
+  "VENDEDOR",
+] as const;
 
 export type TradeRoleValue = (typeof TRADE_ROLE_VALUES)[number];
 
@@ -237,6 +246,12 @@ export const TRADE_ROLES: {
     value: "SUPERVISOR",
     label: "Supervisor",
     description: "Acompanha os promotores em campo.",
+  },
+  {
+    value: "VENDEDOR",
+    label: "Vendedor(a)",
+    description:
+      "Vende em campo. Abre o App Vendedor com a aba 'Estou aqui' pra registrar presença ao vivo.",
   },
 ];
 
