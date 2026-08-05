@@ -659,6 +659,18 @@ function SellersTab({ periodType }: { periodType: SalesGoalPeriodType }) {
                   key={entry.id}
                   className="flex flex-wrap items-center gap-2 rounded-md border p-2"
                 >
+                  <SalesGoalPhotoUploader
+                    value={entry.photoUrl}
+                    onChange={(key) =>
+                      upsertEntry.mutate(
+                        { entryId: entry.id, photoUrl: key },
+                        { onError: (error) => toast.error(error.message) },
+                      )
+                    }
+                    name={entry.sellerName}
+                    seed={entry.externalCode}
+                    size={40}
+                  />
                   <div className="flex-1 min-w-[160px]">
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-medium truncate">

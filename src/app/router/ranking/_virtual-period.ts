@@ -217,15 +217,39 @@ export async function buildVirtualPeriodFromErp(
       overallGoalAmount: true,
       branches: {
         select: {
-          entries: { select: { externalCode: true, goalAmount: true } },
+          entries: {
+            select: {
+              externalCode: true,
+              goalAmount: true,
+              // Overrides feitos na aba "Vendedores" das Configurações. Sem
+              // isso o board (path ERP) ignora tudo que o usuário digita além
+              // da meta — vendido manual/vínculo/foto sumiam do card animado,
+              // mesmo persistidos no banco.
+              achievedAmount: true,
+              achievedIsManual: true,
+              memberId: true,
+              photoUrl: true,
+            },
+          },
         },
       },
     },
   });
   const goalByCode = new Map<string, number>();
+  const manualAchievedByCode = new Map<string, number>();
+  const memberByCode = new Map<string, string>();
+  const photoByCode = new Map<string, string>();
   for (const branch of storedPeriod?.branches ?? []) {
     for (const entry of branch.entries) {
       goalByCode.set(entry.externalCode, Number(entry.goalAmount));
+      if (entry.achievedIsManual && entry.achievedAmount !== null) {
+        manualAchievedByCode.set(
+          entry.externalCode,
+          Number(entry.achievedAmount),
+        );
+      }
+      if (entry.memberId) memberByCode.set(entry.externalCode, entry.memberId);
+      if (entry.photoUrl) photoByCode.set(entry.externalCode, entry.photoUrl);
     }
   }
   const pace = computePeriodPace(periodStart, periodEnd);
@@ -277,8 +301,13 @@ export async function buildVirtualPeriodFromErp(
     // Meta cadastrada para este vendedor, quando existir. Ausente = 0, que o
     // board já trata como "sem meta definida".
     const goalAmount = goalByCode.get(fact.sellerExternalCode) ?? 0;
+    // Override manual do vendido, quando o admin digitou um valor na aba
+    // Vendedores — vale acima do revenue do ERP. Mesma regra do path não-ERP
+    // em `_ranking-data.ts:109-117`.
+    const manualAchieved = manualAchievedByCode.get(fact.sellerExternalCode);
+    const achievedAmount = manualAchieved ?? revenue;
     const projectedAmount =
-      pace.elapsedRatio > 0 ? revenue / pace.elapsedRatio : null;
+      pace.elapsedRatio > 0 ? achievedAmount / pace.elapsedRatio : null;
 
     return {
       // Período virtual não existe no banco: id sintético e estável, para o
@@ -289,12 +318,15 @@ export async function buildVirtualPeriodFromErp(
       sellerName: name,
       entryKind: seller?.isBucket ? ("BUCKET" as const) : ("SELLER" as const),
       goalAmount,
-      achievedAmount: revenue,
-      percentAchieved: goalAmount > 0 ? (revenue / goalAmount) * 100 : null,
-      remainingAmount: Math.max(goalAmount - revenue, 0),
-      memberId: seller?.memberId ?? null,
-      photoUrl: null,
-      achievedSource: "AUTO" as const,
+      achievedAmount,
+      percentAchieved:
+        goalAmount > 0 ? (achievedAmount / goalAmount) * 100 : null,
+      remainingAmount: Math.max(goalAmount - achievedAmount, 0),
+      memberId:
+        memberByCode.get(fact.sellerExternalCode) ?? seller?.memberId ?? null,
+      photoUrl: photoByCode.get(fact.sellerExternalCode) ?? null,
+      achievedSource:
+        manualAchieved !== undefined ? ("MANUAL" as const) : ("AUTO" as const),
       metrics: {
         revenue,
         cost,
@@ -322,6 +354,8 @@ export async function buildVirtualPeriodFromErp(
     const seller = sellerByCode.get(code);
     const name = seller?.name ?? `Código ${code}`;
     const goalAmount = goalByCode.get(code) ?? 0;
+    const manualAchieved = manualAchievedByCode.get(code);
+    const achievedAmount = manualAchieved ?? 0;
     entries.push({
       id: `virtual:${periodType}:${code}`,
       externalCode: code,
@@ -329,12 +363,14 @@ export async function buildVirtualPeriodFromErp(
       sellerName: name,
       entryKind: seller?.isBucket ? ("BUCKET" as const) : ("SELLER" as const),
       goalAmount,
-      achievedAmount: 0,
-      percentAchieved: goalAmount > 0 ? 0 : null,
-      remainingAmount: goalAmount,
-      memberId: seller?.memberId ?? null,
-      photoUrl: null,
-      achievedSource: "AUTO" as const,
+      achievedAmount,
+      percentAchieved:
+        goalAmount > 0 ? (achievedAmount / goalAmount) * 100 : null,
+      remainingAmount: Math.max(goalAmount - achievedAmount, 0),
+      memberId: memberByCode.get(code) ?? seller?.memberId ?? null,
+      photoUrl: photoByCode.get(code) ?? null,
+      achievedSource:
+        manualAchieved !== undefined ? ("MANUAL" as const) : ("AUTO" as const),
       metrics: {
         revenue: 0,
         cost: 0,

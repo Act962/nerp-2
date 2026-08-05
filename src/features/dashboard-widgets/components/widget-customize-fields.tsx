@@ -590,7 +590,11 @@ export function WidgetCustomizeFields({
   const hasChartKindChoice =
     state.displayType === "CHART" && entry.supportedChartKinds.length > 1;
   const hasDisplayTypeChoice = displayTypes.length > 1;
-  const showDisplaySection = hasDisplayTypeChoice || hasChartKindChoice;
+  // A seção "Exibição" agora aparece sempre — mesmo para widgets com um
+  // único formato suportado, o Select fica visível (desabilitado) mostrando
+  // o formato atual, para o usuário nunca ficar sem saber que tipo é ou
+  // achar que "não tem essa opção".
+  const showDisplaySection = true;
 
   return (
     <div className="flex flex-col gap-4">
@@ -638,30 +642,36 @@ export function WidgetCustomizeFields({
       {showDisplaySection && (
         <Section title="Exibição">
           <div className="flex flex-wrap items-center gap-2">
-            {hasDisplayTypeChoice && (
-              <div className="flex flex-col gap-1">
-                <Label className="text-[10px] text-muted-foreground">
-                  Formato
-                </Label>
-                <Select
-                  value={state.displayType}
-                  onValueChange={(value) =>
-                    onChange({ displayType: value as DisplayType })
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Formato
+              </Label>
+              <Select
+                value={state.displayType}
+                disabled={!hasDisplayTypeChoice}
+                onValueChange={(value) =>
+                  onChange({ displayType: value as DisplayType })
+                }
+              >
+                <SelectTrigger
+                  className="h-8 w-32 text-xs"
+                  title={
+                    hasDisplayTypeChoice
+                      ? undefined
+                      : "Esta fonte só suporta este formato."
                   }
                 >
-                  <SelectTrigger className="h-8 w-32 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {displayTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {DISPLAY_TYPE_LABEL[type]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {displayTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {DISPLAY_TYPE_LABEL[type]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             {hasChartKindChoice && (
               <div className="flex flex-col gap-1">
                 <Label className="text-[10px] text-muted-foreground">

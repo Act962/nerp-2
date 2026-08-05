@@ -108,7 +108,7 @@ export function StatWidget({
   const valueHex = pastelHex(valueColor);
   const iconHex = pastelHex(iconColor);
   return (
-    <div className="@container flex h-full flex-col gap-1">
+    <div className="@container flex h-full flex-col justify-center gap-1">
       <div
         className={cn(
           "flex min-w-0 items-center gap-2",
@@ -134,7 +134,12 @@ export function StatWidget({
           className={cn(
             // `flex-1` só quando ancora à esquerda: com center/right o número
             // deixa de esticar e o alinhamento passa a mandar de fato.
-            "min-w-0 tabular-nums leading-tight",
+            // `leading-none` + `py-0.5` — antes era `leading-tight` (≈1.25),
+            // que dava altura de linha maior que a viewport do card em
+            // `valueSize=lg/xl` e o `overflow-hidden` do CardContent decepava
+            // a parte de baixo do "R$" (descendente do "$"/"g"). O padding
+            // vertical evita que o topo do glifo cole na borda também.
+            "min-w-0 tabular-nums leading-none py-0.5",
             weightClass(valueWeight),
             valueAlign === "left" && "flex-1",
             alignClass(valueAlign),

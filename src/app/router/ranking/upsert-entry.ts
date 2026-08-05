@@ -4,7 +4,8 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { requireOrgAdmin } from "./_access";
-import { entryKindSchema } from "./_schemas";
+import { entryKindSchema, periodTypeSchema } from "./_schemas";
+import { resolvePeriodBounds } from "./_virtual-period";
 
 const upsertSalesGoalEntryInputSchema = z.object({
   entryId: z.string(),
@@ -20,6 +21,22 @@ const upsertSalesGoalEntryInputSchema = z.object({
   // normal — fora de escopo aqui.
   branchId: z.string().optional(),
 });
+
+// Regex casado no formato dos ids virtuais gerados por _virtual-period.ts:
+// `virtual:<PERIOD_TYPE>:<CODUSUR>`. Numa org com ERP ativo, o board é montado
+// da venda espelhada e as entries têm esse id sintético — não existem no banco
+// até a primeira edição. Sem esse detour, digitar uma meta caía num NOT_FOUND
+// silencioso e o valor sumia no `onBlur`.
+const VIRTUAL_ID_REGEX = /^virtual:([A-Z_]+):(.+)$/;
+
+function parseVirtualId(id: string) {
+  const match = id.match(VIRTUAL_ID_REGEX);
+  if (!match) return null;
+  const [, periodType, externalCode] = match;
+  const parsed = periodTypeSchema.safeParse(periodType);
+  if (!parsed.success) return null;
+  return { periodType: parsed.data, externalCode };
+}
 
 // Entry vinculada a um Member tem o vendido calculado das vendas, mas um
 // achievedAmount informado aqui vira override manual (achievedIsManual) e
@@ -37,6 +54,133 @@ export const upsertSalesGoalEntry = base
   .handler(async ({ input, context, errors }) => {
     await requireOrgAdmin(context.org.id, context.user.id);
 
+    if (input.memberId) {
+      const member = await prisma.member.findFirst({
+        where: { id: input.memberId, organizationId: context.org.id },
+        select: { id: true },
+      });
+      if (!member) {
+        throw errors.NOT_FOUND({
+          message: "Membro não encontrado nesta organização.",
+        });
+      }
+    }
+
+    // Caso ERP: id virtual → materializa o trio (period, branch, entry) pelo
+    // CODUSUR do ExternalSeller. `branchId` não faz sentido aqui (branches
+    // virtuais também não existem), então é ignorado nesse fluxo — a equipe
+    // sai do supervisor cadastrado no ERP.
+    const virtual = parseVirtualId(input.entryId);
+    if (virtual) {
+      const seller = await prisma.externalSeller.findUnique({
+        where: {
+          organizationId_externalCode: {
+            organizationId: context.org.id,
+            externalCode: virtual.externalCode,
+          },
+        },
+        select: {
+          externalCode: true,
+          name: true,
+          supervisorName: true,
+          isBucket: true,
+        },
+      });
+      if (!seller) {
+        throw errors.NOT_FOUND({
+          message: "Vendedor não encontrado no espelho do ERP.",
+        });
+      }
+
+      const { periodStart, periodEnd, label } = resolvePeriodBounds(
+        virtual.periodType,
+      );
+      const branchName =
+        seller.supervisorName?.trim() ||
+        (seller.isBucket ? "Canais" : "Sem equipe");
+
+      const materialized = await prisma.$transaction(async (tx) => {
+        const period = await tx.salesGoalPeriod.upsert({
+          where: {
+            organizationId_periodType_periodStart: {
+              organizationId: context.org.id,
+              periodType: virtual.periodType,
+              periodStart,
+            },
+          },
+          create: {
+            organizationId: context.org.id,
+            periodType: virtual.periodType,
+            periodStart,
+            periodEnd,
+            label,
+            importedByUserId: context.user.id,
+          },
+          update: {},
+        });
+
+        const branch = await tx.salesGoalBranch.upsert({
+          where: { periodId_name: { periodId: period.id, name: branchName } },
+          create: { periodId: period.id, name: branchName },
+          update: {},
+        });
+
+        return tx.salesGoalEntry.upsert({
+          where: {
+            branchId_externalCode: {
+              branchId: branch.id,
+              externalCode: seller.externalCode,
+            },
+          },
+          create: {
+            branchId: branch.id,
+            externalCode: seller.externalCode,
+            sellerName: input.sellerName ?? seller.name,
+            goalName: input.goalName ?? seller.name,
+            goalAmount: input.goalAmount ?? 0,
+            achievedAmount: input.achievedAmount ?? null,
+            achievedIsManual:
+              input.achievedAmount !== undefined &&
+              input.achievedAmount !== null,
+            entryKind:
+              input.entryKind ?? (seller.isBucket ? "BUCKET" : "SELLER"),
+            memberId: input.memberId ?? null,
+            photoUrl: input.photoUrl ?? null,
+          },
+          update: {
+            sellerName: input.sellerName,
+            goalName: input.goalName,
+            goalAmount: input.goalAmount,
+            achievedAmount: input.achievedAmount,
+            achievedIsManual:
+              input.achievedAmount !== undefined
+                ? input.achievedAmount !== null
+                : undefined,
+            entryKind: input.entryKind,
+            memberId: input.memberId,
+            photoUrl: input.photoUrl,
+          },
+        });
+      });
+
+      return {
+        id: materialized.id,
+        externalCode: materialized.externalCode,
+        goalName: materialized.goalName,
+        sellerName: materialized.sellerName,
+        entryKind: materialized.entryKind,
+        goalAmount: Number(materialized.goalAmount),
+        achievedAmount:
+          materialized.achievedAmount !== null
+            ? Number(materialized.achievedAmount)
+            : null,
+        achievedIsManual: materialized.achievedIsManual,
+        memberId: materialized.memberId,
+        photoUrl: materialized.photoUrl,
+        branchId: materialized.branchId,
+      };
+    }
+
     const entry = await prisma.salesGoalEntry.findFirst({
       where: {
         id: input.entryId,
@@ -50,18 +194,6 @@ export const upsertSalesGoalEntry = base
     });
     if (!entry) {
       throw errors.NOT_FOUND({ message: "Meta não encontrada." });
-    }
-
-    if (input.memberId) {
-      const member = await prisma.member.findFirst({
-        where: { id: input.memberId, organizationId: context.org.id },
-        select: { id: true },
-      });
-      if (!member) {
-        throw errors.NOT_FOUND({
-          message: "Membro não encontrado nesta organização.",
-        });
-      }
     }
 
     if (input.branchId) {
