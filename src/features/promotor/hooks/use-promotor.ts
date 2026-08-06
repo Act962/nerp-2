@@ -1,7 +1,12 @@
 "use client";
 
 import { client, orpc } from "@/lib/orpc";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 
 export type PromotorPhotoStatus = "ALL" | "APPROVED" | "REJECTED" | "PENDING";
@@ -79,14 +84,23 @@ export function useMyPhotoGroups(
 }
 
 // Indústrias vinculadas ao promotor (as que ele pode fotografar). Owner/admin
-// recebem todas.
+// recebem todas. Cursor infinito: a lista é uma busca digitada + rolagem
+// (Command/lista, não tabela), então "carregar mais" no scroll é mais natural
+// que paginação numerada aqui.
 export function useMyIndustries(search?: string) {
-  const query = useQuery(
-    orpc.promotor.myIndustries.queryOptions({ input: { search } }),
-  );
+  const query = useInfiniteQuery({
+    ...orpc.promotor.myIndustries.infiniteOptions({
+      input: (cursor: string | undefined) => ({ search, cursor }),
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      initialPageParam: undefined,
+    }),
+  });
   return {
-    suppliers: query.data?.suppliers ?? [],
+    suppliers: query.data?.pages.flatMap((page) => page.suppliers) ?? [],
     isLoading: query.isPending,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
   };
 }
 
@@ -112,14 +126,22 @@ export function useUpdatePromotorProfile() {
   );
 }
 
-// Lojas do wizard, com os favoritos do promotor no topo.
+// Lojas do wizard, com os favoritos do promotor no topo. Mesmo cursor
+// infinito de `useMyIndustries` — organizações grandes têm milhares de lojas.
 export function useMyStores(search?: string) {
-  const query = useQuery(
-    orpc.promotor.myStores.queryOptions({ input: { search } }),
-  );
+  const query = useInfiniteQuery({
+    ...orpc.promotor.myStores.infiniteOptions({
+      input: (cursor: string | undefined) => ({ search, cursor }),
+      getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+      initialPageParam: undefined,
+    }),
+  });
   return {
-    stores: query.data?.stores ?? [],
+    stores: query.data?.pages.flatMap((page) => page.stores) ?? [],
     isLoading: query.isPending,
+    hasNextPage: query.hasNextPage,
+    fetchNextPage: query.fetchNextPage,
+    isFetchingNextPage: query.isFetchingNextPage,
   };
 }
 

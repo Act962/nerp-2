@@ -12,6 +12,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useInfiniteScrollSentinel } from "@/hooks/use-infinite-scroll-sentinel";
 import { PhotoCaptureInput } from "@/features/pdv-photos/components/photo-capture-input";
 import {
   ArrowLeft,
@@ -141,12 +142,31 @@ export function CaptureWizard({
   const [supplierSearch, setSupplierSearch] = useState("");
   const debouncedStore = useDebouncedValue(storeSearch);
   const debouncedSupplier = useDebouncedValue(supplierSearch);
-  const { stores, isLoading: loadingStores } = useMyStores(
-    debouncedStore || undefined,
-  );
-  const { suppliers, isLoading: loadingSuppliers } = useMyIndustries(
-    debouncedSupplier || undefined,
-  );
+  const {
+    stores,
+    isLoading: loadingStores,
+    hasNextPage: hasMoreStores,
+    fetchNextPage: fetchMoreStores,
+    isFetchingNextPage: loadingMoreStores,
+  } = useMyStores(debouncedStore || undefined);
+  const {
+    suppliers,
+    isLoading: loadingSuppliers,
+    hasNextPage: hasMoreSuppliers,
+    fetchNextPage: fetchMoreSuppliers,
+    isFetchingNextPage: loadingMoreSuppliers,
+  } = useMyIndustries(debouncedSupplier || undefined);
+
+  const storeSentinelRef = useInfiniteScrollSentinel({
+    hasNextPage: !!hasMoreStores,
+    isFetchingNextPage: loadingMoreStores,
+    fetchNextPage: fetchMoreStores,
+  });
+  const supplierSentinelRef = useInfiniteScrollSentinel({
+    hasNextPage: !!hasMoreSuppliers,
+    isFetchingNextPage: loadingMoreSuppliers,
+    fetchNextPage: fetchMoreSuppliers,
+  });
 
   const capture = useCapturePromotorPhoto();
   const toggleFavorite = useTogglePromotorFavorite();
@@ -341,6 +361,12 @@ export function CaptureWizard({
                   ))}
                 </CommandGroup>
               ))}
+
+            {hasMoreStores && (
+              <div ref={storeSentinelRef} className="flex justify-center py-3">
+                {loadingMoreStores && <Spinner />}
+              </div>
+            )}
           </CommandList>
         </Command>
       )}
@@ -441,6 +467,15 @@ export function CaptureWizard({
                   ))}
                 </CommandGroup>
               ))}
+
+            {hasMoreSuppliers && (
+              <div
+                ref={supplierSentinelRef}
+                className="flex justify-center py-3"
+              >
+                {loadingMoreSuppliers && <Spinner />}
+              </div>
+            )}
           </CommandList>
         </Command>
       )}
