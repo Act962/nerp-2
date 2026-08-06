@@ -76,9 +76,10 @@ export function AddPageSheet({
   const [step, setStep] = useState<Step>(1);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
-  const { stores, isLoading: isLoadingStores } = useStores(
-    debouncedSearch || undefined,
-  );
+  const { stores, isLoading: isLoadingStores } = useStores({
+    search: debouncedSearch || undefined,
+    pageSize: 30,
+  });
   const { mediaTypes, isLoading: isLoadingMediaTypes } = useMediaTypes();
   const createStore = useCreateStore();
 

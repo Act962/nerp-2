@@ -4,12 +4,16 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
+const DEFAULT_PAGE_SIZE = 10;
+
 export const listStore = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
   .input(
     z.object({
       search: z.string().optional(),
+      page: z.number().int().min(1).default(1),
+      pageSize: z.number().int().min(1).max(100).default(DEFAULT_PAGE_SIZE),
     }),
   )
   .output(
@@ -28,29 +32,43 @@ export const listStore = base
           pdvPhotosCount: z.number(),
         }),
       ),
+      totalCount: z.number(),
+      page: z.number(),
+      pageSize: z.number(),
+      totalPages: z.number(),
     }),
   )
   .handler(async ({ input, context }) => {
-    const stores = await prisma.store.findMany({
-      where: {
-        organizationId: context.org.id,
-        name: input.search
-          ? { contains: input.search, mode: "insensitive" }
-          : undefined,
-      },
-      orderBy: { name: "asc" },
-      select: {
-        id: true,
-        name: true,
-        code: true,
-        managerName: true,
-        city: true,
-        state: true,
-        coverImageKey: true,
-        isActive: true,
-        _count: { select: { floorPlans: true, pdvPhotos: true } },
-      },
-    });
+    const { page, pageSize } = input;
+    const search = input.search?.trim();
+
+    const where = {
+      organizationId: context.org.id,
+      name: search
+        ? { contains: search, mode: "insensitive" as const }
+        : undefined,
+    };
+
+    const [stores, totalCount] = await Promise.all([
+      prisma.store.findMany({
+        where,
+        orderBy: { name: "asc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          managerName: true,
+          city: true,
+          state: true,
+          coverImageKey: true,
+          isActive: true,
+          _count: { select: { floorPlans: true, pdvPhotos: true } },
+        },
+      }),
+      prisma.store.count({ where }),
+    ]);
 
     return {
       stores: stores.map((store) => ({
@@ -65,5 +83,9 @@ export const listStore = base
         floorPlansCount: store._count.floorPlans,
         pdvPhotosCount: store._count.pdvPhotos,
       })),
+      totalCount,
+      page,
+      pageSize,
+      totalPages: Math.max(1, Math.ceil(totalCount / pageSize)),
     };
   });

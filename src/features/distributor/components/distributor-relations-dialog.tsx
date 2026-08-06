@@ -41,7 +41,7 @@ export function DistributorRelationsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { suppliers } = useSupplier({ pageSize: 100 });
-  const { stores } = useStores();
+  const { stores } = useStores({ pageSize: 100 });
   const { data, isLoading } = useDistributorRelations(
     open ? distributorId : "",
   );

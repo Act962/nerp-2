@@ -24,7 +24,7 @@ import { PricingSettingsCard } from "./pricing-settings-card";
 import { RegionBenchmarkPanel } from "./region-benchmark-panel";
 
 function PriceListTab() {
-  const { stores, isLoading: isLoadingStores } = useStores();
+  const { stores, isLoading: isLoadingStores } = useStores({ pageSize: 100 });
   const [storeId, setStoreId] = useState<string>("");
   const { items, missingStoreCostData, isLoading } = useCatalogPdv(storeId);
 

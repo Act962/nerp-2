@@ -37,7 +37,10 @@ import { StoreQrDialog } from "./store-qr-dialog";
 export function QrPriceStores() {
   const [search, setSearch] = useState("");
   const [qrStoreId, setQrStoreId] = useState<string | null>(null);
-  const { stores, isLoading } = useStores(search || undefined);
+  const { stores, isLoading } = useStores({
+    search: search || undefined,
+    pageSize: 100,
+  });
   const { data: orgData } = useQuery(
     orpc.org.get.queryOptions({ input: undefined }),
   );
