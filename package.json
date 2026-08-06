@@ -128,7 +128,8 @@
       "prisma",
       "esbuild",
       "protobufjs",
-      "sharp"
+      "sharp",
+      "bcrypt"
     ]
   },
   "engines": {

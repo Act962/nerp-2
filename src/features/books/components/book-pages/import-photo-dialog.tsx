@@ -52,7 +52,10 @@ export function ImportPhotoDialog({
   const [supplierSearch, setSupplierSearch] = useState("");
   const [uploading, setUploading] = useState(false);
 
-  const { stores } = useStores(useDebouncedValue(storeSearch) || undefined);
+  const { stores } = useStores({
+    search: useDebouncedValue(storeSearch) || undefined,
+    pageSize: 30,
+  });
   const { suppliers } = useSupplier({
     search: useDebouncedValue(supplierSearch) || undefined,
     pageSize: 30,

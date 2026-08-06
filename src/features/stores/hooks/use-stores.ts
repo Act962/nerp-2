@@ -4,12 +4,29 @@ import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export function useStores(search?: string) {
+interface UseStoresProps {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export function useStores({
+  search,
+  page = 1,
+  pageSize = 10,
+}: UseStoresProps = {}) {
   const { data, isPending } = useQuery(
-    orpc.store.list.queryOptions({ input: { search } }),
+    orpc.store.list.queryOptions({ input: { search, page, pageSize } }),
   );
 
-  return { stores: data?.stores ?? [], isLoading: isPending };
+  return {
+    stores: data?.stores ?? [],
+    totalCount: data?.totalCount ?? 0,
+    page: data?.page ?? page,
+    pageSize: data?.pageSize ?? pageSize,
+    totalPages: data?.totalPages ?? 1,
+    isLoading: isPending,
+  };
 }
 
 export function useStoreOverview() {

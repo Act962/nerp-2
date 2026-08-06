@@ -30,7 +30,7 @@ export function PromoterLinksManager() {
     orpc.members.list.queryOptions({ input: {} }),
   );
   const { suppliers } = useSupplier({ pageSize: 100 });
-  const { stores } = useStores();
+  const { stores } = useStores({ pageSize: 100 });
   const { data: distributors } = useDistributors();
 
   const [memberId, setMemberId] = useState("");
