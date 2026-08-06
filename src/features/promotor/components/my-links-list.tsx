@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useInfiniteScrollSentinel } from "@/hooks/use-infinite-scroll-sentinel";
 import { Factory, Star, Store as StoreIcon } from "lucide-react";
 import { useState } from "react";
 import {
@@ -68,6 +69,9 @@ function ListShell({
   emptyLabel,
   icon,
   onToggle,
+  hasNextPage,
+  fetchNextPage,
+  isFetchingNextPage,
 }: {
   rows: Row[];
   isLoading: boolean;
@@ -77,9 +81,17 @@ function ListShell({
   emptyLabel: string;
   icon: React.ReactNode;
   onToggle: (row: Row) => void;
+  hasNextPage: boolean;
+  fetchNextPage: () => void;
+  isFetchingNextPage: boolean;
 }) {
   const favorites = rows.filter((row) => row.isFavorite);
   const others = rows.filter((row) => !row.isFavorite);
+  const sentinelRef = useInfiniteScrollSentinel({
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
 
   return (
     <div className="space-y-3">
@@ -127,6 +139,12 @@ function ListShell({
             </section>
           ))
       )}
+
+      {!isLoading && hasNextPage && (
+        <div ref={sentinelRef} className="flex justify-center py-3">
+          {isFetchingNextPage && <Spinner />}
+        </div>
+      )}
     </div>
   );
 }
@@ -136,7 +154,13 @@ function ListShell({
 export function MyIndustriesList() {
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search);
-  const { suppliers, isLoading } = useMyIndustries(debounced || undefined);
+  const {
+    suppliers,
+    isLoading,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useMyIndustries(debounced || undefined);
   const toggleFavorite = useTogglePromotorFavorite();
 
   return (
@@ -164,6 +188,9 @@ export function MyIndustriesList() {
           favorite: !row.isFavorite,
         })
       }
+      hasNextPage={!!hasNextPage}
+      fetchNextPage={() => fetchNextPage()}
+      isFetchingNextPage={isFetchingNextPage}
     />
   );
 }
@@ -171,7 +198,8 @@ export function MyIndustriesList() {
 export function MyClientsList() {
   const [search, setSearch] = useState("");
   const debounced = useDebouncedValue(search);
-  const { stores, isLoading } = useMyStores(debounced || undefined);
+  const { stores, isLoading, hasNextPage, fetchNextPage, isFetchingNextPage } =
+    useMyStores(debounced || undefined);
   const toggleFavorite = useTogglePromotorFavorite();
 
   return (
@@ -195,6 +223,9 @@ export function MyClientsList() {
           favorite: !row.isFavorite,
         })
       }
+      hasNextPage={!!hasNextPage}
+      fetchNextPage={() => fetchNextPage()}
+      isFetchingNextPage={isFetchingNextPage}
     />
   );
 }
