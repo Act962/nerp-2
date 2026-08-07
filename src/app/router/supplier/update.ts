@@ -5,6 +5,7 @@ import type { Supplier } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { normalizeDocument } from "@/lib/document";
 import { z } from "zod";
+import { canManageSuppliers } from "./_can-manage-suppliers";
 
 export const updateSupplier = base
   .use(requireAuthMiddleware)
@@ -34,6 +35,12 @@ export const updateSupplier = base
     }),
   )
   .handler(async ({ input, context, errors }) => {
+    if (!(await canManageSuppliers(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Você não tem permissão para editar fornecedores",
+      });
+    }
+
     const supplier = await prisma.supplier.findFirst({
       where: { id: input.id, organizationId: context.org.id },
     });

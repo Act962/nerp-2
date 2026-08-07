@@ -73,7 +73,7 @@ function getPageItems(current: number, total: number): (number | "ellipsis")[] {
   return items;
 }
 
-export function ListSuppliers() {
+export function ListSuppliers({ readOnly = false }: { readOnly?: boolean }) {
   const [supplierId, setSupplierId] = useState("");
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
@@ -256,26 +256,30 @@ export function ListSuppliers() {
                               <EyeIcon className="size-4 mr-2" />
                               Ver detalhes
                             </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setSupplierId(supplier.id);
-                                setOpenEditModal(true);
-                              }}
-                            >
-                              <EditIcon className="size-4 mr-2" />
-                              Editar
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              variant="destructive"
-                              onClick={() => {
-                                setSupplierId(supplier.id);
-                                setOpenDeleteModal(true);
-                              }}
-                            >
-                              <Trash2Icon className="size-4 mr-2" />
-                              Excluir
-                            </DropdownMenuItem>
+                            {!readOnly && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSupplierId(supplier.id);
+                                    setOpenEditModal(true);
+                                  }}
+                                >
+                                  <EditIcon className="size-4 mr-2" />
+                                  Editar
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setSupplierId(supplier.id);
+                                    setOpenDeleteModal(true);
+                                  }}
+                                >
+                                  <Trash2Icon className="size-4 mr-2" />
+                                  Excluir
+                                </DropdownMenuItem>
+                              </>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
