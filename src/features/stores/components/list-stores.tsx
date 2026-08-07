@@ -79,7 +79,7 @@ function getPageItems(current: number, total: number): (number | "ellipsis")[] {
   return items;
 }
 
-export function ListStores() {
+export function ListStores({ readOnly = false }: { readOnly?: boolean }) {
   const [selectedId, setSelectedId] = useState("");
   const [openEdit, setOpenEdit] = useState(false);
   const [openDelete, setOpenDelete] = useState(false);
@@ -241,27 +241,31 @@ export function ListStores() {
                                 <QrCodeIcon className="mr-2 size-4" />
                                 QR code promotor
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedId(store.id);
-                                  setOpenEdit(true);
-                                }}
-                              >
-                                <EditIcon className="mr-2 size-4" />
-                                Editar
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                variant="destructive"
-                                onClick={() => {
-                                  setSelectedId(store.id);
-                                  setOpenDelete(true);
-                                }}
-                              >
-                                <Trash2Icon className="mr-2 size-4" />
-                                Excluir
-                              </DropdownMenuItem>
+                              {!readOnly && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => {
+                                      setSelectedId(store.id);
+                                      setOpenEdit(true);
+                                    }}
+                                  >
+                                    <EditIcon className="mr-2 size-4" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    variant="destructive"
+                                    onClick={() => {
+                                      setSelectedId(store.id);
+                                      setOpenDelete(true);
+                                    }}
+                                  >
+                                    <Trash2Icon className="mr-2 size-4" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>

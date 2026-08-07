@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { canManageStores } from "@/app/router/field-map/_can-manage-stores";
 import prisma from "@/lib/db";
 import { mintStoreSlug } from "@/lib/store-slug";
 import { z } from "zod";
@@ -24,7 +25,16 @@ export const createStore = base
     }),
   )
   .output(z.object({ id: z.string(), name: z.string() }))
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input, context, errors }) => {
+    // PROMOTOR só enxerga (ver `lojas/list.ts`) — criar continua exigindo a
+    // permissão de página de verdade, senão a leitura somente-leitura vira
+    // escrita por quem chama o procedure direto.
+    if (!(await canManageStores(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Você não tem permissão para cadastrar lojas",
+      });
+    }
+
     const store = await prisma.store.create({
       data: {
         organizationId: context.org.id,

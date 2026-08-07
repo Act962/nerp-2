@@ -312,14 +312,21 @@ model Member {
 
 // Mantido exatamente como seu schema
 
-// Função de campo no Trade. Não é permissão — quem controla acesso continua
-// sendo `Member.role` + `Member.permissions`.
+// Função de campo no Trade. Em geral não é permissão — quem controla acesso
+// continua sendo `Member.role` + `Member.permissions`. Única exceção:
+// PROMOTOR dá visão somente-leitura de Lojas e Fornecedores (ver
+// `src/lib/permissions.ts`), porque o promotor precisa consultar
+// endereço/contato em campo sem virar gestor desses cadastros.
 enum TradeRole {
   COORDENADOR_TRADE
   SUPERVISOR
   // Vendedor(a) de campo — abre o App Vendedor (mesmo motor do App Promotor,
   // acrescido da aba "Estou aqui" com localização em tempo real).
   VENDEDOR
+  // Promotor(a) de campo — mesmo cargo que já existe como permissão de
+  // página ("promotor"), agora também formalizado aqui para liberar consulta
+  // (não gestão) de Lojas e Fornecedores.
+  PROMOTOR
 }
 
 model Invitation {

@@ -228,6 +228,7 @@ export const TRADE_ROLE_VALUES = [
   "COORDENADOR_TRADE",
   "SUPERVISOR",
   "VENDEDOR",
+  "PROMOTOR",
 ] as const;
 
 export type TradeRoleValue = (typeof TRADE_ROLE_VALUES)[number];
@@ -252,6 +253,12 @@ export const TRADE_ROLES: {
     label: "Vendedor(a)",
     description:
       "Vende em campo. Abre o App Vendedor com a aba 'Estou aqui' pra registrar presença ao vivo.",
+  },
+  {
+    value: "PROMOTOR",
+    label: "Promotor(a)",
+    description:
+      "Fotografa PDVs no App Promotor. Também pode consultar (sem editar) Lojas e Fornecedores.",
   },
 ];
 
@@ -302,6 +309,41 @@ export function memberHasPermission(
   return (member.permissions ?? []).includes(key);
 }
 
+interface MemberWithTradeRole extends MemberLike {
+  tradeRole?: string | null;
+}
+
+// Páginas que o cargo PROMOTOR enxerga sem ter a permissão explícita — só
+// consulta (ver `isReadOnlyViewer`), nunca criar/editar/excluir. O promotor
+// precisa achar endereço/contato de loja e indústria em campo sem virar
+// gestor desses cadastros.
+const PROMOTOR_READ_ONLY_PAGES: readonly PagePermissionKey[] = [
+  "lojas",
+  "fornecedores",
+];
+
+/** Enxerga a página — por permissão explícita OU pela concessão somente-leitura do cargo PROMOTOR. */
+export function canViewPage(
+  member: MemberWithTradeRole | null | undefined,
+  key: PagePermissionKey,
+): boolean {
+  if (memberHasPermission(member, key)) return true;
+  return (
+    member?.tradeRole === "PROMOTOR" && PROMOTOR_READ_ONLY_PAGES.includes(key)
+  );
+}
+
+/**
+ * A visão vem só da concessão do cargo PROMOTOR (não da permissão explícita)
+ * — quem chama usa isto para esconder criar/editar/excluir na tela.
+ */
+export function isReadOnlyViewer(
+  member: MemberWithTradeRole | null | undefined,
+  key: PagePermissionKey,
+): boolean {
+  return !memberHasPermission(member, key) && canViewPage(member, key);
+}
+
 // Versão genérica pra permissões de ação (chave livre, ex.: "books-aprovar").
 export function memberCan(
   member: MemberLike | null | undefined,
@@ -315,6 +357,16 @@ export function memberCan(
 interface CalendarManagerLike extends MemberLike {
   tradeRole?: string | null;
 }
+
+// Cargos de LIDERANÇA de campo — de propósito sem PROMOTOR aqui: ele é cargo
+// de campo, não de liderança, e `isFieldLeadership` decide se libera gestão
+// de calendário e visão do trajeto de todo mundo. Deixar `Boolean(tradeRole)`
+// bastar entregaria as duas coisas de graça pra quem só tem PROMOTOR.
+const FIELD_LEADERSHIP_TRADE_ROLES = new Set<string>([
+  "COORDENADOR_TRADE",
+  "SUPERVISOR",
+  "VENDEDOR",
+]);
 
 /**
  * Pode criar/editar eventos do calendário.
@@ -332,7 +384,9 @@ function isFieldLeadership(
 ): boolean {
   if (!member) return false;
   if (hasFullAccess(member.role)) return true;
-  return Boolean(member.tradeRole);
+  return Boolean(
+    member.tradeRole && FIELD_LEADERSHIP_TRADE_ROLES.has(member.tradeRole),
+  );
 }
 
 export function canManageCalendar(

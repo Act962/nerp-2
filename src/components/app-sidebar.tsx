@@ -71,7 +71,7 @@ import {
   hasFullAccess,
   isModuleVisible,
 } from "@/lib/permissions";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "./ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { useEffect, useState } from "react";
@@ -730,6 +730,7 @@ function OrgMenu() {
   const [isLoadingOrg, setIsLoadingOrg] = useState(true);
   const { data: organizations } = authClient.useListOrganizations();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const selectedOrganization = async (data: {
     orgId: string;
@@ -743,11 +744,17 @@ function OrgMenu() {
 
     if (error) {
       toast.error("Erro ao tentar trocar de empresa!");
+      return;
     }
 
     setOrganizationActive(organization);
     toast.success("Sucesso!");
 
+    // As chaves do TanStack Query não carregam o id da org — sem isto, telas
+    // client-side continuariam mostrando dados da org anterior até o
+    // `staleTime` vencer (ou pior, um refetch em background trocando os dados
+    // na tela sem o usuário perceber a origem da mudança).
+    queryClient.clear();
     router.refresh();
   };
 

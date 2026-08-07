@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import z from "zod";
+import { canManageSuppliers } from "./_can-manage-suppliers";
 
 export const deleteSupplier = base
   .use(requireAuthMiddleware)
@@ -13,6 +14,12 @@ export const deleteSupplier = base
     }),
   )
   .handler(async ({ input, context, errors }) => {
+    if (!(await canManageSuppliers(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Você não tem permissão para excluir fornecedores",
+      });
+    }
+
     const { id } = input;
     const supplier = await prisma.supplier.findFirst({
       where: { id, organizationId: context.org.id },

@@ -18,6 +18,7 @@ import {
 } from "@/features/invitations/hooks/use-join-link";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { authClient } from "@/lib/auth-client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Building2, LinkIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,7 @@ import { useRouter } from "next/navigation";
  */
 export function JoinLinkCard({ token }: { token: string }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data, isLoading, isError } = useJoinLinkPreview(token);
   const accept = useAcceptJoinLink();
   const { data: session, isPending: loadingSession } = authClient.useSession();
@@ -111,6 +113,10 @@ export function JoinLinkCard({ token }: { token: string }) {
                 { token },
                 {
                   onSuccess: () => {
+                    // Mesma razão do convite nominal: entrar troca a org
+                    // ativa, e sem limpar o cache o dashboard abriria com
+                    // dados da org anterior.
+                    queryClient.clear();
                     router.push("/dashboard");
                     router.refresh();
                   },
