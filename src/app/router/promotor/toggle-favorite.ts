@@ -5,8 +5,8 @@ import prisma from "@/lib/db";
 import { z } from "zod";
 
 // Marca/desmarca uma loja ou indústria como favorita do promotor. É preferência
-// pessoal, não permissão: favoritar não autoriza nada — `assertPromoterLink`
-// continua sendo quem decide se a captura pode acontecer.
+// pessoal, não permissão: favoritar só reordena a lista, não autoriza nada —
+// a captura em si é escopada pela organização, não por este vínculo.
 export const togglePromotorFavorite = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
