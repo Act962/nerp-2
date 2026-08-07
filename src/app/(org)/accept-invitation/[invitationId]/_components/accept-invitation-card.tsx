@@ -19,6 +19,7 @@ import {
 } from "@/features/invitations/hooks/use-invitations";
 import { authClient } from "@/lib/auth-client";
 import { roleLabel } from "@/lib/permissions";
+import { useQueryClient } from "@tanstack/react-query";
 import { Building2, MailX } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -63,6 +64,7 @@ export function AcceptInvitationCard({
   currentUserEmail,
 }: AcceptInvitationCardProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { invitation, isLoading } = useInvitation(invitationId);
   const acceptInvitation = useAcceptInvitation();
   const rejectInvitation = useRejectInvitation();
@@ -229,6 +231,10 @@ export function AcceptInvitationCard({
               { invitationId },
               {
                 onSuccess: () => {
+                  // Aceitar troca a org ativa pra que acabou de aceitar — sem
+                  // isto o dashboard abriria com dados em cache da org
+                  // anterior (se a pessoa já usava o app com outra empresa).
+                  queryClient.clear();
                   router.push("/dashboard");
                   router.refresh();
                 },
