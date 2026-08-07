@@ -4,6 +4,7 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { normalizeDocument } from "@/lib/document";
 import { z } from "zod";
+import { canManageSuppliers } from "./_can-manage-suppliers";
 
 export const createSupplier = base
   .use(requireAuthMiddleware)
@@ -32,7 +33,13 @@ export const createSupplier = base
       name: z.string(),
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input, context, errors }) => {
+    if (!(await canManageSuppliers(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Você não tem permissão para cadastrar fornecedores",
+      });
+    }
+
     const supplier = await prisma.supplier.create({
       data: {
         name: input.name,

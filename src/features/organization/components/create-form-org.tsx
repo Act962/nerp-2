@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { XCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import {
   Select,
@@ -95,6 +95,7 @@ export function CreateFormOrg({
   const [isSlugManuallyEdited, setIsSlugManuallyEdited] = useState(false);
   const isFirstRender = useRef(true);
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const name = form.watch("name");
   const logo = form.watch("logo");
@@ -162,6 +163,10 @@ export function CreateFormOrg({
       organizationId: organization.id,
       organizationSlug: organization.slug,
     });
+
+    // Mesma razão do trocador de org na sidebar: sem isto, quem já tinha
+    // outra organização ativa levaria dados dela pro cache da recém-criada.
+    queryClient.clear();
 
     // `await`, não fire-and-forget: se o perfil não gravar, a pessoa precisa
     // saber — redirecionar por cima de um erro engolido é o que faz uma

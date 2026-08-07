@@ -4,6 +4,7 @@ import { isSuperAdmin } from "@/lib/super-admin";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { canManageStores } from "@/app/router/field-map/_can-manage-stores";
 import { inngest, storeImportRequested } from "@/lib/inngest/client";
 
 /**
@@ -36,6 +37,12 @@ export const createImport = base
   )
   .output(z.object({ importId: z.string() }))
   .handler(async ({ input, context, errors }) => {
+    if (!(await canManageStores(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Você não tem permissão para importar lojas",
+      });
+    }
+
     if (input.target === "CATALOGO" && !isSuperAdmin(context.user.email)) {
       throw errors.FORBIDDEN({
         message: "Só a administração do TradeGram alimenta o catálogo nacional",

@@ -3,6 +3,7 @@ import prisma from "@/lib/db";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { canManageSuppliers } from "@/app/router/supplier/_can-manage-suppliers";
 import { inngest, supplierImportRequested } from "@/lib/inngest/client";
 
 /**
@@ -30,6 +31,12 @@ export const createImport = base
   )
   .output(z.object({ importId: z.string() }))
   .handler(async ({ input, context, errors }) => {
+    if (!(await canManageSuppliers(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Você não tem permissão para importar fornecedores",
+      });
+    }
+
     if (!input.mapping.name) {
       throw errors.BAD_REQUEST({
         message: "O campo Razão Social / Nome precisa estar mapeado",

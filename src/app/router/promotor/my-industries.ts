@@ -2,21 +2,45 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
-import { hasFullAccess } from "@/lib/permissions";
 import { z } from "zod";
 
-const PAGE_SIZE = 30;
+// Indústria com senha do mês (`actionCodeImage`) primeiro; sem senha por
+// último — dentro de cada grupo, ordem alfabética. O promotor só consegue
+// fotografar quem tem senha, então o que ele usa fica no topo.
+//
+// Feito em memória de propósito: o Prisma não ordena por "actionCodeImage IS
+// NOT NULL" (só pelo VALOR da coluna, que é uma chave do R2 e bagunçaria o
+// alfabético). Como a lista de indústrias é limitada por org (as marcas com
+// que a empresa trabalha, dezenas a poucas centenas — não milhares como as
+// lojas), trazemos tudo ordenado por nome e reordenamos aqui. `Array.sort` é
+// estável, então a ordem alfabética se preserva dentro de cada grupo.
+function senhaFirst<T extends { actionCodeImage: string | null }>(
+  rows: T[],
+): T[] {
+  return [...rows].sort(
+    (a, b) => (a.actionCodeImage ? 0 : 1) - (b.actionCodeImage ? 0 : 1),
+  );
+}
 
-// Indústrias que o promotor pode fotografar: as vinculadas diretamente
-// (PromoterSupplier) OU alcançadas por um distribuidor que ele representa.
-// Owner/admin veem todas. Alimenta o passo "Escolha a Indústria" do wizard.
-// Cursor puro (sem count), mesmo racional do `myStores`.
+// Indústrias do passo "Escolha a Indústria" do wizard. Mesma visibilidade do
+// `myStores`: todas as indústrias ativas da org, para qualquer membro — quem
+// restringe a captura é o `assertPromoterLink` (vínculo com a loja E a
+// indústria, ou via distribuidor), não esta lista. Antes só owner/admin viam
+// tudo e o promotor sem vínculo cadastrado via a lista vazia e não conseguia
+// trabalhar.
+//
+// Página única (sem cursor real): a ordenação "com senha primeiro" exige um
+// sort global, incompatível com o keyset por página, e a lista é pequena o
+// bastante para caber de uma vez. `nextCursor` volta sempre `null`, então o
+// scroll infinito do client simplesmente não pede a próxima página.
 export const listMyIndustries = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
   .input(
     z.object({
       search: z.string().optional(),
+      // Aceitos por compatibilidade com o hook de scroll infinito, mas sem
+      // efeito: a lista volta inteira numa página (ver comentário acima).
       cursor: z.string().optional(),
       limit: z.number().int().min(1).max(60).optional(),
     }),
@@ -35,62 +59,46 @@ export const listMyIndustries = base
     }),
   )
   .handler(async ({ input, context }) => {
-    const limit = input.limit ?? PAGE_SIZE;
-    const isFirstPage = !input.cursor;
-
     const member = await prisma.member.findFirst({
       where: { organizationId: context.org.id, userId: context.user.id },
-      select: { id: true, role: true },
+      select: { id: true },
     });
 
     const memberId = member?.id ?? "";
     const searchTerm = input.search?.trim();
-    const isAdmin = hasFullAccess(member?.role);
-
-    // AND explícito: busca e acesso têm OR próprios e não podem colidir num spread.
-    const filters: Record<string, unknown>[] = [];
-    if (searchTerm) {
-      filters.push({
-        OR: [
-          { name: { contains: searchTerm, mode: "insensitive" as const } },
-          { tradeName: { contains: searchTerm, mode: "insensitive" as const } },
-        ],
-      });
-    }
-    if (!isAdmin) {
-      filters.push({
-        OR: [
-          { promoterLinks: { some: { memberId } } },
-          {
-            distributorLinks: {
-              some: { distributor: { promoterLinks: { some: { memberId } } } },
-            },
-          },
-        ],
-      });
-    }
 
     const where = {
       organizationId: context.org.id,
       isActive: true,
-      ...(filters.length > 0 ? { AND: filters } : {}),
+      ...(searchTerm
+        ? {
+            OR: [
+              { name: { contains: searchTerm, mode: "insensitive" as const } },
+              {
+                tradeName: {
+                  contains: searchTerm,
+                  mode: "insensitive" as const,
+                },
+              },
+            ],
+          }
+        : {}),
     };
 
-    // Favoritos vêm numa consulta própria, à parte do cursor, e só na
-    // primeira página: a indústria favorita do promotor pode estar no fim do
-    // alfabeto e sumiria do corte por página, justo a que ele mais usa.
-    const favoriteIds =
-      isFirstPage && memberId
-        ? (
-            await prisma.promoterFavoriteSupplier.findMany({
-              where: { memberId, organizationId: context.org.id },
-              select: { supplierId: true },
-            })
-          ).map((item) => item.supplierId)
-        : [];
+    // Favoritos numa consulta própria: continuam fixados no topo (a estrela é
+    // escolha do promotor), com a mesma ordem "com senha primeiro" dentro do
+    // grupo.
+    const favoriteIds = memberId
+      ? (
+          await prisma.promoterFavoriteSupplier.findMany({
+            where: { memberId, organizationId: context.org.id },
+            select: { supplierId: true },
+          })
+        ).map((item) => item.supplierId)
+      : [];
 
     const select = { id: true, name: true, actionCodeImage: true };
-    const [favorites, rows] = await Promise.all([
+    const [favorites, others] = await Promise.all([
       favoriteIds.length > 0
         ? prisma.supplier.findMany({
             where: { AND: [where, { id: { in: favoriteIds } }] },
@@ -104,20 +112,21 @@ export const listMyIndustries = base
             ? { AND: [where, { id: { notIn: favoriteIds } }] }
             : where,
         orderBy: { name: "asc" },
-        take: limit + 1,
-        ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
         select,
       }),
     ]);
 
-    const hasMore = rows.length > limit;
-    const others = hasMore ? rows.slice(0, limit) : rows;
-
     return {
       suppliers: [
-        ...favorites.map((supplier) => ({ ...supplier, isFavorite: true })),
-        ...others.map((supplier) => ({ ...supplier, isFavorite: false })),
+        ...senhaFirst(favorites).map((supplier) => ({
+          ...supplier,
+          isFavorite: true,
+        })),
+        ...senhaFirst(others).map((supplier) => ({
+          ...supplier,
+          isFavorite: false,
+        })),
       ],
-      nextCursor: hasMore ? others[others.length - 1]?.id : null,
+      nextCursor: null,
     };
   });
