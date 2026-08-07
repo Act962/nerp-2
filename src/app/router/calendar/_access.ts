@@ -32,10 +32,10 @@ export async function resolveCalendarActor(
  * passa a mostrar (ou aceitar escrita em) evento que não devia.
  *
  * O caminho via distribuidor (`PromoterDistributor`) fica DE FORA por decisão,
- * não por esquecimento: o `assertPromoterLink` usa o distribuidor como
- * conjunção (a loja E a indústria), enquanto visibilidade aqui é disjunção.
- * Reaproveitar aquele grafo faria o promotor ver eventos de qualquer loja
- * atendida por qualquer distribuidor que ele representa — largo demais.
+ * não por esquecimento: aqui visibilidade é disjunção (qualquer vínculo já
+ * mostra o evento). Reaproveitar o grafo do distribuidor faria o promotor ver
+ * eventos de qualquer loja atendida por qualquer distribuidor que ele
+ * representa — largo demais.
  */
 export async function buildCalendarWhere(params: {
   organizationId: string;

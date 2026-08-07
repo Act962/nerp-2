@@ -23,11 +23,10 @@ function senhaFirst<T extends { actionCodeImage: string | null }>(
 }
 
 // Indústrias do passo "Escolha a Indústria" do wizard. Mesma visibilidade do
-// `myStores`: todas as indústrias ativas da org, para qualquer membro — quem
-// restringe a captura é o `assertPromoterLink` (vínculo com a loja E a
-// indústria, ou via distribuidor), não esta lista. Antes só owner/admin viam
-// tudo e o promotor sem vínculo cadastrado via a lista vazia e não conseguia
-// trabalhar.
+// `myStores`: todas as indústrias ativas da org, para qualquer membro. A
+// captura é escopada pela org (a indústria precisa pertencer a ela), sem
+// exigir vínculo por promotor. Antes só owner/admin viam tudo e o promotor
+// sem vínculo cadastrado via a lista vazia e não conseguia trabalhar.
 //
 // Página única (sem cursor real): a ordenação "com senha primeiro" exige um
 // sort global, incompatível com o keyset por página, e a lista é pequena o

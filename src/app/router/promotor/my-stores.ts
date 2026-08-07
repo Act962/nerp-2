@@ -7,10 +7,10 @@ import { z } from "zod";
 const PAGE_SIZE = 30;
 
 // Lojas do passo 1 do wizard. Mesma visibilidade do `store.list` (todas as
-// lojas da org) — quem restringe a captura é o `assertPromoterLink`, não esta
-// lista. Cursor puro (sem count): a lista roda em orgs com milhares de lojas e
-// contar a cada tecla travaria a busca, igual ao seletor de produto do
-// planograma.
+// lojas da org): qualquer membro captura em qualquer loja da própria
+// organização — o escopo é a org, não um vínculo por promotor. Cursor puro
+// (sem count): a lista roda em orgs com milhares de lojas e contar a cada
+// tecla travaria a busca, igual ao seletor de produto do planograma.
 export const listMyStores = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)

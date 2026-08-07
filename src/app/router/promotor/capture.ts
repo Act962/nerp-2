@@ -4,7 +4,6 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { assertSupplierInOrg } from "../pdv-photo/assert-relations";
-import { assertPromoterLink } from "./assert-promoter-link";
 import { refreshStorePositionFromPhotos } from "./_store-position";
 
 // Captura do promotor: a foto já vem carimbada (código + nome + data + geo) e
@@ -56,13 +55,11 @@ export const capturePromotorPhoto = base
     if (!store) throw errors.NOT_FOUND({ message: "Loja não encontrada" });
 
     await assertSupplierInOrg(input.supplierId, context.org.id, errors);
-    await assertPromoterLink(
-      context.user.id,
-      context.org.id,
-      input.storeId,
-      input.supplierId,
-      errors,
-    );
+    // Sem exigência de vínculo promotor↔loja/indústria: qualquer membro da org
+    // (perfil completo já checado acima) registra foto de qualquer loja +
+    // indústria da sua organização. O escopo continua sendo a org — a loja é
+    // buscada por `organizationId` e o `assertSupplierInOrg` garante a mesma
+    // coisa para a indústria; nada aqui alcança dados de outra empresa.
 
     const photo = await prisma.pdvPhoto.create({
       data: {
