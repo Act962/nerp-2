@@ -30,8 +30,15 @@ export const getPromotorProfile = base
       select: { name: true, image: true, whatsapp: true },
     });
 
+    // Só entra no carimbo quem tem cargo no Trade definido (Coordenador,
+    // Supervisor, etc.). Membro marcado sem cargo caía na tarja genérica
+    // "Equipe: <nome>", que não agrega e foi removida a pedido do campo.
     const credits = await prisma.member.findMany({
-      where: { organizationId: context.org.id, showInPromotorPhoto: true },
+      where: {
+        organizationId: context.org.id,
+        showInPromotorPhoto: true,
+        tradeRole: { not: null },
+      },
       orderBy: { createdAt: "asc" },
       // Duas linhas bastam: cada uma vira uma tarja no rodapé e a foto é da
       // gôndola, não do organograma.
@@ -51,9 +58,9 @@ export const getPromotorProfile = base
       isComplete: Boolean(user?.image && user?.whatsapp),
       orgName: organization?.name ?? "",
       orgLogo: organization?.logo ?? null,
-      photoCredits: credits.map((member) => ({
-        name: member.user.name,
-        role: tradeRoleLabel(member.tradeRole) ?? "Equipe",
-      })),
+      photoCredits: credits.flatMap((member) => {
+        const role = tradeRoleLabel(member.tradeRole);
+        return role ? [{ name: member.user.name, role }] : [];
+      }),
     };
   });
