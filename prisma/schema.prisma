@@ -318,6 +318,12 @@ model Member {
   // membro puder autorizar (owner/admin ou permissão `autorizar-cancelamento`).
   cancelPinHash       String?
 
+  // Último estado da permissão de geolocalização reportado pelo App Promotor ao
+  // abrir (granted/denied/prompt/unavailable) + quando. Dá ao gestor uma visão
+  // ao vivo de quem está com o GPS ligado, sem rastreamento contínuo.
+  lastGeoState   String?
+  lastGeoStateAt DateTime?
+
   salesGoalEntries        SalesGoalEntry[]
   // Vínculos do promotor: indústrias que representa e lojas que cobre. Só pode
   // fotografar uma indústria numa loja se tiver vínculo com AS DUAS.
@@ -2804,6 +2810,17 @@ model Brand {
   @@map("brands")
 }
 
+// Como a localização foi obtida no momento da captura. UNKNOWN cobre as fotos
+// anteriores a este campo (não sabemos por que ficaram sem coordenada); OK marca
+// captura localizada; DENIED/UNAVAILABLE/TIMEOUT explicam por que faltou a coord.
+enum PhotoLocationStatus {
+  OK
+  DENIED
+  UNAVAILABLE
+  TIMEOUT
+  UNKNOWN
+}
+
 model PdvPhoto {
   id                 String                 @id @default(cuid())
   organizationId     String
@@ -2832,6 +2849,11 @@ model PdvPhoto {
   capturedAddress    String?
   capturedLatitude   Float?
   capturedLongitude  Float?
+  // Raio de incerteza (metros) que o navegador reportou para a coordenada.
+  capturedAccuracy   Float?
+  // Se/por que a foto ficou com ou sem localização — para o gestor enxergar quem
+  // está sem GPS sem depender só da coordenada nula.
+  locationStatus     PhotoLocationStatus    @default(UNKNOWN)
   // Captura salva SEM o selo da indústria (o carimbo não pôde ser carregado no
   // celular do promotor). Marca a foto para a coordenadora aplicar o selo em
   // /books em vez de reprovar e mandar refazer a visita.
@@ -3569,9 +3591,28 @@ model OrgDashboard {
   createdBy    Member?              @relation("OrgDashboardCreator", fields: [createdById], references: [id], onDelete: SetNull)
   widgets      OrgDashboardWidget[]
   panels       OrgDashboardPanel[]
+  boards       OrgDashboardBoard[]
 
   @@index([shareToken])
   @@map("org_dashboards")
+}
+
+// "Quadro" = agrupamento de painéis. Cada quadro vira um item no menu
+// horizontal acima dos painéis. O usuário clica no quadro para ver apenas
+// os painéis que pertencem a ele. Drag-and-drop para reordenar (admin).
+model OrgDashboardBoard {
+  id             String   @id @default(cuid())
+  orgDashboardId String
+  title          String
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orgDashboard OrgDashboard      @relation(fields: [orgDashboardId], references: [id], onDelete: Cascade)
+  panels       OrgDashboardPanel[]
+
+  @@index([orgDashboardId])
+  @@map("org_dashboard_boards")
 }
 
 // "Painel" = agrupamento visual de widgets por categoria (Comercial, Estoque,
@@ -3585,6 +3626,8 @@ model OrgDashboard {
 model OrgDashboardPanel {
   id             String   @id @default(cuid())
   orgDashboardId String
+  // Quadro ao qual o painel pertence. null = painel "solto" (retrocompatível).
+  boardId        String?
   // Categoria fixa (enum lógica, string aqui pra evitar migration a cada
   // nova categoria adicionada no catálogo de templates).
   category       String
@@ -3607,9 +3650,11 @@ model OrgDashboardPanel {
   updatedAt      DateTime @updatedAt
 
   orgDashboard OrgDashboard         @relation(fields: [orgDashboardId], references: [id], onDelete: Cascade)
+  board        OrgDashboardBoard?   @relation(fields: [boardId], references: [id], onDelete: SetNull)
   widgets      OrgDashboardWidget[]
 
   @@index([orgDashboardId])
+  @@index([boardId])
   @@map("org_dashboard_panels")
 }
 

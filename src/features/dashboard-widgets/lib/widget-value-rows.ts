@@ -73,6 +73,23 @@ export function widgetValueToTable(value: WidgetValue): DetailTable {
       };
 
     case "MAP":
+      if (value.scope === "field") {
+        return {
+          columns: [
+            { key: "label", label: "Nome", align: "left" },
+            { key: "type", label: "Tipo", align: "left" },
+            { key: "detail", label: "Local", align: "left" },
+          ],
+          rows: value.pins.map((pin) => ({
+            id: pin.id,
+            cells: [
+              pin.label,
+              pin.type === "store" ? "Cliente" : "Usuário",
+              pin.detail ?? "—",
+            ],
+          })),
+        };
+      }
       return {
         columns: [
           { key: "region", label: "Região", align: "left" },
@@ -83,8 +100,6 @@ export function widgetValueToTable(value: WidgetValue): DetailTable {
             unit: "currency",
           },
         ],
-        // O mapa desenha por intensidade; aqui vira ranking, que é como as
-        // pessoas realmente leem "qual região vendeu mais".
         rows: [...value.regions]
           .sort((a, b) => b.value - a.value)
           .map((region) => ({

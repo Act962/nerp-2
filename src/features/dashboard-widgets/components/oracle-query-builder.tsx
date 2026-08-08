@@ -105,13 +105,12 @@ function OracleSection({
   icon: Icon,
   title,
   aside,
-  defaultCollapsed = false,
+  defaultCollapsed = true,
   children,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
   aside?: ReactNode;
-  /** true = seção nasce fechada. Usado em "Padrões de busca". */
   defaultCollapsed?: boolean;
   children: ReactNode;
 }) {

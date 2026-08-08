@@ -13,7 +13,14 @@ export const listMapPromoters = base
   .output(
     z.object({
       canSeeAll: z.boolean(),
-      promoters: z.array(z.object({ memberId: z.string(), name: z.string() })),
+      promoters: z.array(
+        z.object({
+          memberId: z.string(),
+          name: z.string(),
+          lastGeoState: z.string().nullable(),
+          lastGeoStateAt: z.string().nullable(),
+        }),
+      ),
     }),
   )
   .handler(async ({ context, errors }) => {
@@ -34,6 +41,8 @@ export const listMapPromoters = base
       promoters: promoters.map((promoter) => ({
         memberId: promoter.memberId,
         name: promoter.name,
+        lastGeoState: promoter.lastGeoState,
+        lastGeoStateAt: promoter.lastGeoStateAt,
       })),
     };
   });

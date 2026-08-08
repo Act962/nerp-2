@@ -87,6 +87,23 @@ const LOCATION_REFRESH_MS = 5 * 60 * 1000;
 
 const ALL_PROMOTERS = "todos";
 
+// Status de GPS do promotor (reportado pelo App Promotor ao abrir), para o gestor
+// ver de relance quem está com a localização ligada no seletor.
+function promoterGpsMeta(state: string | null): { cls: string; label: string } {
+  switch (state) {
+    case "granted":
+      return { cls: "bg-emerald-500", label: "GPS ligado" };
+    case "denied":
+      return { cls: "bg-destructive", label: "GPS desativado" };
+    case "prompt":
+      return { cls: "bg-amber-500", label: "GPS ainda não autorizado" };
+    case "unavailable":
+      return { cls: "bg-muted-foreground", label: "Sem GPS no aparelho" };
+    default:
+      return { cls: "bg-muted-foreground/40", label: "Sem informação de GPS" };
+  }
+}
+
 const today = () => dayjs().format("YYYY-MM-DD");
 
 /** Margem além da tela, em fração do lado visível. */
@@ -568,11 +585,22 @@ export function MapaDeCampoContainer() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={ALL_PROMOTERS}>Todos os promotores</SelectItem>
-              {promoters.map((promoter) => (
-                <SelectItem key={promoter.memberId} value={promoter.memberId}>
-                  {promoter.name}
-                </SelectItem>
-              ))}
+              {promoters.map((promoter) => {
+                const gps = promoterGpsMeta(promoter.lastGeoState);
+                return (
+                  <SelectItem key={promoter.memberId} value={promoter.memberId}>
+                    <span className="flex items-center gap-2">
+                      <span
+                        role="img"
+                        className={cn("size-2 shrink-0 rounded-full", gps.cls)}
+                        title={gps.label}
+                        aria-label={gps.label}
+                      />
+                      {promoter.name}
+                    </span>
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         )}

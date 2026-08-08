@@ -18,9 +18,12 @@ import {
   AlignLeft,
   AlignRight,
   BellRing,
+  ChevronRight,
   PlayCircle,
   Pipette,
+  Plus,
   Target,
+  Trash2,
   Volume2,
   X,
 } from "lucide-react";
@@ -50,7 +53,8 @@ import {
 } from "../lib/widget-appearance";
 import {
   COMPARATOR_OPTIONS,
-  DEFAULT_ALERT,
+  createDefaultAlert,
+  formatAlertSummary,
   hasCustomAlert,
   renderAlertMessage,
   type WidgetAlert,
@@ -108,6 +112,7 @@ export interface CustomizeState {
   appearance: WidgetAppearance;
   /** Alerta programado (cron server-side). */
   alert: WidgetAlert;
+  alerts: WidgetAlert[];
 }
 
 /**
@@ -132,6 +137,10 @@ export function buildOptions(
   // um objeto de defaults em todo widget.
   if (hasCustomAppearance(state.appearance)) {
     options.appearance = state.appearance;
+  }
+  const enabledAlerts = state.alerts.filter((a) => a.enabled);
+  if (enabledAlerts.length > 0) {
+    options.alerts = enabledAlerts;
   }
   if (hasCustomAlert(state.alert)) {
     options.alert = state.alert;
@@ -524,26 +533,314 @@ function AlertNotificationControls({
   );
 }
 
+interface MeasureOption {
+  key: string;
+  label: string;
+}
+
+function AlertItemEditor({
+  alert,
+  index,
+  canHaveTarget,
+  widgetTitle,
+  targetValue,
+  measures,
+  onChange,
+  onRemove,
+}: {
+  alert: WidgetAlert;
+  index: number;
+  canHaveTarget: boolean;
+  widgetTitle: string;
+  targetValue: number;
+  measures: MeasureOption[];
+  onChange: (next: WidgetAlert) => void;
+  onRemove: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const measureLabel = alert.measureKey
+    ? (measures.find((m) => m.key === alert.measureKey)?.label ?? null)
+    : null;
+  const summary = formatAlertSummary(alert, measureLabel);
+  return (
+    <div className="flex flex-col gap-2 rounded-md border bg-muted/20 p-3">
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          className="flex flex-1 items-center gap-2 text-left"
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <ChevronRight
+            className={cn(
+              "size-3.5 shrink-0 transition-transform",
+              expanded && "rotate-90",
+            )}
+          />
+          <div className="flex-1 min-w-0">
+            <span className="text-xs font-medium truncate block">
+              {alert.label || `Alerta ${index + 1}`}
+            </span>
+            <span className="text-[10px] text-muted-foreground truncate block">
+              {summary}
+            </span>
+          </div>
+        </button>
+        <label className="flex items-center gap-1 text-[10px] text-muted-foreground shrink-0">
+          <input
+            type="checkbox"
+            checked={alert.enabled}
+            onChange={(e) => onChange({ ...alert, enabled: e.target.checked })}
+            className="size-3.5"
+          />
+          Ativo
+        </label>
+        <Button
+          type="button"
+          size="icon"
+          variant="ghost"
+          className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+          onClick={onRemove}
+        >
+          <Trash2 className="size-3" />
+        </Button>
+      </div>
+
+      {expanded && (
+        <div className="flex flex-col gap-3 border-t pt-3">
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-muted-foreground">
+              Rótulo do alerta
+            </Label>
+            <Input
+              className="h-8 text-xs"
+              maxLength={100}
+              placeholder={`Alerta ${index + 1}`}
+              value={alert.label}
+              onChange={(e) => onChange({ ...alert, label: e.target.value })}
+            />
+          </div>
+
+          {measures.length > 0 && (
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Medida (coluna avaliada)
+              </Label>
+              <Select
+                value={alert.measureKey ?? "__all__"}
+                onValueChange={(next) =>
+                  onChange({
+                    ...alert,
+                    measureKey: next === "__all__" ? null : next,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 w-52 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all__">Todas as colunas</SelectItem>
+                  {measures.map((m) => (
+                    <SelectItem key={m.key} value={m.key}>
+                      {m.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Quando o valor for
+              </Label>
+              <Select
+                value={alert.comparator}
+                onValueChange={(next) =>
+                  onChange({
+                    ...alert,
+                    comparator: next as WidgetAlertComparator,
+                  })
+                }
+              >
+                <SelectTrigger className="h-8 w-40 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {COMPARATOR_OPTIONS.map((option) => (
+                    <SelectItem key={option.key} value={option.key}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Referência
+              </Label>
+              <div className="flex items-center gap-2">
+                {canHaveTarget && (
+                  <label className="flex items-center gap-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={alert.useTargetValue}
+                      onChange={(e) =>
+                        onChange({
+                          ...alert,
+                          useTargetValue: e.target.checked,
+                        })
+                      }
+                    />
+                    Usar Meta
+                  </label>
+                )}
+                {!alert.useTargetValue && (
+                  <Input
+                    type="number"
+                    step="any"
+                    className="h-8 w-28 text-xs"
+                    value={alert.threshold}
+                    onChange={(e) =>
+                      onChange({
+                        ...alert,
+                        threshold: Number(e.target.value) || 0,
+                      })
+                    }
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Horário
+              </Label>
+              <Input
+                type="time"
+                className="h-8 w-28 text-xs"
+                value={alert.time}
+                onChange={(e) => onChange({ ...alert, time: e.target.value })}
+              />
+            </div>
+            <div className="flex flex-1 flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Dias da semana
+              </Label>
+              <WeekdayPicker
+                value={alert.daysOfWeek}
+                onChange={(daysOfWeek) => onChange({ ...alert, daysOfWeek })}
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Data início (opcional)
+              </Label>
+              <Input
+                type="date"
+                className="h-8 w-40 text-xs"
+                value={alert.startDate ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...alert,
+                    startDate: e.target.value || null,
+                  })
+                }
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Data fim (opcional)
+              </Label>
+              <Input
+                type="date"
+                className="h-8 w-40 text-xs"
+                value={alert.endDate ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...alert,
+                    endDate: e.target.value || null,
+                  })
+                }
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <Label className="text-[10px] text-muted-foreground">
+              Mensagem (usa {`{{valor}}`} e {`{{meta}}`})
+            </Label>
+            <Input
+              className="h-8 text-xs"
+              maxLength={200}
+              value={alert.message}
+              onChange={(e) => onChange({ ...alert, message: e.target.value })}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-[10px] text-muted-foreground">
+              Cor do card em alerta
+            </Label>
+            <ColorSwatchPicker
+              value={alert.color}
+              onChange={(color) => onChange({ ...alert, color })}
+            />
+          </div>
+
+          <AlertNotificationControls
+            alert={alert}
+            onChange={onChange}
+            widgetTitle={widgetTitle}
+            targetValue={targetValue}
+          />
+
+          <p className="text-[10px] text-muted-foreground">
+            O cron do servidor roda a cada 5 min entre 6h e 22h. Um alerta
+            configurado para 14h dispara uma vez por dia, dentro dessa janela,
+            sem chamadas do cliente.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Bloco titulado — separa visualmente o que hoje aparece como campos soltos.
 // Título discreto (bem próximo dos rótulos de campo), corpo com espaço próprio.
 function Section({
   title,
   aside,
   children,
+  defaultOpen = false,
 }: {
   title: string;
   aside?: ReactNode;
   children: ReactNode;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="font-medium text-[11px] text-muted-foreground uppercase tracking-wide">
+        <button
+          type="button"
+          className="flex items-center gap-1 font-medium text-[11px] text-muted-foreground uppercase tracking-wide hover:text-foreground transition-colors"
+          onClick={() => setOpen((v) => !v)}
+        >
+          <ChevronRight
+            className={cn("size-3.5 transition-transform", open && "rotate-90")}
+          />
           {title}
-        </h4>
+        </button>
         {aside}
       </div>
-      {children}
+      {open && children}
     </section>
   );
 }
@@ -598,7 +895,7 @@ export function WidgetCustomizeFields({
 
   return (
     <div className="flex flex-col gap-4">
-      <Section title="Nome">
+      <Section title="Nome" defaultOpen>
         <Input
           className="h-8 text-sm"
           placeholder={defaultTitle}
@@ -922,191 +1219,62 @@ export function WidgetCustomizeFields({
         </Section>
       )}
 
-      {/* --- Alerta (só STAT: o comparador exige um número único) --- */}
-      {canHaveTarget && (
-        <Section
-          title="Alerta"
-          aside={
-            <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={state.alert.enabled}
-                onChange={(event) =>
-                  onChange({
-                    alert: { ...state.alert, enabled: event.target.checked },
-                  })
-                }
-                className="size-3.5"
-              />
-              Ativado
-            </label>
+      <Section
+        title="Alertas"
+        aside={
+          state.alerts.length > 0 ? (
+            <span className="text-[10px] text-muted-foreground">
+              {state.alerts.length} alerta(s)
+            </span>
+          ) : null
+        }
+      >
+        {state.alerts.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {state.alerts.map((alert, index) => {
+              const measures: MeasureOption[] =
+                state.displayType === "TABLE" && state.oracle?.measures
+                  ? state.oracle.measures.map((m, i) => ({
+                      key: `M${i}`,
+                      label: m.label,
+                    }))
+                  : [];
+              return (
+                <AlertItemEditor
+                  key={alert.id}
+                  alert={alert}
+                  index={index}
+                  canHaveTarget={canHaveTarget}
+                  widgetTitle={state.title || "Widget"}
+                  targetValue={Number(state.targetValue.replace(",", "."))}
+                  measures={measures}
+                  onChange={(next) => {
+                    const updated = [...state.alerts];
+                    updated[index] = next;
+                    onChange({ alerts: updated });
+                  }}
+                  onRemove={() => {
+                    onChange({
+                      alerts: state.alerts.filter((_, i) => i !== index),
+                    });
+                  }}
+                />
+              );
+            })}
+          </div>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-8 w-fit gap-1.5 text-xs"
+          onClick={() =>
+            onChange({ alerts: [...state.alerts, createDefaultAlert()] })
           }
         >
-          {state.alert.enabled && (
-            <div className="flex flex-col gap-3 rounded-md border bg-muted/20 p-3">
-              {/* --- Condição --- */}
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex flex-col gap-1">
-                  <Label className="text-[10px] text-muted-foreground">
-                    Quando o valor for
-                  </Label>
-                  <Select
-                    value={state.alert.comparator}
-                    onValueChange={(next) =>
-                      onChange({
-                        alert: {
-                          ...state.alert,
-                          comparator: next as WidgetAlertComparator,
-                        },
-                      })
-                    }
-                  >
-                    <SelectTrigger className="h-8 w-40 text-xs">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COMPARATOR_OPTIONS.map((option) => (
-                        <SelectItem key={option.key} value={option.key}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex flex-col gap-1">
-                  <Label className="text-[10px] text-muted-foreground">
-                    Referência
-                  </Label>
-                  <div className="flex items-center gap-2">
-                    <label className="flex items-center gap-1 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={state.alert.useTargetValue}
-                        onChange={(event) =>
-                          onChange({
-                            alert: {
-                              ...state.alert,
-                              useTargetValue: event.target.checked,
-                            },
-                          })
-                        }
-                      />
-                      Usar Meta
-                    </label>
-                    {!state.alert.useTargetValue && (
-                      <Input
-                        type="number"
-                        step="any"
-                        className="h-8 w-28 text-xs"
-                        value={state.alert.threshold}
-                        onChange={(event) =>
-                          onChange({
-                            alert: {
-                              ...state.alert,
-                              threshold: Number(event.target.value) || 0,
-                            },
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* --- Quando disparar --- */}
-              <div className="flex flex-wrap items-end gap-2">
-                <div className="flex flex-col gap-1">
-                  <Label className="text-[10px] text-muted-foreground">
-                    Horário
-                  </Label>
-                  <Input
-                    type="time"
-                    className="h-8 w-28 text-xs"
-                    value={state.alert.time}
-                    onChange={(event) =>
-                      onChange({
-                        alert: { ...state.alert, time: event.target.value },
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex flex-1 flex-col gap-1">
-                  <Label className="text-[10px] text-muted-foreground">
-                    Dias da semana
-                  </Label>
-                  <WeekdayPicker
-                    value={state.alert.daysOfWeek}
-                    onChange={(daysOfWeek) =>
-                      onChange({
-                        alert: { ...state.alert, daysOfWeek },
-                      })
-                    }
-                  />
-                </div>
-              </div>
-
-              {/* --- Mensagem + cor do card em alerta --- */}
-              <div className="flex flex-col gap-1">
-                <Label className="text-[10px] text-muted-foreground">
-                  Mensagem (usa {`{{valor}}`} e {`{{meta}}`})
-                </Label>
-                <Input
-                  className="h-8 text-xs"
-                  maxLength={200}
-                  value={state.alert.message}
-                  onChange={(event) =>
-                    onChange({
-                      alert: { ...state.alert, message: event.target.value },
-                    })
-                  }
-                />
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-[10px] text-muted-foreground">
-                  Cor do card em alerta
-                </Label>
-                <ColorSwatchPicker
-                  value={state.alert.color}
-                  onChange={(color) =>
-                    onChange({ alert: { ...state.alert, color } })
-                  }
-                />
-              </div>
-
-              <AlertNotificationControls
-                alert={state.alert}
-                onChange={(next) => onChange({ alert: next })}
-                widgetTitle={state.title || "Widget"}
-                targetValue={Number(state.targetValue.replace(",", "."))}
-              />
-
-              <p className="text-[10px] text-muted-foreground">
-                O cron do servidor roda a cada 5 min entre 6h e 22h. Um alerta
-                configurado para 14h dispara uma vez por dia, dentro dessa
-                janela, sem chamadas do cliente.
-              </p>
-            </div>
-          )}
-
-          {!state.alert.enabled && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 w-fit gap-1.5 text-xs"
-              onClick={() =>
-                onChange({ alert: { ...DEFAULT_ALERT, enabled: true } })
-              }
-            >
-              <Target className="size-3.5" /> Configurar alerta
-              <span className="text-[10px] text-muted-foreground">
-                (server-side, sem polling)
-              </span>
-            </Button>
-          )}
-        </Section>
-      )}
+          <Plus className="size-3.5" /> Novo alerta
+        </Button>
+      </Section>
     </div>
   );
 }

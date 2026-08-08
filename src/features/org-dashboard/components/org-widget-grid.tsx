@@ -1,7 +1,14 @@
 "use client";
 
 import "react-grid-layout/css/styles.css";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ResponsiveGridLayout, useContainerWidth } from "react-grid-layout";
 import type { Layout, ResponsiveLayouts } from "react-grid-layout";
 import {
@@ -66,6 +73,7 @@ function pickItem(layout: Layout | undefined, id: string): GridItemLayout {
 }
 
 const ALL_BREAKPOINTS = [...BREAKPOINTS_WITH_LAYOUT, "xxs"] as const;
+const GRID_MARGIN: [number, number] = [12, 12];
 
 /** Item de UM widget num breakpoint, a partir do que o SERVIDOR tem salvo (ou
  * o item padrão, para quem ainda não tem). Mobile (`xxs`) sempre usa o padrão
@@ -172,7 +180,9 @@ export function OrgWidgetGrid({
    * `PANEL_WIDGET_BREAKPOINTS` (container bem menor que a página). */
   breakpoints?: Record<GridBreakpoint, number>;
 }) {
-  const { width, containerRef, mounted } = useContainerWidth();
+  const { width, containerRef, mounted } = useContainerWidth({
+    measureBeforeMount: true,
+  });
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Estado local: fonte de verdade do que é DESENHADO enquanto `editable`.
@@ -203,9 +213,18 @@ export function OrgWidgetGrid({
     setLocalLayouts((current) => mergeNewItems(current, widgets, defaultItem));
   }, [idsSignature]);
 
-  const layouts = editable
-    ? localLayouts
-    : computeServerLayouts(widgets, defaultItem);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reage ao CONJUNTO de ids (idsSignature), não à referência de `widgets` — evita recomputar layouts quando só posição/sortOrder muda
+  const serverLayouts = useMemo(
+    () => computeServerLayouts(widgets, defaultItem),
+    [idsSignature, defaultItem],
+  );
+  const layouts = editable ? localLayouts : serverLayouts;
+
+  const dragCfg = useMemo(
+    () => ({ handle: `.${dragHandleClass}`, enabled: editable }),
+    [dragHandleClass, editable],
+  );
+  const resizeCfg = useMemo(() => ({ enabled: editable }), [editable]);
 
   // `onLayoutChange` dispara também na MONTAGEM e a cada tick de arraste
   // (comportamento do RGL) — guardamos o mais recente num ref (barato, sem
@@ -216,7 +235,14 @@ export function OrgWidgetGrid({
     latestRef.current = layouts;
   }, [layouts]);
 
-  const commit = () => {
+  const onLayoutChangeCb = useCallback(
+    (_layout: Layout, all: ResponsiveLayouts<GridBreakpoint>) => {
+      latestRef.current = all;
+    },
+    [],
+  );
+
+  const commit = useCallback(() => {
     if (!editable) return;
     setLocalLayouts(latestRef.current);
     if (!onSaveLayout) return;
@@ -238,7 +264,7 @@ export function OrgWidgetGrid({
       }));
       if (payload.length > 0) onSaveLayout(payload);
     }, 400);
-  };
+  }, [editable, onSaveLayout, widgets]);
 
   if (widgets.length === 0) return null;
 
@@ -251,15 +277,10 @@ export function OrgWidgetGrid({
           cols={GRID_COLS}
           layouts={layouts}
           rowHeight={rowHeight}
-          margin={[12, 12]}
-          dragConfig={{
-            handle: `.${dragHandleClass}`,
-            enabled: editable,
-          }}
-          resizeConfig={{ enabled: editable }}
-          onLayoutChange={(_layout, all) => {
-            latestRef.current = all;
-          }}
+          margin={GRID_MARGIN}
+          dragConfig={dragCfg}
+          resizeConfig={resizeCfg}
+          onLayoutChange={onLayoutChangeCb}
           onDragStop={commit}
           onResizeStop={commit}
         >

@@ -31,6 +31,9 @@ export interface VisiblePromoter {
   name: string;
   /** URL absoluta — o `user.image` é gravado assim; ver `promotor/update-profile`. */
   image: string | null;
+  /** Último estado da permissão de GPS reportado pelo App Promotor. */
+  lastGeoState: string | null;
+  lastGeoStateAt: string | null;
 }
 
 /**
@@ -67,6 +70,8 @@ export async function resolveVisiblePromoters(params: {
     select: {
       id: true,
       userId: true,
+      lastGeoState: true,
+      lastGeoStateAt: true,
       user: { select: { name: true, image: true } },
     },
   });
@@ -76,5 +81,7 @@ export async function resolveVisiblePromoters(params: {
     userId: member.userId,
     name: member.user.name,
     image: member.user.image ?? null,
+    lastGeoState: member.lastGeoState ?? null,
+    lastGeoStateAt: member.lastGeoStateAt?.toISOString() ?? null,
   }));
 }

@@ -229,6 +229,14 @@ export function reverseGeocode(latitude: number, longitude: number) {
   return client.promotor.reverseGeocode({ latitude, longitude });
 }
 
+// Reporta o estado da permissão de geolocalização ao abrir o app. Fire-and-forget
+// (client cru, sem query): é telemetria de status, não algo que a UI aguarda.
+export function reportGeoState(
+  state: "granted" | "denied" | "prompt" | "unavailable",
+) {
+  return client.promotor.reportGeoState({ state }).catch(() => undefined);
+}
+
 // ── Aprovação (coordenadora) ──────────────────────────────────────────────
 
 export function useApprovalGroups(

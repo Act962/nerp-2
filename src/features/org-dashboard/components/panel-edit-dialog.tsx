@@ -40,29 +40,41 @@ interface PanelEditTarget {
   title: string;
   color: string | null;
   appearance?: unknown;
+  boardId?: string | null;
 }
 
-// Editar painel: título, cor de acento e moldura (fundo/contorno/cor/fonte do
-// título). Mesmos controles do widget, aplicados ao painel — é o que permite
-// chegar no visual "control center" (painel escuro, contorno fino).
+interface BoardOption {
+  id: string;
+  title: string;
+}
+
 export function PanelEditDialog({
   panel,
+  boards,
   onOpenChange,
 }: {
   panel: PanelEditTarget | null;
+  boards?: BoardOption[];
   onOpenChange: (open: boolean) => void;
 }) {
   if (!panel) return null;
   return (
-    <PanelEditForm key={panel.id} panel={panel} onOpenChange={onOpenChange} />
+    <PanelEditForm
+      key={panel.id}
+      panel={panel}
+      boards={boards}
+      onOpenChange={onOpenChange}
+    />
   );
 }
 
 function PanelEditForm({
   panel,
+  boards,
   onOpenChange,
 }: {
   panel: PanelEditTarget;
+  boards?: BoardOption[];
   onOpenChange: (open: boolean) => void;
 }) {
   const update = useUpdateOrgPanel();
@@ -70,6 +82,7 @@ function PanelEditForm({
   const [color, setColor] = useState<WidgetColor | null>(
     panel.color as WidgetColor | null,
   );
+  const [boardId, setBoardId] = useState<string | null>(panel.boardId ?? null);
   const [appearance, setAppearance] = useState<PanelAppearance>(
     readPanelAppearance(panel.appearance),
   );
@@ -83,6 +96,7 @@ function PanelEditForm({
         panelId: panel.id,
         title: title.trim() || "Painel",
         color,
+        boardId,
         appearance: hasCustomPanelAppearance(appearance)
           ? (appearance as unknown as Record<string, unknown>)
           : null,
@@ -108,6 +122,32 @@ function PanelEditForm({
               onChange={(event) => setTitle(event.target.value)}
             />
           </div>
+
+          {boards && boards.length > 0 && (
+            <div className="flex flex-col gap-1.5">
+              <Label className="text-[10px] text-muted-foreground">
+                Quadro
+              </Label>
+              <Select
+                value={boardId ?? "__none__"}
+                onValueChange={(value) =>
+                  setBoardId(value === "__none__" ? null : value)
+                }
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhum (solto)</SelectItem>
+                  {boards.map((b) => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-1.5">
             <Label className="text-[10px] text-muted-foreground">
