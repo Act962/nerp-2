@@ -55,7 +55,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard-organizacao") ||
     pathname.startsWith("/publico/dashboard") ||
     pathname.startsWith("/integracoes") ||
-    pathname.startsWith("/colaboradores")
+    pathname.startsWith("/colaboradores") ||
+    // Página de autorização de cancelamento aberta no celular do supervisor.
+    pathname.startsWith("/autorizar")
   ) {
     return NextResponse.next();
   }

@@ -8,6 +8,7 @@ import { useCurrentMember } from "@/features/members/hooks/use-members";
 import { hasFullAccess } from "@/lib/permissions";
 import { ModulesPanel } from "./modules-panel";
 import { PermissionsPanel } from "./permissions-panel";
+import { PdvSecurityPanel } from "./pdv-security-panel";
 
 export function OrganizationSettingsTabs() {
   const { member } = useCurrentMember();
@@ -20,6 +21,7 @@ export function OrganizationSettingsTabs() {
         <TabsTrigger value="invitations">Convites</TabsTrigger>
         <TabsTrigger value="permissions">Permissões</TabsTrigger>
         <TabsTrigger value="modules">Módulos</TabsTrigger>
+        <TabsTrigger value="pdv">PDV</TabsTrigger>
       </TabsList>
 
       <TabsContent value="members" className="mt-4">
@@ -40,6 +42,10 @@ export function OrganizationSettingsTabs() {
 
       <TabsContent value="modules" className="mt-4">
         <ModulesPanel />
+      </TabsContent>
+
+      <TabsContent value="pdv" className="mt-4">
+        <PdvSecurityPanel />
       </TabsContent>
     </Tabs>
   );

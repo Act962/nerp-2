@@ -22,6 +22,11 @@ export const PAGE_PERMISSIONS = [
     href: "/vendas",
   },
   {
+    key: "caixa",
+    label: "Caixa (sessão)",
+    href: "/vendas/caixa",
+  },
+  {
     key: "produtos",
     label: "Produtos",
     href: "/produtos",
@@ -182,6 +187,26 @@ export const ACTION_PERMISSIONS = [
   {
     key: "mapa-ver-todos",
     label: "Ver o trajeto de todos os promotores",
+  },
+  {
+    key: "caixa-abrir",
+    label: "Abrir o caixa",
+  },
+  {
+    key: "caixa-fechar",
+    label: "Fechar o caixa",
+  },
+  {
+    key: "caixa-sangria",
+    label: "Fazer sangria no caixa",
+  },
+  {
+    key: "caixa-suprimento",
+    label: "Fazer suprimento no caixa",
+  },
+  {
+    key: "autorizar-cancelamento",
+    label: "Autorizar cancelamento/remoção de item no PDV",
   },
 ] as const;
 

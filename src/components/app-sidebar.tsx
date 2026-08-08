@@ -134,6 +134,15 @@ const navigation: NavItem[] = [
     href: "/vendas",
     icon: ShoppingCart,
     permission: "vendas",
+    children: [
+      { name: "PDV", href: "/vendas", icon: ScanBarcode },
+      {
+        name: "Caixa",
+        href: "/vendas/caixa",
+        icon: CreditCard,
+        permission: "caixa",
+      },
+    ],
   },
   {
     name: "Pedidos",

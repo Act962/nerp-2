@@ -8,6 +8,7 @@ import { removeMember } from "./remove";
 import { updateMemberTradeRole } from "./update-trade-role";
 import { updateMemberPromotorVisibility } from "./update-promotor-visibility";
 import { setMemberSupplierLinks } from "./set-supplier-links";
+import { setMemberCancelPin } from "./set-cancel-pin";
 
 export const memberRoutes = {
   list: listMembers,
@@ -20,4 +21,5 @@ export const memberRoutes = {
   updateTradeRole: updateMemberTradeRole,
   updatePromotorVisibility: updateMemberPromotorVisibility,
   setSupplierLinks: setMemberSupplierLinks,
+  setCancelPin: setMemberCancelPin,
 };
