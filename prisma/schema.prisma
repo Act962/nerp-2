@@ -45,6 +45,7 @@ model User {
   editedMapObjects         MapObject[]          @relation("EditedMapObjects")
   createdNegotiations      SpaceNegotiation[]   @relation("CreatedSpaceNegotiations")
   companyClaims            CompanyClaim[]       @relation("UserCompanyClaims")
+  createdPaymentEntries    PaymentEntry[]       @relation("PaymentEntryCreatedBy")
 
   @@index([email])
   @@map("user")
@@ -246,6 +247,12 @@ model Organization {
   oracleQueryTemplates      OracleQueryTemplate[]
   orgDashboard              OrgDashboard?
   promoterRoutes            PromoterRoute[]
+  // Financeiro (contas a pagar/receber)
+  paymentBankAccounts       PaymentBankAccount[]
+  paymentCategories         PaymentCategory[]
+  paymentCostCenters        PaymentCostCenter[]
+  paymentContacts           PaymentContact[]
+  paymentEntries            PaymentEntry[]
 
   @@index([slug])
   @@index([subdomain])
@@ -3691,4 +3698,168 @@ model CalendarNote {
 
   @@index([organizationId, memberId, startsAt])
   @@map("calendar_notes")
+}
+
+// ============================================
+// FINANCEIRO — Contas a pagar/receber (Epic 5, Fase A)
+// Portado do módulo Payment do nasaex-wey. Valores em CENTAVOS (Int).
+// Gateway, régua de cobrança e aprovações ficam para branches seguintes.
+// ============================================
+
+enum FinancialEntryStatus {
+  PENDING_APPROVAL
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum FinancialEntryType {
+  RECEIVABLE // Conta a Receber
+  PAYABLE // Conta a Pagar
+}
+
+enum PaymentAccountType {
+  CHECKING // Conta Corrente
+  SAVINGS // Poupança
+  CASH // Caixa físico
+  DIGITAL // Carteira digital
+}
+
+enum FinancialCategoryType {
+  REVENUE // Receita
+  EXPENSE // Despesa
+  COST // Custo
+}
+
+model PaymentBankAccount {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  name           String
+  bankName       String?            @map("bank_name")
+  bankCode       String?            @map("bank_code")
+  agency         String?
+  account        String?
+  type           PaymentAccountType @default(CHECKING)
+  balance        Int                @default(0) // em centavos
+  isActive       Boolean            @default(true) @map("is_active")
+  isDefault      Boolean            @default(false) @map("is_default")
+  color          String?            @default("#1E90FF")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_bank_accounts")
+}
+
+model PaymentCategory {
+  id             String                @id @default(cuid())
+  organizationId String                @map("organization_id")
+  name           String
+  type           FinancialCategoryType
+  color          String?               @default("#1E90FF")
+  icon           String?
+  parentId       String?               @map("parent_id")
+  isActive       Boolean               @default(true) @map("is_active")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       PaymentCategory?  @relation("PaymentCategoryHierarchy", fields: [parentId], references: [id])
+  children     PaymentCategory[] @relation("PaymentCategoryHierarchy")
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_categories")
+}
+
+model PaymentCostCenter {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_cost_centers")
+}
+
+model PaymentContact {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  document       String?
+  email          String?
+  phone          String?
+  contactType    String   @default("BOTH") @map("contact_type") // CUSTOMER, SUPPLIER, BOTH
+  notes          String?
+  isActive       Boolean  @default(true) @map("is_active")
+  creditLimit    Int      @default(0) @map("credit_limit") // em centavos
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_contacts")
+}
+
+model PaymentEntry {
+  id             String               @id @default(cuid())
+  organizationId String               @map("organization_id")
+  type           FinancialEntryType
+  status         FinancialEntryStatus @default(PENDING)
+  description    String
+  amount         Int // em centavos
+  paidAmount     Int                  @default(0) @map("paid_amount") // em centavos
+  dueDate        DateTime             @map("due_date")
+  paidAt         DateTime?            @map("paid_at")
+  competenceDate DateTime?            @map("competence_date")
+  documentNumber String?              @map("document_number")
+  notes          String?
+  attachmentUrl  String?              @map("attachment_url")
+
+  categoryId   String? @map("category_id")
+  costCenterId String? @map("cost_center_id")
+  contactId    String? @map("contact_id")
+  accountId    String? @map("account_id")
+
+  // Parcelamento
+  installmentTotal   Int?    @map("installment_total")
+  installmentCurrent Int?    @map("installment_current")
+  installmentGroupId String? @map("installment_group_id")
+
+  // Recorrência
+  isRecurring    Boolean @default(false) @map("is_recurring")
+  recurrenceType String? @map("recurrence_type") // daily, weekly, monthly, yearly
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     PaymentCategory?    @relation(fields: [categoryId], references: [id])
+  costCenter   PaymentCostCenter?  @relation(fields: [costCenterId], references: [id])
+  contact      PaymentContact?     @relation(fields: [contactId], references: [id])
+  account      PaymentBankAccount? @relation(fields: [accountId], references: [id])
+  createdBy    User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+  @@index([contactId])
+  @@index([categoryId])
+  @@index([installmentGroupId])
+  @@map("payment_entries")
 }

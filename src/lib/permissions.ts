@@ -52,6 +52,11 @@ export const PAGE_PERMISSIONS = [
     href: "/fornecedores",
   },
   {
+    key: "financeiro",
+    label: "Financeiro",
+    href: "/financeiro",
+  },
+  {
     key: "trade-painel",
     label: "Painel do Trade",
     href: "/trade/painel",

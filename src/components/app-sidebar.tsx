@@ -21,6 +21,7 @@ import {
   Aperture,
   BookImage,
   Box,
+  DollarSign,
   Building,
   Building2,
   CalendarDays,
@@ -154,16 +155,12 @@ const navigation: NavItem[] = [
       },
     ],
   },
-  // {
-  //   name: "Financeiro",
-  //   href: "/financeiro",
-  //   icon: DollarSign,
-  //   children: [
-  //     { name: "Contas a Receber", href: "/financeiro/receber", icon: Inbox },
-  //     { name: "Contas a Pagar", href: "/financeiro/pagar", icon: Receipt },
-  //     { name: "Fluxo de Caixa", href: "/financeiro/fluxo", icon: CreditCard },
-  //   ],
-  // },
+  {
+    name: "Financeiro",
+    href: "/financeiro",
+    icon: DollarSign,
+    permission: "financeiro",
+  },
   {
     name: "Clientes",
     href: "/clientes",
