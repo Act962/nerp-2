@@ -131,11 +131,12 @@ const navigation: NavItem[] = [
   },
   {
     name: "Frente de caixa",
-    href: "/vendas",
+    href: "/vendas/novo",
     icon: ShoppingCart,
     permission: "vendas",
     children: [
-      { name: "PDV", href: "/vendas", icon: ScanBarcode },
+      { name: "PDV", href: "/vendas/novo", icon: ScanBarcode },
+      { name: "Vendas", href: "/vendas", icon: ShoppingCart },
       {
         name: "Caixa",
         href: "/vendas/caixa",

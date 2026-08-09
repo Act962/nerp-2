@@ -31,6 +31,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
 import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
+import { CaixaInfoBar } from "@/features/caixa/components/caixa-info-bar";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { orpc } from "@/lib/orpc";
@@ -546,6 +547,7 @@ export default function CreateSalePage({
     // Fundo cinza full-bleed (cancela o padding do layout) para o painel branco
     // do carrinho — estilo cupom — se destacar.
     <div className="-m-4 min-h-[calc(100dvh-4rem)] bg-muted p-4 md:-m-6 md:p-6">
+      <CaixaInfoBar />
       <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
         {/* Left Side - Product Selection */}
         <ProductSection

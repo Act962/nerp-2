@@ -20,6 +20,7 @@ export const getCurrentMember = base
     z
       .object({
         id: z.string(),
+        name: z.string(),
         role: z.string(),
         permissions: z.array(z.string()),
         hiddenModules: z.array(z.string()),
@@ -41,6 +42,7 @@ export const getCurrentMember = base
           permissions: true,
           hiddenModules: true,
           dashboardModules: true,
+          user: { select: { name: true } },
         },
       }),
       prisma.organization.findUnique({
@@ -53,6 +55,7 @@ export const getCurrentMember = base
 
     return {
       id: member.id,
+      name: member.user.name,
       role: member.role,
       permissions: member.permissions ?? [],
       hiddenModules: member.hiddenModules ?? [],
