@@ -17,18 +17,29 @@ export interface PdvShortcutDef {
   defaultKey: string;
 }
 
-// Padrões de fábrica. O admin da org pode sobrescrever cada tecla.
+// Padrões de fábrica: Alt (Option no Mac) + letra. F-keys foram evitadas de
+// propósito — no MacBook são interceptadas pelo hardware/macOS (brilho,
+// Mission Control, "Show Desktop") e nunca chegam ao app. Alt+letra funciona
+// em Mac e Windows e dispara mesmo com a busca focada. O admin pode reconfigurar.
 export const PDV_SHORTCUTS: PdvShortcutDef[] = [
-  { id: "abrir-caixa", label: "Abrir caixa", defaultKey: "F8" },
+  { id: "abrir-caixa", label: "Abrir caixa", defaultKey: "Alt+A" },
   {
     id: "finalizar-venda",
     label: "Finalizar venda (pagamento)",
-    defaultKey: "F2",
+    defaultKey: "Alt+F",
   },
-  { id: "buscar-produto", label: "Focar busca de produto", defaultKey: "F3" },
-  { id: "selecionar-cliente", label: "Selecionar cliente", defaultKey: "F6" },
-  { id: "limpar-carrinho", label: "Limpar carrinho", defaultKey: "F4" },
-  { id: "ajuda-atalhos", label: "Ver/editar atalhos", defaultKey: "F1" },
+  {
+    id: "buscar-produto",
+    label: "Focar busca de produto",
+    defaultKey: "Alt+B",
+  },
+  {
+    id: "selecionar-cliente",
+    label: "Selecionar cliente",
+    defaultKey: "Alt+C",
+  },
+  { id: "limpar-carrinho", label: "Limpar carrinho", defaultKey: "Alt+L" },
+  { id: "ajuda-atalhos", label: "Ver/editar atalhos", defaultKey: "Alt+H" },
 ];
 
 export const PDV_ACTION_IDS = PDV_SHORTCUTS.map((s) => s.id);
@@ -59,16 +70,30 @@ export function resolveBindings(
 }
 
 // Normaliza um KeyboardEvent no mesmo formato das teclas configuradas.
+// Usa `event.code` (a tecla FÍSICA): imune ao layout do teclado e ao Option do
+// Mac — que com `event.key` produziria caractere acentuado (Option+F = "ƒ") e
+// quebraria o casamento do atalho.
 export function keyFromEvent(event: KeyboardEvent): string {
   const parts: string[] = [];
   if (event.ctrlKey) parts.push("Ctrl");
   if (event.altKey) parts.push("Alt");
   if (event.shiftKey) parts.push("Shift");
-  const key = /^F([1-9]|1[0-2])$/.test(event.key)
-    ? event.key
-    : event.key.length === 1
-      ? event.key.toUpperCase()
-      : event.key;
+
+  const code = event.code;
+  let key: string;
+  if (/^F([1-9]|1[0-2])$/.test(code)) {
+    key = code; // F1..F12
+  } else if (/^Key[A-Z]$/.test(code)) {
+    key = code.slice(3); // KeyF -> F
+  } else if (/^Digit[0-9]$/.test(code)) {
+    key = code.slice(5); // Digit2 -> 2
+  } else if (/^Numpad[0-9]$/.test(code)) {
+    key = code.slice(6); // Numpad2 -> 2
+  } else if (event.key.length === 1) {
+    key = event.key.toUpperCase();
+  } else {
+    key = event.key; // teclas nomeadas (fallback)
+  }
   parts.push(key);
   return parts.join("+");
 }
