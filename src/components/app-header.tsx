@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PdvHeaderActions } from "@/features/sales/components/novo/pdv-header-actions";
@@ -19,9 +19,19 @@ export function AppHeader() {
   const showSearch = !isPdv;
   const { setOpen } = useSidebar();
 
-  // No PDV a sidebar recolhe pra dar espaço à venda.
+  // No PDV a sidebar recolhe pra dar espaço à venda — mas só uma vez ao entrar.
+  // Sem o guard, o effect re-rodaria e forçaria `false` logo após o usuário
+  // reabrir pelo ícone, impedindo que a sidebar volte a aparecer.
+  const collapsedForPdv = useRef(false);
   useEffect(() => {
-    if (isPdv) setOpen(false);
+    if (isPdv) {
+      if (!collapsedForPdv.current) {
+        collapsedForPdv.current = true;
+        setOpen(false);
+      }
+    } else {
+      collapsedForPdv.current = false;
+    }
   }, [isPdv, setOpen]);
 
   // No PDV entra em tela cheia. O navegador exige gesto do usuário, então além

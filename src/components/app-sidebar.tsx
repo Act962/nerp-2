@@ -446,7 +446,7 @@ export function AppSidebar() {
       : visibleNavigation;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible={pathname === "/vendas/novo" ? "offcanvas" : "icon"}>
       <SidebarHeader>
         <OrgMenu />
       </SidebarHeader>
