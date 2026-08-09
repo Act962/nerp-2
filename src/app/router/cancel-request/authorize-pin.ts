@@ -17,7 +17,13 @@ export const authorizeCancelByPin = base
   .handler(async ({ input, context, errors }) => {
     const request = await prisma.cancellationRequest.findFirst({
       where: { id: input.requestId, organizationId: context.org.id },
-      select: { id: true, status: true, expiresAt: true, pinAttempts: true },
+      select: {
+        id: true,
+        status: true,
+        expiresAt: true,
+        pinAttempts: true,
+        requestedById: true,
+      },
     });
     if (!request)
       throw errors.NOT_FOUND({ message: "Solicitação não encontrada" });
@@ -33,6 +39,28 @@ export const authorizeCancelByPin = base
     if (request.pinAttempts >= 5)
       throw errors.BAD_REQUEST({
         message: "Muitas tentativas. Gere uma nova solicitação.",
+      });
+
+    // Trava durável contra brute-force do PIN: o cap por-solicitação (5 acima) é
+    // resetável criando novas solicitações. Somamos as tentativas erradas do
+    // MESMO solicitante numa janela de 15 min — algo que o atacante não zera
+    // gerando solicitações novas. Sem isso, um caixa forjaria a autorização de
+    // um supervisor por força bruta num PIN de 4 dígitos.
+    const WINDOW_MS = 15 * 60 * 1000;
+    const MAX_ATTEMPTS_PER_WINDOW = 10;
+    const windowStart = new Date(Date.now() - WINDOW_MS);
+    const recent = await prisma.cancellationRequest.aggregate({
+      where: {
+        organizationId: context.org.id,
+        requestedById: request.requestedById,
+        createdAt: { gte: windowStart },
+      },
+      _sum: { pinAttempts: true },
+    });
+    if ((recent._sum?.pinAttempts ?? 0) >= MAX_ATTEMPTS_PER_WINDOW)
+      throw errors.FORBIDDEN({
+        message:
+          "Muitas tentativas de PIN. Aguarde alguns minutos antes de tentar de novo.",
       });
 
     const candidates = await prisma.member.findMany({
