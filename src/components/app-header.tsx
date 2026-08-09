@@ -1,11 +1,13 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PdvHeaderActions } from "@/features/sales/components/novo/pdv-header-actions";
-import { SidebarTrigger } from "./ui/sidebar";
+import { SidebarTrigger, useSidebar } from "./ui/sidebar";
 import { ModeToggle } from "./mode-toggle";
+import { FullscreenToggle } from "./fullscreen-toggle";
 
 // No PDV (tela cheia) a busca global do topo só distrai — a busca de produto
 // fica dentro da própria tela de venda; e os botões Balança/Atalhos vêm pra cá.
@@ -15,6 +17,28 @@ export function AppHeader() {
   const pathname = usePathname();
   const isPdv = pathname === PDV_ROUTE;
   const showSearch = !isPdv;
+  const { setOpen } = useSidebar();
+
+  // No PDV a sidebar recolhe pra dar espaço à venda.
+  useEffect(() => {
+    if (isPdv) setOpen(false);
+  }, [isPdv, setOpen]);
+
+  // No PDV entra em tela cheia. O navegador exige gesto do usuário, então além
+  // da tentativa direta, disparamos no primeiro toque/tecla da página.
+  useEffect(() => {
+    if (!isPdv || document.fullscreenElement) return;
+    const enter = () =>
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    enter();
+    const onFirst = () => enter();
+    window.addEventListener("pointerdown", onFirst, { once: true });
+    window.addEventListener("keydown", onFirst, { once: true });
+    return () => {
+      window.removeEventListener("pointerdown", onFirst);
+      window.removeEventListener("keydown", onFirst);
+    };
+  }, [isPdv]);
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
@@ -34,6 +58,7 @@ export function AppHeader() {
 
       <div className="flex items-center gap-2 md:gap-4">
         {isPdv && <PdvHeaderActions />}
+        <FullscreenToggle />
         <ModeToggle />
       </div>
     </header>
