@@ -16,12 +16,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { useCurrentMember } from "@/features/members/hooks/use-members";
 import { cn } from "@/lib/utils";
-import { memberCan } from "@/lib/permissions";
+import { hasFullAccess, memberCan } from "@/lib/permissions";
 import { CaixaStatusBadge } from "./caixa-status-badge";
 import { CashMovementDialog } from "./cash-movement-dialog";
 import { CloseCaixaDialog } from "./close-caixa-dialog";
+import { ManageRegistersDialog } from "./manage-registers-dialog";
 import { OpenCaixaDialog } from "./open-caixa-dialog";
 import {
   formatBRL,
@@ -54,12 +56,28 @@ export function CaixaContainer() {
   const canClose = memberCan(member, "caixa-fechar");
   const canSangria = memberCan(member, "caixa-sangria");
   const canSuprimento = memberCan(member, "caixa-suprimento");
+  const canManageRegisters = hasFullAccess(member?.role);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl font-semibold">Caixa</h1>
-        <CaixaStatusBadge open={!!session} />
+        <CaixaStatusBadge
+          open={!!session}
+          registerName={session?.registerName}
+          operatorName={session?.operatorName}
+        />
+        {canManageRegisters && (
+          <div className="ml-auto">
+            <ManageRegistersDialog
+              trigger={
+                <Button variant="outline" size="sm">
+                  Gerenciar caixas
+                </Button>
+              }
+            />
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -75,6 +93,8 @@ export function CaixaContainer() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
+              <SummaryRow label="Caixa" value={session.registerName} />
+              <SummaryRow label="Operador" value={session.operatorName} />
               <SummaryRow
                 label="Fundo de abertura"
                 value={formatBRL(session.openingBalance)}
@@ -142,6 +162,7 @@ export function CaixaContainer() {
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead>Caixa</TableHead>
                   <TableHead>Operador</TableHead>
                   <TableHead>Abertura</TableHead>
                   <TableHead>Fechamento</TableHead>
@@ -156,8 +177,9 @@ export function CaixaContainer() {
                 {sessions.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">
-                      {item.operatorName}
+                      {item.registerName}
                     </TableCell>
+                    <TableCell>{item.operatorName}</TableCell>
                     <TableCell>{formatDateTime(item.openedAt)}</TableCell>
                     <TableCell>
                       {item.closedAt ? formatDateTime(item.closedAt) : "—"}

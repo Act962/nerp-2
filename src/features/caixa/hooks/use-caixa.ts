@@ -81,6 +81,61 @@ export function useSuprimento() {
   );
 }
 
+export function useCashRegisters(includeInactive?: boolean) {
+  const query = useQuery(
+    orpc.cashRegister.list.queryOptions({ input: { includeInactive } }),
+  );
+  return {
+    registers: query.data?.registers ?? [],
+    isLoading: query.isPending,
+  };
+}
+
+function useInvalidateRegisters() {
+  const queryClient = useQueryClient();
+  return () =>
+    queryClient.invalidateQueries({ queryKey: orpc.cashRegister.list.key() });
+}
+
+export function useCreateRegister() {
+  const invalidate = useInvalidateRegisters();
+  return useMutation(
+    orpc.cashRegister.create.mutationOptions({
+      onSuccess: () => {
+        toast.success("Caixa criado");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useUpdateRegister() {
+  const invalidate = useInvalidateRegisters();
+  return useMutation(
+    orpc.cashRegister.update.mutationOptions({
+      onSuccess: () => {
+        toast.success("Caixa atualizado");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteRegister() {
+  const invalidate = useInvalidateRegisters();
+  return useMutation(
+    orpc.cashRegister.delete.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(data.deactivated ? "Caixa desativado" : "Caixa excluído");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useCaixaSessions() {
   const query = useInfiniteQuery({
     ...orpc.caixa.list.infiniteOptions({

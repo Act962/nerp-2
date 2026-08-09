@@ -16,6 +16,9 @@ export const getCurrentCaixa = base
       session: z
         .object({
           id: z.string(),
+          registerId: z.string(),
+          registerName: z.string(),
+          operatorName: z.string(),
           openedAt: z.string(),
           openingBalance: z.number(),
           salesTotal: z.number(),
@@ -42,6 +45,8 @@ export const getCurrentCaixa = base
         id: true,
         openedAt: true,
         openingBalance: true,
+        register: { select: { id: true, name: true } },
+        member: { select: { user: { select: { name: true } } } },
         movements: {
           select: { type: true, amount: true, paymentMethod: true },
         },
@@ -61,6 +66,9 @@ export const getCurrentCaixa = base
     return {
       session: {
         id: session.id,
+        registerId: session.register.id,
+        registerName: session.register.name,
+        operatorName: session.member.user.name,
         openedAt: session.openedAt.toISOString(),
         openingBalance: Number(session.openingBalance),
         salesTotal: summary.salesTotal,

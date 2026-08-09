@@ -21,6 +21,7 @@ export const listCaixaSessions = base
         z.object({
           id: z.string(),
           status: z.enum(["OPEN", "CLOSED"]),
+          registerName: z.string(),
           operatorName: z.string(),
           openingBalance: z.number(),
           expectedBalance: z.number().nullable(),
@@ -55,6 +56,7 @@ export const listCaixaSessions = base
         difference: true,
         openedAt: true,
         closedAt: true,
+        register: { select: { name: true } },
         member: { select: { user: { select: { name: true } } } },
       },
     });
@@ -63,6 +65,7 @@ export const listCaixaSessions = base
     const sessions = rows.slice(0, take).map((row) => ({
       id: row.id,
       status: row.status,
+      registerName: row.register.name,
       operatorName: row.member.user.name,
       openingBalance: Number(row.openingBalance),
       expectedBalance:

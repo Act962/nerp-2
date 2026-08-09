@@ -12,6 +12,7 @@ export const abrirCaixa = base
   .route({ method: "POST", summary: "Abrir o caixa", tags: ["caixa"] })
   .input(
     z.object({
+      registerId: z.string().min(1, "Escolha o caixa"),
       openingBalance: z.number().min(0),
       accountId: z.string().optional(),
       openingNotes: z.string().optional(),
@@ -38,6 +39,17 @@ export const abrirCaixa = base
         throw errors.NOT_FOUND({ message: "Conta financeira não encontrada" });
     }
 
+    const register = await prisma.cashRegister.findFirst({
+      where: {
+        id: input.registerId,
+        organizationId: context.org.id,
+        isActive: true,
+      },
+      select: { id: true },
+    });
+    if (!register)
+      throw errors.NOT_FOUND({ message: "Caixa não encontrado ou inativo" });
+
     try {
       const session = await prisma.$transaction(async (tx) => {
         const open = await tx.cashSession.findFirst({
@@ -54,10 +66,24 @@ export const abrirCaixa = base
               "Você já tem um caixa aberto. Feche-o antes de abrir outro.",
           });
 
+        const openRegister = await tx.cashSession.findFirst({
+          where: {
+            organizationId: context.org.id,
+            registerId: input.registerId,
+            status: "OPEN",
+          },
+          select: { id: true },
+        });
+        if (openRegister)
+          throw errors.BAD_REQUEST({
+            message: "Este caixa já está aberto por outro operador.",
+          });
+
         return tx.cashSession.create({
           data: {
             organizationId: context.org.id,
             memberId: member.id,
+            registerId: input.registerId,
             openedById: context.user.id,
             accountId: input.accountId ?? null,
             openingBalance: input.openingBalance,
@@ -85,7 +111,9 @@ export const abrirCaixa = base
         "code" in error &&
         (error as { code?: string }).code === "P2002"
       ) {
-        throw errors.BAD_REQUEST({ message: "Você já tem um caixa aberto." });
+        throw errors.BAD_REQUEST({
+          message: "Caixa já aberto (por você ou por outro operador).",
+        });
       }
       throw error;
     }

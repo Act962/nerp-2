@@ -190,6 +190,7 @@ model Organization {
   suppliers                 Supplier[]
   sales                     Sale[]
   cashSessions              CashSession[]
+  cashRegisters             CashRegister[]
   cashMovements             CashMovement[]
   cancellationRequests      CancellationRequest[]
   purchases                 Purchase[]
@@ -952,6 +953,7 @@ model CashSession {
   openedById      String // User que abriu
   closedById      String? // User que fechou
   accountId       String? // FinancialAccount (CAIXA) opcional
+  registerId      String // caixa físico (terminal) numerado desta sessão
   status          CashSessionStatus @default(OPEN)
   openingBalance  Decimal           @db.Decimal(10, 2)
   expectedBalance Decimal?          @db.Decimal(10, 2) // calculado no fechamento
@@ -967,6 +969,7 @@ model CashSession {
   openedBy     User              @relation("OpenedCashSessions", fields: [openedById], references: [id])
   closedBy     User?             @relation("ClosedCashSessions", fields: [closedById], references: [id])
   account      FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  register     CashRegister      @relation(fields: [registerId], references: [id])
   movements    CashMovement[]
   sales        Sale[]
   cancellationRequests CancellationRequest[]
@@ -3855,4 +3858,20 @@ model CalendarNote {
 
   @@index([organizationId, memberId, startsAt])
   @@map("calendar_notes")
+}
+
+// Caixa físico numerado (terminal). A sessão de caixa (CashSession) referencia
+// o terminal + o operador — assim relatórios sabem QUAL caixa e QUEM operou.
+model CashRegister {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String // ex.: "Caixa 01"
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions       CashSession[]
+
+  @@index([organizationId])
+  @@map("cash_registers")
 }
