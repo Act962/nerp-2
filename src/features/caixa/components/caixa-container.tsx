@@ -17,14 +17,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useCurrentMember } from "@/features/members/hooks/use-members";
 import { cn } from "@/lib/utils";
 import { hasFullAccess, memberCan } from "@/lib/permissions";
+import { useState } from "react";
 import { CaixaStatusBadge } from "./caixa-status-badge";
 import { CashMovementDialog } from "./cash-movement-dialog";
 import { CloseCaixaDialog } from "./close-caixa-dialog";
 import { ManageRegistersDialog } from "./manage-registers-dialog";
 import { OpenCaixaDialog } from "./open-caixa-dialog";
+import { SessionMovementsDialog } from "./session-movements-dialog";
 import {
   formatBRL,
   useCaixaCurrent,
@@ -50,7 +53,15 @@ function SummaryRow({ label, value }: { label: string; value: string }) {
 export function CaixaContainer() {
   const { session, isLoading } = useCaixaCurrent();
   const { member } = useCurrentMember();
-  const { sessions, isLoading: loadingHistory } = useCaixaSessions();
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const { sessions, isLoading: loadingHistory } = useCaixaSessions({
+    from,
+    to,
+  });
+  const [openSession, setOpenSession] = useState<
+    (typeof sessions)[number] | null
+  >(null);
 
   const canOpen = memberCan(member, "caixa-abrir");
   const canClose = memberCan(member, "caixa-fechar");
@@ -149,6 +160,50 @@ export function CaixaContainer() {
 
       <div className="space-y-2">
         <h2 className="text-lg font-medium">Histórico de sessões</h2>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="filter-from"
+              className="text-xs text-muted-foreground"
+            >
+              De
+            </label>
+            <Input
+              id="filter-from"
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+              className="w-auto"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label
+              htmlFor="filter-to"
+              className="text-xs text-muted-foreground"
+            >
+              Até
+            </label>
+            <Input
+              id="filter-to"
+              type="date"
+              value={to}
+              onChange={(event) => setTo(event.target.value)}
+              className="w-auto"
+            />
+          </div>
+          {(from || to) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setFrom("");
+                setTo("");
+              }}
+            >
+              Limpar
+            </Button>
+          )}
+        </div>
         {loadingHistory ? (
           <div className="flex justify-center py-6">
             <Spinner />
@@ -175,7 +230,11 @@ export function CaixaContainer() {
               </TableHeader>
               <TableBody>
                 {sessions.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow
+                    key={item.id}
+                    className="cursor-pointer hover:bg-muted/50"
+                    onClick={() => setOpenSession(item)}
+                  >
                     <TableCell className="font-medium">
                       {item.registerName}
                     </TableCell>
@@ -219,6 +278,13 @@ export function CaixaContainer() {
           </div>
         )}
       </div>
+
+      <SessionMovementsDialog
+        session={openSession}
+        onOpenChange={(open) => {
+          if (!open) setOpenSession(null);
+        }}
+      />
     </div>
   );
 }

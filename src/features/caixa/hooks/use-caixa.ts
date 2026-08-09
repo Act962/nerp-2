@@ -136,10 +136,15 @@ export function useDeleteRegister() {
   );
 }
 
-export function useCaixaSessions() {
+export function useCaixaSessions(filter?: { from?: string; to?: string }) {
   const query = useInfiniteQuery({
     ...orpc.caixa.list.infiniteOptions({
-      input: (cursor: string | undefined) => ({ cursor, limit: 20 }),
+      input: (cursor: string | undefined) => ({
+        cursor,
+        limit: 20,
+        from: filter?.from || undefined,
+        to: filter?.to || undefined,
+      }),
       getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
       initialPageParam: undefined,
     }),
@@ -151,4 +156,14 @@ export function useCaixaSessions() {
     fetchNextPage: query.fetchNextPage,
     isFetchingNextPage: query.isFetchingNextPage,
   };
+}
+
+// Movimentos + cancelamentos de uma sessão (para o histórico detalhado).
+export function useCaixaMovements(sessionId: string | null) {
+  return useQuery(
+    orpc.caixa.movements.queryOptions({
+      input: { sessionId: sessionId ?? "" },
+      enabled: !!sessionId,
+    }),
+  );
 }

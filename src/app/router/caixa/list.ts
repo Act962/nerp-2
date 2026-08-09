@@ -13,6 +13,9 @@ export const listCaixaSessions = base
     z.object({
       cursor: z.string().optional(),
       limit: z.number().int().min(1).max(50).optional(),
+      // Filtro por data de abertura (ISO). `to` é inclusivo até o fim do dia.
+      from: z.string().optional(),
+      to: z.string().optional(),
     }),
   )
   .output(
@@ -42,8 +45,22 @@ export const listCaixaSessions = base
       });
 
     const take = input.limit ?? 20;
+    // `to` inclui o dia inteiro (até 23:59:59.999).
+    const toEnd = input.to
+      ? new Date(new Date(input.to).getTime() + 24 * 60 * 60 * 1000 - 1)
+      : undefined;
     const rows = await prisma.cashSession.findMany({
-      where: { organizationId: context.org.id },
+      where: {
+        organizationId: context.org.id,
+        ...(input.from || toEnd
+          ? {
+              openedAt: {
+                ...(input.from ? { gte: new Date(input.from) } : {}),
+                ...(toEnd ? { lte: toEnd } : {}),
+              },
+            }
+          : {}),
+      },
       orderBy: { openedAt: "desc" },
       take: take + 1,
       ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),

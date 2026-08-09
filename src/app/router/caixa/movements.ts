@@ -29,6 +29,18 @@ export const listCaixaMovements = base
           createdAt: z.string(),
         }),
       ),
+      // Cancelamentos autorizados desta sessão (antifraude): entram no histórico.
+      cancellations: z.array(
+        z.object({
+          id: z.string(),
+          kind: z.enum(["REMOVE_ITEM", "REDUCE_QTY"]),
+          productName: z.string(),
+          quantity: z.number(),
+          amount: z.number(),
+          approvedByName: z.string().nullable(),
+          createdAt: z.string(),
+        }),
+      ),
     }),
   )
   .handler(async ({ input, context, errors }) => {
@@ -59,6 +71,20 @@ export const listCaixaMovements = base
       },
     });
 
+    const cancellations = await prisma.cancellationRequest.findMany({
+      where: { cashSessionId: session.id, status: "APPROVED" },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        kind: true,
+        productName: true,
+        quantity: true,
+        amount: true,
+        approvedByName: true,
+        createdAt: true,
+      },
+    });
+
     return {
       movements: movements.map((movement) => ({
         id: movement.id,
@@ -68,6 +94,15 @@ export const listCaixaMovements = base
         description: movement.description,
         saleId: movement.saleId,
         createdAt: movement.createdAt.toISOString(),
+      })),
+      cancellations: cancellations.map((c) => ({
+        id: c.id,
+        kind: c.kind,
+        productName: c.productName,
+        quantity: Number(c.quantity),
+        amount: Number(c.amount),
+        approvedByName: c.approvedByName,
+        createdAt: c.createdAt.toISOString(),
       })),
     };
   });
