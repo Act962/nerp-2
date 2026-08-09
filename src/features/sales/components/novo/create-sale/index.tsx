@@ -160,6 +160,9 @@ export default function CreateSalePage({
     cursor,
     limit: 12,
     category: selectedCategory ? [selectedCategory] : undefined,
+    // Busca no SERVIDOR (não só na página carregada): produtos fora das 12
+    // primeiras também aparecem.
+    search: searchTerm.trim() || undefined,
   });
 
   const mutation = useMutationCreateSale();
@@ -561,6 +564,8 @@ export default function CreateSalePage({
           setSearchTerm={(value) => {
             setSearchTerm(value);
             setSelectedIndex(null);
+            // Nova busca recomeça da 1ª página dos resultados.
+            reset();
           }}
           selectedIndex={selectedIndex}
           onArrow={moveSelection}
