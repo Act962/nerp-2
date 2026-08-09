@@ -7,6 +7,7 @@ import { checkoutRouter } from "./checkout";
 import { dashboardRoutes } from "./dashboard";
 import { customerRoutes } from "./customer";
 import { SalesRoutes } from "./sales";
+import { receiptTemplateRoutes } from "./receipt-template";
 import { kitchenRoutes } from "./pedidos";
 import { collaboratorRoutes } from "./collaborators";
 import { calendarRoutes } from "./calendar";
@@ -63,6 +64,7 @@ export const router = {
   dashboard: dashboardRoutes,
   customer: customerRoutes,
   sales: SalesRoutes,
+  receiptTemplate: receiptTemplateRoutes,
   kitchen: kitchenRoutes,
   collaborators: collaboratorRoutes,
   calendar: calendarRoutes,

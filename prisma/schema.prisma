@@ -246,6 +246,7 @@ model Organization {
   oracleQueryTemplates      OracleQueryTemplate[]
   orgDashboard              OrgDashboard?
   promoterRoutes            PromoterRoute[]
+  receiptTemplates          ReceiptTemplate[]
 
   @@index([slug])
   @@index([subdomain])
@@ -3691,4 +3692,39 @@ model CalendarNote {
 
   @@index([organizationId, memberId, startsAt])
   @@map("calendar_notes")
+}
+
+// ============================================
+// IMPRESSÃO DE CUPOM — templates do editor (Epic 2, impressao-cupom Fase A)
+// Um template (blocos em JSON) alimenta a renderização. Impressão via navegador
+// (CSS @page 80mm/58mm/A4). ESC-POS cru e DANFE ficam para branches seguintes.
+// ============================================
+
+enum ReceiptType {
+  FISCAL
+  NAO_FISCAL
+  ORCAMENTO
+}
+
+enum ReceiptPaper {
+  MM80
+  MM58
+  A4
+}
+
+model ReceiptTemplate {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  name           String
+  type           ReceiptType  @default(NAO_FISCAL)
+  paper          ReceiptPaper @default(MM80)
+  blocks         Json // array de blocos do editor (ReceiptBlock[])
+  isDefault      Boolean      @default(false) @map("is_default")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("receipt_templates")
 }

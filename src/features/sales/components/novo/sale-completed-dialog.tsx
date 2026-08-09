@@ -10,6 +10,17 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useReceiptDefaultTemplate } from "@/features/receipt-designer/hooks/use-receipt-templates";
+import { presetBlocks } from "@/features/receipt-designer/lib/presets";
+import type {
+  ReceiptBlock,
+  ReceiptPaper,
+  ReceiptSaleData,
+} from "@/features/receipt-designer/lib/types";
+import {
+  ReceiptPrintArea,
+  triggerReceiptPrint,
+} from "@/features/receipt-designer/components/receipt-print";
 import { CheckCircle, Printer, FileText, Receipt, Copy } from "lucide-react";
 
 interface SaleCompletedDialogProps {
@@ -23,19 +34,34 @@ interface SaleCompletedDialogProps {
     customerName: string | null;
     invoiceGenerated: boolean;
   } | null;
+  receiptData?: ReceiptSaleData | null;
   onNewSale: () => void;
-  onPrintReceipt: () => void;
   onPrintInvoice: () => void;
 }
+
+// Fallback quando a org ainda não tem template padrão de cupom.
+const FALLBACK_BLOCKS: ReceiptBlock[] = presetBlocks("NAO_FISCAL");
+const FALLBACK_PAPER: ReceiptPaper = "MM80";
 
 export function SaleCompletedDialog({
   open,
   onOpenChange,
   sale,
+  receiptData,
   onNewSale,
-  onPrintReceipt,
   onPrintInvoice,
 }: SaleCompletedDialogProps) {
+  const { data: defaultTemplate } = useReceiptDefaultTemplate();
+
+  const template = defaultTemplate?.template ?? null;
+  const printBlocks = template?.blocks ?? FALLBACK_BLOCKS;
+  const printPaper = template?.paper ?? FALLBACK_PAPER;
+
+  const handlePrintReceipt = () => {
+    if (!receiptData) return;
+    triggerReceiptPrint(printPaper);
+  };
+
   if (!sale) return null;
 
   const formatCurrency = (value: number) => {
@@ -121,7 +147,8 @@ export function SaleCompletedDialog({
             <Button
               variant="outline"
               className="flex-1 bg-transparent"
-              onClick={onPrintReceipt}
+              onClick={handlePrintReceipt}
+              disabled={!receiptData}
             >
               <Receipt className="h-4 w-4 mr-2" />
               Cupom
@@ -136,12 +163,25 @@ export function SaleCompletedDialog({
                 NF-e
               </Button>
             )}
-            <Button variant="outline" className="flex-1 bg-transparent">
+            <Button
+              variant="outline"
+              className="flex-1 bg-transparent"
+              onClick={handlePrintReceipt}
+              disabled={!receiptData}
+            >
               <Printer className="h-4 w-4 mr-2" />
               Imprimir
             </Button>
           </div>
         </div>
+
+        {receiptData && (
+          <ReceiptPrintArea
+            blocks={printBlocks}
+            data={receiptData}
+            paper={printPaper}
+          />
+        )}
 
         <DialogFooter>
           <Button className="w-full" size="lg" onClick={handleNewSale}>

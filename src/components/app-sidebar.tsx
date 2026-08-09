@@ -41,6 +41,7 @@ import {
   Package,
   Plug,
   Plus,
+  Receipt,
   ScanBarcode,
   Settings,
   ShoppingCart,
@@ -134,6 +135,15 @@ const navigation: NavItem[] = [
     href: "/vendas",
     icon: ShoppingCart,
     permission: "vendas",
+    children: [
+      { name: "PDV", href: "/vendas", icon: ScanBarcode },
+      {
+        name: "Cupons",
+        href: "/vendas/cupons",
+        icon: Receipt,
+        permission: "cupom-designer",
+      },
+    ],
   },
   {
     name: "Pedidos",

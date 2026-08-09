@@ -5,14 +5,15 @@ import { SelectCustomerDialog } from "../select-customer-dialog";
 import { PaymentDialog } from "../payment-dialog";
 import { SaleCompletedDialog } from "../sale-completed-dialog";
 import { useProducts } from "@/features/products/hooks/use-products";
-import { PersonType } from "@/schemas/customer";
+import type { PersonType } from "@/schemas/customer";
 import { ProductSection } from "./product-section";
 import { CartSale } from "./cart-sale";
 import { useCursorPagination } from "@/hooks/use-cursor-pagination";
-import { SaleFormData, saleSchema } from "./schema";
+import { type SaleFormData, saleSchema } from "./schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
+import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 
@@ -80,6 +81,8 @@ export default function CreateSalePage() {
     customerName: string | null;
     invoiceGenerated: boolean;
   } | null>(null);
+  const [completedReceipt, setCompletedReceipt] =
+    useState<ReceiptSaleData | null>(null);
 
   const cartItems = form.watch("cartItems");
   const discount = form.watch("discount");
@@ -222,7 +225,24 @@ export default function CreateSalePage() {
   }) => {
     // Generate sale number
 
-    const { cartItems, customer, discount, paymentMethod } = form.getValues();
+    const { cartItems, customer, discount, discountType, paymentMethod } =
+      form.getValues();
+
+    const saleSubtotal = cartItems.reduce(
+      (sum, item) => sum + item.price * item.quantity,
+      0,
+    );
+    const saleDiscountAmount =
+      discountType === "percent" ? (saleSubtotal * discount) / 100 : discount;
+    const saleTotal = Math.max(0, saleSubtotal - saleDiscountAmount);
+
+    const receiptItems = cartItems.map((item) => ({
+      name: item.name,
+      sku: item.sku,
+      quantity: item.quantity,
+      unitPrice: item.price,
+      total: item.price * item.quantity,
+    }));
 
     const items = cartItems.map((item) => ({
       productId: item.id,
@@ -244,11 +264,26 @@ export default function CreateSalePage() {
         onSuccess: (sale) => {
           setCompletedSale({
             saleNumber: sale.saleNumber,
-            total,
+            total: saleTotal,
             paymentMethod: data.paymentMethod,
             change: data.change,
             customerName: customer?.name || null,
             invoiceGenerated: data.generateInvoice,
+          });
+          setCompletedReceipt({
+            org: { name: "" },
+            sale: {
+              number: sale.saleNumber,
+              date: new Date().toISOString(),
+              customerName: customer?.name || null,
+            },
+            items: receiptItems,
+            subtotal: saleSubtotal,
+            discount: saleDiscountAmount,
+            total: saleTotal,
+            payments: [{ method: data.paymentMethod, amount: saleTotal }],
+            amountPaid: data.amountPaid,
+            change: data.change,
           });
           clearCart();
           setPaymentDialogOpen(false);
@@ -321,8 +356,8 @@ export default function CreateSalePage() {
         open={completedDialogOpen}
         onOpenChange={setCompletedDialogOpen}
         sale={completedSale}
+        receiptData={completedReceipt}
         onNewSale={() => {}}
-        onPrintReceipt={() => {}}
         onPrintInvoice={() => {}}
       />
     </div>
