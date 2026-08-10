@@ -64,7 +64,9 @@ export interface OAuthTokens {
 }
 
 // Troca o `code` do callback pelos tokens iniciais.
-export async function exchangeCodeForTokens(code: string): Promise<OAuthTokens> {
+export async function exchangeCodeForTokens(
+  code: string,
+): Promise<OAuthTokens> {
   const cfg = getConfig();
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -113,10 +115,9 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
 export async function fetchGoogleUserInfo(
   accessToken: string,
 ): Promise<{ email: string; sub: string }> {
-  const res = await fetch(
-    "https://openidconnect.googleapis.com/v1/userinfo",
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
+  const res = await fetch("https://openidconnect.googleapis.com/v1/userinfo", {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
   if (!res.ok) throw new Error(`userinfo falhou (${res.status})`);
   return res.json();
 }
@@ -159,8 +160,7 @@ export async function listDriveChildren(
   const params = new URLSearchParams({
     q,
     pageSize: String(pageSize),
-    fields:
-      "nextPageToken, files(id, name, mimeType, size, parents)",
+    fields: "nextPageToken, files(id, name, mimeType, size, parents)",
     orderBy: "folder,name",
   });
   if (pageToken) params.set("pageToken", pageToken);

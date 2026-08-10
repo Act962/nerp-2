@@ -8,6 +8,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle,
   CheckCircle2,
+  Cloud,
   FolderOpen,
   ImageIcon,
   Loader2,
@@ -15,8 +16,11 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { orpc } from "@/lib/orpc";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatchBySku, useSetProductImages } from "../hooks/use-image-import";
 import { skuFromFilename } from "../lib/sku-from-filename";
+import { DriveFolderPicker } from "./drive-folder-picker";
 
 // Tipos de imagem aceitos localmente (mesma whitelist da rota /api/s3/upload).
 const IMAGE_MIME = new Set([
@@ -37,10 +41,13 @@ type ItemStatus =
   | "UNSUPPORTED"; // arquivo não é imagem suportada
 
 interface ItemRow {
-  key: string; // id local (path completo)
-  file: File;
+  key: string; // id local (path completo OU driveFileId)
+  // Uma linha OU tem File (origem local) OU tem driveFileId (origem Drive).
+  file?: File;
+  driveFileId?: string;
+  fileName: string;
   sku: string;
-  previewUrl: string; // objectURL pra preview
+  previewUrl: string; // objectURL local ou vazio (Drive: preview aparece só após upload)
   status: ItemStatus;
   productId?: string;
   productName?: string;
@@ -56,8 +63,19 @@ export function ImageImportContainer() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<ItemRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [drivePickerOpen, setDrivePickerOpen] = useState(false);
   const matchMutation = useMatchBySku();
   const setImagesMutation = useSetProductImages();
+  // Drive: estado da conexão + procedures do server.
+  const driveConn = useQuery(
+    orpc.googleDrive.getConnection.queryOptions({ input: {} }),
+  );
+  const driveListMutation = useMutation(
+    orpc.googleDrive.listChildren.mutationOptions({}),
+  );
+  const driveCopyMutation = useMutation(
+    orpc.googleDrive.copyFileToBucket.mutationOptions({}),
+  );
 
   // Libera as URLs de objeto quando o componente desmonta ou a lista troca.
   useEffect(() => {
@@ -106,6 +124,7 @@ export function ImageImportContainer() {
           (file as File & { webkitRelativePath?: string }).webkitRelativePath ||
           file.name,
         file,
+        fileName: file.name,
         sku: skuFromFilename(file.name),
         previewUrl: isImg ? URL.createObjectURL(file) : "",
         status: isImg ? "UNMATCHED" : "UNSUPPORTED",
@@ -127,7 +146,9 @@ export function ImageImportContainer() {
         skus: imageRows.map((row) => row.sku),
       });
       const byIndex = new Map<number, (typeof matches)[number]>();
-      matches.forEach((match, index) => byIndex.set(index, match));
+      matches.forEach((match, index) => {
+        byIndex.set(index, match);
+      });
 
       let imgIndex = 0;
       const enriched = rows.map((row) => {
@@ -157,33 +178,120 @@ export function ImageImportContainer() {
     }
   }
 
+  // Ao escolher uma pasta no Drive, lista as imagens dela e faz o match dos
+  // SKUs — mesmo pipeline do fluxo local, mas sem `File` no client.
+  async function handleDriveFolderChosen(folder: { id: string; name: string }) {
+    setDrivePickerOpen(false);
+    setIsProcessing(true);
+    try {
+      // Pagina se necessário — assumimos que uma pasta pode ter ≥200 imagens.
+      const allFiles: {
+        id: string;
+        name: string;
+        mimeType: string;
+        isImage: boolean;
+      }[] = [];
+      let pageToken: string | null = null;
+      do {
+        const page = await driveListMutation.mutateAsync({
+          parentId: folder.id,
+          onlyImages: true,
+          pageToken,
+        });
+        for (const file of page.files) {
+          if (file.isImage) allFiles.push(file);
+        }
+        pageToken = page.nextPageToken;
+      } while (pageToken);
+
+      if (allFiles.length === 0) {
+        toast.error("Pasta do Drive sem imagens");
+        setIsProcessing(false);
+        return;
+      }
+
+      // Build rows sem previewUrl (preview local só existe pra Files locais).
+      const rows: ItemRow[] = allFiles.map((file) => ({
+        key: `drive:${file.id}`,
+        driveFileId: file.id,
+        fileName: file.name,
+        sku: skuFromFilename(file.name),
+        previewUrl: "",
+        status: "UNMATCHED",
+        uploadStatus: "idle",
+      }));
+
+      // Fase 2 igual ao local — match por SKU.
+      const { matches } = await matchMutation.mutateAsync({
+        skus: rows.map((row) => row.sku),
+      });
+      const enriched = rows.map((row, index) => {
+        const match = matches[index];
+        if (!match?.product) return { ...row, status: "UNMATCHED" as const };
+        return {
+          ...row,
+          status: (match.product.hasThumbnail
+            ? "MATCHED_EXISTS"
+            : "MATCHED_NEW") as ItemStatus,
+          productId: match.product.id,
+          productName: match.product.name,
+          productSku: match.product.sku,
+          hasThumbnail: match.product.hasThumbnail,
+          imagesCount: match.product.imagesCount,
+        };
+      });
+      setItems(enriched);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Falha ao listar pasta do Drive",
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  }
+
   async function uploadAndLink(row: ItemRow) {
     if (!row.productId) return;
-    // 1) presigned + PUT
-    const contentType = row.file.type || "application/octet-stream";
-    const res = await fetch("/api/s3/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fileName: row.file.name,
-        contentType,
-        size: row.file.size,
-        isImage: true,
-      }),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => null);
-      throw new Error(body?.error ?? "Falha ao obter URL de upload");
-    }
-    const { presignedUrl, key } = await res.json();
-    const put = await fetch(presignedUrl, {
-      method: "PUT",
-      body: row.file,
-      headers: { "Content-Type": contentType },
-    });
-    if (!put.ok) throw new Error("Falha ao enviar arquivo");
 
-    // 2) vincula a key ao produto. Append + define thumbnail SE ainda não tem.
+    let key: string;
+    if (row.driveFileId) {
+      // Origem Drive: o server copia direto (sem passar pelo browser). Não
+      // precisa presigned porque o download já é privilegiado pelo token.
+      const result = await driveCopyMutation.mutateAsync({
+        fileId: row.driveFileId,
+      });
+      key = result.key;
+    } else if (row.file) {
+      // Origem local: presigned + PUT como no fluxo original.
+      const contentType = row.file.type || "application/octet-stream";
+      const res = await fetch("/api/s3/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: row.file.name,
+          contentType,
+          size: row.file.size,
+          isImage: true,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Falha ao obter URL de upload");
+      }
+      const { presignedUrl, key: bucketKey } = await res.json();
+      const put = await fetch(presignedUrl, {
+        method: "PUT",
+        body: row.file,
+        headers: { "Content-Type": contentType },
+      });
+      if (!put.ok) throw new Error("Falha ao enviar arquivo");
+      key = bucketKey;
+    } else {
+      throw new Error("Item sem origem (nem arquivo nem Drive)");
+    }
+
     await setImagesMutation.mutateAsync({
       productId: row.productId,
       keys: [key],
@@ -285,6 +393,24 @@ export function ImageImportContainer() {
               )}
               Selecionar pasta
             </Button>
+            {driveConn.data?.connected ? (
+              <Button
+                variant="outline"
+                onClick={() => setDrivePickerOpen(true)}
+                disabled={isProcessing}
+                title={`Conectado como ${driveConn.data.email ?? ""}`}
+              >
+                <Cloud className="mr-2 size-4" />
+                Escolher no Drive
+              </Button>
+            ) : (
+              <Button variant="outline" asChild disabled={isProcessing}>
+                <a href="/api/integrations/google/authorize">
+                  <Cloud className="mr-2 size-4" />
+                  Conectar Google Drive
+                </a>
+              </Button>
+            )}
             <Button
               onClick={handleUploadAll}
               disabled={
@@ -350,7 +476,11 @@ export function ImageImportContainer() {
                       />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
-                        <AlertTriangle className="size-4 text-muted-foreground" />
+                        {row.driveFileId ? (
+                          <Cloud className="size-4 text-muted-foreground" />
+                        ) : (
+                          <AlertTriangle className="size-4 text-muted-foreground" />
+                        )}
                       </div>
                     )}
                   </div>
@@ -358,7 +488,7 @@ export function ImageImportContainer() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate font-medium">
-                        {row.file.name}
+                        {row.fileName}
                       </span>
                       <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
                         SKU: {row.sku}
@@ -411,6 +541,12 @@ export function ImageImportContainer() {
           fica disponível também no catálogo online.
         </p>
       )}
+
+      <DriveFolderPicker
+        open={drivePickerOpen}
+        onOpenChange={setDrivePickerOpen}
+        onConfirm={handleDriveFolderChosen}
+      />
     </div>
   );
 }

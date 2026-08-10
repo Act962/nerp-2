@@ -1,10 +1,7 @@
 import { getApiSession } from "@/lib/api-auth";
 import { encryptAppSecret } from "@/lib/crypto/app-secret";
 import prisma from "@/lib/db";
-import {
-  exchangeCodeForTokens,
-  fetchGoogleUserInfo,
-} from "@/lib/google/drive";
+import { exchangeCodeForTokens, fetchGoogleUserInfo } from "@/lib/google/drive";
 import { auth } from "@/lib/auth";
 import { headers as nextHeaders } from "next/headers";
 import { NextResponse } from "next/server";

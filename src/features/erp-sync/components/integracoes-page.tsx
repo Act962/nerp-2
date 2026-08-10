@@ -20,6 +20,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { GoogleDriveCard } from "@/features/google-drive/components/google-drive-card";
 import { cn } from "@/lib/utils";
 import {
   useErpConnection,
@@ -195,6 +196,8 @@ export function IntegracoesPage() {
           )}
         </CardContent>
       </Card>
+
+      <GoogleDriveCard />
     </div>
   );
 }
