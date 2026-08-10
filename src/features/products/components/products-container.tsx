@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Plus, Upload } from "lucide-react";
+import { ImageIcon, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 import { ProductsTable } from "./products-table";
 import { useConstructUrl } from "@/hooks/use-construct-url";
@@ -61,6 +61,12 @@ export function ProductsContainer() {
             <Link href={"/produtos/importar"}>
               <Upload className="size-4" />
               Importar
+            </Link>
+          </Button>
+          <Button size={"sm"} variant={"outline"} asChild>
+            <Link href={"/produtos/importar-imagens"}>
+              <ImageIcon className="size-4" />
+              Importar imagens
             </Link>
           </Button>
           <Button size={"sm"} asChild>
