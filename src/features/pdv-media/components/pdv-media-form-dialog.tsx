@@ -71,6 +71,11 @@ export function PdvMediaFormDialog({
           <Field>
             <FieldLabel>Arquivo</FieldLabel>
             <MediaUploader value={media} onChange={setMedia} />
+            <FieldDescription>
+              Tamanho recomendado: <strong>309 × 1200 px</strong> (vertical). A
+              mídia é cortada nas bordas para preencher a faixa — deixe o
+              essencial (logo, QR Code) centralizado.
+            </FieldDescription>
           </Field>
 
           <Field>

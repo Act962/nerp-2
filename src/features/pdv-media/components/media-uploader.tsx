@@ -78,34 +78,42 @@ export function MediaUploader({ value, onChange }: MediaUploaderProps) {
       />
 
       {previewUrl ? (
-        <div className="relative aspect-[9/16] max-h-64 w-full overflow-hidden rounded border bg-muted">
-          {value?.type === "VIDEO" ? (
-            // biome-ignore lint/a11y/useMediaCaption: mídia promocional muda
-            <video
-              src={previewUrl}
-              className="h-full w-full object-cover"
-              muted
-              autoPlay
-              loop
-              playsInline
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewUrl}
-              alt="Prévia da mídia"
-              className="h-full w-full object-cover"
-            />
-          )}
-          <Button
-            type="button"
-            variant="destructive"
-            size="icon"
-            className="absolute right-1 top-1 size-6"
-            onClick={() => onChange(null)}
-          >
-            <X className="size-3" />
-          </Button>
+        // Prévia idêntica ao painel do PDV: faixa vertical estreita (proporção
+        // 309:1200), fundo preto e object-cover — o operador vê exatamente o
+        // enquadramento/corte que vai aparecer na tela de venda.
+        <div className="flex flex-col items-center gap-1">
+          <div className="relative aspect-[309/1200] h-72 overflow-hidden rounded border bg-black">
+            {value?.type === "VIDEO" ? (
+              // biome-ignore lint/a11y/useMediaCaption: mídia promocional muda
+              <video
+                src={previewUrl}
+                className="h-full w-full object-cover"
+                muted
+                autoPlay
+                loop
+                playsInline
+              />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewUrl}
+                alt="Prévia da mídia"
+                className="h-full w-full object-cover"
+              />
+            )}
+            <Button
+              type="button"
+              variant="destructive"
+              size="icon"
+              className="absolute right-1 top-1 size-6"
+              onClick={() => onChange(null)}
+            >
+              <X className="size-3" />
+            </Button>
+          </div>
+          <p className="text-center text-xs text-muted-foreground">
+            Prévia — é assim que a mídia aparece no PDV
+          </p>
         </div>
       ) : (
         <button
