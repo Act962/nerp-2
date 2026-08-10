@@ -56,6 +56,7 @@ import { tradegramPublicRoutes } from "./tradegram-public";
 import { tradeDashboardRoutes } from "./trade-dashboard";
 import { tradeInterestRoutes } from "./trade-interest";
 import { erpSyncRoutes } from "./erp-sync";
+import { fiscalConfigRoutes } from "./fiscal-config";
 import { oracleExplorerRoutes } from "./oracle-explorer";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
 import { orgDashboardRoutes } from "./org-dashboard";
@@ -119,6 +120,7 @@ export const router = {
   storeInventory: storeInventoryRoutes,
   shopperInsights: shopperInsightsRoutes,
   erpSync: erpSyncRoutes,
+  fiscalConfig: fiscalConfigRoutes,
   oracleExplorer: oracleExplorerRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
   orgDashboard: orgDashboardRoutes,

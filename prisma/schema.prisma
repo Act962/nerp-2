@@ -279,6 +279,7 @@ model Organization {
   paymentContacts           PaymentContact[]
   paymentEntries            PaymentEntry[]
   receiptTemplates          ReceiptTemplate[]
+  fiscalConfig              FiscalConfig?
 
   @@index([slug])
   @@index([subdomain])
@@ -4111,4 +4112,93 @@ model ReceiptTemplate {
 
   @@index([organizationId])
   @@map("receipt_templates")
+}
+
+// ============================================
+// FISCAL — Configuração de emissão de NFCe/NFe (Epic 2, Fase A)
+// Cadastro por org: ambiente, dados fiscais da empresa, certificado A1
+// (arquivo no bucket + senha CIFRADA), credenciais do provedor (Focus NFe),
+// série/CSC da NFCe. Emissão real fica pra Fase B (esta PR só cadastra e
+// testa a conectividade — SEFAZ PI + provedor).
+// ============================================
+
+enum FiscalEnvironment {
+  HOMOLOGACAO
+  PRODUCAO
+}
+
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  SIMPLES_MEI
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+}
+
+enum FiscalProvider {
+  FOCUS_NFE
+}
+
+enum FiscalEmissionType {
+  NORMAL
+  CONTINGENCIA_SVCAN
+  CONTINGENCIA_OFFLINE
+}
+
+model FiscalConfig {
+  id             String            @id @default(cuid())
+  organizationId String            @unique
+  environment    FiscalEnvironment @default(HOMOLOGACAO)
+
+  // Dados fiscais da empresa
+  cnpj            String? // formato "12.345.678/0001-90"
+  ie              String? // Inscrição Estadual
+  ieSt            String? // Inscrição Estadual Substituto Tributário (opcional)
+  im              String? // Inscrição Municipal (opcional)
+  taxRegime       TaxRegime? @default(SIMPLES_NACIONAL)
+  cnae            String? // código CNAE principal (7 dígitos)
+  legalName       String? // razão social
+  tradeName       String? // nome fantasia
+  ufFiscal        String     @default("PI") // sigla da UF do estabelecimento
+  cityCode        String? // código IBGE do município (7 dígitos) — Teresina = 2211001
+  cityName        String? // "Teresina"
+  address         String? // logradouro
+  addressNumber   String?
+  complement      String?
+  neighborhood    String?
+  zipCode         String?
+  fiscalPhone     String?
+  fiscalEmail     String?
+
+  // Certificado digital A1 (arquivo .pfx). Sobe pra R2 privado; a chave
+  // aqui é a `key` do bucket (não a URL). A SENHA é armazenada CIFRADA
+  // (AES-GCM com FISCAL_ENCRYPTION_KEY, formato "iv:ciphertext:tag" base64).
+  certificateKey        String? @map("certificate_key")
+  certificatePasswordEnc String? @map("certificate_password_enc")
+  certificateExpiresAt  DateTime? @map("certificate_expires_at")
+  certificateFilename    String?  @map("certificate_filename")
+
+  // Provedor de emissão (Focus NFe nesta fase). Tokens CIFRADOS.
+  provider          FiscalProvider @default(FOCUS_NFE)
+  focusTokenHomolog String?        @map("focus_token_homolog_enc")
+  focusToken        String?        @map("focus_token_prod_enc")
+  focusEmpresaId    String?        @map("focus_empresa_id") // id da empresa no painel do provedor
+
+  // NFCe
+  nfceSerie         Int?               @default(1) @map("nfce_serie")
+  nfceNextNumber    Int?               @map("nfce_next_number") // opcional: o provedor mantém
+  csc               String?            @map("csc_enc") // CIFRADO
+  cscId             String?            @map("csc_id")
+  emissionType      FiscalEmissionType @default(NORMAL) @map("emission_type")
+
+  // Impressão
+  autoPrintOnEmission Boolean @default(true) @map("auto_print_on_emission")
+  defaultReceiptTemplateId String? @map("default_receipt_template_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("fiscal_configs")
 }
