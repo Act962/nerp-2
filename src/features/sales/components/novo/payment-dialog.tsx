@@ -29,7 +29,6 @@ import {
   ArrowLeftRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export type SalePaymentInput = { method: PaymentMethod; amount: number };
@@ -187,8 +186,8 @@ export function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      <DialogContent className="max-h-[95vh] gap-3 overflow-y-auto sm:max-w-2xl">
+        <DialogHeader className="space-y-1">
           <DialogTitle>Finalizar Venda</DialogTitle>
           <DialogDescription>
             {customerName
@@ -197,248 +196,236 @@ export function PaymentDialog({
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleSubmit}>
-          <ScrollArea className="h-[550px] px-2">
-            <div className="space-y-4 py-4">
-              {/* Total */}
-              <div className="rounded-lg border bg-primary/5 p-4 text-center">
-                <p className="text-sm text-muted-foreground">Total a Pagar</p>
-                <p className="text-3xl font-bold text-primary">
+          <div className="space-y-3">
+            {/* Total + toggle misto lado a lado — economiza altura. */}
+            <div className="grid grid-cols-[1fr_auto] items-center gap-3">
+              <div className="rounded-lg border bg-primary/5 px-4 py-2">
+                <p className="text-xs text-muted-foreground">Total a Pagar</p>
+                <p className="text-2xl font-bold text-primary">
                   {formatCurrency(total)}
                 </p>
               </div>
-
-              {/* Toggle pagamento misto */}
-              <div className="flex items-center justify-between rounded-lg border p-3">
-                <Label htmlFor="mixed" className="cursor-pointer">
-                  Pagamento misto
-                  <span className="block text-xs font-normal text-muted-foreground">
-                    Dividir o total em várias formas
-                  </span>
-                </Label>
+              <div className="flex items-center gap-2 rounded-lg border px-3 py-2">
                 <Switch id="mixed" checked={mixed} onCheckedChange={setMixed} />
+                <Label htmlFor="mixed" className="cursor-pointer text-sm">
+                  Pagto. misto
+                </Label>
               </div>
+            </div>
 
-              {mixed ? (
-                <div className="space-y-3">
-                  <Label>Distribua o valor por forma</Label>
-                  <div className="space-y-2">
-                    {PAYMENT_METHODS.map((method) => (
-                      <div key={method.id} className="flex items-center gap-2">
-                        <span className="flex w-40 items-center gap-2 text-sm">
-                          <method.icon className="h-4 w-4 text-muted-foreground" />
-                          {method.label}
-                        </span>
-                        <div className="relative flex-1">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
-                            R$
-                          </span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            inputMode="decimal"
-                            placeholder="0,00"
-                            className="pl-9"
-                            value={amounts[method.id] ?? ""}
-                            onChange={(event) =>
-                              setAmounts((current) => ({
-                                ...current,
-                                [method.id]: event.target.value,
-                              }))
-                            }
-                          />
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          disabled={remaining <= 0}
-                          onClick={() =>
-                            setAmounts((current) => {
-                              const currentAmount =
-                                Number.parseFloat(current[method.id] ?? "") ||
-                                0;
-                              return {
-                                ...current,
-                                [method.id]: String(
-                                  Number(
-                                    (currentAmount + remaining).toFixed(2),
-                                  ),
-                                ),
-                              };
-                            })
-                          }
-                        >
-                          Restante
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="space-y-1 rounded-lg border p-3 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Total pago</span>
-                      <span className="font-medium tabular-nums">
-                        {formatCurrency(mixedPaid)}
+            {mixed ? (
+              <div className="space-y-3">
+                <Label>Distribua o valor por forma</Label>
+                <div className="space-y-2">
+                  {PAYMENT_METHODS.map((method) => (
+                    <div key={method.id} className="flex items-center gap-2">
+                      <span className="flex w-40 items-center gap-2 text-sm">
+                        <method.icon className="h-4 w-4 text-muted-foreground" />
+                        {method.label}
                       </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">
-                        {remaining >= 0 ? "Falta pagar" : "Excedente"}
-                      </span>
-                      <span
-                        className={cn(
-                          "font-semibold tabular-nums",
-                          Math.abs(remaining) < 0.01
-                            ? "text-success"
-                            : "text-destructive",
-                        )}
-                      >
-                        {formatCurrency(Math.abs(remaining))}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  {/* Forma única */}
-                  <div className="space-y-3">
-                    <Label>Forma de Pagamento</Label>
-                    <RadioGroup
-                      value={paymentMethod}
-                      onValueChange={(value) =>
-                        setPaymentMethod(value as PaymentMethod)
-                      }
-                      className="grid grid-cols-2 gap-2"
-                    >
-                      {PAYMENT_METHODS.map((method, index) => (
-                        <div key={method.id}>
-                          <RadioGroupItem
-                            value={method.id}
-                            id={method.id}
-                            className="peer sr-only"
-                          />
-                          <Label
-                            htmlFor={method.id}
-                            className={cn(
-                              "flex items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer transition-all hover:bg-accent",
-                              paymentMethod === method.id &&
-                                "border-primary bg-primary/5",
-                            )}
-                          >
-                            <kbd className="flex size-5 shrink-0 items-center justify-center rounded border bg-muted font-mono text-[10px]">
-                              {index + 1}
-                            </kbd>
-                            <method.icon
-                              className={cn(
-                                "h-4 w-4",
-                                paymentMethod === method.id && "text-primary",
-                              )}
-                            />
-                            <span className="text-sm font-medium">
-                              {method.label}
-                            </span>
-                          </Label>
-                        </div>
-                      ))}
-                    </RadioGroup>
-                  </div>
-
-                  {/* Valor recebido (só dinheiro) */}
-                  {paymentMethod === "DINHEIRO" && (
-                    <div className="space-y-3">
-                      <Label htmlFor="amountPaid">Valor Recebido</Label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                      <div className="relative flex-1">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
                           R$
                         </span>
                         <Input
-                          id="amountPaid"
                           type="number"
                           step="0.01"
-                          min={total}
+                          min="0"
+                          inputMode="decimal"
                           placeholder="0,00"
-                          className="pl-10 text-lg"
-                          value={amountPaid}
-                          onChange={(e) => setAmountPaid(e.target.value)}
-                          autoFocus
+                          className="pl-9"
+                          value={amounts[method.id] ?? ""}
+                          onChange={(event) =>
+                            setAmounts((current) => ({
+                              ...current,
+                              [method.id]: event.target.value,
+                            }))
+                          }
                         />
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        {quickAmounts.map((amount) => (
-                          <Button
-                            key={amount}
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAmountPaid(String(amount))}
-                          >
-                            {formatCurrency(amount)}
-                          </Button>
-                        ))}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={remaining <= 0}
+                        onClick={() =>
+                          setAmounts((current) => {
+                            const currentAmount =
+                              Number.parseFloat(current[method.id] ?? "") || 0;
+                            return {
+                              ...current,
+                              [method.id]: String(
+                                Number((currentAmount + remaining).toFixed(2)),
+                              ),
+                            };
+                          })
+                        }
+                      >
+                        Restante
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-1 rounded-lg border p-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Total pago</span>
+                    <span className="font-medium tabular-nums">
+                      {formatCurrency(mixedPaid)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">
+                      {remaining >= 0 ? "Falta pagar" : "Excedente"}
+                    </span>
+                    <span
+                      className={cn(
+                        "font-semibold tabular-nums",
+                        Math.abs(remaining) < 0.01
+                          ? "text-success"
+                          : "text-destructive",
+                      )}
+                    >
+                      {formatCurrency(Math.abs(remaining))}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Forma única */}
+                <div className="space-y-3">
+                  <Label>Forma de Pagamento</Label>
+                  <RadioGroup
+                    value={paymentMethod}
+                    onValueChange={(value) =>
+                      setPaymentMethod(value as PaymentMethod)
+                    }
+                    className="grid grid-cols-3 gap-2"
+                  >
+                    {PAYMENT_METHODS.map((method, index) => (
+                      <div key={method.id}>
+                        <RadioGroupItem
+                          value={method.id}
+                          id={method.id}
+                          className="peer sr-only"
+                        />
+                        <Label
+                          htmlFor={method.id}
+                          className={cn(
+                            "flex items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer transition-all hover:bg-accent",
+                            paymentMethod === method.id &&
+                              "border-primary bg-primary/5",
+                          )}
+                        >
+                          <kbd className="flex size-5 shrink-0 items-center justify-center rounded border bg-muted font-mono text-[10px]">
+                            {index + 1}
+                          </kbd>
+                          <method.icon
+                            className={cn(
+                              "h-4 w-4",
+                              paymentMethod === method.id && "text-primary",
+                            )}
+                          />
+                          <span className="text-sm font-medium">
+                            {method.label}
+                          </span>
+                        </Label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                </div>
+
+                {/* Valor recebido (só dinheiro) */}
+                {paymentMethod === "DINHEIRO" && (
+                  <div className="space-y-3">
+                    <Label htmlFor="amountPaid">Valor Recebido</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                        R$
+                      </span>
+                      <Input
+                        id="amountPaid"
+                        type="number"
+                        step="0.01"
+                        min={total}
+                        placeholder="0,00"
+                        className="pl-10 text-lg"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {quickAmounts.map((amount) => (
                         <Button
+                          key={amount}
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setAmountPaid(String(total))}
+                          onClick={() => setAmountPaid(String(amount))}
                         >
-                          Valor exato
+                          {formatCurrency(amount)}
                         </Button>
-                      </div>
-
-                      {paid >= total && (
-                        <div className="rounded-lg border bg-success/10 p-3 text-center">
-                          <p className="text-sm text-muted-foreground">Troco</p>
-                          <p className="text-xl font-bold text-success">
-                            {formatCurrency(change)}
-                          </p>
-                        </div>
-                      )}
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setAmountPaid(String(total))}
+                      >
+                        Valor exato
+                      </Button>
                     </div>
-                  )}
-                </>
-              )}
 
-              <Separator />
+                    {paid >= total && (
+                      <div className="rounded-lg border bg-success/10 p-3 text-center">
+                        <p className="text-sm text-muted-foreground">Troco</p>
+                        <p className="text-xl font-bold text-success">
+                          {formatCurrency(change)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
 
-              {/* Options */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="generateInvoice"
-                    checked={generateInvoice}
-                    onCheckedChange={(checked) =>
-                      setGenerateInvoice(checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor="generateInvoice"
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Gerar Nota Fiscal (NF-e)
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="printReceipt"
-                    checked={printReceipt}
-                    onCheckedChange={(checked) =>
-                      setPrintReceipt(checked as boolean)
-                    }
-                  />
-                  <Label
-                    htmlFor="printReceipt"
-                    className="flex items-center gap-2 cursor-pointer"
-                  >
-                    <Printer className="h-4 w-4" />
-                    Imprimir Cupom
-                  </Label>
-                </div>
-              </div>
+            <Separator />
+
+            {/* Options lado a lado — economiza altura. */}
+            <div className="grid grid-cols-2 gap-2">
+              <label
+                htmlFor="generateInvoice"
+                className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm hover:bg-accent"
+              >
+                <Checkbox
+                  id="generateInvoice"
+                  checked={generateInvoice}
+                  onCheckedChange={(checked) =>
+                    setGenerateInvoice(checked as boolean)
+                  }
+                />
+                <FileText className="h-4 w-4" />
+                Gerar Nota Fiscal (NF-e)
+              </label>
+              <label
+                htmlFor="printReceipt"
+                className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm hover:bg-accent"
+              >
+                <Checkbox
+                  id="printReceipt"
+                  checked={printReceipt}
+                  onCheckedChange={(checked) =>
+                    setPrintReceipt(checked as boolean)
+                  }
+                />
+                <Printer className="h-4 w-4" />
+                Imprimir Cupom
+              </label>
             </div>
-          </ScrollArea>
+          </div>
 
-          <DialogFooter>
+          <DialogFooter className="mt-4">
             <Button
               type="button"
               variant="outline"
