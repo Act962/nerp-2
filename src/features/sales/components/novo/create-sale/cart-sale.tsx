@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   DollarSignIcon,
@@ -27,6 +28,11 @@ interface CartSaleProps {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   setItemQuantity: (id: string, quantity: number) => void;
+  // Venda ágil: quando muda, foca+seleciona a quantidade deste item (o `nonce`
+  // permite re-focar o mesmo item ao adicioná-lo em sequência).
+  focusItem?: { id: string; nonce: number } | null;
+  // Enter/Esc na quantidade — devolve o foco pro campo de busca.
+  onQuantityCommit?: () => void;
   // Quando a org exige autorização, o input livre de quantidade é bloqueado:
   // reduzir só pelo botão "−" (que passa pela autorização), evitando o bypass
   // de digitar um número menor.
@@ -51,6 +57,8 @@ export function CartSale({
   removeItem,
   updateQuantity,
   setItemQuantity,
+  focusItem,
+  onQuantityCommit,
   lockQuantityInput,
   customer,
   setCustomerDialogOpen,
@@ -65,6 +73,28 @@ export function CartSale({
 }: CartSaleProps) {
   const discountAmount =
     discountType === "percent" ? (subtotal * discount) / 100 : discount;
+
+  // Foco na quantidade quando um item ganha `focusItem`. Precisa ROUBAR o foco
+  // do useEffect da busca (que faz setTimeout 50ms ao montar/fechar dialogs):
+  // agendamos 100ms — depois do refoco automático da busca — e persistimos o
+  // foco por um segundo tick, garantindo que ninguém rouba de volta.
+  const quantityRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+  useEffect(() => {
+    if (!focusItem) return;
+    const focusNow = () => {
+      const input = quantityRefs.current.get(focusItem.id);
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    };
+    const t1 = setTimeout(focusNow, 100);
+    const t2 = setTimeout(focusNow, 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [focusItem]);
 
   return (
     <div className="space-y-4">
@@ -157,10 +187,20 @@ export function CartSale({
                               <Minus className="h-3 w-3" />
                             </Button>
                             <Input
+                              ref={(el) => {
+                                quantityRefs.current.set(item.id, el);
+                              }}
                               type="number"
                               max={Number(item.currentStock)}
                               value={item.quantity}
                               readOnly={lockQuantityInput}
+                              onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") {
+                                  e.preventDefault();
+                                  onQuantityCommit?.();
+                                }
+                              }}
                               onChange={(e) => {
                                 if (lockQuantityInput) return;
                                 setItemQuantity(

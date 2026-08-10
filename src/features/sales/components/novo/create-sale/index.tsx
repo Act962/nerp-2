@@ -140,6 +140,14 @@ export default function CreateSalePage({
 
   // Barcode scanner
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Venda ágil: item cuja quantidade recebe foco após adicionar por Enter. O
+  // nonce força o re-foco mesmo ao adicionar o mesmo produto em sequência (o id
+  // sozinho não mudaria e o efeito não re-rodaria).
+  const focusNonce = useRef(0);
+  const [focusItem, setFocusItem] = useState<{
+    id: string;
+    nonce: number;
+  } | null>(null);
   const { cursor, pageIndex, hasPrevious, goNext, goPrevious, reset } =
     useCursorPagination();
 
@@ -212,6 +220,10 @@ export default function CreateSalePage({
         },
       ]);
     }
+    // Venda ágil: qualquer forma de adicionar (Enter, clique no card, scan)
+    // aponta o foco pra quantidade — o cart-sale foca no efeito.
+    focusNonce.current += 1;
+    setFocusItem({ id: product.id, nonce: focusNonce.current });
   };
 
   // Item pesável da balança: cada scan é uma medição própria, então gera uma
@@ -252,11 +264,17 @@ export default function CreateSalePage({
     ]);
   };
 
-  // Adiciona um produto da grade e volta o cursor pronto pra próxima busca.
+  // Venda ágil: adiciona e limpa a busca. O foco na quantidade é setado pelo
+  // próprio addToCart (mesmo caminho pro Enter, clique no card e scan).
   const addProductAndReset = (product: ProductSale) => {
     addToCart(product);
     setSearchTerm("");
     setSelectedIndex(null);
+  };
+
+  // Enter/Esc na quantidade fecha o loop ágil: volta o foco pro campo de busca.
+  const returnFocusToSearch = () => {
+    setFocusItem(null);
     searchInputRef.current?.focus();
   };
 
@@ -625,6 +643,8 @@ export default function CreateSalePage({
           setCustomerDialogOpen={setCustomerDialogOpen}
           setPaymentDialogOpen={handleOpenPayment}
           setItemQuantity={setItemQuantity}
+          focusItem={focusItem}
+          onQuantityCommit={returnFocusToSearch}
           subtotal={subtotal}
           discountType={discountType}
           setDiscountType={(value) => form.setValue("discountType", value, {})}
