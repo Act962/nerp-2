@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "inngest:dev": "npx inngest-cli dev -p 8299"
+    "inngest:dev": "npx inngest-cli dev -p 8299",
+    "preview:all": "node scripts/preview-all.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",
