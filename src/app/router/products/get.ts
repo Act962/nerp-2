@@ -39,6 +39,18 @@ const productOutputSchema = z.object({
   trackStock: z.boolean(),
   prepTimeMinutes: z.number().nullable(),
   supplierId: z.string().nullable(),
+  // Cadastro fiscal (Fase B) — todos opcionais.
+  ncm: z.string().nullable(),
+  cest: z.string().nullable(),
+  cfop: z.string().nullable(),
+  origem: z.string().nullable(),
+  cstIcms: z.string().nullable(),
+  cstPis: z.string().nullable(),
+  cstCofins: z.string().nullable(),
+  aliqIcms: z.number().nullable(),
+  aliqPis: z.number().nullable(),
+  aliqCofins: z.number().nullable(),
+  cClassTrib: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -127,6 +139,10 @@ export const getProduct = base
         width: decimalToNumber(product.width),
         height: decimalToNumber(product.height),
         supplierId: product.supplierId ?? null,
+        // Fiscal — decimais pra number, strings passam direto (typed pelo Prisma).
+        aliqIcms: decimalToNumber(product.aliqIcms),
+        aliqPis: decimalToNumber(product.aliqPis),
+        aliqCofins: decimalToNumber(product.aliqCofins),
         // Converter Dates para strings
         createdAt: product.createdAt.toISOString(),
         updatedAt: product.updatedAt.toISOString(),

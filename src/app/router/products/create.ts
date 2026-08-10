@@ -58,6 +58,20 @@ export const createProduct = base
       prepTimeMinutes: z.number().int().positive().optional(),
 
       supplierId: z.string().optional(),
+
+      // Cadastro fiscal (Fase B). Todos opcionais aqui — sem eles, a venda cai
+      // em modo não-fiscal e ninguém quebra.
+      ncm: z.string().nullable().optional(),
+      cest: z.string().nullable().optional(),
+      cfop: z.string().nullable().optional(),
+      origem: z.string().nullable().optional(),
+      cstIcms: z.string().nullable().optional(),
+      cstPis: z.string().nullable().optional(),
+      cstCofins: z.string().nullable().optional(),
+      aliqIcms: z.number().nullable().optional(),
+      aliqPis: z.number().nullable().optional(),
+      aliqCofins: z.number().nullable().optional(),
+      cClassTrib: z.string().nullable().optional(),
     }),
   )
   // .output(
