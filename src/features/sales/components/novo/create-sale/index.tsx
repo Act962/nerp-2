@@ -32,6 +32,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
 import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
 import { CaixaInfoBar } from "@/features/caixa/components/caixa-info-bar";
+import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { orpc } from "@/lib/orpc";
@@ -129,6 +130,8 @@ export default function CreateSalePage({
     customerName: string | null;
     invoiceGenerated: boolean;
   } | null>(null);
+  const [completedReceipt, setCompletedReceipt] =
+    useState<ReceiptSaleData | null>(null);
 
   const cartItems = form.watch("cartItems");
   const discount = form.watch("discount");
@@ -486,14 +489,22 @@ export default function CreateSalePage({
   }) => {
     const { cartItems, customer, discount } = form.getValues();
 
-    const items = cartItems
-      .filter((item) => !item.cancelled)
-      .map((item) => ({
-        productId: item.productId,
-        productName: item.name,
-        unitPrice: item.price,
-        quantity: item.quantity,
-      }));
+    const activeItems = cartItems.filter((item) => !item.cancelled);
+
+    const items = activeItems.map((item) => ({
+      productId: item.productId,
+      productName: item.name,
+      unitPrice: item.price,
+      quantity: item.quantity,
+    }));
+
+    const receiptItems = activeItems.map((item) => ({
+      name: item.name,
+      sku: item.sku,
+      quantity: item.quantity,
+      unitPrice: item.price,
+      total: item.price * item.quantity,
+    }));
     mutation.mutate(
       {
         items,
@@ -514,6 +525,24 @@ export default function CreateSalePage({
             change: data.change,
             customerName: customer?.name || null,
             invoiceGenerated: data.generateInvoice,
+          });
+          setCompletedReceipt({
+            org: { name: "" },
+            sale: {
+              number: sale.saleNumber,
+              date: new Date().toISOString(),
+              customerName: customer?.name || null,
+            },
+            items: receiptItems,
+            subtotal,
+            discount: discountAmount,
+            total,
+            payments: data.payments.map((p) => ({
+              method: String(p.method),
+              amount: p.amount,
+            })),
+            amountPaid: data.amountPaid,
+            change: data.change,
           });
           clearCart();
           setPaymentDialogOpen(false);
@@ -623,8 +652,8 @@ export default function CreateSalePage({
         open={completedDialogOpen}
         onOpenChange={setCompletedDialogOpen}
         sale={completedSale}
+        receiptData={completedReceipt}
         onNewSale={() => {}}
-        onPrintReceipt={() => {}}
         onPrintInvoice={() => {}}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

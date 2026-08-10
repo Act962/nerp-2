@@ -32,6 +32,11 @@ export const PAGE_PERMISSIONS = [
     href: "/vendas/midia",
   },
   {
+    key: "cupom-designer",
+    label: "Editor de cupom",
+    href: "/vendas/cupons",
+  },
+  {
     key: "produtos",
     label: "Produtos",
     href: "/produtos",

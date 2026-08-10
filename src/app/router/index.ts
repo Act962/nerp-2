@@ -13,6 +13,7 @@ import { pdvMediaRoutes } from "./pdv-media";
 import { pdvSettingsRoutes } from "./pdv-settings";
 import { cancelRequestRoutes } from "./cancel-request";
 import { financeiroRoutes } from "./financeiro";
+import { receiptTemplateRoutes } from "./receipt-template";
 import { kitchenRoutes } from "./pedidos";
 import { collaboratorRoutes } from "./collaborators";
 import { calendarRoutes } from "./calendar";
@@ -75,6 +76,7 @@ export const router = {
   pdvSettings: pdvSettingsRoutes,
   cancelRequest: cancelRequestRoutes,
   financeiro: financeiroRoutes,
+  receiptTemplate: receiptTemplateRoutes,
   kitchen: kitchenRoutes,
   collaborators: collaboratorRoutes,
   calendar: calendarRoutes,
