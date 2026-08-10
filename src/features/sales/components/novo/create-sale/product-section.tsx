@@ -70,6 +70,8 @@ interface ProductSessionProps {
   onNextPage?: () => void;
   onPreviousPage?: () => void;
   isLoading?: boolean;
+  /** Rótulo do atalho da busca (ex.: "Alt+B") — mostrado sutil dentro do input. */
+  searchShortcut?: string;
 }
 
 export function ProductSection({
@@ -92,6 +94,7 @@ export function ProductSection({
   onNextPage,
   onPreviousPage,
   isLoading,
+  searchShortcut,
 }: ProductSessionProps) {
   const previousIsDisabled = !hasPreviousPage;
   const nextIsDisabled = !hasNextPage;
@@ -108,7 +111,7 @@ export function ProductSection({
                 ref={searchInputRef}
                 autoFocus
                 placeholder="Buscar por nome, SKU ou código de barras..."
-                className="h-12 rounded-lg pl-12 text-base"
+                className="h-12 rounded-lg pl-12 pr-16 text-base"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -124,6 +127,12 @@ export function ProductSection({
                   }
                 }}
               />
+              {/* Atalho pra focar essa busca — sutil, dentro do próprio input. */}
+              {searchShortcut && (
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground">
+                  {searchShortcut}
+                </kbd>
+              )}
             </div>
             <Tabs
               value={viewMode}

@@ -17,6 +17,17 @@ import { currencyFormatter } from "@/utils/currency-formatter";
 import { Label } from "@/components/ui/label";
 import { unitAllowsDecimal, unitLabel } from "@/features/products/lib/units";
 import type { CartItem, CustomerSales } from ".";
+
+// Etiqueta sutil do atalho (ex.: "Alt+C"). Font-mono pequena, cinza claro —
+// dá visibilidade sem competir com o rótulo principal do botão.
+function ShortcutHint({ keys }: { keys?: string | null }) {
+  if (!keys) return null;
+  return (
+    <kbd className="ml-auto rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground">
+      {keys}
+    </kbd>
+  );
+}
 import { FieldError } from "@/components/ui/field";
 import type { FieldErrors } from "react-hook-form";
 import type { SaleFormData } from "./schema";
@@ -51,6 +62,13 @@ interface CartSaleProps {
   discountType: "percent" | "value";
   setDiscountType: (discountType: "percent" | "value") => void;
   error?: FieldErrors<SaleFormData>;
+  // Rótulos dos atalhos ativos (Alt+C, Alt+F, Alt+L) para mostrar sutil nos
+  // botões correspondentes — o operador aprende os atalhos usando a tela.
+  shortcuts?: {
+    selectCustomer?: string;
+    clearCart?: string;
+    finishSale?: string;
+  };
 }
 
 export function CartSale({
@@ -75,6 +93,7 @@ export function CartSale({
   discountType,
   setDiscountType,
   error,
+  shortcuts,
 }: CartSaleProps) {
   const discountAmount =
     discountType === "percent" ? (subtotal * discount) / 100 : discount;
@@ -126,6 +145,7 @@ export function CartSale({
               <Button variant="ghost" size="sm" onClick={clearCart}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Limpar
+                <ShortcutHint keys={shortcuts?.clearCart} />
               </Button>
             )}
           </div>
@@ -308,6 +328,7 @@ export function CartSale({
                     Adicionar cliente
                   </span>
                 )}
+                <ShortcutHint keys={shortcuts?.selectCustomer} />
               </Button>
 
               {/* Discount */}
@@ -382,6 +403,7 @@ export function CartSale({
               >
                 <DollarSignIcon className="h-5 w-5 mr-2" />
                 Finalizar Venda
+                <ShortcutHint keys={shortcuts?.finishSale} />
               </Button>
             </>
           )}

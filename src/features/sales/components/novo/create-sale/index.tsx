@@ -636,6 +636,7 @@ export default function CreateSalePage({
           addToCart={addToCart}
           products={filteredProducts}
           isLoading={isLoading}
+          searchShortcut={bindings["buscar-produto"]}
         />
 
         {/* Right Side - Cart */}
@@ -655,6 +656,11 @@ export default function CreateSalePage({
           setPaymentDialogOpen={handleOpenPayment}
           setItemQuantity={setItemQuantity}
           setItemPrice={setItemPrice}
+          shortcuts={{
+            selectCustomer: bindings["selecionar-cliente"],
+            clearCart: bindings["limpar-carrinho"],
+            finishSale: bindings["finalizar-venda"],
+          }}
           focusItem={focusItem}
           onQuantityCommit={returnFocusToSearch}
           subtotal={subtotal}
