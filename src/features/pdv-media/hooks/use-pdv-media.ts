@@ -4,9 +4,12 @@ import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-// Mídias ativas + config, para o painel do PDV.
-export function usePdvMediaPanel() {
-  const query = useQuery(orpc.pdvMedia.panel.queryOptions({ input: {} }));
+// Mídias ativas + config, para o painel do PDV. `enabled` evita a chamada RPC
+// nas demais rotas (o painel vive no layout, montado em todas as páginas).
+export function usePdvMediaPanel(enabled = true) {
+  const query = useQuery(
+    orpc.pdvMedia.panel.queryOptions({ input: {}, enabled }),
+  );
   return {
     medias: query.data?.medias ?? [],
     settings: query.data?.settings ?? { enabled: false, pauseSeconds: 1 },

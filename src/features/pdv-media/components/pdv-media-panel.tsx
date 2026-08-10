@@ -1,16 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useSidebar } from "@/components/ui/sidebar";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { usePdvMediaPanel } from "../hooks/use-pdv-media";
 
-// Painel de mídia na coluna esquerda do PDV. Ocupa exatamente o espaço da
-// sidebar oculta (offcanvas): ao abrir o menu (state = "expanded"), some para o
-// menu aparecer no lugar. Carrossel próprio (não embla) porque vídeo precisa
-// tocar até o fim e há uma pausa global entre as mídias.
+const PDV_ROUTE = "/vendas/novo";
+
+// Painel de mídia na coluna esquerda do PDV. Montado no layout (irmão da
+// sidebar), ocupa a coluna inteira de topo a rodapé — no lugar da sidebar
+// oculta (offcanvas). Ao abrir o menu (state = "expanded"), some para o menu
+// aparecer no lugar. Carrossel próprio (não embla) porque vídeo precisa tocar
+// até o fim e há uma pausa global entre as mídias.
 export function PdvMediaPanel() {
-  const { medias, settings } = usePdvMediaPanel();
+  const pathname = usePathname();
+  const isPdv = pathname === PDV_ROUTE;
+  const { medias, settings } = usePdvMediaPanel(isPdv);
   const { state, isMobile } = useSidebar();
   const [idx, setIdx] = useState(0);
   const pauseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -44,15 +50,22 @@ export function PdvMediaPanel() {
     [],
   );
 
-  // Esconde: no mobile, com painel desligado, sem mídia, ou com o menu aberto.
-  if (isMobile || !settings.enabled || count === 0 || state === "expanded")
+  // Esconde: fora do PDV, no mobile, com painel desligado, sem mídia, ou com o
+  // menu aberto (aí a sidebar ocupa o mesmo espaço).
+  if (
+    !isPdv ||
+    isMobile ||
+    !settings.enabled ||
+    count === 0 ||
+    state === "expanded"
+  )
     return null;
 
   const current = medias[activeIdx];
   if (!current) return null;
 
   return (
-    <aside className="sticky top-0 hidden h-[calc(100dvh-4rem)] w-64 shrink-0 overflow-hidden bg-black lg:block">
+    <aside className="hidden h-dvh w-64 shrink-0 overflow-hidden bg-black lg:block">
       {current.type === "VIDEO" ? (
         // biome-ignore lint/a11y/useMediaCaption: mídia promocional, sem áudio
         <video

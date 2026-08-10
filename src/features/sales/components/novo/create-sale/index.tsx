@@ -32,7 +32,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
 import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
 import { CaixaInfoBar } from "@/features/caixa/components/caixa-info-bar";
-import { PdvMediaPanel } from "@/features/pdv-media/components/pdv-media-panel";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { orpc } from "@/lib/orpc";
@@ -549,104 +548,96 @@ export default function CreateSalePage({
 
   return (
     // Fundo cinza full-bleed (cancela o padding do layout) para o painel branco
-    // do carrinho — estilo cupom — se destacar. O painel de mídia fica colado à
-    // borda esquerda (espaço da sidebar oculta); o conteúdo mantém o padding.
-    <div className="-m-4 flex min-h-[calc(100dvh-4rem)] bg-muted md:-m-6">
-      <PdvMediaPanel />
-      <div className="min-w-0 flex-1 p-4 md:p-6">
-        <CaixaInfoBar />
-        <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
-          {/* Left Side - Product Selection */}
-          <ProductSection
-            hasNextPage={hasNextPage}
-            hasPreviousPage={hasPrevious}
-            pageIndex={pageIndex}
-            onNextPage={() => goNext(nextCursor)}
-            onPreviousPage={goPrevious}
-            searchInputRef={searchInputRef}
-            searchTerm={searchTerm}
-            setSearchTerm={(value) => {
-              setSearchTerm(value);
-              setSelectedIndex(null);
-              // Nova busca recomeça da 1ª página dos resultados.
-              reset();
-            }}
-            selectedIndex={selectedIndex}
-            onArrow={moveSelection}
-            onEnter={handleSearchEnter}
-            categories={categories}
-            selectedCategory={selectedCategory}
-            onSelectCategory={onSelectCategory}
-            viewMode={viewMode}
-            setViewMode={setViewMode}
-            addToCart={addToCart}
-            products={filteredProducts}
-            isLoading={isLoading}
-          />
-
-          {/* Right Side - Cart */}
-          <CartSale
-            orgLogo={orgLogo}
-            orgName={orgName}
-            cartItems={cartItems}
-            updateQuantity={guardedUpdateQuantity}
-            removeItem={guardedRemoveItem}
-            lockQuantityInput={requireCancelAuth}
-            clearCart={clearCart}
-            discount={discount}
-            setDiscount={(value) => form.setValue("discount", value, {})}
-            customer={form.getValues("customer")}
-            total={total}
-            setCustomerDialogOpen={setCustomerDialogOpen}
-            setPaymentDialogOpen={handleOpenPayment}
-            setItemQuantity={setItemQuantity}
-            subtotal={subtotal}
-            discountType={discountType}
-            setDiscountType={(value) =>
-              form.setValue("discountType", value, {})
-            }
-            error={form.formState.errors}
-          />
-        </div>
-
-        {/* Dialogs */}
-        <SelectCustomerDialog
-          open={customerDialogOpen}
-          onOpenChange={setCustomerDialogOpen}
-          selectedCustomer={form.getValues("customer")}
-          onSelect={(value) => form.setValue("customer", value, {})}
-        />
-        <PaymentDialog
-          open={paymentDialogOpen}
-          onOpenChange={setPaymentDialogOpen}
-          total={total}
-          customerName={customer?.name || null}
-          onConfirm={handlePaymentConfirm}
-          paymentMethod={form.watch("paymentMethod")}
-          setPaymentMethod={(value) =>
-            form.setValue("paymentMethod", value, {})
-          }
-        />
-        <SaleCompletedDialog
-          open={completedDialogOpen}
-          onOpenChange={setCompletedDialogOpen}
-          sale={completedSale}
-          onNewSale={() => {}}
-          onPrintReceipt={() => {}}
-          onPrintInvoice={() => {}}
-        />
-        <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
-        <WeighedConfigDialog open={weighedOpen} onOpenChange={setWeighedOpen} />
-        <CancelAuthDialog
-          open={pendingCancel !== null}
-          onOpenChange={(next) => {
-            if (!next) setPendingCancel(null);
+    // do carrinho — estilo cupom — se destacar.
+    <div className="-m-4 min-h-[calc(100dvh-4rem)] bg-muted p-4 md:-m-6 md:p-6">
+      <CaixaInfoBar />
+      <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
+        {/* Left Side - Product Selection */}
+        <ProductSection
+          hasNextPage={hasNextPage}
+          hasPreviousPage={hasPrevious}
+          pageIndex={pageIndex}
+          onNextPage={() => goNext(nextCursor)}
+          onPreviousPage={goPrevious}
+          searchInputRef={searchInputRef}
+          searchTerm={searchTerm}
+          setSearchTerm={(value) => {
+            setSearchTerm(value);
+            setSelectedIndex(null);
+            // Nova busca recomeça da 1ª página dos resultados.
+            reset();
           }}
-          request={pendingCancel}
-          cashSessionId={caixaSession?.id ?? null}
-          onApproved={() => pendingCancel?.apply()}
+          selectedIndex={selectedIndex}
+          onArrow={moveSelection}
+          onEnter={handleSearchEnter}
+          categories={categories}
+          selectedCategory={selectedCategory}
+          onSelectCategory={onSelectCategory}
+          viewMode={viewMode}
+          setViewMode={setViewMode}
+          addToCart={addToCart}
+          products={filteredProducts}
+          isLoading={isLoading}
+        />
+
+        {/* Right Side - Cart */}
+        <CartSale
+          orgLogo={orgLogo}
+          orgName={orgName}
+          cartItems={cartItems}
+          updateQuantity={guardedUpdateQuantity}
+          removeItem={guardedRemoveItem}
+          lockQuantityInput={requireCancelAuth}
+          clearCart={clearCart}
+          discount={discount}
+          setDiscount={(value) => form.setValue("discount", value, {})}
+          customer={form.getValues("customer")}
+          total={total}
+          setCustomerDialogOpen={setCustomerDialogOpen}
+          setPaymentDialogOpen={handleOpenPayment}
+          setItemQuantity={setItemQuantity}
+          subtotal={subtotal}
+          discountType={discountType}
+          setDiscountType={(value) => form.setValue("discountType", value, {})}
+          error={form.formState.errors}
         />
       </div>
+
+      {/* Dialogs */}
+      <SelectCustomerDialog
+        open={customerDialogOpen}
+        onOpenChange={setCustomerDialogOpen}
+        selectedCustomer={form.getValues("customer")}
+        onSelect={(value) => form.setValue("customer", value, {})}
+      />
+      <PaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        total={total}
+        customerName={customer?.name || null}
+        onConfirm={handlePaymentConfirm}
+        paymentMethod={form.watch("paymentMethod")}
+        setPaymentMethod={(value) => form.setValue("paymentMethod", value, {})}
+      />
+      <SaleCompletedDialog
+        open={completedDialogOpen}
+        onOpenChange={setCompletedDialogOpen}
+        sale={completedSale}
+        onNewSale={() => {}}
+        onPrintReceipt={() => {}}
+        onPrintInvoice={() => {}}
+      />
+      <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <WeighedConfigDialog open={weighedOpen} onOpenChange={setWeighedOpen} />
+      <CancelAuthDialog
+        open={pendingCancel !== null}
+        onOpenChange={(next) => {
+          if (!next) setPendingCancel(null);
+        }}
+        request={pendingCancel}
+        cashSessionId={caixaSession?.id ?? null}
+        onApproved={() => pendingCancel?.apply()}
+      />
     </div>
   );
 }
