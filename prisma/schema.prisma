@@ -176,6 +176,10 @@ model Organization {
   // Antifraude: remover/reduzir item no PDV passa a exigir autorização de um
   // supervisor (PIN ou QR). Desligado por padrão para não mudar o fluxo atual.
   requireCancelAuth         Boolean                       @default(false)
+  // Painel de mídia promocional na coluna esquerda do PDV. Desligado por
+  // padrão; `pdvMediaPauseSeconds` é a pausa global entre uma mídia e a próxima.
+  pdvMediaEnabled           Boolean                       @default(false)
+  pdvMediaPauseSeconds      Int                           @default(1)
   // Datas importantes
   trialEndsAt               DateTime?
   subscribedAt              DateTime?
@@ -191,6 +195,7 @@ model Organization {
   sales                     Sale[]
   cashSessions              CashSession[]
   cashRegisters             CashRegister[]
+  pdvMedias                 PdvMedia[]
   cashMovements             CashMovement[]
   cancellationRequests      CancellationRequest[]
   purchases                 Purchase[]
@@ -3874,4 +3879,29 @@ model CashRegister {
 
   @@index([organizationId])
   @@map("cash_registers")
+}
+
+enum PdvMediaType {
+  IMAGE
+  VIDEO
+}
+
+// Mídia promocional exibida na coluna esquerda do PDV (carrossel). IMAGE/GIF
+// ficam pelo `durationSeconds`; VIDEO toca até o fim (o tempo é ignorado).
+model PdvMedia {
+  id              String       @id @default(cuid())
+  organizationId  String
+  title           String? // rótulo interno p/ o admin identificar a mídia
+  url             String // key do objeto no bucket (reconstruída com constructUrl)
+  type            PdvMediaType @default(IMAGE)
+  durationSeconds Int          @default(8)
+  order           Int          @default(0)
+  isActive        Boolean      @default(true)
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("pdv_medias")
 }

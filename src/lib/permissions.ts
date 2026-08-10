@@ -27,6 +27,11 @@ export const PAGE_PERMISSIONS = [
     href: "/vendas/caixa",
   },
   {
+    key: "midia-pdv",
+    label: "Mídia do PDV",
+    href: "/vendas/midia",
+  },
+  {
     key: "produtos",
     label: "Produtos",
     href: "/produtos",

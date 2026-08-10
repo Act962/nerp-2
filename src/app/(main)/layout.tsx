@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { PdvMediaPanel } from "@/features/pdv-media/components/pdv-media-panel";
 import { requireAuth, currentOrganization } from "@/lib/auth-utils";
 import { ModalProvider } from "@/components/providers/modal-provider";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
@@ -19,6 +20,10 @@ export default async function Layout({
     // não entra no 100vh, e o rodapé do conteúdo ficava inalcançável.
     <SidebarProvider className="flex h-dvh overflow-hidden">
       <AppSidebar />
+      {/* Mídia do PDV: ocupa a coluna esquerda inteira (topo ao rodapé), no
+          lugar da sidebar oculta. Fica fora do <main> pra não ficar sob o
+          header. Só aparece no /vendas/novo (o próprio componente decide). */}
+      <PdvMediaPanel />
       <div className="flex flex-1 flex-col overflow-hidden">
         <AppHeader />
         <main className="flex-1 overflow-y-auto">
