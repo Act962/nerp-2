@@ -682,6 +682,7 @@ export default function CreateSalePage({
         onOpenChange={setPaymentDialogOpen}
         total={total}
         customerName={customer?.name || null}
+        onSelectCustomer={() => setCustomerDialogOpen(true)}
         onConfirm={handlePaymentConfirm}
         paymentMethod={form.watch("paymentMethod")}
         setPaymentMethod={(value) => form.setValue("paymentMethod", value, {})}

@@ -27,6 +27,7 @@ import {
   FileText,
   Printer,
   ArrowLeftRight,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/generated/prisma/enums";
@@ -40,6 +41,10 @@ interface PaymentDialogProps {
   customerName: string | null;
   paymentMethod: PaymentMethod;
   setPaymentMethod: (paymentMethod: PaymentMethod) => void;
+  // Abre o dialog de "Selecionar Cliente" a partir daqui — sem fechar este
+  // popup. O SelectCustomerDialog vive no pai (create-sale), então o pai é
+  // que aciona o `setCustomerDialogOpen(true)`.
+  onSelectCustomer?: () => void;
   onConfirm: (data: {
     payments: SalePaymentInput[];
     paymentMethod: PaymentMethod;
@@ -77,6 +82,7 @@ export function PaymentDialog({
   total,
   customerName,
   onConfirm,
+  onSelectCustomer,
   paymentMethod,
   setPaymentMethod,
 }: PaymentDialogProps) {
@@ -189,10 +195,26 @@ export function PaymentDialog({
       <DialogContent className="max-h-[95vh] gap-3 overflow-y-auto sm:max-w-2xl">
         <DialogHeader className="space-y-1">
           <DialogTitle>Finalizar Venda</DialogTitle>
-          <DialogDescription>
-            {customerName
-              ? `Cliente: ${customerName}`
-              : "Venda sem cliente identificado"}
+          <DialogDescription asChild>
+            {customerName ? (
+              <span>Cliente: {customerName}</span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <span>Venda sem cliente identificado</span>
+                {onSelectCustomer && (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={onSelectCustomer}
+                  >
+                    <UserPlus className="mr-1 h-3 w-3" />
+                    Adicionar cliente
+                  </Button>
+                )}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
         <form ref={formRef} onSubmit={handleSubmit}>
