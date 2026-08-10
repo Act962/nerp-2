@@ -138,6 +138,10 @@ function DashboardTabs({ fullscreen }: { fullscreen: boolean }) {
   const { data } = useOrgDashboard();
   const widgets = data?.widgets ?? [];
   const panels = data?.panels ?? [];
+  const boards =
+    ((data as Record<string, unknown> | undefined)?.boards as
+      | Array<{ id: string; title: string; sortOrder: number }>
+      | undefined) ?? [];
   const hasOrgTab = widgets.length > 0;
 
   if (!hasOrgTab) {
@@ -167,14 +171,10 @@ function DashboardTabs({ fullscreen }: { fullscreen: boolean }) {
       </TabsContent>
       <TabsContent value="org" className="mt-4">
         <OrgDashboardTab
-          // Mesmo truque do DashboardGrid: força remount ao entrar/sair da
-          // tela cheia — o hook de largura do react-grid-layout (usado nos
-          // grids de painel/widget da org) mede via ResizeObserver no mount, e
-          // a transição de tela cheia podia deixar a largura presa no valor
-          // de antes da troca.
           key={fullscreen ? "fullscreen" : "normal"}
           widgets={widgets}
           panels={panels}
+          boards={boards}
           canEdit={data?.canEdit ?? false}
           fullscreen={fullscreen}
         />
@@ -201,6 +201,7 @@ interface OrgTabWidget {
 function OrgDashboardTab({
   widgets,
   panels,
+  boards,
   canEdit,
   fullscreen = false,
 }: {
@@ -212,13 +213,10 @@ function OrgDashboardTab({
     sortOrder: number;
     appearance?: unknown;
     layout?: unknown;
+    boardId?: string | null;
   }>;
-  /** Admin: liga os mesmos recursos do "Meu dashboard" (esticar, arrastar,
-   * personalizar, remover). Edita o modelo COMPARTILHADO da org. */
+  boards: Array<{ id: string; title: string; sortOrder: number }>;
   canEdit: boolean;
-  /** Modo TV (fullscreen): apresentação, não edição — mesmo comportamento do
-   * DashboardGrid pessoal. Desliga drag/resize/editar/remover mesmo para
-   * admin, mas mantém "abrir detalhe" (é leitura). */
   fullscreen?: boolean;
 }) {
   const editableNow = canEdit && !fullscreen;
@@ -251,6 +249,7 @@ function OrgDashboardTab({
       <OrgDashboardView
         widgets={widgets}
         panels={panels}
+        boards={boards}
         values={(valuesData?.values ?? []) as never}
         isLoading={isLoading}
         canEdit={editableNow}
@@ -297,9 +296,11 @@ function OrgDashboardTab({
               color: widget.color,
               icon: widget.icon,
               parentId: widget.parentId,
+              panelId: widget.panelId,
               options: widget.options,
             })),
             updateMutation,
+            panels: panels.map((p) => ({ id: p.id, title: p.title })),
           }}
         />
       )}

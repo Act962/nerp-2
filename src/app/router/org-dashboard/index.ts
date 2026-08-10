@@ -113,12 +113,27 @@ export const getOrgDashboard = memberProcedure
             sortOrder: true,
             templateKey: true,
             appearance: true,
+            boardId: true,
+          },
+        },
+        boards: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            title: true,
+            sortOrder: true,
           },
         },
       },
     });
     if (!dashboard) {
-      return { dashboard: null, widgets: [], panels: [], canEdit: false };
+      return {
+        dashboard: null,
+        widgets: [],
+        panels: [],
+        boards: [],
+        canEdit: false,
+      };
     }
 
     const visible = await visibleOrgWidgetIds(context.org.id, {
@@ -140,6 +155,13 @@ export const getOrgDashboard = memberProcedure
     );
 
     const canEdit = await isAdmin(member.role);
+    // Boards que têm pelo menos um painel visível para o membro.
+    const visibleBoardIds = new Set(
+      filteredPanels.map((p) => p.boardId).filter((id): id is string => !!id),
+    );
+    const filteredBoards = dashboard.boards.filter((b) =>
+      visibleBoardIds.has(b.id),
+    );
     return {
       dashboard: {
         id: dashboard.id,
@@ -150,6 +172,7 @@ export const getOrgDashboard = memberProcedure
       },
       widgets: filtered,
       panels: filteredPanels,
+      boards: filteredBoards,
       canEdit,
     };
   });
@@ -169,6 +192,7 @@ export const getOrgDashboardForAdmin = memberProcedure
       include: {
         widgets: { orderBy: { sortOrder: "asc" } },
         panels: { orderBy: { sortOrder: "asc" } },
+        boards: { orderBy: { sortOrder: "asc" } },
       },
     });
     const permissions = await prisma.orgDashboardMemberPermission.findMany({
@@ -546,7 +570,7 @@ export const getPublicOrgDashboard = base
         id: true,
         publicName: true,
         publicVisibleWidgetIds: true,
-        organization: { select: { name: true } },
+        organization: { select: { name: true, logo: true } },
         widgets: {
           orderBy: { sortOrder: "asc" },
           select: {
@@ -561,6 +585,27 @@ export const getPublicOrgDashboard = base
             layout: true,
             sortOrder: true,
             parentId: true,
+            panelId: true,
+          },
+        },
+        panels: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            category: true,
+            title: true,
+            color: true,
+            sortOrder: true,
+            appearance: true,
+            boardId: true,
+          },
+        },
+        boards: {
+          orderBy: { sortOrder: "asc" },
+          select: {
+            id: true,
+            title: true,
+            sortOrder: true,
           },
         },
       },
@@ -569,16 +614,29 @@ export const getPublicOrgDashboard = base
       throw errors.NOT_FOUND({ message: "Link inválido ou revogado." });
     }
     const visible = new Set(dashboard.publicVisibleWidgetIds);
-    // Aplica a mesma regra "pai fechado = filho fechado" da versão logada.
     const widgets = dashboard.widgets.filter((widget) => {
       if (!visible.has(widget.id)) return false;
       if (widget.parentId && !visible.has(widget.parentId)) return false;
       return true;
     });
+    // Painéis que contêm pelo menos um widget público visível.
+    const visiblePanelIds = new Set(
+      widgets.map((w) => w.panelId).filter((id): id is string => !!id),
+    );
+    const panels = dashboard.panels.filter((p) => visiblePanelIds.has(p.id));
+    // Boards que contêm pelo menos um painel visível.
+    const visibleBoardIds = new Set(
+      panels.map((p) => p.boardId).filter((id): id is string => !!id),
+    );
+    const boards = dashboard.boards.filter((b) => visibleBoardIds.has(b.id));
     return {
       title:
         dashboard.publicName ?? `Dashboard — ${dashboard.organization.name}`,
+      orgName: dashboard.organization.name,
+      orgLogo: dashboard.organization.logo,
       widgets,
+      panels,
+      boards,
     };
   });
 
@@ -759,7 +817,12 @@ export const resolvePublicOrgValues = base
 // polimento visual são fases 3.4 e 3.5.
 
 export const addOrgPanel = memberProcedure
-  .input(z.object({ templateKey: z.string().min(1) }))
+  .input(
+    z.object({
+      templateKey: z.string().min(1),
+      boardId: z.string().nullable().optional(),
+    }),
+  )
   .handler(async ({ input, context, errors }) => {
     await requireOrgAdmin(context.org.id, context.user.id);
     const template = findTemplate(input.templateKey);
@@ -780,6 +843,14 @@ export const addOrgPanel = memberProcedure
 
     const dashboardId = await ensureOrgDashboard(context.org.id, member.id);
 
+    if (input.boardId) {
+      const board = await prisma.orgDashboardBoard.findFirst({
+        where: { id: input.boardId, orgDashboardId: dashboardId },
+        select: { id: true },
+      });
+      if (!board) throw errors.NOT_FOUND({ message: "Quadro não encontrado." });
+    }
+
     // sortOrder do painel novo: fim da lista de painéis existentes.
     const maxSortOrder = await prisma.orgDashboardPanel.aggregate({
       where: { orgDashboardId: dashboardId },
@@ -794,6 +865,7 @@ export const addOrgPanel = memberProcedure
       const created = await tx.orgDashboardPanel.create({
         data: {
           orgDashboardId: dashboardId,
+          boardId: input.boardId ?? null,
           category: template.category,
           title: template.label,
           color: category.defaultColor,
@@ -853,9 +925,7 @@ export const updateOrgPanel = memberProcedure
         ])
         .nullable()
         .optional(),
-      // Aparência do painel (fundo/contorno/cor/fonte do título). Objeto livre
-      // aqui; o cliente valida com `panelAppearanceSchema` e a leitura no
-      // render também revalida — null limpa e volta ao padrão.
+      boardId: z.string().nullable().optional(),
       appearance: z.record(z.string(), z.unknown()).nullable().optional(),
     }),
   )
@@ -866,9 +936,17 @@ export const updateOrgPanel = memberProcedure
         id: input.panelId,
         orgDashboard: { organizationId: context.org.id },
       },
-      select: { id: true },
+      select: { id: true, orgDashboardId: true },
     });
     if (!panel) throw errors.NOT_FOUND({ message: "Painel não encontrado." });
+
+    if (input.boardId) {
+      const board = await prisma.orgDashboardBoard.findFirst({
+        where: { id: input.boardId, orgDashboardId: panel.orgDashboardId },
+        select: { id: true },
+      });
+      if (!board) throw errors.NOT_FOUND({ message: "Quadro não encontrado." });
+    }
 
     await prisma.orgDashboardPanel.update({
       where: { id: input.panelId },
@@ -877,6 +955,7 @@ export const updateOrgPanel = memberProcedure
           title: input.title.trim() || "Painel",
         }),
         ...(input.color !== undefined && { color: input.color ?? null }),
+        ...(input.boardId !== undefined && { boardId: input.boardId ?? null }),
         ...(input.appearance !== undefined && {
           appearance: input.appearance
             ? (input.appearance as Prisma.InputJsonValue)
@@ -973,6 +1052,106 @@ export const listPanelTemplates = memberProcedure
     };
   });
 
+// -------- Quadros (boards — agrupamento de painéis) --------
+
+export const addOrgBoard = memberProcedure
+  .input(z.object({ title: z.string().min(1).max(60) }))
+  .handler(async ({ input, context, errors }) => {
+    await requireOrgAdmin(context.org.id, context.user.id);
+    const member = await prisma.member.findFirst({
+      where: { organizationId: context.org.id, userId: context.user.id },
+      select: { id: true },
+    });
+    if (!member) throw errors.NOT_FOUND({ message: "Membro não encontrado." });
+
+    const dashboardId = await ensureOrgDashboard(context.org.id, member.id);
+    const maxSort = await prisma.orgDashboardBoard.aggregate({
+      where: { orgDashboardId: dashboardId },
+      _max: { sortOrder: true },
+    });
+    const board = await prisma.orgDashboardBoard.create({
+      data: {
+        orgDashboardId: dashboardId,
+        title: input.title.trim(),
+        sortOrder: (maxSort._max.sortOrder ?? -1) + 1,
+      },
+      select: { id: true },
+    });
+    return { id: board.id };
+  });
+
+export const updateOrgBoard = memberProcedure
+  .input(
+    z.object({
+      boardId: z.string(),
+      title: z.string().min(1).max(60).optional(),
+    }),
+  )
+  .handler(async ({ input, context, errors }) => {
+    await requireOrgAdmin(context.org.id, context.user.id);
+    const board = await prisma.orgDashboardBoard.findFirst({
+      where: {
+        id: input.boardId,
+        orgDashboard: { organizationId: context.org.id },
+      },
+      select: { id: true },
+    });
+    if (!board) throw errors.NOT_FOUND({ message: "Quadro não encontrado." });
+
+    await prisma.orgDashboardBoard.update({
+      where: { id: input.boardId },
+      data: {
+        ...(input.title !== undefined && { title: input.title.trim() }),
+      },
+    });
+    return { ok: true };
+  });
+
+export const removeOrgBoard = memberProcedure
+  .input(z.object({ boardId: z.string() }))
+  .handler(async ({ input, context, errors }) => {
+    await requireOrgAdmin(context.org.id, context.user.id);
+    const board = await prisma.orgDashboardBoard.findFirst({
+      where: {
+        id: input.boardId,
+        orgDashboard: { organizationId: context.org.id },
+      },
+      select: { id: true },
+    });
+    if (!board) throw errors.NOT_FOUND({ message: "Quadro não encontrado." });
+    await prisma.orgDashboardBoard.delete({ where: { id: input.boardId } });
+    return { ok: true };
+  });
+
+export const reorderOrgBoards = memberProcedure
+  .input(z.object({ boardIds: z.array(z.string()).max(64) }))
+  .handler(async ({ input, context, errors }) => {
+    await requireOrgAdmin(context.org.id, context.user.id);
+    const dashboard = await prisma.orgDashboard.findUnique({
+      where: { organizationId: context.org.id },
+      select: { id: true },
+    });
+    if (!dashboard)
+      throw errors.NOT_FOUND({ message: "Dashboard não encontrado." });
+
+    const owned = await prisma.orgDashboardBoard.findMany({
+      where: { orgDashboardId: dashboard.id, id: { in: input.boardIds } },
+      select: { id: true },
+    });
+    const ownedIds = new Set(owned.map((b) => b.id));
+    const ordered = input.boardIds.filter((id) => ownedIds.has(id));
+
+    await prisma.$transaction(
+      ordered.map((id, index) =>
+        prisma.orgDashboardBoard.update({
+          where: { id },
+          data: { sortOrder: index },
+        }),
+      ),
+    );
+    return { ok: true };
+  });
+
 export const orgDashboardRoutes = {
   get: getOrgDashboard,
   getForAdmin: getOrgDashboardForAdmin,
@@ -993,4 +1172,8 @@ export const orgDashboardRoutes = {
   reorderPanels: reorderOrgPanels,
   reorderWidgets: reorderOrgWidgets,
   listPanelTemplates: listPanelTemplates,
+  addBoard: addOrgBoard,
+  updateBoard: updateOrgBoard,
+  removeBoard: removeOrgBoard,
+  reorderBoards: reorderOrgBoards,
 };

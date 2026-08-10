@@ -19,6 +19,7 @@ import {
   usePromotorProfile,
 } from "../hooks/use-promotor";
 import { CaptureWizard } from "./capture-wizard";
+import { GpsStatusBanner } from "./gps-status-banner";
 import { HereNowTab } from "./here-now-tab";
 import { MyClientsList, MyIndustriesList } from "./my-links-list";
 import { MyPhotosList, type RetakeTarget } from "./my-photos-list";
@@ -117,6 +118,8 @@ export function PromotorApp({
           onEditWhatsapp={() => setEditing("whatsapp")}
         />
       )}
+
+      <GpsStatusBanner />
 
       {isSubPage ? (
         <div className="space-y-4">

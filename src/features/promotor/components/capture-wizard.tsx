@@ -14,14 +14,18 @@ import { cn } from "@/lib/utils";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useInfiniteScrollSentinel } from "@/hooks/use-infinite-scroll-sentinel";
 import { PhotoCaptureInput } from "@/features/pdv-photos/components/photo-capture-input";
+import { type GeoStatus, useGeolocation } from "@/hooks/use-geolocation";
 import {
   ArrowLeft,
   Camera,
   Factory,
+  LocateFixed,
+  MapPin,
+  MapPinOff,
   Star,
   Store as StoreIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   reverseGeocode,
   useCapturePromotorPhoto,
@@ -34,20 +38,18 @@ import { StampEditor } from "./stamp-editor";
 
 type Selected = { id: string; name: string };
 
-interface Geo {
-  latitude?: number;
-  longitude?: number;
+// Endereço resolvido no reverse-geocode. As coordenadas em si vêm do hook de
+// geolocalização (`position`), não daqui.
+interface Place {
   city: string | null;
   state: string | null;
-  // Endereço resolvido junto com a cidade, na MESMA chamada de reverse-geocode.
-  // Vai para a foto e, quando a loja está sem endereço, para a loja.
   road: string | null;
   houseNumber: string | null;
   suburb: string | null;
   label: string | null;
 }
 
-const EMPTY_GEO: Geo = {
+const EMPTY_PLACE: Place = {
   city: null,
   state: null,
   road: null,
@@ -55,6 +57,10 @@ const EMPTY_GEO: Geo = {
   suburb: null,
   label: null,
 };
+
+// Acima disto a precisão é ruim demais para provar "estava na porta da loja";
+// não bloqueia (a foto nunca trava), mas sugere tentar de novo.
+const LOW_ACCURACY_M = 100;
 
 function formatDateTime(date: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -98,6 +104,127 @@ function FavoriteToggle({
   );
 }
 
+/**
+ * Estado da localização no passo da foto. Nunca bloqueia a captura — só informa
+ * e oferece ativar/tentar de novo, para o promotor religar quando puder.
+ */
+function LocationPrimer({
+  status,
+  accuracy,
+  city,
+  onEnable,
+}: {
+  status: GeoStatus;
+  accuracy: number | null;
+  city: string | null;
+  onEnable: () => void;
+}) {
+  const base = "flex items-start gap-2 rounded-md border px-3 py-2 text-sm";
+
+  if (status === "on") {
+    const lowAccuracy = accuracy !== null && accuracy > LOW_ACCURACY_M;
+    return (
+      <div
+        className={cn(
+          base,
+          lowAccuracy
+            ? "border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+            : "border-emerald-300 bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
+        )}
+      >
+        <LocateFixed className="mt-0.5 size-4 shrink-0" />
+        <div className="flex-1">
+          <p className="font-medium">
+            {lowAccuracy ? "Localização imprecisa" : "Localização ativa"}
+          </p>
+          <p className="text-xs opacity-90">
+            {[city, accuracy !== null ? `~${Math.round(accuracy)} m` : null]
+              .filter(Boolean)
+              .join(" · ") || "Posição obtida"}
+          </p>
+          {lowAccuracy && (
+            <Button
+              type="button"
+              variant="link"
+              size="sm"
+              className="h-auto p-0 text-amber-800 dark:text-amber-200"
+              onClick={onEnable}
+            >
+              Tentar melhorar
+            </Button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  if (status === "asking") {
+    return (
+      <div className={cn(base, "text-muted-foreground")}>
+        <Spinner className="mt-0.5 size-4 shrink-0" />
+        <p>Obtendo sua localização…</p>
+      </div>
+    );
+  }
+
+  if (status === "denied") {
+    return (
+      <div
+        className={cn(
+          base,
+          "border-destructive/40 bg-destructive/10 text-destructive",
+        )}
+      >
+        <MapPinOff className="mt-0.5 size-4 shrink-0" />
+        <div className="flex-1">
+          <p className="font-medium">Localização desativada</p>
+          <p className="text-xs opacity-90">
+            Toque no ícone de site (cadeado) na barra do navegador, permita a
+            Localização e toque em Tentar de novo.
+          </p>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-destructive"
+            onClick={onEnable}
+          >
+            Tentar de novo
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // "off" (ainda não pediu) e "unavailable" (indisponível/timeout): CTA para
+  // ativar/tentar. A foto continua liberada abaixo de qualquer forma.
+  return (
+    <div className={cn(base, "text-muted-foreground")}>
+      <MapPin className="mt-0.5 size-4 shrink-0" />
+      <div className="flex-1">
+        <p className="font-medium text-foreground">
+          {status === "unavailable"
+            ? "Não foi possível obter a localização"
+            : "Ative a localização"}
+        </p>
+        <p className="text-xs">
+          Registramos onde a foto foi tirada — ajuda a coordenação a ver a
+          cobertura em campo.
+        </p>
+        <Button
+          type="button"
+          variant="link"
+          size="sm"
+          className="h-auto p-0"
+          onClick={onEnable}
+        >
+          {status === "unavailable" ? "Tentar de novo" : "Ativar localização"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function CaptureWizard({
   promoterName,
   initialStore,
@@ -135,8 +262,22 @@ export function CaptureWizard({
     (Selected & { actionCodeImage: string | null }) | null
   >(initialSupplier ?? null);
   const [file, setFile] = useState<File | null>(null);
-  const [geo, setGeo] = useState<Geo>(EMPTY_GEO);
+  const [place, setPlace] = useState<Place>(EMPTY_PLACE);
   const [capturedAt, setCapturedAt] = useState<Date | null>(null);
+
+  // Localização via hook compartilhado: `autoStartIfGranted` religa sozinho
+  // quando a permissão já foi concedida; sem isso, o promotor toca "Ativar
+  // localização" (gesto), evitando a negação permanente do disparo automático.
+  const {
+    position,
+    status: geoStatus,
+    start: startGeo,
+  } = useGeolocation({
+    autoStartIfGranted: true,
+  });
+  // Garante um único reverse-geocode por captura, mesmo com o watch atualizando
+  // a posição várias vezes.
+  const geocodedRef = useRef(false);
 
   const [storeSearch, setStoreSearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -192,30 +333,32 @@ export function CaptureWizard({
     }
   }, [initialSupplierId, supplier, suppliers]);
 
-  // Ao chegar no passo 3, pega a localização (best-effort) e o horário.
+  // Ao chegar no passo 3, marca o horário da captura.
   useEffect(() => {
     if (step !== 3) return;
     setCapturedAt(new Date());
-    if (!("geolocation" in navigator)) return;
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        const place = await reverseGeocode(latitude, longitude);
-        setGeo({ latitude, longitude, ...place });
-      },
-      () => {
-        // Negado/indisponível: segue sem localização.
-      },
-      { enableHighAccuracy: true, timeout: 8000 },
-    );
   }, [step]);
+
+  // Resolve cidade/estado/endereço a partir da primeira posição obtida. As
+  // coordenadas em si sempre vêm de `position` no momento do envio.
+  useEffect(() => {
+    if (!position || geocodedRef.current) return;
+    geocodedRef.current = true;
+    reverseGeocode(position.latitude, position.longitude)
+      .then(setPlace)
+      .catch(() => {
+        // Sem o endereço textual a foto ainda vai com a coordenada; a linha de
+        // cidade no carimbo apenas fica de fora.
+      });
+  }, [position]);
 
   const reset = () => {
     setStep(initialSupplier ? 3 : minStep);
     setStore(initialStore ?? null);
     setSupplier(initialSupplier ?? null);
     setFile(null);
-    setGeo(EMPTY_GEO);
+    setPlace(EMPTY_PLACE);
+    geocodedRef.current = false;
     setCapturedAt(null);
     setStoreSearch("");
     setSupplierSearch("");
@@ -224,10 +367,18 @@ export function CaptureWizard({
   const textLines = [
     promoterName,
     formatDateTime(capturedAt ?? new Date()),
-    [geo.city, geo.state].filter(Boolean).join(" / "),
+    [place.city, place.state].filter(Boolean).join(" / "),
     store?.name ? `Cliente: ${store.name}` : "",
     ...(photoCredits ?? []).map((credit) => `${credit.role}: ${credit.name}`),
   ];
+
+  // Traduz o estado do hook no motivo gravado por foto: com posição é OK; sem
+  // ela, distingue negado de indisponível (inclui timeout) para o gestor.
+  const locationStatus: "OK" | "DENIED" | "UNAVAILABLE" = position
+    ? "OK"
+    : geoStatus === "denied"
+      ? "DENIED"
+      : "UNAVAILABLE";
 
   const onBaked = (photoKey: string, sealMissing: boolean) => {
     if (!store || !supplier) return;
@@ -238,14 +389,16 @@ export function CaptureWizard({
         photoKey,
         sealMissing,
         capturedAt: (capturedAt ?? new Date()).toISOString(),
-        latitude: geo.latitude,
-        longitude: geo.longitude,
-        capturedCity: geo.city ?? undefined,
-        capturedState: geo.state ?? undefined,
-        capturedAddress: geo.label ?? undefined,
-        capturedRoad: geo.road ?? undefined,
-        capturedHouseNumber: geo.houseNumber ?? undefined,
-        capturedSuburb: geo.suburb ?? undefined,
+        latitude: position?.latitude,
+        longitude: position?.longitude,
+        capturedAccuracy: position?.accuracy,
+        locationStatus,
+        capturedCity: place.city ?? undefined,
+        capturedState: place.state ?? undefined,
+        capturedAddress: place.label ?? undefined,
+        capturedRoad: place.road ?? undefined,
+        capturedHouseNumber: place.houseNumber ?? undefined,
+        capturedSuburb: place.suburb ?? undefined,
       },
       {
         onSuccess: () => {
@@ -485,6 +638,12 @@ export function CaptureWizard({
           <p className="text-sm text-muted-foreground">
             {store?.name} · {supplier?.name}
           </p>
+          <LocationPrimer
+            status={geoStatus}
+            accuracy={position?.accuracy ?? null}
+            city={place.city}
+            onEnable={startGeo}
+          />
           <PhotoCaptureInput
             onFiles={(files) => setFile(files[0] ?? null)}
             autoOpen={autoCapture}

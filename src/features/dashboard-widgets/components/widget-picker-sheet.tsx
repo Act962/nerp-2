@@ -129,6 +129,7 @@ function WidgetCatalogRow({
     report: null,
     appearance: DEFAULT_APPEARANCE,
     alert: DEFAULT_ALERT,
+    alerts: [],
   });
   const [parentId, setParentId] = useState<string>("");
 

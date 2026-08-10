@@ -6,7 +6,7 @@ import {
   getErpRevenueBySellerChart,
   getErpRevenueTrend,
 } from "./_erp-aggregation";
-import { getSalesByPiauiMunicipio, getSalesByState } from "./_geo-aggregation";
+import { getFieldMap } from "./_field-map";
 import {
   getAvgTicket,
   getLatestSales,
@@ -201,23 +201,14 @@ export const WIDGET_REGISTRY: Record<string, WidgetDefinition> = {
     defaultSize: { w: 6, h: 4 },
     resolve: getSalesTodayByHour,
   },
-  "geo.salesByState": {
-    key: "geo.salesByState",
+  "geo.fieldMap": {
+    key: "geo.fieldMap",
     category: "geo",
-    label: "Mapa de vendas por estado",
-    description: "Estado cadastrado do cliente vinculado à venda.",
+    label: "Mapa de campo",
+    description: "Pinos de clientes ativos e usuários no mapa.",
     supportedDisplayTypes: ["MAP"],
     defaultSize: { w: 6, h: 6 },
-    resolve: getSalesByState,
-  },
-  "geo.salesByPiauiMunicipio": {
-    key: "geo.salesByPiauiMunicipio",
-    category: "geo",
-    label: "Mapa de vendas por município (PI)",
-    description: "Município cadastrado do cliente vinculado à venda.",
-    supportedDisplayTypes: ["MAP"],
-    defaultSize: { w: 6, h: 6 },
-    resolve: getSalesByPiauiMunicipio,
+    resolve: getFieldMap,
   },
 };
 
