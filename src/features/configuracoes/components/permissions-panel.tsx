@@ -5,6 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Empty,
   EmptyDescription,
   EmptyHeader,
@@ -24,11 +29,19 @@ import {
   useUpdateMemberPermissions,
   useUpdateMemberSupervisor,
 } from "@/features/members/hooks/use-members";
-import { ASSIGNABLE_PERMISSIONS, roleLabel } from "@/lib/permissions";
-import { ShieldCheck, Users } from "lucide-react";
+import {
+  ASSIGNABLE_PERMISSIONS,
+  getGroupedAssignablePermissions,
+  roleLabel,
+} from "@/lib/permissions";
+import { ChevronDown, ShieldCheck, Users } from "lucide-react";
 
 // Radix Select não aceita value="", então "sem supervisor" precisa de sentinela.
 const NO_SUPERVISOR = "__none__";
+
+// Permissões agrupadas pelos módulos do menu lateral (calculado uma vez).
+const PERMISSION_GROUPS = getGroupedAssignablePermissions();
+const ASSIGNABLE_KEYS = new Set(ASSIGNABLE_PERMISSIONS.map((p) => p.key));
 
 export function PermissionsPanel() {
   const { members, isLoading } = useMembers();
@@ -148,29 +161,69 @@ export function PermissionsPanel() {
                       todas as páginas.
                     </p>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {ASSIGNABLE_PERMISSIONS.map((page) => {
-                        const checked = member.permissions.includes(page.key);
-                        const id = `${member.id}-${page.key}`;
-                        return (
-                          <label
-                            key={id}
-                            htmlFor={id}
-                            className="flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm hover:bg-accent"
-                          >
-                            <Checkbox
-                              id={id}
-                              checked={checked}
-                              disabled={updatePerms.isPending}
-                              onCheckedChange={() =>
-                                toggle(member.id, member.permissions, page.key)
-                              }
-                            />
-                            <span className="truncate">{page.label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
+                    (() => {
+                      const grantedCount = member.permissions.filter((key) =>
+                        ASSIGNABLE_KEYS.has(key),
+                      ).length;
+                      // Nasce contraído em todos os membros (defaultOpen ausente).
+                      return (
+                        <Collapsible>
+                          <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent [&[data-state=open]>svg]:rotate-180">
+                            <span>
+                              Permissões de acesso
+                              <span className="ml-1 text-muted-foreground">
+                                ({grantedCount} liberada
+                                {grantedCount === 1 ? "" : "s"})
+                              </span>
+                            </span>
+                            <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform" />
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="flex flex-col gap-4 pt-3">
+                            {PERMISSION_GROUPS.map((group) => (
+                              <div
+                                key={group.module}
+                                className="flex flex-col gap-2"
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                  {group.module}
+                                </p>
+                                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                  {group.permissions.map((page) => {
+                                    const checked = member.permissions.includes(
+                                      page.key,
+                                    );
+                                    const id = `${member.id}-${page.key}`;
+                                    return (
+                                      <label
+                                        key={id}
+                                        htmlFor={id}
+                                        className="flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm hover:bg-accent"
+                                      >
+                                        <Checkbox
+                                          id={id}
+                                          checked={checked}
+                                          disabled={updatePerms.isPending}
+                                          onCheckedChange={() =>
+                                            toggle(
+                                              member.id,
+                                              member.permissions,
+                                              page.key,
+                                            )
+                                          }
+                                        />
+                                        <span className="truncate">
+                                          {page.label}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      );
+                    })()
                   )}
                 </div>
               );
