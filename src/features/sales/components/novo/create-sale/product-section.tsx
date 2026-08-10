@@ -285,7 +285,7 @@ export function ProductSection({
 
           {/* Abas de categoria (como na referência): filtram a grade. */}
           {categories.length > 0 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto border-t pt-3">
+            <div className="mt-3 flex flex-wrap gap-2 border-t pt-3">
               <Button
                 type="button"
                 size="sm"
