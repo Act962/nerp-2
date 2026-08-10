@@ -54,6 +54,19 @@ export const updateProduct = base
       prepTimeMinutes: z.number().int().positive().nullable().optional(),
 
       supplierId: z.string().nullable().optional(),
+
+      // Cadastro fiscal (Fase B). Todos opcionais.
+      ncm: z.string().nullable().optional(),
+      cest: z.string().nullable().optional(),
+      cfop: z.string().nullable().optional(),
+      origem: z.string().nullable().optional(),
+      cstIcms: z.string().nullable().optional(),
+      cstPis: z.string().nullable().optional(),
+      cstCofins: z.string().nullable().optional(),
+      aliqIcms: z.number().nullable().optional(),
+      aliqPis: z.number().nullable().optional(),
+      aliqCofins: z.number().nullable().optional(),
+      cClassTrib: z.string().nullable().optional(),
     }),
   )
   .output(
@@ -104,6 +117,17 @@ export const updateProduct = base
         trackStock: input.trackStock,
         prepTimeMinutes: input.prepTimeMinutes,
         supplierId: input.supplierId === "" ? null : input.supplierId,
+        ncm: input.ncm ?? undefined,
+        cest: input.cest ?? undefined,
+        cfop: input.cfop ?? undefined,
+        origem: input.origem ?? undefined,
+        cstIcms: input.cstIcms ?? undefined,
+        cstPis: input.cstPis ?? undefined,
+        cstCofins: input.cstCofins ?? undefined,
+        aliqIcms: input.aliqIcms ?? undefined,
+        aliqPis: input.aliqPis ?? undefined,
+        aliqCofins: input.aliqCofins ?? undefined,
+        cClassTrib: input.cClassTrib ?? undefined,
       },
     });
 

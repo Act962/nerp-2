@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { GripVertical } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WidgetChildren } from "@/features/dashboard-widgets/components/widget-children";
@@ -18,6 +19,10 @@ import { PANEL_WIDGET_BREAKPOINTS } from "@/features/dashboard-widgets/lib/grid-
 import { readAppearance } from "@/features/dashboard-widgets/lib/widget-appearance";
 import type { WidgetValue } from "@/features/dashboard-widgets/lib/widget-value";
 import {
+  evaluateAlerts,
+  readAlerts,
+} from "@/features/dashboard-widgets/lib/widget-alert";
+import {
   augmentReportTable,
   readReportConfig,
   type ReportGoalScope,
@@ -25,10 +30,12 @@ import {
 import { panelStyles, readPanelAppearance } from "../lib/panel-appearance";
 import {
   ORG_PANEL_DRAG_HANDLE,
+  type OrgGridWidget,
   type OrgLayoutSaveItem,
   OrgWidgetGrid,
   panelDefaultItem,
 } from "./org-widget-grid";
+import { BoardTabs, type BoardSummary } from "./board-tabs";
 
 /** Lê `options.sparkline` de qualquer forma (o resolver não devolve isso). */
 function readSparkline(options: unknown): number[] | undefined {
@@ -75,6 +82,7 @@ export interface OrgPanelSummary {
   sortOrder: number;
   appearance?: unknown;
   layout?: unknown;
+  boardId?: string | null;
 }
 
 export interface OrgWidgetValueEntry {
@@ -87,6 +95,7 @@ export interface OrgWidgetValueEntry {
 export function OrgDashboardView({
   widgets,
   panels,
+  boards,
   values,
   isLoading,
   emptyState,
@@ -98,45 +107,62 @@ export function OrgDashboardView({
   onEditWidget,
   onRemoveWidget,
   onOpenDetail,
+  onAddBoard,
+  onRenameBoard,
+  onRemoveBoard,
+  onReorderBoards,
 }: {
   widgets: OrgWidgetSummary[];
-  /** Painéis (grupos visuais). Ausente/vazio = render em grade única (legado). */
   panels?: OrgPanelSummary[];
+  boards?: BoardSummary[];
   values: OrgWidgetValueEntry[];
   isLoading?: boolean;
   emptyState?: React.ReactNode;
-  /** Rótulo padrão quando o widget não tem `title` — evita "Widget" cru. */
   labelFallback?: (dataSourceKey: string) => string;
-  /** Admin: liga redimensionar/arrastar/editar/remover (edita o modelo
-   * compartilhado). Membro comum e link público ficam só-leitura. */
   canEdit?: boolean;
-  /** Metas do período corrente (scope → scopeCode → valor), pra widgets-
-   * relatório com `options.report.goalScope`. Ausente = sem colunas de meta
-   * (caso da rota pública, que não tem acesso — meta não é dado exposto por
-   * link sem login). */
   goalsByScope?: Map<ReportGoalScope, Map<string, number>>;
   onSaveLayout?: (items: OrgLayoutSaveItem[]) => void;
-  /** Persiste posição/tamanho DOS PAINÉIS (grade externa). */
   onSavePanelLayout?: (items: OrgLayoutSaveItem[]) => void;
   onEditWidget?: (widgetId: string) => void;
   onRemoveWidget?: (widgetId: string) => void;
-  /** Clique no corpo abre o detalhamento — disponível para todos. */
   onOpenDetail?: (widgetId: string) => void;
+  onAddBoard?: (title: string) => void;
+  onRenameBoard?: (boardId: string, title: string) => void;
+  onRemoveBoard?: (boardId: string) => void;
+  onReorderBoards?: (boardIds: string[]) => void;
 }) {
-  const valueById = new Map(values.map((entry) => [entry.widgetId, entry]));
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
+  const sortedBoards = useMemo(
+    () => [...(boards ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
+    [boards],
+  );
+
+  const valueById = useMemo(
+    () => new Map(values.map((entry) => [entry.widgetId, entry])),
+    [values],
+  );
 
   // Widgets topo × filhos: o pai renderiza o próprio + a lista de filhos
   // dentro dele. Espelha o padrão do DashboardGrid pessoal.
-  const topWidgets = widgets.filter((widget) => !widget.parentId);
-  const childrenByParent = new Map<string, OrgWidgetSummary[]>();
-  for (const widget of widgets) {
-    if (!widget.parentId) continue;
-    const list = childrenByParent.get(widget.parentId) ?? [];
-    list.push(widget);
-    childrenByParent.set(widget.parentId, list);
-  }
+  const topWidgets = useMemo(
+    () => widgets.filter((widget) => !widget.parentId),
+    [widgets],
+  );
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, OrgWidgetSummary[]>();
+    for (const widget of widgets) {
+      if (!widget.parentId) continue;
+      const list = map.get(widget.parentId) ?? [];
+      list.push(widget);
+      map.set(widget.parentId, list);
+    }
+    return map;
+  }, [widgets]);
 
-  const widgetById = new Map(widgets.map((widget) => [widget.id, widget]));
+  const widgetById = useMemo(
+    () => new Map(widgets.map((widget) => [widget.id, widget])),
+    [widgets],
+  );
 
   // Um card de widget (o pai + seus filhos). `h-full` para preencher a célula
   // do RGL (que respeita o layout salvo no editor).
@@ -154,6 +180,14 @@ export function OrgDashboardView({
       ? goalsByScope?.get(reportConfig.goalScope)
       : undefined;
     const value = entry?.value;
+    const opts = widget.options as { targetValue?: number } | null;
+    const targetValue =
+      typeof opts?.targetValue === "number" ? opts.targetValue : null;
+    const widgetAlerts = readAlerts(widget.options);
+    const isTable = widget.displayType === "TABLE";
+    const alertResult = isTable
+      ? { active: false, color: null, message: null }
+      : evaluateAlerts(widgetAlerts, value, targetValue);
     return (
       <div className="h-full">
         <WidgetFrame
@@ -163,6 +197,8 @@ export function OrgDashboardView({
           titleSize={appearance.titleSize}
           titleWeight={appearance.titleWeight}
           color={widget.color}
+          alertColor={alertResult.active ? alertResult.color : null}
+          alertMessage={alertResult.active ? alertResult.message : null}
           background={appearance.background}
           border={appearance.border}
           borderColor={appearance.borderColor}
@@ -207,6 +243,8 @@ export function OrgDashboardView({
                   ? augmentReportTable(value, reportConfig, goalsByCode)
                   : value
               }
+              alerts={widgetAlerts.length > 0 ? widgetAlerts : undefined}
+              targetValue={targetValue}
             />
           ) : value.kind === "FLEET" ? (
             <FleetWidget value={value} />
@@ -236,6 +274,86 @@ export function OrgDashboardView({
     );
   };
 
+  const { byPanel, loose } = useMemo(() => {
+    const bp = new Map<string, OrgWidgetSummary[]>();
+    const lo: OrgWidgetSummary[] = [];
+    for (const widget of topWidgets) {
+      if (widget.panelId) {
+        const list = bp.get(widget.panelId) ?? [];
+        list.push(widget);
+        bp.set(widget.panelId, list);
+      } else {
+        lo.push(widget);
+      }
+    }
+    return { byPanel: bp, loose: lo };
+  }, [topWidgets]);
+
+  const panelsWithWidgets = useMemo(() => {
+    const sorted = [...(panels ?? [])].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+    return sorted.filter((panel) => (byPanel.get(panel.id)?.length ?? 0) > 0);
+  }, [panels, byPanel]);
+
+  const visiblePanels = useMemo(
+    () =>
+      selectedBoardId === null
+        ? panelsWithWidgets
+        : panelsWithWidgets.filter((p) => p.boardId === selectedBoardId),
+    [panelsWithWidgets, selectedBoardId],
+  );
+
+  const panelGridWidgets = useMemo<OrgGridWidget[]>(
+    () =>
+      visiblePanels.map((panel, index) => ({
+        id: panel.id,
+        layout: selectedBoardId === null ? (panel.layout ?? null) : null,
+        sortOrder: selectedBoardId === null ? panel.sortOrder : index,
+      })),
+    [visiblePanels, selectedBoardId],
+  );
+
+  const panelWidgetGridItems = useMemo(() => {
+    const map = new Map<string, OrgGridWidget[]>();
+    for (const [panelId, panelWidgets] of byPanel) {
+      map.set(
+        panelId,
+        panelWidgets.map((w) => ({
+          id: w.id,
+          layout: w.layout ?? null,
+          sortOrder: w.sortOrder ?? 0,
+        })),
+      );
+    }
+    return map;
+  }, [byPanel]);
+
+  const looseGridWidgets = useMemo<OrgGridWidget[]>(
+    () =>
+      loose.map((w) => ({
+        id: w.id,
+        layout: w.layout ?? null,
+        sortOrder: w.sortOrder ?? 0,
+      })),
+    [loose],
+  );
+
+  const topGridWidgets = useMemo<OrgGridWidget[]>(
+    () =>
+      topWidgets.map((w) => ({
+        id: w.id,
+        layout: w.layout ?? null,
+        sortOrder: w.sortOrder ?? 0,
+      })),
+    [topWidgets],
+  );
+
+  const panelById = useMemo(
+    () => new Map(panelsWithWidgets.map((panel) => [panel.id, panel])),
+    [panelsWithWidgets],
+  );
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -255,63 +373,10 @@ export function OrgDashboardView({
     );
   }
 
-  // Agrupa por painel. Widgets sem painel caem num grupo "solto" no fim.
-  const byPanel = new Map<string, OrgWidgetSummary[]>();
-  const loose: OrgWidgetSummary[] = [];
-  for (const widget of topWidgets) {
-    if (widget.panelId) {
-      const list = byPanel.get(widget.panelId) ?? [];
-      list.push(widget);
-      byPanel.set(widget.panelId, list);
-    } else {
-      loose.push(widget);
-    }
-  }
-  const sortedPanels = [...(panels ?? [])].sort(
-    (a, b) => a.sortOrder - b.sortOrder,
-  );
-  const panelsWithWidgets = sortedPanels.filter(
-    (panel) => (byPanel.get(panel.id)?.length ?? 0) > 0,
-  );
-
-  const toGridWidgets = (list: OrgWidgetSummary[]) =>
-    list.map((widget) => ({
-      id: widget.id,
-      layout: widget.layout ?? null,
-      sortOrder: widget.sortOrder ?? 0,
-    }));
-
-  // Grade de um escopo. Admin (`canEdit`) ganha arrastar/redimensionar +
-  // persistência; a alça é o cabeçalho do WidgetFrame. `nested=true` (widgets
-  // DENTRO de um painel) usa breakpoints calibrados pro container do painel,
-  // não da página inteira — sem isso o grid interno cai sempre no breakpoint
-  // mais estreito e os widgets nunca ficam lado a lado.
-  const renderGrid = (list: OrgWidgetSummary[], nested = false) => (
-    <OrgWidgetGrid
-      widgets={toGridWidgets(list)}
-      editable={canEdit}
-      onSaveLayout={onSaveLayout}
-      dragHandleClass={WIDGET_DRAG_HANDLE_CLASS}
-      renderItem={renderWidget}
-      breakpoints={nested ? PANEL_WIDGET_BREAKPOINTS : undefined}
-    />
-  );
-
-  // Sem painéis com conteúdo → grade única (comportamento legado).
-  if (panelsWithWidgets.length === 0) {
-    return renderGrid(topWidgets);
-  }
-
-  const panelById = new Map(
-    panelsWithWidgets.map((panel) => [panel.id, panel]),
-  );
-
-  // Cada painel é um item da grade externa (redimensionável pela alça no canto,
-  // arrastável pelo cabeçalho quando admin). `h-full` para preencher a célula;
-  // o corpo rola se o conteúdo passar da altura do painel.
   const renderPanelSection = (panelId: string) => {
     const panel = panelById.get(panelId);
     if (!panel) return null;
+    const innerWidgets = panelWidgetGridItems.get(panel.id);
     const ps = panelStyles(panel.color, readPanelAppearance(panel.appearance));
     return (
       <section
@@ -333,21 +398,68 @@ export function OrgDashboardView({
             {panel.title}
           </span>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto p-4">
-          {renderGrid(byPanel.get(panel.id) ?? [], true)}
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4"
+          style={{ scrollbarGutter: "stable" }}
+        >
+          {innerWidgets && innerWidgets.length > 0 && (
+            <OrgWidgetGrid
+              widgets={innerWidgets}
+              editable={canEdit}
+              onSaveLayout={onSaveLayout}
+              dragHandleClass={WIDGET_DRAG_HANDLE_CLASS}
+              renderItem={renderWidget}
+              breakpoints={PANEL_WIDGET_BREAKPOINTS}
+            />
+          )}
         </div>
       </section>
     );
   };
 
+  if (panelsWithWidgets.length === 0) {
+    return (
+      <div className="flex flex-col gap-4">
+        {sortedBoards.length > 0 && (
+          <BoardTabs
+            boards={sortedBoards}
+            selectedBoardId={selectedBoardId}
+            onSelect={setSelectedBoardId}
+            editable={canEdit}
+            onAdd={onAddBoard}
+            onRename={onRenameBoard}
+            onRemove={onRemoveBoard}
+            onReorder={onReorderBoards}
+          />
+        )}
+        <OrgWidgetGrid
+          widgets={topGridWidgets}
+          editable={canEdit}
+          onSaveLayout={onSaveLayout}
+          dragHandleClass={WIDGET_DRAG_HANDLE_CLASS}
+          renderItem={renderWidget}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
+      {(sortedBoards.length > 0 || canEdit) && (
+        <BoardTabs
+          boards={sortedBoards}
+          selectedBoardId={selectedBoardId}
+          onSelect={setSelectedBoardId}
+          editable={canEdit}
+          onAdd={onAddBoard}
+          onRename={onRenameBoard}
+          onRemove={onRemoveBoard}
+          onReorder={onReorderBoards}
+        />
+      )}
+
       <OrgWidgetGrid
-        widgets={panelsWithWidgets.map((panel) => ({
-          id: panel.id,
-          layout: panel.layout ?? null,
-          sortOrder: panel.sortOrder,
-        }))}
+        widgets={panelGridWidgets}
         editable={canEdit}
         onSaveLayout={onSavePanelLayout}
         dragHandleClass={ORG_PANEL_DRAG_HANDLE}
@@ -355,7 +467,15 @@ export function OrgDashboardView({
         renderItem={renderPanelSection}
       />
 
-      {loose.length > 0 && renderGrid(loose)}
+      {selectedBoardId === null && looseGridWidgets.length > 0 && (
+        <OrgWidgetGrid
+          widgets={looseGridWidgets}
+          editable={canEdit}
+          onSaveLayout={onSaveLayout}
+          dragHandleClass={WIDGET_DRAG_HANDLE_CLASS}
+          renderItem={renderWidget}
+        />
+      )}
     </div>
   );
 }

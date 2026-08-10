@@ -30,6 +30,18 @@ export type WidgetValue =
       regions: { id: string; label: string; value: number }[];
     }
   | {
+      kind: "MAP";
+      scope: "field";
+      pins: {
+        id: string;
+        lat: number;
+        lng: number;
+        label: string;
+        type: "store" | "promoter";
+        detail?: string;
+      }[];
+    }
+  | {
       kind: "TABLE";
       columns: {
         key: string;

@@ -193,3 +193,48 @@ export function useUpdateOrgPublicSettings() {
     }),
   );
 }
+
+// -------- Boards (quadros) --------
+
+export function useAddOrgBoard() {
+  const invalidate = useInvalidateOrgDashboard();
+  return useMutation(
+    orpc.orgDashboard.addBoard.mutationOptions({
+      onSuccess: () => {
+        invalidate();
+        toast.success("Quadro criado.");
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useUpdateOrgBoard() {
+  const invalidate = useInvalidateOrgDashboard();
+  return useMutation(
+    orpc.orgDashboard.updateBoard.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useRemoveOrgBoard() {
+  const invalidate = useInvalidateOrgDashboard();
+  return useMutation(
+    orpc.orgDashboard.removeBoard.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReorderOrgBoards() {
+  const invalidate = useInvalidateOrgDashboard();
+  return useMutation(
+    orpc.orgDashboard.reorderBoards.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

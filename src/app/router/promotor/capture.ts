@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { PhotoLocationStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { assertSupplierInOrg } from "../pdv-photo/assert-relations";
@@ -20,6 +21,8 @@ export const capturePromotorPhoto = base
       capturedAt: z.string().optional(),
       latitude: z.number().optional(),
       longitude: z.number().optional(),
+      capturedAccuracy: z.number().optional(),
+      locationStatus: z.enum(PhotoLocationStatus).optional(),
       capturedCity: z.string().optional(),
       capturedState: z.string().optional(),
       // Endereço resolvido no reverse-geocode da captura. Serve de prova de
@@ -76,6 +79,13 @@ export const capturePromotorPhoto = base
         capturedAddress: input.capturedAddress ?? null,
         capturedLatitude: input.latitude ?? null,
         capturedLongitude: input.longitude ?? null,
+        capturedAccuracy: input.capturedAccuracy ?? null,
+        // Confia no status do cliente; sem ele, infere pelo par de coordenadas.
+        locationStatus:
+          input.locationStatus ??
+          (input.latitude !== undefined && input.longitude !== undefined
+            ? PhotoLocationStatus.OK
+            : PhotoLocationStatus.UNKNOWN),
         createdById: context.user.id,
       },
       select: { id: true },

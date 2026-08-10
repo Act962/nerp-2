@@ -27,7 +27,7 @@ import { useWidgetCatalog } from "../hooks/use-widget-catalog";
 import { oracleQueryConfigSchema } from "../lib/oracle-query-config";
 import type { WidgetColor } from "../lib/pastel-colors";
 import { readReportConfig } from "../lib/report-table";
-import { readAlert } from "../lib/widget-alert";
+import { readAlert, readAlerts } from "../lib/widget-alert";
 import { readAppearance } from "../lib/widget-appearance";
 import type { CustomizeState } from "./widget-customize-fields";
 import { buildOptions, WidgetCustomizeFields } from "./widget-customize-fields";
@@ -43,6 +43,7 @@ export interface WidgetEditRow {
   color: string | null;
   icon: string | null;
   parentId: string | null;
+  panelId?: string | null;
   options: unknown;
 }
 
@@ -50,6 +51,7 @@ export interface WidgetEditUpdateInput {
   widgetId: string;
   title: string | null;
   parentId: string | null;
+  panelId?: string | null;
   displayType: "STAT" | "CHART" | "LIST" | "MAP" | "TABLE";
   chartKind: "LINE" | "BAR" | "DONUT" | null;
   color: string | null;
@@ -67,9 +69,15 @@ export interface WidgetEditUpdateMutation {
   isPending: boolean;
 }
 
+export interface WidgetEditPanelOption {
+  id: string;
+  title: string;
+}
+
 export interface WidgetEditDataSource {
   widgets: WidgetEditRow[];
   updateMutation: WidgetEditUpdateMutation;
+  panels?: WidgetEditPanelOption[];
 }
 
 // Wrapper padrão — dashboard PESSOAL. Preserva a API antiga (mesma
@@ -121,6 +129,7 @@ export function WidgetEditSheetCore({
 }) {
   const { data: catalog } = useWidgetCatalog();
   const updateWidget = dataSource.updateMutation;
+  const panels = dataSource.panels ?? [];
 
   const widget = dataSource.widgets.find((item) => item.id === widgetId);
   const entry = catalog?.widgets.find(
@@ -129,6 +138,7 @@ export function WidgetEditSheetCore({
 
   const [state, setState] = useState<CustomizeState | null>(null);
   const [parentId, setParentId] = useState<string>("");
+  const [panelId, setPanelId] = useState<string>("");
 
   const labelFor = (item: { title: string | null; dataSourceKey: string }) =>
     item.title ??
@@ -174,8 +184,10 @@ export function WidgetEditSheetCore({
       report: readReportConfig(widget.options),
       appearance: readAppearance(widget.options),
       alert: readAlert(widget.options),
+      alerts: readAlerts(widget.options),
     });
     setParentId(widget.parentId ?? "");
+    setPanelId(widget.panelId ?? "");
   }, [widget?.id, entry?.key]);
 
   if (!widgetId || !widget || !entry || !state) {
@@ -195,6 +207,31 @@ export function WidgetEditSheetCore({
           encolhe dentro do SheetContent (flex column de altura fixa) e o
           conteúdo alto do montador Oracle empurra o rodapé para fora da tela. */}
         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-4 pb-4">
+          {panels.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Label className="text-[10px] text-muted-foreground">
+                Painel
+              </Label>
+              <Select
+                value={panelId || "__solto__"}
+                onValueChange={(value) => {
+                  setPanelId(value === "__solto__" ? "" : value);
+                }}
+              >
+                <SelectTrigger className="h-7 w-56 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__solto__">Solto (sem painel)</SelectItem>
+                  {panels.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           {(parentOptions.length > 0 || widget.parentId) && (
             <div className="flex flex-wrap items-center gap-1.5">
               <Label className="text-[10px] text-muted-foreground">Onde</Label>
@@ -213,7 +250,7 @@ export function WidgetEditSheetCore({
                   </SelectItem>
                   {parentOptions.map((option) => (
                     <SelectItem key={option.id} value={option.id}>
-                      Dentro de “{option.label}”
+                      Dentro de "{option.label}"
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -244,9 +281,11 @@ export function WidgetEditSheetCore({
               updateWidget.mutate(
                 {
                   widgetId: widget.id,
-                  // null limpa o nome e volta ao rótulo padrão da fonte.
                   title: state.title.trim() || null,
                   parentId: parentId || null,
+                  ...(panels.length > 0 && {
+                    panelId: panelId || null,
+                  }),
                   displayType: state.displayType,
                   chartKind:
                     state.displayType === "CHART" ? state.chartKind : null,

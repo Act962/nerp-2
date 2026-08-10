@@ -1,19 +1,44 @@
 "use client";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { orpc } from "@/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
+import { Building } from "lucide-react";
+import Image from "next/image";
+import { useState } from "react";
 import {
   OrgDashboardView,
+  type OrgPanelSummary,
   type OrgWidgetSummary,
   type OrgWidgetValueEntry,
 } from "./org-dashboard-view";
-
-// Prévia pública (sem login). Não abre picker, não edita, não mostra
-// link/gerenciador — é visão exclusiva de LEITURA para telão de sala ou
-// relatório enviado por link.
+import type { BoardSummary } from "./board-tabs";
 
 const POLL_INTERVAL_MS = 5 * 60_000;
+
+function PublicOrgLogo({
+  logo,
+  name,
+}: {
+  logo: string | null | undefined;
+  name: string;
+}) {
+  const url = logo ? constructUrl(logo) : "";
+  const [broken, setBroken] = useState(false);
+  if (!url || broken)
+    return <Building className="size-5 text-muted-foreground" />;
+  return (
+    <Image
+      src={url}
+      alt={name}
+      width={28}
+      height={28}
+      className="rounded-md"
+      onError={() => setBroken(true)}
+    />
+  );
+}
 
 export function PublicOrgDashboard({ shareToken }: { shareToken: string }) {
   const {
@@ -25,8 +50,6 @@ export function PublicOrgDashboard({ shareToken }: { shareToken: string }) {
       input: { shareToken },
       refetchInterval: POLL_INTERVAL_MS,
     }),
-    // Token inválido = 404 definitivo — retentar 3× só empurra o "Link
-    // inválido" pra 10s depois. Uma tentativa basta.
     retry: false,
   });
 
@@ -64,18 +87,35 @@ export function PublicOrgDashboard({ shareToken }: { shareToken: string }) {
   }
 
   const widgets = (widgetsData.widgets ?? []) as OrgWidgetSummary[];
+  const panels = ((widgetsData as Record<string, unknown>).panels ??
+    []) as OrgPanelSummary[];
+  const boards = ((widgetsData as Record<string, unknown>).boards ??
+    []) as BoardSummary[];
+  const orgName = (widgetsData as Record<string, unknown>).orgName as
+    | string
+    | undefined;
+  const orgLogo = (widgetsData as Record<string, unknown>).orgLogo as
+    | string
+    | null
+    | undefined;
   const values = (valuesData?.values ?? []) as OrgWidgetValueEntry[];
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-6">
-      <div>
-        <h1 className="font-semibold text-2xl">{widgetsData.title}</h1>
-        <p className="text-muted-foreground text-sm">
-          Prévia pública — atualizada a cada 5 min.
-        </p>
+      <div className="flex items-center justify-between">
+        <Image
+          src="/orbita-hub.svg"
+          alt="Orbita"
+          width={100}
+          height={28}
+          className="h-7 w-auto"
+        />
+        <PublicOrgLogo logo={orgLogo} name={orgName ?? "Org"} />
       </div>
       <OrgDashboardView
         widgets={widgets}
+        panels={panels}
+        boards={boards}
         values={values}
         isLoading={isLoadingValues && values.length === 0}
         emptyState={

@@ -12,16 +12,16 @@ datasource db {
 // ============================================
 
 model User {
-  id                       String               @id @default(cuid())
+  id                       String                  @id @default(cuid())
   name                     String
-  email                    String               @unique
-  emailVerified            Boolean              @default(false)
+  email                    String                  @unique
+  emailVerified            Boolean                 @default(false)
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
   whatsapp                 String?
-  createdAt                DateTime             @default(now())
-  updatedAt                DateTime             @updatedAt
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
   // Relações de autenticação
   sessions                 Session[]
   accounts                 Account[]
@@ -29,28 +29,29 @@ model User {
   members                  Member[]
   invitations              Invitation[]
   // Auditoria de ações no ERP
-  createdProducts          Product[]            @relation("CreatedProducts")
-  createdSales             Sale[]               @relation("CreatedSales")
-  openedCashSessions       CashSession[]        @relation("OpenedCashSessions")
-  closedCashSessions       CashSession[]        @relation("ClosedCashSessions")
-  createdCashMovements     CashMovement[]       @relation("CreatedCashMovements")
-  requestedCancellations   CancellationRequest[] @relation("RequestedCancellations")
-  approvedCancellations    CancellationRequest[] @relation("ApprovedCancellations")
-  createdStockMovements    StockMovement[]      @relation("CreatedStockMovements")
-  createdPurchases         Purchase[]           @relation("CreatedPurchases")
-  createdKitchenOrders     KitchenOrder[]       @relation("CreatedKitchenOrders")
-  kitchenEventsActed       KitchenOrderEvent[]  @relation("KitchenEventsByUser")
+  createdProducts          Product[]               @relation("CreatedProducts")
+  createdSales             Sale[]                  @relation("CreatedSales")
+  openedCashSessions       CashSession[]           @relation("OpenedCashSessions")
+  closedCashSessions       CashSession[]           @relation("ClosedCashSessions")
+  createdCashMovements     CashMovement[]          @relation("CreatedCashMovements")
+  requestedCancellations   CancellationRequest[]   @relation("RequestedCancellations")
+  approvedCancellations    CancellationRequest[]   @relation("ApprovedCancellations")
+  createdStockMovements    StockMovement[]         @relation("CreatedStockMovements")
+  createdPurchases         Purchase[]              @relation("CreatedPurchases")
+  createdKitchenOrders     KitchenOrder[]          @relation("CreatedKitchenOrders")
+  kitchenEventsActed       KitchenOrderEvent[]     @relation("KitchenEventsByUser")
   promotionalCatalogs      PromotionalCatalog[]
-  createdPdvPhotos         PdvPhoto[]           @relation("CreatedPdvPhotos")
-  createdBooks             Book[]               @relation("CreatedBooks")
-  createdTradeCatalogs     TradeCatalog[]       @relation("CreatedTradeCatalogs")
-  createdPlanograms        Planogram[]          @relation("CreatedPlanograms")
-  createdPlanogramVersions PlanogramVersion[]   @relation("CreatedPlanogramVersions")
-  authoredAnnotations      MapAnnotation[]      @relation("AuthoredAnnotations")
-  editedMapObjects         MapObject[]          @relation("EditedMapObjects")
-  createdNegotiations      SpaceNegotiation[]   @relation("CreatedSpaceNegotiations")
-  companyClaims            CompanyClaim[]       @relation("UserCompanyClaims")
-  createdPaymentEntries    PaymentEntry[]       @relation("PaymentEntryCreatedBy")
+  createdPdvPhotos         PdvPhoto[]              @relation("CreatedPdvPhotos")
+  createdBooks             Book[]                  @relation("CreatedBooks")
+  createdTradeCatalogs     TradeCatalog[]          @relation("CreatedTradeCatalogs")
+  createdPlanograms        Planogram[]             @relation("CreatedPlanograms")
+  createdPlanogramVersions PlanogramVersion[]      @relation("CreatedPlanogramVersions")
+  authoredAnnotations      MapAnnotation[]         @relation("AuthoredAnnotations")
+  editedMapObjects         MapObject[]             @relation("EditedMapObjects")
+  createdNegotiations      SpaceNegotiation[]      @relation("CreatedSpaceNegotiations")
+  companyClaims            CompanyClaim[]          @relation("UserCompanyClaims")
+  createdPaymentEntries    PaymentEntry[]          @relation("PaymentEntryCreatedBy")
+  googleDriveConnections   GoogleDriveConnection[]
 
   @@index([email])
   @@map("user")
@@ -279,6 +280,9 @@ model Organization {
   paymentContacts           PaymentContact[]
   paymentEntries            PaymentEntry[]
   receiptTemplates          ReceiptTemplate[]
+  fiscalConfig              FiscalConfig?
+  fiscalDocuments           FiscalDocument[]
+  googleDriveConnections    GoogleDriveConnection[]
 
   @@index([slug])
   @@index([subdomain])
@@ -317,6 +321,12 @@ model Member {
   // Hash (bcrypt) do PIN de autorização de cancelamento no PDV. Só usado se o
   // membro puder autorizar (owner/admin ou permissão `autorizar-cancelamento`).
   cancelPinHash       String?
+
+  // Último estado da permissão de geolocalização reportado pelo App Promotor ao
+  // abrir (granted/denied/prompt/unavailable) + quando. Dá ao gestor uma visão
+  // ao vivo de quem está com o GPS ligado, sem rastreamento contínuo.
+  lastGeoState   String?
+  lastGeoStateAt DateTime?
 
   salesGoalEntries        SalesGoalEntry[]
   // Vínculos do promotor: indústrias que representa e lojas que cobre. Só pode
@@ -613,7 +623,22 @@ model Product {
   packHeightMm     Int?
   packDepthMm      Int?
   brandId          String?
+  // Cadastro fiscal (NFCe/NFe). Editado em Produtos → aba Fiscal. Usado
+  // para emissão em Fase B; opcional aqui porque só é obrigatório quando
+  // a venda vira nota fiscal.
   ncm              String?
+  cest             String? // Código Especificador ST (7 dígitos, sem pontuação)
+  cfop             String? // padrão para venda dentro do estado (ex.: "5102")
+  origem           String?         @default("0") // 0=Nacional, 1=Estrangeira DI, 2=Estrangeira mercado interno...
+  cstIcms          String? // ex.: "00", "40", "41", "60", "102" (Simples)
+  cstPis           String? // ex.: "01", "07", "49"
+  cstCofins        String? // ex.: "01", "07", "49"
+  aliqIcms         Decimal?        @db.Decimal(5, 2) // alíquota ICMS (%), opcional
+  aliqPis          Decimal?        @db.Decimal(5, 2)
+  aliqCofins       Decimal?        @db.Decimal(5, 2)
+  // Reforma tributária (NT 2025.002 IBS/CBS). Campos livres agora — quando a
+  // reforma entrar (2026+), Focus/provedor manda o cClassTrib atualizado.
+  cClassTrib       String?
   // Controle
   isActive         Boolean         @default(true)
   isFeatured       Boolean         @default(false)
@@ -899,6 +924,7 @@ model Sale {
   stockMovements StockMovement[]
   transactions   Transaction[]
   cashMovements  CashMovement[]
+  fiscalDocument FiscalDocument?
 
   @@unique([organizationId, saleNumber])
   @@index([organizationId])
@@ -977,14 +1003,14 @@ model CashSession {
   openedAt        DateTime          @default(now())
   closedAt        DateTime?
 
-  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  member       Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
-  openedBy     User              @relation("OpenedCashSessions", fields: [openedById], references: [id])
-  closedBy     User?             @relation("ClosedCashSessions", fields: [closedById], references: [id])
-  account      FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  register     CashRegister      @relation(fields: [registerId], references: [id])
-  movements    CashMovement[]
-  sales        Sale[]
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member               Member                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  openedBy             User                  @relation("OpenedCashSessions", fields: [openedById], references: [id])
+  closedBy             User?                 @relation("ClosedCashSessions", fields: [closedById], references: [id])
+  account              FinancialAccount?     @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  register             CashRegister          @relation(fields: [registerId], references: [id])
+  movements            CashMovement[]
+  sales                Sale[]
   cancellationRequests CancellationRequest[]
 
   // Uma sessão OPEN por operador é garantida por índice parcial no SQL da
@@ -2804,6 +2830,17 @@ model Brand {
   @@map("brands")
 }
 
+// Como a localização foi obtida no momento da captura. UNKNOWN cobre as fotos
+// anteriores a este campo (não sabemos por que ficaram sem coordenada); OK marca
+// captura localizada; DENIED/UNAVAILABLE/TIMEOUT explicam por que faltou a coord.
+enum PhotoLocationStatus {
+  OK
+  DENIED
+  UNAVAILABLE
+  TIMEOUT
+  UNKNOWN
+}
+
 model PdvPhoto {
   id                 String                 @id @default(cuid())
   organizationId     String
@@ -2832,6 +2869,11 @@ model PdvPhoto {
   capturedAddress    String?
   capturedLatitude   Float?
   capturedLongitude  Float?
+  // Raio de incerteza (metros) que o navegador reportou para a coordenada.
+  capturedAccuracy   Float?
+  // Se/por que a foto ficou com ou sem localização — para o gestor enxergar quem
+  // está sem GPS sem depender só da coordenada nula.
+  locationStatus     PhotoLocationStatus    @default(UNKNOWN)
   // Captura salva SEM o selo da indústria (o carimbo não pôde ser carregado no
   // celular do promotor). Marca a foto para a coordenadora aplicar o selo em
   // /books em vez de reprovar e mandar refazer a visita.
@@ -3569,9 +3611,28 @@ model OrgDashboard {
   createdBy    Member?              @relation("OrgDashboardCreator", fields: [createdById], references: [id], onDelete: SetNull)
   widgets      OrgDashboardWidget[]
   panels       OrgDashboardPanel[]
+  boards       OrgDashboardBoard[]
 
   @@index([shareToken])
   @@map("org_dashboards")
+}
+
+// "Quadro" = agrupamento de painéis. Cada quadro vira um item no menu
+// horizontal acima dos painéis. O usuário clica no quadro para ver apenas
+// os painéis que pertencem a ele. Drag-and-drop para reordenar (admin).
+model OrgDashboardBoard {
+  id             String   @id @default(cuid())
+  orgDashboardId String
+  title          String
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orgDashboard OrgDashboard        @relation(fields: [orgDashboardId], references: [id], onDelete: Cascade)
+  panels       OrgDashboardPanel[]
+
+  @@index([orgDashboardId])
+  @@map("org_dashboard_boards")
 }
 
 // "Painel" = agrupamento visual de widgets por categoria (Comercial, Estoque,
@@ -3585,6 +3646,8 @@ model OrgDashboard {
 model OrgDashboardPanel {
   id             String   @id @default(cuid())
   orgDashboardId String
+  // Quadro ao qual o painel pertence. null = painel "solto" (retrocompatível).
+  boardId        String?
   // Categoria fixa (enum lógica, string aqui pra evitar migration a cada
   // nova categoria adicionada no catálogo de templates).
   category       String
@@ -3607,9 +3670,11 @@ model OrgDashboardPanel {
   updatedAt      DateTime @updatedAt
 
   orgDashboard OrgDashboard         @relation(fields: [orgDashboardId], references: [id], onDelete: Cascade)
+  board        OrgDashboardBoard?   @relation(fields: [boardId], references: [id], onDelete: SetNull)
   widgets      OrgDashboardWidget[]
 
   @@index([orgDashboardId])
+  @@index([boardId])
   @@map("org_dashboard_panels")
 }
 
@@ -4111,4 +4176,195 @@ model ReceiptTemplate {
 
   @@index([organizationId])
   @@map("receipt_templates")
+}
+
+// ============================================
+// FISCAL — Configuração de emissão de NFCe/NFe (Epic 2, Fase A)
+// Cadastro por org: ambiente, dados fiscais da empresa, certificado A1
+// (arquivo no bucket + senha CIFRADA), credenciais do provedor (Focus NFe),
+// série/CSC da NFCe. Emissão real fica pra Fase B (esta PR só cadastra e
+// testa a conectividade — SEFAZ PI + provedor).
+// ============================================
+
+enum FiscalEnvironment {
+  HOMOLOGACAO
+  PRODUCAO
+}
+
+enum TaxRegime {
+  SIMPLES_NACIONAL
+  SIMPLES_MEI
+  LUCRO_PRESUMIDO
+  LUCRO_REAL
+}
+
+enum FiscalProvider {
+  FOCUS_NFE
+}
+
+enum FiscalEmissionType {
+  NORMAL
+  CONTINGENCIA_SVCAN
+  CONTINGENCIA_OFFLINE
+}
+
+model FiscalConfig {
+  id             String            @id @default(cuid())
+  organizationId String            @unique
+  environment    FiscalEnvironment @default(HOMOLOGACAO)
+
+  // Dados fiscais da empresa
+  cnpj          String? // formato "12.345.678/0001-90"
+  ie            String? // Inscrição Estadual
+  ieSt          String? // Inscrição Estadual Substituto Tributário (opcional)
+  im            String? // Inscrição Municipal (opcional)
+  taxRegime     TaxRegime? @default(SIMPLES_NACIONAL)
+  cnae          String? // código CNAE principal (7 dígitos)
+  legalName     String? // razão social
+  tradeName     String? // nome fantasia
+  ufFiscal      String     @default("PI") // sigla da UF do estabelecimento
+  cityCode      String? // código IBGE do município (7 dígitos) — Teresina = 2211001
+  cityName      String? // "Teresina"
+  address       String? // logradouro
+  addressNumber String?
+  complement    String?
+  neighborhood  String?
+  zipCode       String?
+  fiscalPhone   String?
+  fiscalEmail   String?
+
+  // Certificado digital A1 (arquivo .pfx). Sobe pra R2 privado; a chave
+  // aqui é a `key` do bucket (não a URL). A SENHA é armazenada CIFRADA
+  // (AES-GCM com FISCAL_ENCRYPTION_KEY, formato "iv:ciphertext:tag" base64).
+  certificateKey         String?   @map("certificate_key")
+  certificatePasswordEnc String?   @map("certificate_password_enc")
+  certificateExpiresAt   DateTime? @map("certificate_expires_at")
+  certificateFilename    String?   @map("certificate_filename")
+
+  // Provedor de emissão (Focus NFe nesta fase). Tokens CIFRADOS.
+  provider          FiscalProvider @default(FOCUS_NFE)
+  focusTokenHomolog String?        @map("focus_token_homolog_enc")
+  focusToken        String?        @map("focus_token_prod_enc")
+  focusEmpresaId    String?        @map("focus_empresa_id") // id da empresa no painel do provedor
+
+  // NFCe
+  nfceSerie      Int?               @default(1) @map("nfce_serie")
+  nfceNextNumber Int?               @map("nfce_next_number") // opcional: o provedor mantém
+  csc            String?            @map("csc_enc") // CIFRADO
+  cscId          String?            @map("csc_id")
+  emissionType   FiscalEmissionType @default(NORMAL) @map("emission_type")
+
+  // Impressão
+  autoPrintOnEmission      Boolean @default(true) @map("auto_print_on_emission")
+  defaultReceiptTemplateId String? @map("default_receipt_template_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("fiscal_configs")
+}
+
+// ============================================
+// FISCAL DOCUMENT — nota emitida vinculada a uma venda (Epic 2, Fase B)
+// Guarda o ciclo de vida da NFCe/NFe: rascunho → enviada ao provedor → SEFAZ
+// autoriza (ou rejeita) → PDF/XML retornam → armazenados no R2. Contingência
+// e cancelamento também moram aqui. 1:1 opcional com Sale — nem toda venda
+// emite nota (venda não-fiscal / recibo).
+// ============================================
+
+enum FiscalDocumentType {
+  NFCE // NFC-e (varejo)
+  NFE // NF-e (B2B — fase futura)
+}
+
+enum FiscalDocumentStatus {
+  PENDING // fila local; ainda não enviada ao provedor
+  PROCESSING // enviada ao provedor; aguardando SEFAZ
+  AUTHORIZED // AUTORIZADA pela SEFAZ (chave + protocolo válidos)
+  REJECTED // rejeitada (SEFAZ ou provedor) — motivo em rejectionReason
+  CANCELLED // cancelada dentro do prazo legal (24h NFCe / 168h NFe)
+  DENIED // denegada pela SEFAZ (irregularidade fiscal) — irreversível
+  CONTINGENCY // emitida em contingência offline; aguarda sync com SEFAZ
+}
+
+model FiscalDocument {
+  id             String               @id @default(cuid())
+  organizationId String
+  saleId         String               @unique
+  type           FiscalDocumentType   @default(NFCE)
+  status         FiscalDocumentStatus @default(PENDING)
+  // Ambiente em que foi emitida — vem do FiscalConfig (adicionado pela PR #18).
+  // Mantido como texto (HOMOLOGACAO/PRODUCAO) pra desacoplar desta migration
+  // do enum FiscalEnvironment que vive em outra PR.
+  environment    String?
+
+  // Numeração (fixada pelo provedor no momento da autorização).
+  serie       Int?
+  numero      Int?
+  // Chave de 44 dígitos da NFCe/NFe.
+  chave       String?
+  // Protocolo de autorização SEFAZ.
+  protocolo   String?
+  // ID de referência no provedor (Focus NFe usa "ref" livre — normalmente
+  // o próprio saleId prefixado).
+  providerRef String?
+
+  // Arquivos entregues pelo provedor (keys do bucket privado).
+  xmlKey String?
+  pdfKey String? // DANFCe A4/80mm/58mm — o cliente escolhe formato ao imprimir
+
+  // Erros / motivos.
+  rejectionCode   String?
+  rejectionReason String?
+  // Cancelamento.
+  cancelledAt     DateTime?
+  cancelReason    String?
+  cancelProtocol  String?
+
+  // Tentativas — pra o job de sync/retry saber quantas vezes tentou.
+  attemptCount  Int       @default(0)
+  lastAttemptAt DateTime?
+  authorizedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([chave])
+  @@map("fiscal_documents")
+}
+
+// ============================================
+// GOOGLE DRIVE — conta conectada por (org, user). Guarda tokens OAuth (o
+// refreshToken é CIFRADO com APP_ENCRYPTION_KEY antes de persistir). Usado
+// no assistente "Importar imagens do Google Drive" em /produtos/importar-imagens.
+// ============================================
+
+model GoogleDriveConnection {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String // quem conectou (permite trocar de conta sem afetar outros admins)
+  googleEmail    String // exibido pro operador saber qual conta está ligada
+  accessToken    String   @db.Text // token efêmero (~1h)
+  refreshToken   String   @db.Text // CIFRADO — usado pra renovar accessToken
+  expiresAt      DateTime // quando o accessToken vence
+  scope          String? // escopos concedidos (ex.: "drive.readonly")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Um user pode ter só UMA conexão Drive ativa por org (evita ambiguidade
+  // "qual conta usar?"). Trocar de conta = reconectar (upsert por essa chave).
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@map("google_drive_connections")
 }

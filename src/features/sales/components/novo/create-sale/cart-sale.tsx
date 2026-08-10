@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   DollarSignIcon,
@@ -14,7 +15,19 @@ import { Input } from "@/components/ui/input";
 import { Minus, Plus, Trash2, User } from "lucide-react";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { Label } from "@/components/ui/label";
+import { unitAllowsDecimal, unitLabel } from "@/features/products/lib/units";
 import type { CartItem, CustomerSales } from ".";
+
+// Etiqueta sutil do atalho (ex.: "Alt+C"). Font-mono pequena, cinza claro —
+// dá visibilidade sem competir com o rótulo principal do botão.
+function ShortcutHint({ keys }: { keys?: string | null }) {
+  if (!keys) return null;
+  return (
+    <kbd className="ml-auto rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground">
+      {keys}
+    </kbd>
+  );
+}
 import { FieldError } from "@/components/ui/field";
 import type { FieldErrors } from "react-hook-form";
 import type { SaleFormData } from "./schema";
@@ -27,6 +40,14 @@ interface CartSaleProps {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   setItemQuantity: (id: string, quantity: number) => void;
+  // Preço editável na linha do carrinho: só afeta esta venda; o cadastro do
+  // produto NÃO é tocado.
+  setItemPrice: (id: string, price: number) => void;
+  // Venda ágil: quando muda, foca+seleciona a quantidade deste item (o `nonce`
+  // permite re-focar o mesmo item ao adicioná-lo em sequência).
+  focusItem?: { id: string; nonce: number } | null;
+  // Enter/Esc na quantidade — devolve o foco pro campo de busca.
+  onQuantityCommit?: () => void;
   // Quando a org exige autorização, o input livre de quantidade é bloqueado:
   // reduzir só pelo botão "−" (que passa pela autorização), evitando o bypass
   // de digitar um número menor.
@@ -41,6 +62,13 @@ interface CartSaleProps {
   discountType: "percent" | "value";
   setDiscountType: (discountType: "percent" | "value") => void;
   error?: FieldErrors<SaleFormData>;
+  // Rótulos dos atalhos ativos (Alt+C, Alt+F, Alt+L) para mostrar sutil nos
+  // botões correspondentes — o operador aprende os atalhos usando a tela.
+  shortcuts?: {
+    selectCustomer?: string;
+    clearCart?: string;
+    finishSale?: string;
+  };
 }
 
 export function CartSale({
@@ -51,6 +79,9 @@ export function CartSale({
   removeItem,
   updateQuantity,
   setItemQuantity,
+  setItemPrice,
+  focusItem,
+  onQuantityCommit,
   lockQuantityInput,
   customer,
   setCustomerDialogOpen,
@@ -62,9 +93,35 @@ export function CartSale({
   discountType,
   setDiscountType,
   error,
+  shortcuts,
 }: CartSaleProps) {
   const discountAmount =
     discountType === "percent" ? (subtotal * discount) / 100 : discount;
+
+  // Foco na quantidade quando um item ganha `focusItem`. Precisa ROUBAR o foco
+  // do useEffect da busca (que faz setTimeout 50ms ao montar/fechar dialogs):
+  // agendamos 100ms — depois do refoco automático da busca — e persistimos o
+  // foco por um segundo tick, garantindo que ninguém rouba de volta.
+  const quantityRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+  // Ref map dos inputs de PREÇO — para Tab na quantidade pular direto pro
+  // preço (o operador ajusta preço e quantidade sem tirar as mãos do teclado).
+  const priceRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+  useEffect(() => {
+    if (!focusItem) return;
+    const focusNow = () => {
+      const input = quantityRefs.current.get(focusItem.id);
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    };
+    const t1 = setTimeout(focusNow, 100);
+    const t2 = setTimeout(focusNow, 200);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [focusItem]);
 
   return (
     <div className="space-y-4">
@@ -88,6 +145,7 @@ export function CartSale({
               <Button variant="ghost" size="sm" onClick={clearCart}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Limpar
+                <ShortcutHint keys={shortcuts?.clearCart} />
               </Button>
             )}
           </div>
@@ -120,7 +178,8 @@ export function CartSale({
                             {item.name}
                           </div>
                           <div className="text-xs text-muted-foreground line-through">
-                            {currencyFormatter(item.price)} x {item.quantity}
+                            {currencyFormatter(item.price)} x {item.quantity}{" "}
+                            {unitLabel(item.unit)}
                           </div>
                           <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-destructive">
                             Cancelado
@@ -142,8 +201,33 @@ export function CartSale({
                           <div className="text-xs text-muted-foreground">
                             {item.sku}
                           </div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {currencyFormatter(item.price)} x {item.quantity}
+                          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                            <span>R$</span>
+                            {/* Preço editável só para esta venda — não altera
+                                o cadastro do produto. */}
+                            <Input
+                              ref={(el) => {
+                                priceRefs.current.set(item.id, el);
+                              }}
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={item.price}
+                              onChange={(e) =>
+                                setItemPrice(item.id, Number(e.target.value))
+                              }
+                              onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") {
+                                  e.preventDefault();
+                                  onQuantityCommit?.();
+                                }
+                              }}
+                              className="h-6 w-20 px-1 py-0 text-right text-sm"
+                            />
+                            <span>
+                              × {item.quantity} {unitLabel(item.unit)}
+                            </span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -157,18 +241,46 @@ export function CartSale({
                               <Minus className="h-3 w-3" />
                             </Button>
                             <Input
+                              ref={(el) => {
+                                quantityRefs.current.set(item.id, el);
+                              }}
                               type="number"
+                              min={0}
+                              // Aceita 0,1 (100g), 0,5 (500ml)... só se a
+                              // unidade cadastrada é fracionável.
+                              step={
+                                unitAllowsDecimal(item.unit) ? "0.001" : "1"
+                              }
                               max={Number(item.currentStock)}
                               value={item.quantity}
-                              readOnly={lockQuantityInput}
-                              onChange={(e) => {
-                                if (lockQuantityInput) return;
-                                setItemQuantity(
-                                  item.id,
-                                  Number(e.target.value),
-                                );
+                              onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") {
+                                  e.preventDefault();
+                                  onQuantityCommit?.();
+                                } else if (e.key === "Tab" && !e.shiftKey) {
+                                  // Tab pula direto pro input de PREÇO da mesma
+                                  // linha — sem passar por + / lixeira.
+                                  const priceInput = priceRefs.current.get(
+                                    item.id,
+                                  );
+                                  if (priceInput) {
+                                    e.preventDefault();
+                                    priceInput.focus();
+                                    priceInput.select();
+                                  }
+                                }
                               }}
-                              className="h-7 w-12 text-center p-0"
+                              onChange={(e) =>
+                                setItemQuantity(item.id, Number(e.target.value))
+                              }
+                              onBlur={(e) => {
+                                // Ao sair, se ficou vazio/zero volta pra 1
+                                // (evita venda com quantidade 0).
+                                if (Number(e.target.value) <= 0)
+                                  setItemQuantity(item.id, 1);
+                              }}
+                              className="h-7 w-14 text-center p-0"
                             />
                             <Button
                               size="icon"
@@ -216,6 +328,7 @@ export function CartSale({
                     Adicionar cliente
                   </span>
                 )}
+                <ShortcutHint keys={shortcuts?.selectCustomer} />
               </Button>
 
               {/* Discount */}
@@ -290,6 +403,7 @@ export function CartSale({
               >
                 <DollarSignIcon className="h-5 w-5 mr-2" />
                 Finalizar Venda
+                <ShortcutHint keys={shortcuts?.finishSale} />
               </Button>
             </>
           )}

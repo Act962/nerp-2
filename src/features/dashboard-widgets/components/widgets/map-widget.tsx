@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import {
   BRAZIL_STATES_PATHS,
@@ -11,26 +12,33 @@ import {
 } from "../../lib/geo/piaui-municipios.paths";
 import { formatWidgetValue, type WidgetValue } from "../../lib/widget-value";
 
-// Estado/cidade chegam de texto livre (ViaCEP autopreenche, mas é editável
-// depois) — normaliza maiúsculas/acentos pra casar com o nome oficial do
-// GeoJSON sem exigir grafia idêntica.
+const FieldMapMini = dynamic(() => import("./field-map-mini"), { ssr: false });
+
 function normalizeKey(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toUpperCase();
+  return value.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toUpperCase();
 }
 
-// Rampa sequencial de uma cor só (mesmo tom do resto dos gráficos,
-// var(--chart-1)) variando opacidade — um choropleth não precisa de mais que
-// isso, e evita inventar uma paleta nova só pra este widget.
 const OPACITY_STEPS = [0.15, 0.35, 0.55, 0.75, 1];
 
 export function MapWidget({
   value,
 }: {
   value: Extract<WidgetValue, { kind: "MAP" }>;
+}) {
+  if (value.scope === "field") {
+    return <FieldMapMini pins={value.pins} />;
+  }
+
+  return <ChoroplethMap value={value} />;
+}
+
+function ChoroplethMap({
+  value,
+}: {
+  value: Extract<
+    WidgetValue,
+    { kind: "MAP"; scope: "state" | "piaui-municipio" }
+  >;
 }) {
   const { paths, viewBox } =
     value.scope === "state"

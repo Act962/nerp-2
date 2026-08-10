@@ -30,6 +30,19 @@ export interface CreateProductInput {
   trackStock?: boolean;
   prepTimeMinutes?: number;
   supplierId?: string | null;
+  // Cadastro fiscal (NFCe/NFe) — todos opcionais. Usados na Fase B
+  // (emissão real). Sem eles a venda cai automaticamente em modo não-fiscal.
+  ncm?: string | null;
+  cest?: string | null;
+  cfop?: string | null;
+  origem?: string | null;
+  cstIcms?: string | null;
+  cstPis?: string | null;
+  cstCofins?: string | null;
+  aliqIcms?: number | null;
+  aliqPis?: number | null;
+  aliqCofins?: number | null;
+  cClassTrib?: string | null;
 }
 
 /**
@@ -109,6 +122,17 @@ export async function createProductForOrg(
       trackStock: input.trackStock ?? true,
       prepTimeMinutes: input.prepTimeMinutes,
       supplierId: input.supplierId ?? null,
+      ncm: input.ncm ?? undefined,
+      cest: input.cest ?? undefined,
+      cfop: input.cfop ?? undefined,
+      origem: input.origem ?? undefined,
+      cstIcms: input.cstIcms ?? undefined,
+      cstPis: input.cstPis ?? undefined,
+      cstCofins: input.cstCofins ?? undefined,
+      aliqIcms: input.aliqIcms ?? undefined,
+      aliqPis: input.aliqPis ?? undefined,
+      aliqCofins: input.aliqCofins ?? undefined,
+      cClassTrib: input.cClassTrib ?? undefined,
     },
   });
 

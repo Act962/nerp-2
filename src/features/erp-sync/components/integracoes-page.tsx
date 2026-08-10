@@ -5,6 +5,8 @@ import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
   Database,
+  FileText,
+  HardDrive,
   Pause,
   Play,
   RefreshCw,
@@ -20,6 +22,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FiscalConfigPanel } from "@/features/fiscal-config/components/fiscal-config-panel";
+import { GoogleDriveCard } from "@/features/google-drive/components/google-drive-card";
 import { cn } from "@/lib/utils";
 import {
   useErpConnection,
@@ -83,118 +88,146 @@ export function IntegracoesPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Integrações</h1>
         <p className="text-sm text-muted-foreground">
-          Conecte o ERP do cliente para alimentar o ranking e os indicadores com
-          venda real — em vez de digitar à mão.
+          Conexões externas do sistema — ERP, emissão fiscal e demais serviços.
         </p>
       </div>
 
-      <Card className="max-w-3xl">
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-lg border bg-muted/40">
-                <Database className="size-5" />
+      <Tabs defaultValue="erp" className="max-w-4xl">
+        <TabsList>
+          <TabsTrigger value="erp" className="gap-1">
+            <Database className="size-4" />
+            ERP
+          </TabsTrigger>
+          <TabsTrigger value="fiscal" className="gap-1">
+            <FileText className="size-4" />
+            Fiscal (NFCe)
+          </TabsTrigger>
+          <TabsTrigger value="drive" className="gap-1">
+            <HardDrive className="size-4" />
+            Google Drive
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="erp" className="mt-4">
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-lg border bg-muted/40">
+                    <Database className="size-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      Winthor (TOTVS) · Oracle
+                      {configured && <StatusBadge status={connection.status} />}
+                    </CardTitle>
+                    <CardDescription>
+                      Leitura direta do banco do ERP (somente SELECT). As
+                      credenciais são cifradas antes de salvar.
+                    </CardDescription>
+                  </div>
+                </div>
               </div>
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  Winthor (TOTVS) · Oracle
-                  {configured && <StatusBadge status={connection.status} />}
-                </CardTitle>
-                <CardDescription>
-                  Leitura direta do banco do ERP (somente SELECT). As
-                  credenciais são cifradas antes de salvar.
-                </CardDescription>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
+            </CardHeader>
 
-        <CardContent className="flex flex-col gap-5">
-          {/* Linha de status quando já configurado */}
-          {configured && (
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
-              <span className="text-muted-foreground">
-                {lastSync
-                  ? `Sincronizado ${lastSync}`
-                  : "Ainda não sincronizado"}
-              </span>
-              {status?.configured && (
-                <span className="text-muted-foreground">
-                  · {status.activeSellers} vendedores · {status.factRows}{" "}
-                  registros
-                </span>
-              )}
-              {status?.configured && status.lastSyncError && (
-                <span className="flex items-center gap-1 text-destructive">
-                  <AlertTriangle className="size-3.5" />
-                  {status.lastSyncError}
-                </span>
-              )}
-            </div>
-          )}
-
-          <WinthorConnectionForm />
-
-          {configured && (
-            <>
-              <Separator />
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  disabled={
-                    runSync.isPending ||
-                    isPaused ||
-                    (status?.configured && status.isSyncing)
-                  }
-                  onClick={() => runSync.mutate({})}
-                >
-                  <RefreshCw
-                    className={cn(
-                      "size-4",
-                      status?.configured && status.isSyncing && "animate-spin",
-                    )}
-                  />
-                  Sincronizar agora
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="gap-2"
-                  disabled={pause.isPending}
-                  onClick={() => pause.mutate({ paused: !isPaused })}
-                >
-                  {isPaused ? (
-                    <Play className="size-4" />
-                  ) : (
-                    <Pause className="size-4" />
+            <CardContent className="flex flex-col gap-5">
+              {/* Linha de status quando já configurado */}
+              {configured && (
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md bg-muted/40 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">
+                    {lastSync
+                      ? `Sincronizado ${lastSync}`
+                      : "Ainda não sincronizado"}
+                  </span>
+                  {status?.configured && (
+                    <span className="text-muted-foreground">
+                      · {status.activeSellers} vendedores · {status.factRows}{" "}
+                      registros
+                    </span>
                   )}
-                  {isPaused ? "Retomar" : "Pausar"}
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="gap-2 text-destructive hover:text-destructive"
-                  disabled={remove.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Remover a conexão? As credenciais serão apagadas. O histórico já sincronizado é mantido.",
-                      )
-                    ) {
-                      remove.mutate({});
-                    }
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                  Remover
-                </Button>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+                  {status?.configured && status.lastSyncError && (
+                    <span className="flex items-center gap-1 text-destructive">
+                      <AlertTriangle className="size-3.5" />
+                      {status.lastSyncError}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <WinthorConnectionForm />
+
+              {configured && (
+                <>
+                  <Separator />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      disabled={
+                        runSync.isPending ||
+                        isPaused ||
+                        (status?.configured && status.isSyncing)
+                      }
+                      onClick={() => runSync.mutate({})}
+                    >
+                      <RefreshCw
+                        className={cn(
+                          "size-4",
+                          status?.configured &&
+                            status.isSyncing &&
+                            "animate-spin",
+                        )}
+                      />
+                      Sincronizar agora
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="gap-2"
+                      disabled={pause.isPending}
+                      onClick={() => pause.mutate({ paused: !isPaused })}
+                    >
+                      {isPaused ? (
+                        <Play className="size-4" />
+                      ) : (
+                        <Pause className="size-4" />
+                      )}
+                      {isPaused ? "Retomar" : "Pausar"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="gap-2 text-destructive hover:text-destructive"
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            "Remover a conexão? As credenciais serão apagadas. O histórico já sincronizado é mantido.",
+                          )
+                        ) {
+                          remove.mutate({});
+                        }
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                      Remover
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="fiscal" className="mt-4">
+          <FiscalConfigPanel />
+        </TabsContent>
+
+        <TabsContent value="drive" className="mt-4">
+          <GoogleDriveCard />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

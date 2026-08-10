@@ -29,6 +29,9 @@ export const listSales = base
           id: z.string(),
           saleNumber: z.number(),
           customer: z.string(),
+          // customerId separado (nullable) — usado pra abrir o histórico do
+          // cliente direto do menu de 3 pontos em /vendas.
+          customerId: z.string().nullable(),
           date: z.string(),
           status: z.string(),
           paymentMethod: z.string().nullable(),
@@ -61,6 +64,7 @@ export const listSales = base
         id: sale.id,
         saleNumber: sale.saleNumber,
         customer: sale.customer?.name || "",
+        customerId: sale.customerId,
         date: sale.createdAt.toISOString(),
         status: sale.status,
         paymentMethod: sale.paymentMethod,

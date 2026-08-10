@@ -23,6 +23,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useCategory } from "@/context/category/hooks/use-categories";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
+import { FiscalFields } from "@/features/products/components/fiscal-fields";
 import { ProductUnit } from "@/generated/prisma/enums";
 import { orpc } from "@/lib/orpc";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -76,6 +77,27 @@ const productSchema = z.object({
     .optional()
     .or(z.literal(NaN).transform(() => undefined)),
   supplierId: z.string().optional(),
+  // Cadastro fiscal (Fase B) — opcionais.
+  ncm: z.string().optional(),
+  cest: z.string().optional(),
+  cfop: z.string().optional(),
+  origem: z.string().optional(),
+  cstIcms: z.string().optional(),
+  cstPis: z.string().optional(),
+  cstCofins: z.string().optional(),
+  aliqIcms: z.coerce
+    .number()
+    .optional()
+    .or(z.literal(NaN).transform(() => undefined)),
+  aliqPis: z.coerce
+    .number()
+    .optional()
+    .or(z.literal(NaN).transform(() => undefined)),
+  aliqCofins: z.coerce
+    .number()
+    .optional()
+    .or(z.literal(NaN).transform(() => undefined)),
+  cClassTrib: z.string().optional(),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -135,6 +157,17 @@ export function EditProductForm() {
       showOnCatalog: product.isFeatured, // Mapping isFeatured to showOnCatalog
       prepTimeMinutes: product.prepTimeMinutes ?? undefined,
       supplierId: product.supplierId ?? "",
+      ncm: product.ncm ?? "",
+      cest: product.cest ?? "",
+      cfop: product.cfop ?? "",
+      origem: product.origem ?? "0",
+      cstIcms: product.cstIcms ?? "",
+      cstPis: product.cstPis ?? "",
+      cstCofins: product.cstCofins ?? "",
+      aliqIcms: product.aliqIcms ?? undefined,
+      aliqPis: product.aliqPis ?? undefined,
+      aliqCofins: product.aliqCofins ?? undefined,
+      cClassTrib: product.cClassTrib ?? "",
     },
   });
 
@@ -620,6 +653,9 @@ export function EditProductForm() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* CADASTRO FISCAL — opcional; obrigatório apenas quando for emitir NFCe. */}
+            <FiscalFields control={control} />
 
             <div className="flex flex-col gap-2">
               <Button type="submit" className="w-full" disabled={isUpdating}>

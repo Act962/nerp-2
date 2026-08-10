@@ -42,6 +42,20 @@ export const ProductSchema = z.object({
   prepTimeMinutes: z.number().int().positive().optional(),
 
   supplierId: z.string().optional(),
+
+  // Cadastro fiscal (NFCe/NFe) — Fase B. Todos opcionais aqui; a validação
+  // "obrigatório pra emitir" só rola no fluxo de emissão (Fase B.2).
+  ncm: z.string().optional(),
+  cest: z.string().optional(),
+  cfop: z.string().optional(),
+  origem: z.string().optional(),
+  cstIcms: z.string().optional(),
+  cstPis: z.string().optional(),
+  cstCofins: z.string().optional(),
+  aliqIcms: z.number().optional(),
+  aliqPis: z.number().optional(),
+  aliqCofins: z.number().optional(),
+  cClassTrib: z.string().optional(),
 });
 
 export type ProductType = z.infer<typeof ProductSchema>;

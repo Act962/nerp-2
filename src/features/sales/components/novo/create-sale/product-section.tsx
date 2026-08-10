@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Grid3X3Icon, ListIcon, Search } from "lucide-react";
 import type { ProductSale } from ".";
 import { currencyFormatter } from "@/utils/currency-formatter";
+import { unitLabel } from "@/features/products/lib/units";
 import {
   Pagination,
   PaginationContent,
@@ -69,6 +70,8 @@ interface ProductSessionProps {
   onNextPage?: () => void;
   onPreviousPage?: () => void;
   isLoading?: boolean;
+  /** Rótulo do atalho da busca (ex.: "Alt+B") — mostrado sutil dentro do input. */
+  searchShortcut?: string;
 }
 
 export function ProductSection({
@@ -91,6 +94,7 @@ export function ProductSection({
   onNextPage,
   onPreviousPage,
   isLoading,
+  searchShortcut,
 }: ProductSessionProps) {
   const previousIsDisabled = !hasPreviousPage;
   const nextIsDisabled = !hasNextPage;
@@ -107,7 +111,7 @@ export function ProductSection({
                 ref={searchInputRef}
                 autoFocus
                 placeholder="Buscar por nome, SKU ou código de barras..."
-                className="h-12 rounded-lg pl-12 text-base"
+                className="h-12 rounded-lg pl-12 pr-16 text-base"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -123,6 +127,12 @@ export function ProductSection({
                   }
                 }}
               />
+              {/* Atalho pra focar essa busca — sutil, dentro do próprio input. */}
+              {searchShortcut && (
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground">
+                  {searchShortcut}
+                </kbd>
+              )}
             </div>
             <Tabs
               value={viewMode}
@@ -166,7 +176,7 @@ export function ProductSection({
                         </span>
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                           {Number(product.currentStock) > 0
-                            ? `${product.currentStock} un`
+                            ? `${product.currentStock} ${unitLabel(product.unit)}`
                             : "0"}
                         </span>
                       </div>
@@ -236,7 +246,7 @@ export function ProductSection({
                         }
                       >
                         {product.currentStock > 0
-                          ? `${product.currentStock} un`
+                          ? `${product.currentStock} ${unitLabel(product.unit)}`
                           : "Sem estoque"}
                       </Badge>
                       <div className="font-semibold text-primary">

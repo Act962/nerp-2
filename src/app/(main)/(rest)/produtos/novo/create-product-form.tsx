@@ -29,6 +29,7 @@ import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 import { RichTextEditor } from "../../../../../components/rich-text/editor";
 import { useCreateProduct } from "@/features/products/hooks/use-products";
+import { FiscalFields } from "@/features/products/components/fiscal-fields";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 
 const unitLabels: Record<ProductUnit, string> = {
@@ -66,6 +67,8 @@ export function CreateProductForm() {
       isFeatured: false,
       trackStock: true,
       supplierId: "",
+      // Fiscal — default só pra origem (0 = nacional, cobre a maioria).
+      origem: "0",
     },
   });
   const router = useRouter();
@@ -101,6 +104,17 @@ export function CreateProductForm() {
         barcode: data.barcode,
         prepTimeMinutes: data.prepTimeMinutes,
         supplierId: data.supplierId || undefined,
+        ncm: data.ncm || undefined,
+        cest: data.cest || undefined,
+        cfop: data.cfop || undefined,
+        origem: data.origem || undefined,
+        cstIcms: data.cstIcms || undefined,
+        cstPis: data.cstPis || undefined,
+        cstCofins: data.cstCofins || undefined,
+        aliqIcms: data.aliqIcms,
+        aliqPis: data.aliqPis,
+        aliqCofins: data.aliqCofins,
+        cClassTrib: data.cClassTrib || undefined,
       },
       {
         onSuccess: () => {
@@ -447,6 +461,9 @@ export function CreateProductForm() {
               </div>
             </CardContent>
           </Card>
+
+          {/* CADASTRO FISCAL — na coluna PRINCIPAL (mais larga), fica melhor. */}
+          <FiscalFields control={form.control} />
         </div>
 
         {/* ----------- COLUNA LATERAL ----------- */}

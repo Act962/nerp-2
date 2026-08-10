@@ -15,6 +15,9 @@ export const saleSchema = z
           quantity: z.number().positive(),
           currentStock: z.number(),
           sku: z.string().nullable(),
+          // Unidade cadastrada (UN, KG, L, M...). Mostrada no carrinho para o
+          // operador saber se digita 0,1 (100g) ou 1 (1 un).
+          unit: z.string(),
           // Item cancelado por autorização: fica RISCADO no carrinho (rastro de
           // auditoria) e é excluído dos totais e do lançamento da venda.
           cancelled: z.boolean().optional(),

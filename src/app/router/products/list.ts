@@ -41,7 +41,9 @@ export const listProducts = base
           currentStock: z.number(),
           minStock: z.number(),
           maxStock: z.number().optional(),
-
+          // Unidade cadastrada (UN, KG, G, L, ML, M, M2, M3, CX, PC, PAR, DZ).
+          // Enviada como string para o cliente traduzir em rótulo pt-BR.
+          unit: z.string(),
           image: z.string(),
           isActive: z.boolean(),
         }),
@@ -118,6 +120,7 @@ export const listProducts = base
             currentStock: true,
             minStock: true,
             maxStock: true,
+            unit: true,
             images: true,
             isActive: true,
             thumbnail: true,
@@ -149,6 +152,7 @@ export const listProducts = base
         currentStock: product.currentStock.toNumber(),
         minStock: product.minStock.toNumber(),
         maxStock: product.maxStock?.toNumber(),
+        unit: product.unit,
         image: product.thumbnail ?? "",
         isActive: product.isActive,
       }));

@@ -37,6 +37,9 @@ const ALLOWED_CONTENT_TYPES = new Set([
   // Vídeo da mídia promocional do PDV.
   "video/mp4",
   "video/webm",
+  // Certificado digital A1 (.pfx) da configuração fiscal.
+  "application/x-pkcs12",
+  "application/pkcs12",
 ]);
 
 const fileUploadSchema = z

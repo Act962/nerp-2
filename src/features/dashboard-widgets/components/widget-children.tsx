@@ -35,7 +35,13 @@ function compactValue(value: WidgetValue | null | undefined): string {
       return formatWidgetValue(total, value.items[0]?.unit);
     }
     case "MAP": {
-      const total = value.regions.reduce((sum, item) => sum + item.value, 0);
+      if (value.scope === "field") {
+        return `${value.pins.length} ponto(s)`;
+      }
+      const total = value.regions.reduce(
+        (sum: number, item: { value: number }) => sum + item.value,
+        0,
+      );
       return formatWidgetValue(total, "currency");
     }
     case "TABLE":
