@@ -1,7 +1,6 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   DollarSignIcon,
   PercentIcon,
@@ -15,18 +14,23 @@ import { Input } from "@/components/ui/input";
 import { Minus, Plus, Trash2, User } from "lucide-react";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { Label } from "@/components/ui/label";
-import { CartItem, CustomerSales } from ".";
-import { useState } from "react";
+import type { CartItem, CustomerSales } from ".";
 import { FieldError } from "@/components/ui/field";
-import { FieldErrors } from "react-hook-form";
-import { SaleFormData } from "./schema";
+import type { FieldErrors } from "react-hook-form";
+import type { SaleFormData } from "./schema";
 
 interface CartSaleProps {
+  orgLogo?: string | null;
+  orgName?: string | null;
   cartItems: CartItem[];
   clearCart: () => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   setItemQuantity: (id: string, quantity: number) => void;
+  // Quando a org exige autorização, o input livre de quantidade é bloqueado:
+  // reduzir só pelo botão "−" (que passa pela autorização), evitando o bypass
+  // de digitar um número menor.
+  lockQuantityInput?: boolean;
   customer?: CustomerSales | null;
   setCustomerDialogOpen: (open: boolean) => void;
   discount: number;
@@ -40,11 +44,14 @@ interface CartSaleProps {
 }
 
 export function CartSale({
+  orgLogo,
+  orgName,
   cartItems,
   clearCart,
   removeItem,
   updateQuantity,
   setItemQuantity,
+  lockQuantityInput,
   customer,
   setCustomerDialogOpen,
   discount,
@@ -61,25 +68,29 @@ export function CartSale({
 
   return (
     <div className="space-y-4">
-      <Card>
+      {/* Painel do carrinho no estilo cupom fiscal: fundo branco (destaca do
+          cinza da tela) com a borda inferior picotada. */}
+      <Card className="receipt-edge rounded-b-none border-0 bg-card pb-6 shadow-sm">
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <ShoppingCartIcon className="h-5 w-5" />
-              <span>Carrinho</span>
-              {cartItems.length > 0 && (
-                <Badge variant="secondary">
-                  {cartItems.reduce((sum, i) => sum + i.quantity, 0)} itens
-                </Badge>
-              )}
-            </div>
+          {/* Cabeçalho do "cupom": logo da loja à esquerda, Limpar à direita. */}
+          <div className="flex items-center justify-between gap-2">
+            {orgLogo ? (
+              // biome-ignore lint/performance/noImgElement: logo da org via URL do S3
+              <img
+                src={orgLogo}
+                alt={orgName ?? "Logo"}
+                className="h-11 max-w-[60%] object-contain object-left"
+              />
+            ) : (
+              <span className="text-lg font-bold">{orgName ?? "Carrinho"}</span>
+            )}
             {cartItems.length > 0 && (
               <Button variant="ghost" size="sm" onClick={clearCart}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Limpar
               </Button>
             )}
-          </CardTitle>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           {cartItems.length === 0 ? (
@@ -96,67 +107,96 @@ export function CartSale({
             <>
               <ScrollArea className="h-[280px] pr-4">
                 <div className="space-y-3">
-                  {cartItems.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-start gap-3 rounded-lg border p-3"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm truncate">
-                          {item.name}
+                  {cartItems.map((item) =>
+                    item.cancelled ? (
+                      // Item cancelado por autorização: fica RISCADO como rastro,
+                      // sem controles e fora do total.
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-3 rounded-lg border border-dashed p-3 opacity-70"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate line-through">
+                            {item.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground line-through">
+                            {currencyFormatter(item.price)} x {item.quantity}
+                          </div>
+                          <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-destructive">
+                            Cancelado
+                          </div>
                         </div>
-                        <div className="text-xs text-muted-foreground">
-                          {item.sku}
-                        </div>
-                        <div className="text-sm text-muted-foreground mt-1">
-                          {currencyFormatter(item.price)} x {item.quantity}
-                        </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-2">
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7 bg-transparent"
-                            onClick={() => updateQuantity(item.id, -1)}
-                          >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <Input
-                            type="number"
-                            max={Number(item.currentStock)}
-                            value={item.quantity}
-                            onChange={(e) => {
-                              setItemQuantity(item.id, Number(e.target.value));
-                            }}
-                            className="h-7 w-12 text-center p-0"
-                          />
-                          <Button
-                            size="icon"
-                            variant="outline"
-                            className="h-7 w-7 bg-transparent"
-                            onClick={() => updateQuantity(item.id, 1)}
-                            disabled={
-                              item.quantity >= Number(item.currentStock)
-                            }
-                          >
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => removeItem(item.id)}
-                          >
-                            <XIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <div className="font-semibold text-sm">
+                        <div className="font-semibold text-sm text-muted-foreground line-through">
                           {currencyFormatter(item.price * item.quantity)}
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    ) : (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-3 rounded-lg border p-3"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {item.name}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {item.sku}
+                          </div>
+                          <div className="text-sm text-muted-foreground mt-1">
+                            {currencyFormatter(item.price)} x {item.quantity}
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 bg-transparent"
+                              onClick={() => updateQuantity(item.id, -1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <Input
+                              type="number"
+                              max={Number(item.currentStock)}
+                              value={item.quantity}
+                              readOnly={lockQuantityInput}
+                              onChange={(e) => {
+                                if (lockQuantityInput) return;
+                                setItemQuantity(
+                                  item.id,
+                                  Number(e.target.value),
+                                );
+                              }}
+                              className="h-7 w-12 text-center p-0"
+                            />
+                            <Button
+                              size="icon"
+                              variant="outline"
+                              className="h-7 w-7 bg-transparent"
+                              onClick={() => updateQuantity(item.id, 1)}
+                              disabled={
+                                item.quantity >= Number(item.currentStock)
+                              }
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-7 w-7 text-destructive"
+                              onClick={() => removeItem(item.id)}
+                            >
+                              <XIcon className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="font-semibold text-sm">
+                            {currencyFormatter(item.price * item.quantity)}
+                          </div>
+                        </div>
+                      </div>
+                    ),
+                  )}
                 </div>
               </ScrollArea>
 
@@ -246,7 +286,7 @@ export function CartSale({
                 size="lg"
                 className="w-full"
                 onClick={() => setPaymentDialogOpen(true)}
-                disabled={cartItems.length === 0}
+                disabled={cartItems.every((item) => item.cancelled)}
               >
                 <DollarSignIcon className="h-5 w-5 mr-2" />
                 Finalizar Venda

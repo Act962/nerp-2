@@ -17,6 +17,8 @@ export const listProducts = base
       category: z.array(z.string()).optional(),
       name: z.string().optional(),
       sku: z.string().optional(),
+      // Busca única (PDV): casa nome OU sku OU código de barras.
+      search: z.string().optional(),
       minValue: z.string().optional(),
       maxValue: z.string().optional(),
       dateInit: z.date().optional(),
@@ -72,6 +74,13 @@ export const listProducts = base
           sku: {
             contains: input.sku,
           },
+        }),
+        ...(input.search && {
+          OR: [
+            { name: { contains: input.search, mode: "insensitive" as const } },
+            { sku: { contains: input.search, mode: "insensitive" as const } },
+            { barcode: { contains: input.search } },
+          ],
         }),
         ...(input.minValue && {
           salePrice: {

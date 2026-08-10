@@ -6,6 +6,7 @@ import { updateOrgLogo } from "./update-logo";
 import { updateOrgPublicProfile } from "./update-public-profile";
 import { updateOrgSigla } from "./update-sigla";
 import { updateSubdomain } from "./update-subdomain";
+import { updateRequireCancelAuth } from "./update-require-cancel-auth";
 
 export const orgRoutes = {
   get: getOrganization,
@@ -16,4 +17,5 @@ export const orgRoutes = {
   updateDisabledModules: updateOrgDisabledModules,
   updatePublicProfile: updateOrgPublicProfile,
   updateLogo: updateOrgLogo,
+  updateRequireCancelAuth,
 };

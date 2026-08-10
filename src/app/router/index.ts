@@ -7,6 +7,10 @@ import { checkoutRouter } from "./checkout";
 import { dashboardRoutes } from "./dashboard";
 import { customerRoutes } from "./customer";
 import { SalesRoutes } from "./sales";
+import { caixaRoutes } from "./caixa";
+import { cashRegisterRoutes } from "./cash-register";
+import { pdvSettingsRoutes } from "./pdv-settings";
+import { cancelRequestRoutes } from "./cancel-request";
 import { kitchenRoutes } from "./pedidos";
 import { collaboratorRoutes } from "./collaborators";
 import { calendarRoutes } from "./calendar";
@@ -63,6 +67,10 @@ export const router = {
   dashboard: dashboardRoutes,
   customer: customerRoutes,
   sales: SalesRoutes,
+  caixa: caixaRoutes,
+  cashRegister: cashRegisterRoutes,
+  pdvSettings: pdvSettingsRoutes,
+  cancelRequest: cancelRequestRoutes,
   kitchen: kitchenRoutes,
   collaborators: collaboratorRoutes,
   calendar: calendarRoutes,

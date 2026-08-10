@@ -131,9 +131,19 @@ const navigation: NavItem[] = [
   },
   {
     name: "Frente de caixa",
-    href: "/vendas",
+    href: "/vendas/novo",
     icon: ShoppingCart,
     permission: "vendas",
+    children: [
+      { name: "PDV", href: "/vendas/novo", icon: ScanBarcode },
+      { name: "Vendas", href: "/vendas", icon: ShoppingCart },
+      {
+        name: "Caixa",
+        href: "/vendas/caixa",
+        icon: CreditCard,
+        permission: "caixa",
+      },
+    ],
   },
   {
     name: "Pedidos",
@@ -436,7 +446,7 @@ export function AppSidebar() {
       : visibleNavigation;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible={pathname === "/vendas/novo" ? "offcanvas" : "icon"}>
       <SidebarHeader>
         <OrgMenu />
       </SidebarHeader>

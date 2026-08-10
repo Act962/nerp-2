@@ -242,3 +242,19 @@
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: oklch(0.708 0 0);
 }
+
+/* Borda inferior picotada — dá ao painel do carrinho a cara de um cupom fiscal.
+   Duas camadas: topo 100% sólido + faixa de zigue-zague só nos últimos --b px.
+   (Uma camada só mascararia o card inteiro, deixando só os dentes.) */
+.receipt-edge {
+  --receipt-s: 16px; /* largura de cada dente */
+  --receipt-b: 12px; /* altura do zigue-zague */
+  -webkit-mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - var(--receipt-b)) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg)
+      bottom / var(--receipt-s) var(--receipt-b) repeat-x;
+  mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - var(--receipt-b)) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg)
+      bottom / var(--receipt-s) var(--receipt-b) repeat-x;
+}
