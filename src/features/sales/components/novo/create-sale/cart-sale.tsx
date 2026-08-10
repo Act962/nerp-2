@@ -84,6 +84,9 @@ export function CartSale({
   // agendamos 100ms — depois do refoco automático da busca — e persistimos o
   // foco por um segundo tick, garantindo que ninguém rouba de volta.
   const quantityRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
+  // Ref map dos inputs de PREÇO — para Tab na quantidade pular direto pro
+  // preço (o operador ajusta preço e quantidade sem tirar as mãos do teclado).
+  const priceRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
   useEffect(() => {
     if (!focusItem) return;
     const focusNow = () => {
@@ -183,6 +186,9 @@ export function CartSale({
                             {/* Preço editável só para esta venda — não altera
                                 o cadastro do produto. */}
                             <Input
+                              ref={(el) => {
+                                priceRefs.current.set(item.id, el);
+                              }}
                               type="number"
                               min={0}
                               step="0.01"
@@ -191,6 +197,12 @@ export function CartSale({
                                 setItemPrice(item.id, Number(e.target.value))
                               }
                               onFocus={(e) => e.currentTarget.select()}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === "Escape") {
+                                  e.preventDefault();
+                                  onQuantityCommit?.();
+                                }
+                              }}
                               className="h-6 w-20 px-1 py-0 text-right text-sm"
                             />
                             <span>
@@ -226,6 +238,17 @@ export function CartSale({
                                 if (e.key === "Enter" || e.key === "Escape") {
                                   e.preventDefault();
                                   onQuantityCommit?.();
+                                } else if (e.key === "Tab" && !e.shiftKey) {
+                                  // Tab pula direto pro input de PREÇO da mesma
+                                  // linha — sem passar por + / lixeira.
+                                  const priceInput = priceRefs.current.get(
+                                    item.id,
+                                  );
+                                  if (priceInput) {
+                                    e.preventDefault();
+                                    priceInput.focus();
+                                    priceInput.select();
+                                  }
                                 }
                               }}
                               onChange={(e) =>
