@@ -12,11 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Plus, Check } from "lucide-react";
-import { PersonType } from "@/schemas/customer";
+import { History, Search, User, Plus, Check } from "lucide-react";
+import type { PersonType } from "@/schemas/customer";
 import { useCustomer } from "@/features/custom/hooks/use-customer";
-import { CustomerSales } from "./create-sale";
+import type { CustomerSales } from "./create-sale";
 import { AddCustomerModal } from "@/features/custom/components/add-customer";
+import { CustomerHistoryDialog } from "@/features/sales/components/customer-history-dialog";
 
 interface SelectCustomerDialogProps {
   open: boolean;
@@ -32,6 +33,8 @@ export function SelectCustomerDialog({
   onSelect,
 }: SelectCustomerDialogProps) {
   const [searchTerm, setSearchTerm] = useState("");
+  // Popup do histórico de vendas — abre a partir do clique em "Ver histórico".
+  const [historyFor, setHistoryFor] = useState<CustomerSales | null>(null);
 
   const { customers, isLoading } = useCustomer({});
   const filteredCustomers = customers?.filter(
@@ -73,36 +76,52 @@ export function SelectCustomerDialog({
           <ScrollArea className="h-[300px] pr-4">
             <div className="space-y-2">
               {filteredCustomers.map((customer) => (
-                <button
+                <div
                   key={customer.id}
-                  onClick={() => handleSelect(customer)}
-                  className="w-full flex items-start gap-3 rounded-lg border p-3 text-left transition-all hover:border-primary hover:bg-accent"
+                  className="flex items-start gap-2 rounded-lg border p-3 transition-all hover:border-primary hover:bg-accent"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                    <User className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">
-                        {customer.name}
-                      </span>
-                      <Badge variant="secondary" className="text-xs">
-                        {customer.personType === ("PF" as PersonType)
-                          ? "Pessoa Física"
-                          : "Pessoa Jurídica"}
-                      </Badge>
-                      {selectedCustomer?.id === customer.id && (
-                        <Check className="h-4 w-4 text-primary ml-auto shrink-0" />
-                      )}
+                  <button
+                    type="button"
+                    onClick={() => handleSelect(customer)}
+                    className="flex flex-1 items-start gap-3 text-left"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                      <User className="h-5 w-5 text-muted-foreground" />
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {customer.document}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">
-                      {customer.email}
-                    </p>
-                  </div>
-                </button>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium truncate">
+                          {customer.name}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {customer.personType === ("PF" as PersonType)
+                            ? "Pessoa Física"
+                            : "Pessoa Jurídica"}
+                        </Badge>
+                        {selectedCustomer?.id === customer.id && (
+                          <Check className="h-4 w-4 text-primary ml-auto shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground truncate">
+                        {customer.document}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {customer.email}
+                      </p>
+                    </div>
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="shrink-0 text-xs"
+                    onClick={() => setHistoryFor(customer)}
+                    title="Ver histórico de vendas deste cliente"
+                  >
+                    <History className="mr-1 h-3.5 w-3.5" />
+                    Histórico
+                  </Button>
+                </div>
               ))}
               {filteredCustomers.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-8 text-center">
@@ -126,10 +145,19 @@ export function SelectCustomerDialog({
             >
               Cancelar
             </Button>
-            {selectedCustomer && (
-              <Button variant="secondary" onClick={handleRemove}>
-                Remover Cliente
-              </Button>
+            {selectedCustomer?.id && (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setHistoryFor(selectedCustomer)}
+                >
+                  <History className="mr-2 h-4 w-4" />
+                  Histórico
+                </Button>
+                <Button variant="secondary" onClick={handleRemove}>
+                  Remover Cliente
+                </Button>
+              </>
             )}
             <AddCustomerModal>
               <Button className="flex-1">
@@ -140,6 +168,13 @@ export function SelectCustomerDialog({
           </div>
         </div>
       </DialogContent>
+      <CustomerHistoryDialog
+        open={!!historyFor}
+        onOpenChange={(next) => {
+          if (!next) setHistoryFor(null);
+        }}
+        customer={historyFor}
+      />
     </Dialog>
   );
 }

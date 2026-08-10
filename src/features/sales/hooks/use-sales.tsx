@@ -1,6 +1,6 @@
 import { orpc } from "@/lib/orpc";
 import {
-  QueryClient,
+  type QueryClient,
   useMutation,
   usePrefetchQuery,
   useQuery,
@@ -75,6 +75,43 @@ export const useQuerySale = ({ saleId }: useQuerySaleProps) => {
     isLoadingSale: isLoading,
   };
 };
+
+interface UseSalesByCustomerProps {
+  customerId: string | null | undefined;
+  from?: string;
+  to?: string;
+  enabled?: boolean;
+}
+
+// Histórico de vendas de um cliente + resumo (KPIs). Só dispara com um
+// customerId válido — enabled=false enquanto o cliente não é escolhido.
+export function useSalesByCustomer({
+  customerId,
+  from,
+  to,
+  enabled = true,
+}: UseSalesByCustomerProps) {
+  const query = useQuery(
+    orpc.sales.listByCustomer.queryOptions({
+      input: {
+        customerId: customerId ?? "",
+        from: from || undefined,
+        to: to || undefined,
+      },
+      enabled: enabled && !!customerId,
+    }),
+  );
+  return {
+    summary: query.data?.summary ?? {
+      salesCount: 0,
+      totalSpent: 0,
+      averageTicket: 0,
+      lastSaleAt: null,
+    },
+    sales: query.data?.sales ?? [],
+    isLoading: query.isPending && !!customerId,
+  };
+}
 
 interface PrefetchSaleProps {
   saleId: string;
