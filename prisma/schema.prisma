@@ -12,16 +12,16 @@ datasource db {
 // ============================================
 
 model User {
-  id                       String                @id @default(cuid())
+  id                       String                  @id @default(cuid())
   name                     String
-  email                    String                @unique
-  emailVerified            Boolean               @default(false)
+  email                    String                  @unique
+  emailVerified            Boolean                 @default(false)
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
   whatsapp                 String?
-  createdAt                DateTime              @default(now())
-  updatedAt                DateTime              @updatedAt
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
   // Relações de autenticação
   sessions                 Session[]
   accounts                 Account[]
@@ -29,28 +29,29 @@ model User {
   members                  Member[]
   invitations              Invitation[]
   // Auditoria de ações no ERP
-  createdProducts          Product[]             @relation("CreatedProducts")
-  createdSales             Sale[]                @relation("CreatedSales")
-  openedCashSessions       CashSession[]         @relation("OpenedCashSessions")
-  closedCashSessions       CashSession[]         @relation("ClosedCashSessions")
-  createdCashMovements     CashMovement[]        @relation("CreatedCashMovements")
-  requestedCancellations   CancellationRequest[] @relation("RequestedCancellations")
-  approvedCancellations    CancellationRequest[] @relation("ApprovedCancellations")
-  createdStockMovements    StockMovement[]       @relation("CreatedStockMovements")
-  createdPurchases         Purchase[]            @relation("CreatedPurchases")
-  createdKitchenOrders     KitchenOrder[]        @relation("CreatedKitchenOrders")
-  kitchenEventsActed       KitchenOrderEvent[]   @relation("KitchenEventsByUser")
+  createdProducts          Product[]               @relation("CreatedProducts")
+  createdSales             Sale[]                  @relation("CreatedSales")
+  openedCashSessions       CashSession[]           @relation("OpenedCashSessions")
+  closedCashSessions       CashSession[]           @relation("ClosedCashSessions")
+  createdCashMovements     CashMovement[]          @relation("CreatedCashMovements")
+  requestedCancellations   CancellationRequest[]   @relation("RequestedCancellations")
+  approvedCancellations    CancellationRequest[]   @relation("ApprovedCancellations")
+  createdStockMovements    StockMovement[]         @relation("CreatedStockMovements")
+  createdPurchases         Purchase[]              @relation("CreatedPurchases")
+  createdKitchenOrders     KitchenOrder[]          @relation("CreatedKitchenOrders")
+  kitchenEventsActed       KitchenOrderEvent[]     @relation("KitchenEventsByUser")
   promotionalCatalogs      PromotionalCatalog[]
-  createdPdvPhotos         PdvPhoto[]            @relation("CreatedPdvPhotos")
-  createdBooks             Book[]                @relation("CreatedBooks")
-  createdTradeCatalogs     TradeCatalog[]        @relation("CreatedTradeCatalogs")
-  createdPlanograms        Planogram[]           @relation("CreatedPlanograms")
-  createdPlanogramVersions PlanogramVersion[]    @relation("CreatedPlanogramVersions")
-  authoredAnnotations      MapAnnotation[]       @relation("AuthoredAnnotations")
-  editedMapObjects         MapObject[]           @relation("EditedMapObjects")
-  createdNegotiations      SpaceNegotiation[]    @relation("CreatedSpaceNegotiations")
-  companyClaims            CompanyClaim[]        @relation("UserCompanyClaims")
-  createdPaymentEntries    PaymentEntry[]        @relation("PaymentEntryCreatedBy")
+  createdPdvPhotos         PdvPhoto[]              @relation("CreatedPdvPhotos")
+  createdBooks             Book[]                  @relation("CreatedBooks")
+  createdTradeCatalogs     TradeCatalog[]          @relation("CreatedTradeCatalogs")
+  createdPlanograms        Planogram[]             @relation("CreatedPlanograms")
+  createdPlanogramVersions PlanogramVersion[]      @relation("CreatedPlanogramVersions")
+  authoredAnnotations      MapAnnotation[]         @relation("AuthoredAnnotations")
+  editedMapObjects         MapObject[]             @relation("EditedMapObjects")
+  createdNegotiations      SpaceNegotiation[]      @relation("CreatedSpaceNegotiations")
+  companyClaims            CompanyClaim[]          @relation("UserCompanyClaims")
+  createdPaymentEntries    PaymentEntry[]          @relation("PaymentEntryCreatedBy")
+  googleDriveConnections   GoogleDriveConnection[]
 
   @@index([email])
   @@map("user")
@@ -281,6 +282,7 @@ model Organization {
   receiptTemplates          ReceiptTemplate[]
   fiscalConfig              FiscalConfig?
   fiscalDocuments           FiscalDocument[]
+  googleDriveConnections    GoogleDriveConnection[]
 
   @@index([slug])
   @@index([subdomain])
@@ -4292,4 +4294,32 @@ model FiscalDocument {
   @@index([status])
   @@index([chave])
   @@map("fiscal_documents")
+}
+
+// ============================================
+// GOOGLE DRIVE — conta conectada por (org, user). Guarda tokens OAuth (o
+// refreshToken é CIFRADO com APP_ENCRYPTION_KEY antes de persistir). Usado
+// no assistente "Importar imagens do Google Drive" em /produtos/importar-imagens.
+// ============================================
+
+model GoogleDriveConnection {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String // quem conectou (permite trocar de conta sem afetar outros admins)
+  googleEmail    String // exibido pro operador saber qual conta está ligada
+  accessToken    String   @db.Text // token efêmero (~1h)
+  refreshToken   String   @db.Text // CIFRADO — usado pra renovar accessToken
+  expiresAt      DateTime // quando o accessToken vence
+  scope          String? // escopos concedidos (ex.: "drive.readonly")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Um user pode ter só UMA conexão Drive ativa por org (evita ambiguidade
+  // "qual conta usar?"). Trocar de conta = reconectar (upsert por essa chave).
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@map("google_drive_connections")
 }

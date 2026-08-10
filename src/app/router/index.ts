@@ -57,6 +57,7 @@ import { tradeDashboardRoutes } from "./trade-dashboard";
 import { tradeInterestRoutes } from "./trade-interest";
 import { erpSyncRoutes } from "./erp-sync";
 import { fiscalConfigRoutes } from "./fiscal-config";
+import { googleDriveRoutes } from "./google-drive";
 import { oracleExplorerRoutes } from "./oracle-explorer";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
 import { orgDashboardRoutes } from "./org-dashboard";
@@ -121,6 +122,7 @@ export const router = {
   shopperInsights: shopperInsightsRoutes,
   erpSync: erpSyncRoutes,
   fiscalConfig: fiscalConfigRoutes,
+  googleDrive: googleDriveRoutes,
   oracleExplorer: oracleExplorerRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
   orgDashboard: orgDashboardRoutes,

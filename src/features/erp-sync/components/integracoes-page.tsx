@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Database,
   FileText,
+  HardDrive,
   Pause,
   Play,
   RefreshCw,
@@ -23,6 +24,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FiscalConfigPanel } from "@/features/fiscal-config/components/fiscal-config-panel";
+import { GoogleDriveCard } from "@/features/google-drive/components/google-drive-card";
 import { cn } from "@/lib/utils";
 import {
   useErpConnection,
@@ -99,6 +101,10 @@ export function IntegracoesPage() {
           <TabsTrigger value="fiscal" className="gap-1">
             <FileText className="size-4" />
             Fiscal (NFCe)
+          </TabsTrigger>
+          <TabsTrigger value="drive" className="gap-1">
+            <HardDrive className="size-4" />
+            Google Drive
           </TabsTrigger>
         </TabsList>
 
@@ -216,6 +222,10 @@ export function IntegracoesPage() {
 
         <TabsContent value="fiscal" className="mt-4">
           <FiscalConfigPanel />
+        </TabsContent>
+
+        <TabsContent value="drive" className="mt-4">
+          <GoogleDriveCard />
         </TabsContent>
       </Tabs>
     </div>
