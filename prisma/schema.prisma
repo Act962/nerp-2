@@ -279,6 +279,7 @@ model Organization {
   paymentContacts           PaymentContact[]
   paymentEntries            PaymentEntry[]
   receiptTemplates          ReceiptTemplate[]
+  fiscalDocuments           FiscalDocument[]
 
   @@index([slug])
   @@index([subdomain])
@@ -613,7 +614,22 @@ model Product {
   packHeightMm     Int?
   packDepthMm      Int?
   brandId          String?
+  // Cadastro fiscal (NFCe/NFe). Editado em Produtos → aba Fiscal. Usado
+  // para emissão em Fase B; opcional aqui porque só é obrigatório quando
+  // a venda vira nota fiscal.
   ncm              String?
+  cest             String? // Código Especificador ST (7 dígitos, sem pontuação)
+  cfop             String? // padrão para venda dentro do estado (ex.: "5102")
+  origem           String? @default("0") // 0=Nacional, 1=Estrangeira DI, 2=Estrangeira mercado interno...
+  cstIcms          String? // ex.: "00", "40", "41", "60", "102" (Simples)
+  cstPis           String? // ex.: "01", "07", "49"
+  cstCofins        String? // ex.: "01", "07", "49"
+  aliqIcms         Decimal? @db.Decimal(5, 2) // alíquota ICMS (%), opcional
+  aliqPis          Decimal? @db.Decimal(5, 2)
+  aliqCofins       Decimal? @db.Decimal(5, 2)
+  // Reforma tributária (NT 2025.002 IBS/CBS). Campos livres agora — quando a
+  // reforma entrar (2026+), Focus/provedor manda o cClassTrib atualizado.
+  cClassTrib       String?
   // Controle
   isActive         Boolean         @default(true)
   isFeatured       Boolean         @default(false)
@@ -899,6 +915,7 @@ model Sale {
   stockMovements StockMovement[]
   transactions   Transaction[]
   cashMovements  CashMovement[]
+  fiscalDocument FiscalDocument?
 
   @@unique([organizationId, saleNumber])
   @@index([organizationId])
@@ -4111,4 +4128,78 @@ model ReceiptTemplate {
 
   @@index([organizationId])
   @@map("receipt_templates")
+}
+
+// ============================================
+// FISCAL DOCUMENT — nota emitida vinculada a uma venda (Epic 2, Fase B)
+// Guarda o ciclo de vida da NFCe/NFe: rascunho → enviada ao provedor → SEFAZ
+// autoriza (ou rejeita) → PDF/XML retornam → armazenados no R2. Contingência
+// e cancelamento também moram aqui. 1:1 opcional com Sale — nem toda venda
+// emite nota (venda não-fiscal / recibo).
+// ============================================
+
+enum FiscalDocumentType {
+  NFCE // NFC-e (varejo)
+  NFE // NF-e (B2B — fase futura)
+}
+
+enum FiscalDocumentStatus {
+  PENDING // fila local; ainda não enviada ao provedor
+  PROCESSING // enviada ao provedor; aguardando SEFAZ
+  AUTHORIZED // AUTORIZADA pela SEFAZ (chave + protocolo válidos)
+  REJECTED // rejeitada (SEFAZ ou provedor) — motivo em rejectionReason
+  CANCELLED // cancelada dentro do prazo legal (24h NFCe / 168h NFe)
+  DENIED // denegada pela SEFAZ (irregularidade fiscal) — irreversível
+  CONTINGENCY // emitida em contingência offline; aguarda sync com SEFAZ
+}
+
+model FiscalDocument {
+  id             String               @id @default(cuid())
+  organizationId String
+  saleId         String               @unique
+  type           FiscalDocumentType   @default(NFCE)
+  status         FiscalDocumentStatus @default(PENDING)
+  // Ambiente em que foi emitida — vem do FiscalConfig (adicionado pela PR #18).
+  // Mantido como texto (HOMOLOGACAO/PRODUCAO) pra desacoplar desta migration
+  // do enum FiscalEnvironment que vive em outra PR.
+  environment    String?
+
+  // Numeração (fixada pelo provedor no momento da autorização).
+  serie          Int?
+  numero         Int?
+  // Chave de 44 dígitos da NFCe/NFe.
+  chave          String?
+  // Protocolo de autorização SEFAZ.
+  protocolo      String?
+  // ID de referência no provedor (Focus NFe usa "ref" livre — normalmente
+  // o próprio saleId prefixado).
+  providerRef    String?
+
+  // Arquivos entregues pelo provedor (keys do bucket privado).
+  xmlKey         String?
+  pdfKey         String? // DANFCe A4/80mm/58mm — o cliente escolhe formato ao imprimir
+
+  // Erros / motivos.
+  rejectionCode  String?
+  rejectionReason String?
+  // Cancelamento.
+  cancelledAt        DateTime?
+  cancelReason       String?
+  cancelProtocol     String?
+
+  // Tentativas — pra o job de sync/retry saber quantas vezes tentou.
+  attemptCount   Int      @default(0)
+  lastAttemptAt  DateTime?
+  authorizedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([chave])
+  @@map("fiscal_documents")
 }
