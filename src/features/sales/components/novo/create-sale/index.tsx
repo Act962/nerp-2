@@ -54,6 +54,9 @@ export type CartItem = {
   name: string;
   currentStock: number;
   sku: string | null;
+  // Unidade cadastrada do produto (UN, KG, L, M...) — mostrada no carrinho
+  // pra o operador saber se deve inserir 0,1 (100g) ou 1 (1 un).
+  unit: string;
   price: number;
   quantity: number;
   // Linha cancelada por autorização: permanece RISCADA no carrinho, fora do
@@ -71,6 +74,7 @@ export interface ProductSale {
   costPrice: number;
   currentStock: number;
   minStock: number;
+  unit: string;
   isActive: boolean;
   maxStock?: number;
 }
@@ -140,6 +144,14 @@ export default function CreateSalePage({
 
   // Barcode scanner
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Venda ágil: item cuja quantidade recebe foco após adicionar por Enter. O
+  // nonce força o re-foco mesmo ao adicionar o mesmo produto em sequência (o id
+  // sozinho não mudaria e o efeito não re-rodaria).
+  const focusNonce = useRef(0);
+  const [focusItem, setFocusItem] = useState<{
+    id: string;
+    nonce: number;
+  } | null>(null);
   const { cursor, pageIndex, hasPrevious, goNext, goPrevious, reset } =
     useCursorPagination();
 
@@ -206,12 +218,17 @@ export default function CreateSalePage({
           productId: product.id,
           name: product.name,
           sku: product.sku,
+          unit: product.unit,
           price: Number(product.salePrice),
           quantity: 1,
           currentStock: Number(product.currentStock),
         },
       ]);
     }
+    // Venda ágil: qualquer forma de adicionar (Enter, clique no card, scan)
+    // aponta o foco pra quantidade — o cart-sale foca no efeito.
+    focusNonce.current += 1;
+    setFocusItem({ id: product.id, nonce: focusNonce.current });
   };
 
   // Item pesável da balança: cada scan é uma medição própria, então gera uma
@@ -224,6 +241,7 @@ export default function CreateSalePage({
       sku: string | null;
       salePrice: number;
       currentStock: number;
+      unit?: string;
     },
     parsed: {
       kind: "PRICE" | "WEIGHT";
@@ -245,6 +263,7 @@ export default function CreateSalePage({
         productId: product.id,
         name: product.name,
         sku: product.sku,
+        unit: product.unit ?? (isPrice ? "UN" : "KG"),
         price,
         quantity,
         currentStock: product.currentStock,
@@ -252,11 +271,17 @@ export default function CreateSalePage({
     ]);
   };
 
-  // Adiciona um produto da grade e volta o cursor pronto pra próxima busca.
+  // Venda ágil: adiciona e limpa a busca. O foco na quantidade é setado pelo
+  // próprio addToCart (mesmo caminho pro Enter, clique no card e scan).
   const addProductAndReset = (product: ProductSale) => {
     addToCart(product);
     setSearchTerm("");
     setSelectedIndex(null);
+  };
+
+  // Enter/Esc na quantidade fecha o loop ágil: volta o foco pro campo de busca.
+  const returnFocusToSearch = () => {
+    setFocusItem(null);
     searchInputRef.current?.focus();
   };
 
@@ -301,6 +326,7 @@ export default function CreateSalePage({
           productId: product.id,
           name: product.name,
           sku: product.sku,
+          unit: product.unit ?? "UN",
           price: product.salePrice,
           quantity: 1,
           currentStock: product.currentStock,
@@ -325,33 +351,36 @@ export default function CreateSalePage({
   };
   const updateQuantity = (id: string, delta: number) => {
     const currentCart = form.getValues("cartItems");
-    const updatedCart = currentCart
-      .map((item) => {
-        if (item.id === id) {
-          const cartItem = cartItems.find((item) => item.id === id);
-          if (cartItem) {
-            return { ...item, quantity: item.quantity + delta };
-          }
-        }
-        return item;
-      })
-      .filter((item) => item.quantity > 0);
+    // Nunca zera a linha pelo botão "−" — clamp em 1. Remover é papel da
+    // lixeira (guardedRemoveItem), que passa pelo antifraude se ligado.
+    const updatedCart = currentCart.map((item) =>
+      item.id === id
+        ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+        : item,
+    );
     form.setValue("cartItems", updatedCart);
   };
 
   const setItemQuantity = (id: string, quantity: number) => {
     const currentCart = form.getValues("cartItems");
-    const updatedCart = currentCart
-      .map((item) => {
-        if (item.id === id) {
-          const cartItem = cartItems.find((item) => item.id === id);
-          if (cartItem) {
-            return { ...item, quantity: quantity };
-          }
-        }
-        return item;
-      })
-      .filter((item) => item.quantity > 0);
+    // Aceita valor negativo/NaN → 0 (o "commit"/blur normaliza para o mínimo).
+    // Zero é temporário — a linha SÓ é removida pela lixeira. Aceita decimais
+    // p/ produtos por peso/volume (ex.: 0,1 kg = 100g).
+    const nextQuantity = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
+    const updatedCart = currentCart.map((item) =>
+      item.id === id ? { ...item, quantity: nextQuantity } : item,
+    );
+    form.setValue("cartItems", updatedCart);
+  };
+
+  // Preço editável na linha do carrinho: afeta APENAS esta venda. O cadastro
+  // do produto não é tocado. Clamp em 0 (não aceita negativo).
+  const setItemPrice = (id: string, price: number) => {
+    const currentCart = form.getValues("cartItems");
+    const nextPrice = Math.max(0, Number.isFinite(price) ? price : 0);
+    const updatedCart = currentCart.map((item) =>
+      item.id === id ? { ...item, price: nextPrice } : item,
+    );
     form.setValue("cartItems", updatedCart);
   };
 
@@ -607,6 +636,7 @@ export default function CreateSalePage({
           addToCart={addToCart}
           products={filteredProducts}
           isLoading={isLoading}
+          searchShortcut={bindings["buscar-produto"]}
         />
 
         {/* Right Side - Cart */}
@@ -625,6 +655,14 @@ export default function CreateSalePage({
           setCustomerDialogOpen={setCustomerDialogOpen}
           setPaymentDialogOpen={handleOpenPayment}
           setItemQuantity={setItemQuantity}
+          setItemPrice={setItemPrice}
+          shortcuts={{
+            selectCustomer: bindings["selecionar-cliente"],
+            clearCart: bindings["limpar-carrinho"],
+            finishSale: bindings["finalizar-venda"],
+          }}
+          focusItem={focusItem}
+          onQuantityCommit={returnFocusToSearch}
           subtotal={subtotal}
           discountType={discountType}
           setDiscountType={(value) => form.setValue("discountType", value, {})}
@@ -644,6 +682,7 @@ export default function CreateSalePage({
         onOpenChange={setPaymentDialogOpen}
         total={total}
         customerName={customer?.name || null}
+        onSelectCustomer={() => setCustomerDialogOpen(true)}
         onConfirm={handlePaymentConfirm}
         paymentMethod={form.watch("paymentMethod")}
         setPaymentMethod={(value) => form.setValue("paymentMethod", value, {})}

@@ -20,6 +20,7 @@ export const findProductByCode = base
           barcode: z.string().nullable(),
           salePrice: z.number(),
           currentStock: z.number(),
+          unit: z.string(),
         })
         .nullable(),
     }),
@@ -38,6 +39,7 @@ export const findProductByCode = base
         barcode: true,
         salePrice: true,
         currentStock: true,
+        unit: true,
       },
     });
     if (!product) return { product: null };
@@ -49,6 +51,7 @@ export const findProductByCode = base
         barcode: product.barcode,
         salePrice: Number(product.salePrice),
         currentStock: Number(product.currentStock),
+        unit: product.unit,
       },
     };
   });
