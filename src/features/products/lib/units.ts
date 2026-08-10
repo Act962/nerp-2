@@ -1,5 +1,5 @@
 // Rótulos curtos das unidades cadastradas do produto (ProductUnit). Usado no
-// PDV pra mostrar ao lado do nome — o operador sabe se digita em kg, un, m, etc.
+// PDV/histórico pra mostrar ao lado do nome — deixa claro se é kg, un, m, etc.
 const UNIT_LABELS: Record<string, string> = {
   UN: "un",
   KG: "kg",

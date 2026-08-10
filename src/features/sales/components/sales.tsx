@@ -7,6 +7,7 @@ import {
   Filter,
   MoreVertical,
   Eye,
+  History,
   Printer,
   XCircle,
 } from "lucide-react";
@@ -43,6 +44,7 @@ import { PageHeader } from "@/components/page-header";
 import { statusConfig } from "@/utils/status-sales-config";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { SaleDetailsDialog } from "./sale-details";
+import { CustomerHistoryDialog } from "./customer-history-dialog";
 
 const paymentMethodLabels: Record<string, string> = {
   PIX: "PIX",
@@ -57,6 +59,11 @@ export function SalesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [saleId, setSaleId] = useState<string | null>(null);
+  // Popup do histórico de vendas do cliente — abre a partir do menu de 3 pontos.
+  const [historyCustomer, setHistoryCustomer] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const { data, isLoadingSales } = useQuerySales({
     status: undefined,
@@ -210,6 +217,19 @@ export function SalesPage() {
                                   <Eye className="h-4 w-4 mr-2" />
                                   Ver detalhes
                                 </DropdownMenuItem>
+                                {sale.customerId && (
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      setHistoryCustomer({
+                                        id: sale.customerId as string,
+                                        name: sale.customer,
+                                      })
+                                    }
+                                  >
+                                    <History className="h-4 w-4 mr-2" />
+                                    Histórico do cliente
+                                  </DropdownMenuItem>
+                                )}
                                 <DropdownMenuItem>
                                   <Printer className="h-4 w-4 mr-2" />
                                   Imprimir nota
@@ -252,6 +272,13 @@ export function SalesPage() {
       {saleId && (
         <SaleDetailsDialog open={open} onOpenChange={setOpen} saleId={saleId} />
       )}
+      <CustomerHistoryDialog
+        open={!!historyCustomer}
+        onOpenChange={(next) => {
+          if (!next) setHistoryCustomer(null);
+        }}
+        customer={historyCustomer}
+      />
     </div>
   );
 }
