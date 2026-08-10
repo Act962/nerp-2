@@ -6,6 +6,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Grid3X3Icon, ListIcon, Search } from "lucide-react";
 import type { ProductSale } from ".";
 import { currencyFormatter } from "@/utils/currency-formatter";
+import { unitLabel } from "@/features/products/lib/units";
 import {
   Pagination,
   PaginationContent,
@@ -166,7 +167,7 @@ export function ProductSection({
                         </span>
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                           {Number(product.currentStock) > 0
-                            ? `${product.currentStock} un`
+                            ? `${product.currentStock} ${unitLabel(product.unit)}`
                             : "0"}
                         </span>
                       </div>
@@ -236,7 +237,7 @@ export function ProductSection({
                         }
                       >
                         {product.currentStock > 0
-                          ? `${product.currentStock} un`
+                          ? `${product.currentStock} ${unitLabel(product.unit)}`
                           : "Sem estoque"}
                       </Badge>
                       <div className="font-semibold text-primary">

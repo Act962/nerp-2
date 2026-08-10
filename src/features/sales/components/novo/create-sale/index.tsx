@@ -54,6 +54,9 @@ export type CartItem = {
   name: string;
   currentStock: number;
   sku: string | null;
+  // Unidade cadastrada do produto (UN, KG, L, M...) — mostrada no carrinho
+  // pra o operador saber se deve inserir 0,1 (100g) ou 1 (1 un).
+  unit: string;
   price: number;
   quantity: number;
   // Linha cancelada por autorização: permanece RISCADA no carrinho, fora do
@@ -71,6 +74,7 @@ export interface ProductSale {
   costPrice: number;
   currentStock: number;
   minStock: number;
+  unit: string;
   isActive: boolean;
   maxStock?: number;
 }
@@ -214,6 +218,7 @@ export default function CreateSalePage({
           productId: product.id,
           name: product.name,
           sku: product.sku,
+          unit: product.unit,
           price: Number(product.salePrice),
           quantity: 1,
           currentStock: Number(product.currentStock),
@@ -236,6 +241,7 @@ export default function CreateSalePage({
       sku: string | null;
       salePrice: number;
       currentStock: number;
+      unit?: string;
     },
     parsed: {
       kind: "PRICE" | "WEIGHT";
@@ -257,6 +263,7 @@ export default function CreateSalePage({
         productId: product.id,
         name: product.name,
         sku: product.sku,
+        unit: product.unit ?? (isPrice ? "UN" : "KG"),
         price,
         quantity,
         currentStock: product.currentStock,
@@ -319,6 +326,7 @@ export default function CreateSalePage({
           productId: product.id,
           name: product.name,
           sku: product.sku,
+          unit: product.unit ?? "UN",
           price: product.salePrice,
           quantity: 1,
           currentStock: product.currentStock,
@@ -355,9 +363,10 @@ export default function CreateSalePage({
 
   const setItemQuantity = (id: string, quantity: number) => {
     const currentCart = form.getValues("cartItems");
-    // Digitar "0"/vazio no input NÃO remove a linha (evita perder o item por
-    // digitação temporária). Removidos apenas pela lixeira.
-    const nextQuantity = Math.max(1, Number.isFinite(quantity) ? quantity : 1);
+    // Aceita valor negativo/NaN → 0 (o "commit"/blur normaliza para o mínimo).
+    // Zero é temporário — a linha SÓ é removida pela lixeira. Aceita decimais
+    // p/ produtos por peso/volume (ex.: 0,1 kg = 100g).
+    const nextQuantity = Number.isFinite(quantity) ? Math.max(0, quantity) : 0;
     const updatedCart = currentCart.map((item) =>
       item.id === id ? { ...item, quantity: nextQuantity } : item,
     );

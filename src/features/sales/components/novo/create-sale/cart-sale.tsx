@@ -15,6 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Minus, Plus, Trash2, User } from "lucide-react";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { Label } from "@/components/ui/label";
+import { unitAllowsDecimal, unitLabel } from "@/features/products/lib/units";
 import type { CartItem, CustomerSales } from ".";
 import { FieldError } from "@/components/ui/field";
 import type { FieldErrors } from "react-hook-form";
@@ -154,7 +155,8 @@ export function CartSale({
                             {item.name}
                           </div>
                           <div className="text-xs text-muted-foreground line-through">
-                            {currencyFormatter(item.price)} x {item.quantity}
+                            {currencyFormatter(item.price)} x {item.quantity}{" "}
+                            {unitLabel(item.unit)}
                           </div>
                           <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-destructive">
                             Cancelado
@@ -191,7 +193,9 @@ export function CartSale({
                               onFocus={(e) => e.currentTarget.select()}
                               className="h-6 w-20 px-1 py-0 text-right text-sm"
                             />
-                            <span>× {item.quantity}</span>
+                            <span>
+                              × {item.quantity} {unitLabel(item.unit)}
+                            </span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
@@ -209,9 +213,14 @@ export function CartSale({
                                 quantityRefs.current.set(item.id, el);
                               }}
                               type="number"
+                              min={0}
+                              // Aceita 0,1 (100g), 0,5 (500ml)... só se a
+                              // unidade cadastrada é fracionável.
+                              step={
+                                unitAllowsDecimal(item.unit) ? "0.001" : "1"
+                              }
                               max={Number(item.currentStock)}
                               value={item.quantity}
-                              readOnly={lockQuantityInput}
                               onFocus={(e) => e.currentTarget.select()}
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" || e.key === "Escape") {
@@ -219,14 +228,16 @@ export function CartSale({
                                   onQuantityCommit?.();
                                 }
                               }}
-                              onChange={(e) => {
-                                if (lockQuantityInput) return;
-                                setItemQuantity(
-                                  item.id,
-                                  Number(e.target.value),
-                                );
+                              onChange={(e) =>
+                                setItemQuantity(item.id, Number(e.target.value))
+                              }
+                              onBlur={(e) => {
+                                // Ao sair, se ficou vazio/zero volta pra 1
+                                // (evita venda com quantidade 0).
+                                if (Number(e.target.value) <= 0)
+                                  setItemQuantity(item.id, 1);
                               }}
-                              className="h-7 w-12 text-center p-0"
+                              className="h-7 w-14 text-center p-0"
                             />
                             <Button
                               size="icon"
