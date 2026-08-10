@@ -21,6 +21,7 @@ import {
   Aperture,
   BookImage,
   Box,
+  DollarSign,
   Building,
   Building2,
   CalendarDays,
@@ -38,9 +39,11 @@ import {
   Map as MapIcon,
   MapPinned,
   Megaphone,
+  MonitorPlay,
   Package,
   Plug,
   Plus,
+  Receipt,
   ScanBarcode,
   Settings,
   ShoppingCart,
@@ -131,9 +134,31 @@ const navigation: NavItem[] = [
   },
   {
     name: "Frente de caixa",
-    href: "/vendas",
+    href: "/vendas/novo",
     icon: ShoppingCart,
     permission: "vendas",
+    children: [
+      { name: "PDV", href: "/vendas/novo", icon: ScanBarcode },
+      { name: "Vendas", href: "/vendas", icon: ShoppingCart },
+      {
+        name: "Caixa",
+        href: "/vendas/caixa",
+        icon: CreditCard,
+        permission: "caixa",
+      },
+      {
+        name: "Mídia",
+        href: "/vendas/midia",
+        icon: MonitorPlay,
+        permission: "midia-pdv",
+      },
+      {
+        name: "Cupons",
+        href: "/vendas/cupons",
+        icon: Receipt,
+        permission: "cupom-designer",
+      },
+    ],
   },
   {
     name: "Pedidos",
@@ -154,16 +179,12 @@ const navigation: NavItem[] = [
       },
     ],
   },
-  // {
-  //   name: "Financeiro",
-  //   href: "/financeiro",
-  //   icon: DollarSign,
-  //   children: [
-  //     { name: "Contas a Receber", href: "/financeiro/receber", icon: Inbox },
-  //     { name: "Contas a Pagar", href: "/financeiro/pagar", icon: Receipt },
-  //     { name: "Fluxo de Caixa", href: "/financeiro/fluxo", icon: CreditCard },
-  //   ],
-  // },
+  {
+    name: "Financeiro",
+    href: "/financeiro",
+    icon: DollarSign,
+    permission: "financeiro",
+  },
   {
     name: "Clientes",
     href: "/clientes",
@@ -436,7 +457,7 @@ export function AppSidebar() {
       : visibleNavigation;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible={pathname === "/vendas/novo" ? "offcanvas" : "icon"}>
       <SidebarHeader>
         <OrgMenu />
       </SidebarHeader>

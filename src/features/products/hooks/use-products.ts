@@ -1,11 +1,17 @@
 import { orpc } from "@/lib/orpc";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { toast } from "sonner";
 
 interface UseProductsProps {
   category?: string[];
   name?: string;
   sku?: string;
+  search?: string;
   minValue?: string;
   maxValue?: string;
   dateInit?: Date;
@@ -20,6 +26,7 @@ export function useProducts({
   category,
   name,
   sku,
+  search,
   minValue,
   maxValue,
   dateInit,
@@ -31,6 +38,7 @@ export function useProducts({
         category,
         name,
         sku,
+        search,
         minValue,
         maxValue,
         dateInit,
@@ -38,6 +46,9 @@ export function useProducts({
         cursor,
         limit,
       },
+      // Mantém os resultados anteriores durante o refetch (busca por
+      // digitação): a grade não pisca a cada tecla.
+      placeholderData: keepPreviousData,
     }),
   );
   return {

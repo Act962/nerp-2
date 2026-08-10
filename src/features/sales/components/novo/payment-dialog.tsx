@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import {
   Banknote,
   CreditCard,
@@ -26,11 +27,12 @@ import {
   FileText,
   Printer,
   ArrowLeftRight,
-  Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { PaymentMethod } from "@/generated/prisma/enums";
+import type { PaymentMethod } from "@/generated/prisma/enums";
+
+export type SalePaymentInput = { method: PaymentMethod; amount: number };
 
 interface PaymentDialogProps {
   open: boolean;
@@ -40,6 +42,7 @@ interface PaymentDialogProps {
   paymentMethod: PaymentMethod;
   setPaymentMethod: (paymentMethod: PaymentMethod) => void;
   onConfirm: (data: {
+    payments: SalePaymentInput[];
     paymentMethod: PaymentMethod;
     amountPaid: number;
     change: number;
@@ -47,6 +50,27 @@ interface PaymentDialogProps {
     printReceipt: boolean;
   }) => void;
 }
+
+const PAYMENT_METHODS: {
+  id: PaymentMethod;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: "DINHEIRO", label: "Dinheiro", icon: Banknote },
+  { id: "CREDITO", label: "Crédito", icon: CreditCard },
+  { id: "DEBITO", label: "Débito", icon: CreditCard },
+  { id: "PIX", label: "PIX", icon: QrCode },
+  { id: "BOLETO", label: "Boleto", icon: FileText },
+  {
+    id: "TRANSFERENCIA",
+    label: "Transferência Bancária",
+    icon: ArrowLeftRight,
+  },
+  { id: "OUTROS", label: "Outros", icon: ArrowLeftRight },
+];
+
+const formatCurrency = (value: number) =>
+  value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export function PaymentDialog({
   open,
@@ -61,56 +85,105 @@ export function PaymentDialog({
   const [amountPaid, setAmountPaid] = useState("");
   const [generateInvoice, setGenerateInvoice] = useState(false);
   const [printReceipt, setPrintReceipt] = useState(true);
+  // Modo misto: distribui o total entre várias formas (ex.: 200 no cartão + 300
+  // no PIX). Guarda o valor digitado por forma.
+  const [mixed, setMixed] = useState(false);
+  const [amounts, setAmounts] = useState<
+    Partial<Record<PaymentMethod, string>>
+  >({});
 
   const paid = Number.parseFloat(amountPaid) || 0;
   const change = paymentMethod === "DINHEIRO" ? Math.max(0, paid - total) : 0;
-  const canFinish = paymentMethod === "DINHEIRO" ? paid >= total : true;
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsLoading(true);
+  const mixedPayments: SalePaymentInput[] = PAYMENT_METHODS.map((method) => ({
+    method: method.id,
+    amount: Number.parseFloat(amounts[method.id] ?? "") || 0,
+  })).filter((payment) => payment.amount > 0);
+  const mixedPaid = mixedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const remaining = total - mixedPaid;
 
-    onConfirm({
-      paymentMethod,
-      amountPaid: paymentMethod === "DINHEIRO" ? paid : total,
-      change,
-      generateInvoice,
-      printReceipt,
-    });
+  const canFinish = mixed
+    ? Math.abs(remaining) < 0.01
+    : paymentMethod === "DINHEIRO"
+      ? paid >= total
+      : true;
 
-    setIsLoading(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Atalhos dentro do diálogo: dígitos 1..N escolhem a forma (forma única) e
+  // Enter confirma. Só valem fora de um campo de texto, para não atrapalhar a
+  // digitação de valores.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      const inInput =
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+      if (inInput) return;
+      if (event.key === "Enter" && canFinish) {
+        event.preventDefault();
+        formRef.current?.requestSubmit();
+        return;
+      }
+      if (mixed) return;
+      const digit = Number.parseInt(event.key, 10);
+      if (
+        !Number.isNaN(digit) &&
+        digit >= 1 &&
+        digit <= PAYMENT_METHODS.length
+      ) {
+        event.preventDefault();
+        setPaymentMethod(PAYMENT_METHODS[digit - 1].id);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, mixed, canFinish, setPaymentMethod]);
+
+  const reset = () => {
     setAmountPaid("");
     setGenerateInvoice(false);
     setPrintReceipt(true);
+    setMixed(false);
+    setAmounts({});
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canFinish) return;
+    setIsLoading(true);
+
+    if (mixed) {
+      // A forma predominante (maior valor) vira o resumo rápido da venda.
+      const dominant = [...mixedPayments].sort(
+        (a, b) => b.amount - a.amount,
+      )[0];
+      onConfirm({
+        payments: mixedPayments,
+        paymentMethod: dominant?.method ?? paymentMethod,
+        amountPaid: mixedPaid,
+        change: 0,
+        generateInvoice,
+        printReceipt,
+      });
+    } else {
+      onConfirm({
+        payments: [{ method: paymentMethod, amount: total }],
+        paymentMethod,
+        amountPaid: paymentMethod === "DINHEIRO" ? paid : total,
+        change,
+        generateInvoice,
+        printReceipt,
+      });
+    }
+
+    setIsLoading(false);
+    reset();
     onOpenChange(false);
   };
 
   const quickAmounts = [50, 100, 200, 500];
-
-  const formatCurrency = (value: number) => {
-    return value.toLocaleString("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    });
-  };
-
-  const paymentMethods = [
-    { id: "DINHEIRO" as const, label: "Dinheiro", icon: Banknote },
-    { id: "CREDITO" as const, label: "Crédito", icon: CreditCard },
-    { id: "DEBITO" as const, label: "Débito", icon: CreditCard },
-    { id: "PIX" as const, label: "PIX", icon: QrCode },
-    { id: "BOLETO" as const, label: "Boleto", icon: FileText },
-    {
-      id: "TRANSFERENCIA" as const,
-      label: "Transferência Bancária",
-      icon: ArrowLeftRight,
-    },
-    {
-      id: "OUTROS" as const,
-      label: "Outros",
-      icon: ArrowLeftRight,
-    },
-  ];
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -123,7 +196,7 @@ export function PaymentDialog({
               : "Venda sem cliente identificado"}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit}>
+        <form ref={formRef} onSubmit={handleSubmit}>
           <ScrollArea className="h-[550px] px-2">
             <div className="space-y-4 py-4">
               {/* Total */}
@@ -134,97 +207,195 @@ export function PaymentDialog({
                 </p>
               </div>
 
-              {/* Payment Method */}
-              <div className="space-y-3">
-                <Label>Forma de Pagamento</Label>
-                <RadioGroup
-                  value={paymentMethod}
-                  onValueChange={(value) => {
-                    setPaymentMethod(value as PaymentMethod);
-                  }}
-                  className="grid grid-cols-2 gap-2"
-                >
-                  {paymentMethods.map((method) => (
-                    <div key={method.id}>
-                      <RadioGroupItem
-                        value={method.id}
-                        id={method.id}
-                        className="peer sr-only"
-                      />
-                      <Label
-                        htmlFor={method.id}
-                        className={cn(
-                          "flex items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer transition-all hover:bg-accent",
-                          paymentMethod === method.id &&
-                            "border-primary bg-primary/5",
-                        )}
-                      >
-                        <method.icon
-                          className={cn(
-                            "h-4 w-4",
-                            paymentMethod === method.id && "text-primary",
-                          )}
-                        />
-                        <span className="text-sm font-medium">
-                          {method.label}
-                        </span>
-                      </Label>
-                    </div>
-                  ))}
-                </RadioGroup>
+              {/* Toggle pagamento misto */}
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <Label htmlFor="mixed" className="cursor-pointer">
+                  Pagamento misto
+                  <span className="block text-xs font-normal text-muted-foreground">
+                    Dividir o total em várias formas
+                  </span>
+                </Label>
+                <Switch id="mixed" checked={mixed} onCheckedChange={setMixed} />
               </div>
 
-              {/* Amount Paid (only for cash) */}
-              {paymentMethod === "DINHEIRO" && (
+              {mixed ? (
                 <div className="space-y-3">
-                  <Label htmlFor="amountPaid">Valor Recebido</Label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
-                      R$
-                    </span>
-                    <Input
-                      id="amountPaid"
-                      type="number"
-                      step="0.01"
-                      min={total}
-                      placeholder="0,00"
-                      className="pl-10 text-lg"
-                      value={amountPaid}
-                      onChange={(e) => setAmountPaid(e.target.value)}
-                      autoFocus
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {quickAmounts.map((amount) => (
-                      <Button
-                        key={amount}
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setAmountPaid(String(amount))}
-                      >
-                        {formatCurrency(amount)}
-                      </Button>
+                  <Label>Distribua o valor por forma</Label>
+                  <div className="space-y-2">
+                    {PAYMENT_METHODS.map((method) => (
+                      <div key={method.id} className="flex items-center gap-2">
+                        <span className="flex w-40 items-center gap-2 text-sm">
+                          <method.icon className="h-4 w-4 text-muted-foreground" />
+                          {method.label}
+                        </span>
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">
+                            R$
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            className="pl-9"
+                            value={amounts[method.id] ?? ""}
+                            onChange={(event) =>
+                              setAmounts((current) => ({
+                                ...current,
+                                [method.id]: event.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          disabled={remaining <= 0}
+                          onClick={() =>
+                            setAmounts((current) => {
+                              const currentAmount =
+                                Number.parseFloat(current[method.id] ?? "") ||
+                                0;
+                              return {
+                                ...current,
+                                [method.id]: String(
+                                  Number(
+                                    (currentAmount + remaining).toFixed(2),
+                                  ),
+                                ),
+                              };
+                            })
+                          }
+                        >
+                          Restante
+                        </Button>
+                      </div>
                     ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setAmountPaid(String(total))}
+                  </div>
+                  <div className="space-y-1 rounded-lg border p-3 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Total pago</span>
+                      <span className="font-medium tabular-nums">
+                        {formatCurrency(mixedPaid)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        {remaining >= 0 ? "Falta pagar" : "Excedente"}
+                      </span>
+                      <span
+                        className={cn(
+                          "font-semibold tabular-nums",
+                          Math.abs(remaining) < 0.01
+                            ? "text-success"
+                            : "text-destructive",
+                        )}
+                      >
+                        {formatCurrency(Math.abs(remaining))}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Forma única */}
+                  <div className="space-y-3">
+                    <Label>Forma de Pagamento</Label>
+                    <RadioGroup
+                      value={paymentMethod}
+                      onValueChange={(value) =>
+                        setPaymentMethod(value as PaymentMethod)
+                      }
+                      className="grid grid-cols-2 gap-2"
                     >
-                      Valor exato
-                    </Button>
+                      {PAYMENT_METHODS.map((method, index) => (
+                        <div key={method.id}>
+                          <RadioGroupItem
+                            value={method.id}
+                            id={method.id}
+                            className="peer sr-only"
+                          />
+                          <Label
+                            htmlFor={method.id}
+                            className={cn(
+                              "flex items-center justify-center gap-2 rounded-lg border-2 border-muted bg-popover p-3 cursor-pointer transition-all hover:bg-accent",
+                              paymentMethod === method.id &&
+                                "border-primary bg-primary/5",
+                            )}
+                          >
+                            <kbd className="flex size-5 shrink-0 items-center justify-center rounded border bg-muted font-mono text-[10px]">
+                              {index + 1}
+                            </kbd>
+                            <method.icon
+                              className={cn(
+                                "h-4 w-4",
+                                paymentMethod === method.id && "text-primary",
+                              )}
+                            />
+                            <span className="text-sm font-medium">
+                              {method.label}
+                            </span>
+                          </Label>
+                        </div>
+                      ))}
+                    </RadioGroup>
                   </div>
 
-                  {paid >= total && (
-                    <div className="rounded-lg border bg-success/10 p-3 text-center">
-                      <p className="text-sm text-muted-foreground">Troco</p>
-                      <p className="text-xl font-bold text-success">
-                        {formatCurrency(change)}
-                      </p>
+                  {/* Valor recebido (só dinheiro) */}
+                  {paymentMethod === "DINHEIRO" && (
+                    <div className="space-y-3">
+                      <Label htmlFor="amountPaid">Valor Recebido</Label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                          R$
+                        </span>
+                        <Input
+                          id="amountPaid"
+                          type="number"
+                          step="0.01"
+                          min={total}
+                          placeholder="0,00"
+                          className="pl-10 text-lg"
+                          value={amountPaid}
+                          onChange={(e) => setAmountPaid(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {quickAmounts.map((amount) => (
+                          <Button
+                            key={amount}
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAmountPaid(String(amount))}
+                          >
+                            {formatCurrency(amount)}
+                          </Button>
+                        ))}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAmountPaid(String(total))}
+                        >
+                          Valor exato
+                        </Button>
+                      </div>
+
+                      {paid >= total && (
+                        <div className="rounded-lg border bg-success/10 p-3 text-center">
+                          <p className="text-sm text-muted-foreground">Troco</p>
+                          <p className="text-xl font-bold text-success">
+                            {formatCurrency(change)}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
+                </>
               )}
 
               <Separator />

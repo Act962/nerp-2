@@ -12,8 +12,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
+// Rotas de tela cheia (PDV) onde o breadcrumb só polui.
+const HIDE_BREADCRUMB_ON = ["/vendas/novo"];
+
 export function BreadcrumbNav() {
   const pathname = usePathname();
+  if (HIDE_BREADCRUMB_ON.includes(pathname)) return null;
   const segments = pathname.split("/").filter(Boolean);
 
   const breadcrumbs = [

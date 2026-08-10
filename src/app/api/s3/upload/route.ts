@@ -7,6 +7,10 @@ import { getApiSession } from "@/lib/api-auth";
 import { S3 } from "@/lib/s3-client";
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
+// Vídeo (mídia do PDV) tem um teto próprio, maior — sem afrouxar o limite das
+// imagens/planilhas. Clipes de loja curtos cabem folgados em 50MB.
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
+const VIDEO_CONTENT_TYPES = new Set(["video/mp4", "video/webm"]);
 
 // Lista fechada, não prefixo `image/`: `image/svg+xml` é um documento que
 // executa script quando o objeto é aberto direto pela URL do bucket. Como o
@@ -30,26 +34,39 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/octet-stream",
+  // Vídeo da mídia promocional do PDV.
+  "video/mp4",
+  "video/webm",
 ]);
 
-const fileUploadSchema = z.object({
-  fileName: z
-    .string()
-    .min(1, "Nome do arquivo é obrigatório")
-    .max(200, "Nome do arquivo muito longo"),
-  contentType: z
-    .string()
-    .min(1, "Content type is required")
-    .refine((value) => ALLOWED_CONTENT_TYPES.has(value.toLowerCase()), {
-      message: "Tipo de arquivo não permitido",
-    }),
-  size: z
-    .number()
-    .int()
-    .min(1, "Size is required")
-    .max(MAX_UPLOAD_BYTES, "Arquivo excede o limite de 15MB"),
-  isImage: z.boolean(),
-});
+const fileUploadSchema = z
+  .object({
+    fileName: z
+      .string()
+      .min(1, "Nome do arquivo é obrigatório")
+      .max(200, "Nome do arquivo muito longo"),
+    contentType: z
+      .string()
+      .min(1, "Content type is required")
+      .refine((value) => ALLOWED_CONTENT_TYPES.has(value.toLowerCase()), {
+        message: "Tipo de arquivo não permitido",
+      }),
+    size: z.number().int().min(1, "Size is required"),
+    isImage: z.boolean(),
+  })
+  .superRefine((data, ctx) => {
+    const isVideo = VIDEO_CONTENT_TYPES.has(data.contentType.toLowerCase());
+    const limit = isVideo ? MAX_VIDEO_BYTES : MAX_UPLOAD_BYTES;
+    if (data.size > limit) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["size"],
+        message: isVideo
+          ? "Vídeo excede o limite de 50MB"
+          : "Arquivo excede o limite de 15MB",
+      });
+    }
+  });
 
 export async function POST(request: Request) {
   try {

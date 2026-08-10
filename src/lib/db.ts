@@ -5,7 +5,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 // sobrevive ao hot-reload do dev, então sem trocar a versão o servidor
 // continua usando o client ANTIGO, que não conhece os campos novos — e o
 // `select` deles falha em runtime com o schema já migrado.
-const SCHEMA_VERSION = "v38-traderole-vendedor";
+const SCHEMA_VERSION = "v47-integracao-receipt";
 
 const globalForPrisma = global as unknown as {
   prisma: PrismaClient;

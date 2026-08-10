@@ -6,12 +6,18 @@ export const saleSchema = z
     cartItems: z
       .array(
         z.object({
+          // `id` é o id da LINHA (itens pesáveis geram linhas distintas);
+          // `productId` é o produto real, usado no lançamento da venda.
           id: z.string(),
+          productId: z.string(),
           name: z.string(),
           price: z.number().positive(),
           quantity: z.number().positive(),
           currentStock: z.number(),
           sku: z.string().nullable(),
+          // Item cancelado por autorização: fica RISCADO no carrinho (rastro de
+          // auditoria) e é excluído dos totais e do lançamento da venda.
+          cancelled: z.boolean().optional(),
         }),
       )
       .min(1, "Adicione pelo menos um item ao carrinho"),

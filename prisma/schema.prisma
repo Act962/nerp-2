@@ -31,6 +31,11 @@ model User {
   // Auditoria de ações no ERP
   createdProducts          Product[]            @relation("CreatedProducts")
   createdSales             Sale[]               @relation("CreatedSales")
+  openedCashSessions       CashSession[]        @relation("OpenedCashSessions")
+  closedCashSessions       CashSession[]        @relation("ClosedCashSessions")
+  createdCashMovements     CashMovement[]       @relation("CreatedCashMovements")
+  requestedCancellations   CancellationRequest[] @relation("RequestedCancellations")
+  approvedCancellations    CancellationRequest[] @relation("ApprovedCancellations")
   createdStockMovements    StockMovement[]      @relation("CreatedStockMovements")
   createdPurchases         Purchase[]           @relation("CreatedPurchases")
   createdKitchenOrders     KitchenOrder[]       @relation("CreatedKitchenOrders")
@@ -45,6 +50,7 @@ model User {
   editedMapObjects         MapObject[]          @relation("EditedMapObjects")
   createdNegotiations      SpaceNegotiation[]   @relation("CreatedSpaceNegotiations")
   companyClaims            CompanyClaim[]       @relation("UserCompanyClaims")
+  createdPaymentEntries    PaymentEntry[]       @relation("PaymentEntryCreatedBy")
 
   @@index([email])
   @@map("user")
@@ -160,6 +166,21 @@ model Organization {
   // Limites por plano
   maxProducts               Int                           @default(100)
   maxUsers                  Int                           @default(3)
+  // Contador atômico da numeração de vendas por org (evita a corrida do count()).
+  lastSaleNumber            Int                           @default(0)
+  // Atalhos de teclado do PDV personalizados pelo admin (mapa ação→tecla).
+  // Ausentes = usa os padrões definidos em código. Ex.: { "abrir-caixa": "F8" }.
+  pdvShortcuts              Json?
+  // Layout do código de barras pesável da balança (EAN-13 prefixo "2"): onde
+  // ficam o código do produto e o valor (peso ou preço). Ausente = desativado.
+  pdvWeighedBarcode         Json?
+  // Antifraude: remover/reduzir item no PDV passa a exigir autorização de um
+  // supervisor (PIN ou QR). Desligado por padrão para não mudar o fluxo atual.
+  requireCancelAuth         Boolean                       @default(false)
+  // Painel de mídia promocional na coluna esquerda do PDV. Desligado por
+  // padrão; `pdvMediaPauseSeconds` é a pausa global entre uma mídia e a próxima.
+  pdvMediaEnabled           Boolean                       @default(false)
+  pdvMediaPauseSeconds      Int                           @default(1)
   // Datas importantes
   trialEndsAt               DateTime?
   subscribedAt              DateTime?
@@ -173,6 +194,11 @@ model Organization {
   customers                 Customer[]
   suppliers                 Supplier[]
   sales                     Sale[]
+  cashSessions              CashSession[]
+  cashRegisters             CashRegister[]
+  pdvMedias                 PdvMedia[]
+  cashMovements             CashMovement[]
+  cancellationRequests      CancellationRequest[]
   purchases                 Purchase[]
   stockMovements            StockMovement[]
   kitchenColumns            KitchenColumn[]
@@ -246,6 +272,13 @@ model Organization {
   oracleQueryTemplates      OracleQueryTemplate[]
   orgDashboard              OrgDashboard?
   promoterRoutes            PromoterRoute[]
+  // Financeiro (contas a pagar/receber)
+  paymentBankAccounts       PaymentBankAccount[]
+  paymentCategories         PaymentCategory[]
+  paymentCostCenters        PaymentCostCenter[]
+  paymentContacts           PaymentContact[]
+  paymentEntries            PaymentEntry[]
+  receiptTemplates          ReceiptTemplate[]
 
   @@index([slug])
   @@index([subdomain])
@@ -281,6 +314,9 @@ model Member {
   tradeRole           TradeRole?
   // Aparece nas informações carimbadas na foto do App Promotor.
   showInPromotorPhoto Boolean    @default(false)
+  // Hash (bcrypt) do PIN de autorização de cancelamento no PDV. Só usado se o
+  // membro puder autorizar (owner/admin ou permissão `autorizar-cancelamento`).
+  cancelPinHash       String?
 
   salesGoalEntries        SalesGoalEntry[]
   // Vínculos do promotor: indústrias que representa e lojas que cobre. Só pode
@@ -302,6 +338,7 @@ model Member {
   calendarNotes           CalendarNote[]                 @relation("CalendarNoteAuthor")
   calendarAssignments     CalendarEventAssignee[]        @relation("CalendarEventAssignee")
   promoterRoute           PromoterRoute?
+  cashSessions            CashSession[]
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -831,6 +868,9 @@ model Sale {
   // Numeração
   invoiceNumber  String? // Número da nota fiscal
   saleNumber     Int // Número sequencial da venda
+  // Sessão de caixa em que a venda foi registrada (opcional: preserva vendas
+  // históricas e vendas não-PDV).
+  cashSessionId  String?
   // Status
   status         SaleStatus      @default(DRAFT)
   // Valores
@@ -853,9 +893,12 @@ model Sale {
   organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   createdBy      User?           @relation("CreatedSales", fields: [createdById], references: [id])
+  cashSession    CashSession?    @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
   items          SaleItem[]
+  payments       SalePayment[]
   stockMovements StockMovement[]
   transactions   Transaction[]
+  cashMovements  CashMovement[]
 
   @@unique([organizationId, saleNumber])
   @@index([organizationId])
@@ -882,6 +925,142 @@ model SaleItem {
   @@index([saleId])
   @@index([productId])
   @@map("sale_items")
+}
+
+// Pagamento por forma dentro de uma venda. Permite pagamento MISTO (ex.: parte
+// no cartão, parte no PIX) e é a fonte de verdade para relatórios por forma —
+// `Sale.paymentMethod` guarda só a forma predominante, para resumos rápidos.
+model SalePayment {
+  id        String        @id @default(cuid())
+  saleId    String
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(10, 2)
+  createdAt DateTime      @default(now())
+  sale      Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("sale_payments")
+}
+
+// ============================================
+// CAIXA (sessão de frente de caixa)
+// ============================================
+
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum CashMovementType {
+  ABERTURA
+  SUPRIMENTO
+  SANGRIA
+  VENDA
+  FECHAMENTO
+}
+
+model CashSession {
+  id              String            @id @default(cuid())
+  organizationId  String
+  memberId        String // operador dono da sessão
+  openedById      String // User que abriu
+  closedById      String? // User que fechou
+  accountId       String? // FinancialAccount (CAIXA) opcional
+  registerId      String // caixa físico (terminal) numerado desta sessão
+  status          CashSessionStatus @default(OPEN)
+  openingBalance  Decimal           @db.Decimal(10, 2)
+  expectedBalance Decimal?          @db.Decimal(10, 2) // calculado no fechamento
+  countedBalance  Decimal?          @db.Decimal(10, 2) // contagem cega do operador
+  difference      Decimal?          @db.Decimal(10, 2) // contado − esperado
+  openingNotes    String?           @db.Text
+  closingNotes    String?           @db.Text
+  openedAt        DateTime          @default(now())
+  closedAt        DateTime?
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member            @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  openedBy     User              @relation("OpenedCashSessions", fields: [openedById], references: [id])
+  closedBy     User?             @relation("ClosedCashSessions", fields: [closedById], references: [id])
+  account      FinancialAccount? @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  register     CashRegister      @relation(fields: [registerId], references: [id])
+  movements    CashMovement[]
+  sales        Sale[]
+  cancellationRequests CancellationRequest[]
+
+  // Uma sessão OPEN por operador é garantida por índice parcial no SQL da
+  // migration (o Prisma não expressa índice parcial de forma declarativa).
+  @@index([organizationId])
+  @@index([organizationId, memberId])
+  @@index([organizationId, status])
+  @@map("cash_sessions")
+}
+
+model CashMovement {
+  id             String           @id @default(cuid())
+  organizationId String
+  sessionId      String
+  type           CashMovementType
+  amount         Decimal          @db.Decimal(10, 2) // sempre positivo; a direção vem do tipo
+  paymentMethod  PaymentMethod? // só VENDA em DINHEIRO afeta a gaveta física
+  saleId         String?
+  description    String?
+  createdAt      DateTime         @default(now())
+  createdById    String
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  session      CashSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sale         Sale?        @relation(fields: [saleId], references: [id])
+  createdBy    User         @relation("CreatedCashMovements", fields: [createdById], references: [id])
+
+  @@index([organizationId])
+  @@index([sessionId])
+  @@index([saleId])
+  @@map("cash_movements")
+}
+
+// Antifraude: solicitação de cancelamento/remoção de item no PDV que precisa da
+// autorização de um supervisor (por PIN na tela ou aprovando o QR no celular).
+enum CancelRequestKind {
+  REMOVE_ITEM
+  REDUCE_QTY
+}
+
+enum CancelRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
+model CancellationRequest {
+  id             String              @id @default(cuid())
+  organizationId String
+  cashSessionId  String?
+  requestedById  String // caixa que solicitou (User)
+  kind           CancelRequestKind
+  productName    String
+  quantity       Decimal             @db.Decimal(10, 3)
+  unitPrice      Decimal             @db.Decimal(10, 2)
+  amount         Decimal             @db.Decimal(10, 2)
+  reason         String?
+  token          String              @unique // conteúdo do QR (aprovação pelo celular)
+  status         CancelRequestStatus @default(PENDING)
+  pinAttempts    Int                 @default(0)
+  approvedById   String? // autorizador (User)
+  approvedByName String?
+  approvedAt     DateTime?
+  createdAt      DateTime            @default(now())
+  expiresAt      DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  cashSession  CashSession? @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+  requestedBy  User         @relation("RequestedCancellations", fields: [requestedById], references: [id])
+  approvedBy   User?        @relation("ApprovedCancellations", fields: [approvedById], references: [id])
+
+  @@index([organizationId])
+  @@index([token])
+  @@index([organizationId, status])
+  @@map("cancellation_requests")
 }
 
 // ============================================
@@ -1113,6 +1292,7 @@ model FinancialAccount {
   updatedAt      DateTime      @updatedAt
   organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   transactions   Transaction[]
+  cashSessions   CashSession[]
 
   @@index([organizationId])
   @@index([isActive])
@@ -3691,4 +3871,244 @@ model CalendarNote {
 
   @@index([organizationId, memberId, startsAt])
   @@map("calendar_notes")
+}
+
+// Caixa físico numerado (terminal). A sessão de caixa (CashSession) referencia
+// o terminal + o operador — assim relatórios sabem QUAL caixa e QUEM operou.
+model CashRegister {
+  id             String        @id @default(cuid())
+  organizationId String
+  name           String // ex.: "Caixa 01"
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessions       CashSession[]
+
+  @@index([organizationId])
+  @@map("cash_registers")
+}
+
+enum PdvMediaType {
+  IMAGE
+  VIDEO
+}
+
+// Mídia promocional exibida na coluna esquerda do PDV (carrossel). IMAGE/GIF
+// ficam pelo `durationSeconds`; VIDEO toca até o fim (o tempo é ignorado).
+model PdvMedia {
+  id              String       @id @default(cuid())
+  organizationId  String
+  title           String? // rótulo interno p/ o admin identificar a mídia
+  url             String // key do objeto no bucket (reconstruída com constructUrl)
+  type            PdvMediaType @default(IMAGE)
+  durationSeconds Int          @default(8)
+  order           Int          @default(0)
+  isActive        Boolean      @default(true)
+  createdById     String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("pdv_medias")
+}
+
+// ============================================
+// FINANCEIRO — Contas a pagar/receber (Epic 5, Fase A)
+// Portado do módulo Payment do nasaex-wey. Valores em CENTAVOS (Int).
+// Gateway, régua de cobrança e aprovações ficam para branches seguintes.
+// ============================================
+
+enum FinancialEntryStatus {
+  PENDING_APPROVAL
+  PENDING
+  PARTIAL
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum FinancialEntryType {
+  RECEIVABLE // Conta a Receber
+  PAYABLE // Conta a Pagar
+}
+
+enum PaymentAccountType {
+  CHECKING // Conta Corrente
+  SAVINGS // Poupança
+  CASH // Caixa físico
+  DIGITAL // Carteira digital
+}
+
+enum FinancialCategoryType {
+  REVENUE // Receita
+  EXPENSE // Despesa
+  COST // Custo
+}
+
+model PaymentBankAccount {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  name           String
+  bankName       String?            @map("bank_name")
+  bankCode       String?            @map("bank_code")
+  agency         String?
+  account        String?
+  type           PaymentAccountType @default(CHECKING)
+  balance        Int                @default(0) // em centavos
+  isActive       Boolean            @default(true) @map("is_active")
+  isDefault      Boolean            @default(false) @map("is_default")
+  color          String?            @default("#1E90FF")
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_bank_accounts")
+}
+
+model PaymentCategory {
+  id             String                @id @default(cuid())
+  organizationId String                @map("organization_id")
+  name           String
+  type           FinancialCategoryType
+  color          String?               @default("#1E90FF")
+  icon           String?
+  parentId       String?               @map("parent_id")
+  isActive       Boolean               @default(true) @map("is_active")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       PaymentCategory?  @relation("PaymentCategoryHierarchy", fields: [parentId], references: [id])
+  children     PaymentCategory[] @relation("PaymentCategoryHierarchy")
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_categories")
+}
+
+model PaymentCostCenter {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  description    String?
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_cost_centers")
+}
+
+model PaymentContact {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  document       String?
+  email          String?
+  phone          String?
+  contactType    String   @default("BOTH") @map("contact_type") // CUSTOMER, SUPPLIER, BOTH
+  notes          String?
+  isActive       Boolean  @default(true) @map("is_active")
+  creditLimit    Int      @default(0) @map("credit_limit") // em centavos
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  entries      PaymentEntry[]
+
+  @@index([organizationId])
+  @@map("payment_contacts")
+}
+
+model PaymentEntry {
+  id             String               @id @default(cuid())
+  organizationId String               @map("organization_id")
+  type           FinancialEntryType
+  status         FinancialEntryStatus @default(PENDING)
+  description    String
+  amount         Int // em centavos
+  paidAmount     Int                  @default(0) @map("paid_amount") // em centavos
+  dueDate        DateTime             @map("due_date")
+  paidAt         DateTime?            @map("paid_at")
+  competenceDate DateTime?            @map("competence_date")
+  documentNumber String?              @map("document_number")
+  notes          String?
+  attachmentUrl  String?              @map("attachment_url")
+
+  categoryId   String? @map("category_id")
+  costCenterId String? @map("cost_center_id")
+  contactId    String? @map("contact_id")
+  accountId    String? @map("account_id")
+
+  // Parcelamento
+  installmentTotal   Int?    @map("installment_total")
+  installmentCurrent Int?    @map("installment_current")
+  installmentGroupId String? @map("installment_group_id")
+
+  // Recorrência
+  isRecurring    Boolean @default(false) @map("is_recurring")
+  recurrenceType String? @map("recurrence_type") // daily, weekly, monthly, yearly
+
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category     PaymentCategory?    @relation(fields: [categoryId], references: [id])
+  costCenter   PaymentCostCenter?  @relation(fields: [costCenterId], references: [id])
+  contact      PaymentContact?     @relation(fields: [contactId], references: [id])
+  account      PaymentBankAccount? @relation(fields: [accountId], references: [id])
+  createdBy    User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([type])
+  @@index([status])
+  @@index([dueDate])
+  @@index([contactId])
+  @@index([categoryId])
+  @@index([installmentGroupId])
+  @@map("payment_entries")
+}
+
+// ============================================
+// IMPRESSÃO DE CUPOM — templates do editor (Epic 2, impressao-cupom Fase A)
+// Um template (blocos em JSON) alimenta a renderização. Impressão via navegador
+// (CSS @page 80mm/58mm/A4). ESC-POS cru e DANFE ficam para branches seguintes.
+// ============================================
+
+enum ReceiptType {
+  FISCAL
+  NAO_FISCAL
+  ORCAMENTO
+}
+
+enum ReceiptPaper {
+  MM80
+  MM58
+  A4
+}
+
+model ReceiptTemplate {
+  id             String       @id @default(cuid())
+  organizationId String       @map("organization_id")
+  name           String
+  type           ReceiptType  @default(NAO_FISCAL)
+  paper          ReceiptPaper @default(MM80)
+  blocks         Json // array de blocos do editor (ReceiptBlock[])
+  isDefault      Boolean      @default(false) @map("is_default")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("receipt_templates")
 }

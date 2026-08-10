@@ -7,6 +7,13 @@ import { checkoutRouter } from "./checkout";
 import { dashboardRoutes } from "./dashboard";
 import { customerRoutes } from "./customer";
 import { SalesRoutes } from "./sales";
+import { caixaRoutes } from "./caixa";
+import { cashRegisterRoutes } from "./cash-register";
+import { pdvMediaRoutes } from "./pdv-media";
+import { pdvSettingsRoutes } from "./pdv-settings";
+import { cancelRequestRoutes } from "./cancel-request";
+import { financeiroRoutes } from "./financeiro";
+import { receiptTemplateRoutes } from "./receipt-template";
 import { kitchenRoutes } from "./pedidos";
 import { collaboratorRoutes } from "./collaborators";
 import { calendarRoutes } from "./calendar";
@@ -63,6 +70,13 @@ export const router = {
   dashboard: dashboardRoutes,
   customer: customerRoutes,
   sales: SalesRoutes,
+  caixa: caixaRoutes,
+  cashRegister: cashRegisterRoutes,
+  pdvMedia: pdvMediaRoutes,
+  pdvSettings: pdvSettingsRoutes,
+  cancelRequest: cancelRequestRoutes,
+  financeiro: financeiroRoutes,
+  receiptTemplate: receiptTemplateRoutes,
   kitchen: kitchenRoutes,
   collaborators: collaboratorRoutes,
   calendar: calendarRoutes,
