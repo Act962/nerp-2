@@ -196,6 +196,99 @@ export const ASSIGNABLE_PERMISSIONS: { key: string; label: string }[] = [
   })),
 ];
 
+// Agrupa as permissões atribuíveis pelos MÓDULOS do menu lateral, para o painel
+// de Permissões ficar organizado como a sidebar. A ordem espelha o menu. Inclui
+// chaves de módulos que ainda vivem em outras branches (ex.: caixa, midia-pdv) —
+// `getGroupedAssignablePermissions` filtra as que não existem, então listar
+// aqui é seguro e já deixa pronto quando aquelas branches entrarem. Qualquer
+// chave nova não mapeada cai automaticamente no grupo "Outros".
+export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
+  { module: "Dashboard", keys: ["dashboard", "dashboard-org"] },
+  { module: "Produtos", keys: ["produtos"] },
+  {
+    module: "Frente de caixa",
+    keys: [
+      "vendas",
+      "caixa",
+      "midia-pdv",
+      "caixa-abrir",
+      "caixa-fechar",
+      "caixa-sangria",
+      "caixa-suprimento",
+      "autorizar-cancelamento",
+    ],
+  },
+  { module: "Pedidos", keys: ["pedidos"] },
+  { module: "Estoque", keys: ["estoque"] },
+  { module: "Clientes", keys: ["clientes"] },
+  { module: "Fornecedores", keys: ["fornecedores"] },
+  {
+    module: "Trade Marketing",
+    keys: [
+      "trade-painel",
+      "trade-calendario",
+      "mapa-de-campo",
+      "lojas",
+      "books",
+      "trade-cadastros",
+      "catalogo-pdv",
+      "planograma",
+      "tradegram",
+      "trade-interesses",
+      "promotor",
+      "vendedor",
+      "qr-preco",
+      "distribuidores",
+      "diretorio",
+      "cupons",
+      "insights",
+      "plano",
+      "promotor-vinculos",
+      "books-aprovar",
+      "mapa-ver-todos",
+    ],
+  },
+  { module: "Colaborador", keys: ["colaboradores"] },
+  { module: "Ranking de Equipes", keys: ["ranking"] },
+  { module: "Integrações", keys: ["integracoes"] },
+  { module: "Catálogo Online", keys: ["catalogo"] },
+  { module: "Catálogo Promocional", keys: ["catalogo-promocional"] },
+  { module: "Configurações", keys: ["configuracoes"] },
+];
+
+// Monta os grupos de permissão com rótulos, só com as chaves que realmente
+// existem em ASSIGNABLE_PERMISSIONS. Chaves atribuíveis fora de todos os grupos
+// caem em "Outros" — nada some se um módulo novo esquecer de se registrar.
+export function getGroupedAssignablePermissions(): {
+  module: string;
+  permissions: { key: string; label: string }[];
+}[] {
+  const labelByKey = new Map(
+    ASSIGNABLE_PERMISSIONS.map((permission) => [
+      permission.key,
+      permission.label,
+    ]),
+  );
+  const used = new Set<string>();
+  const groups = PERMISSION_GROUPS.map((group) => ({
+    module: group.module,
+    permissions: group.keys.flatMap((key) => {
+      const label = labelByKey.get(key);
+      if (label === undefined) return [];
+      used.add(key);
+      return [{ key, label }];
+    }),
+  })).filter((group) => group.permissions.length > 0);
+
+  const leftover = ASSIGNABLE_PERMISSIONS.filter(
+    (permission) => !used.has(permission.key),
+  );
+  if (leftover.length > 0) {
+    groups.push({ module: "Outros", permissions: leftover });
+  }
+  return groups;
+}
+
 // Cargos oferecidos ao convidar/alterar um membro. "owner" existe no plugin
 // organization mas fica de fora: virar dono é transferência, não convite.
 export const INVITABLE_ROLE_VALUES = ["admin", "member"] as const;
