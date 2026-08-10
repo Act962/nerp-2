@@ -251,6 +251,7 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
       "vendas",
       "caixa",
       "midia-pdv",
+      "cupom-designer",
       "caixa-abrir",
       "caixa-fechar",
       "caixa-sangria",
@@ -262,6 +263,7 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
   { module: "Estoque", keys: ["estoque"] },
   { module: "Clientes", keys: ["clientes"] },
   { module: "Fornecedores", keys: ["fornecedores"] },
+  { module: "Financeiro", keys: ["financeiro"] },
   {
     module: "Trade Marketing",
     keys: [
