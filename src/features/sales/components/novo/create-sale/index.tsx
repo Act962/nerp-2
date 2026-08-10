@@ -343,33 +343,35 @@ export default function CreateSalePage({
   };
   const updateQuantity = (id: string, delta: number) => {
     const currentCart = form.getValues("cartItems");
-    const updatedCart = currentCart
-      .map((item) => {
-        if (item.id === id) {
-          const cartItem = cartItems.find((item) => item.id === id);
-          if (cartItem) {
-            return { ...item, quantity: item.quantity + delta };
-          }
-        }
-        return item;
-      })
-      .filter((item) => item.quantity > 0);
+    // Nunca zera a linha pelo botão "−" — clamp em 1. Remover é papel da
+    // lixeira (guardedRemoveItem), que passa pelo antifraude se ligado.
+    const updatedCart = currentCart.map((item) =>
+      item.id === id
+        ? { ...item, quantity: Math.max(1, item.quantity + delta) }
+        : item,
+    );
     form.setValue("cartItems", updatedCart);
   };
 
   const setItemQuantity = (id: string, quantity: number) => {
     const currentCart = form.getValues("cartItems");
-    const updatedCart = currentCart
-      .map((item) => {
-        if (item.id === id) {
-          const cartItem = cartItems.find((item) => item.id === id);
-          if (cartItem) {
-            return { ...item, quantity: quantity };
-          }
-        }
-        return item;
-      })
-      .filter((item) => item.quantity > 0);
+    // Digitar "0"/vazio no input NÃO remove a linha (evita perder o item por
+    // digitação temporária). Removidos apenas pela lixeira.
+    const nextQuantity = Math.max(1, Number.isFinite(quantity) ? quantity : 1);
+    const updatedCart = currentCart.map((item) =>
+      item.id === id ? { ...item, quantity: nextQuantity } : item,
+    );
+    form.setValue("cartItems", updatedCart);
+  };
+
+  // Preço editável na linha do carrinho: afeta APENAS esta venda. O cadastro
+  // do produto não é tocado. Clamp em 0 (não aceita negativo).
+  const setItemPrice = (id: string, price: number) => {
+    const currentCart = form.getValues("cartItems");
+    const nextPrice = Math.max(0, Number.isFinite(price) ? price : 0);
+    const updatedCart = currentCart.map((item) =>
+      item.id === id ? { ...item, price: nextPrice } : item,
+    );
     form.setValue("cartItems", updatedCart);
   };
 
@@ -643,6 +645,7 @@ export default function CreateSalePage({
           setCustomerDialogOpen={setCustomerDialogOpen}
           setPaymentDialogOpen={handleOpenPayment}
           setItemQuantity={setItemQuantity}
+          setItemPrice={setItemPrice}
           focusItem={focusItem}
           onQuantityCommit={returnFocusToSearch}
           subtotal={subtotal}

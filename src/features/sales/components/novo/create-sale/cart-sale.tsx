@@ -28,6 +28,9 @@ interface CartSaleProps {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   setItemQuantity: (id: string, quantity: number) => void;
+  // Preço editável na linha do carrinho: só afeta esta venda; o cadastro do
+  // produto NÃO é tocado.
+  setItemPrice: (id: string, price: number) => void;
   // Venda ágil: quando muda, foca+seleciona a quantidade deste item (o `nonce`
   // permite re-focar o mesmo item ao adicioná-lo em sequência).
   focusItem?: { id: string; nonce: number } | null;
@@ -57,6 +60,7 @@ export function CartSale({
   removeItem,
   updateQuantity,
   setItemQuantity,
+  setItemPrice,
   focusItem,
   onQuantityCommit,
   lockQuantityInput,
@@ -172,8 +176,22 @@ export function CartSale({
                           <div className="text-xs text-muted-foreground">
                             {item.sku}
                           </div>
-                          <div className="text-sm text-muted-foreground mt-1">
-                            {currencyFormatter(item.price)} x {item.quantity}
+                          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                            <span>R$</span>
+                            {/* Preço editável só para esta venda — não altera
+                                o cadastro do produto. */}
+                            <Input
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={item.price}
+                              onChange={(e) =>
+                                setItemPrice(item.id, Number(e.target.value))
+                              }
+                              onFocus={(e) => e.currentTarget.select()}
+                              className="h-6 w-20 px-1 py-0 text-right text-sm"
+                            />
+                            <span>× {item.quantity}</span>
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
