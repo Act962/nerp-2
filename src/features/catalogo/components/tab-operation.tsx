@@ -1,4 +1,4 @@
-import { ChefHat, Store } from "lucide-react";
+import { ChefHat, Store, ShoppingBag } from "lucide-react";
 import { CatalogOperationMode } from "@/generated/prisma/enums";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -24,6 +24,13 @@ const MODES = [
     description:
       "Restaurante/food. Ao confirmar o pagamento, cada item do pedido aparece automaticamente no painel da cozinha (KDS).",
   },
+  {
+    mode: CatalogOperationMode.APPROVAL,
+    icon: ShoppingBag,
+    title: "Aprovação presencial",
+    description:
+      "O cliente monta o pedido no catálogo e vai à loja pagar. O pedido cai como novo na tela do PDV (/vendas/novo); o operador aprova e finaliza a venda presencialmente. Não integra pagamento online.",
+  },
 ] as const;
 
 export function OperationTab({ settings, setSettings }: OperationTabProps) {
@@ -39,7 +46,7 @@ export function OperationTab({ settings, setSettings }: OperationTabProps) {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {MODES.map(({ mode, icon: Icon, title, description }) => {
           const selected = settings.operationMode === mode;
           return (

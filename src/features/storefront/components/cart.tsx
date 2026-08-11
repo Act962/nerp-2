@@ -12,6 +12,7 @@ import placeholder from "@/assets/background-default-image.svg";
 import { useCart } from "@/hooks/use-cart";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useCatalogSettings } from "@/features/storefront/hooks/use-catalog-settings";
 
 interface CartProps {
   subdomain: string;
@@ -20,6 +21,10 @@ interface CartProps {
 export function Cart({ subdomain }: CartProps) {
   const { user } = useUserStore();
   const { products, updateQuantity, toggleProduct } = useCart(subdomain);
+  const { data: catalogSettings } = useCatalogSettings({ subdomain });
+  // Modo APPROVAL: cliente paga presencial → não faz sentido exigir login.
+  // Vai direto pro /checkout, que aceita nome + telefone quando não logado.
+  const isApprovalMode = catalogSettings?.operationMode === "APPROVAL";
 
   const { data: productsOfCart, isLoading } = useQueryProductsOfCart({
     subdomain,
@@ -55,7 +60,9 @@ export function Cart({ subdomain }: CartProps) {
   );
 
   function handlerCheckout() {
-    if (!user) {
+    // Modo aprovação presencial: dispensa login (o checkout coleta nome +
+    // telefone). Nos demais modos, mantém o gate de login.
+    if (!user && !isApprovalMode) {
       router.push("/sign-in");
       return;
     }
@@ -246,7 +253,11 @@ export function Cart({ subdomain }: CartProps) {
                     size="lg"
                     onClick={() => handlerCheckout()}
                   >
-                    {!user ? "Faça Login" : "Finalizar Pedido"}
+                    {isApprovalMode
+                      ? "Enviar pedido para a loja"
+                      : !user
+                        ? "Faça Login"
+                        : "Finalizar Pedido"}
                   </Button>
                 </CardContent>
               </Card>

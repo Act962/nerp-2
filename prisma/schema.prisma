@@ -443,6 +443,10 @@ enum CatalogSortOrder {
 enum CatalogOperationMode {
   MARKETPLACE
   KITCHEN
+  // Pedido do catálogo cai como Sale.PENDING_APPROVAL e o operador do PDV
+  // aprova em /vendas/novo (pagamento presencial). Extensão da loja: sem
+  // integração de pagamento online.
+  APPROVAL
 }
 
 enum DeliveryMethod {
@@ -875,6 +879,9 @@ model CatalogUser {
 
 enum SaleStatus {
   DRAFT // Rascunho
+  // Pedido criado pelo cliente no Catálogo Online (modo APPROVAL) aguardando
+  // aprovação do operador no PDV. Não movimenta estoque, não gera pagamento.
+  PENDING_APPROVAL
   CONFIRMED // Confirmado
   PROCESSING // Em processamento
   COMPLETED // Concluído
