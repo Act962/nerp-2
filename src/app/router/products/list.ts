@@ -46,6 +46,7 @@ export const listProducts = base
           unit: z.string(),
           image: z.string(),
           isActive: z.boolean(),
+          trackStock: z.boolean(),
         }),
       ),
       totalCount: z.number(),
@@ -123,6 +124,7 @@ export const listProducts = base
             unit: true,
             images: true,
             isActive: true,
+            trackStock: true,
             thumbnail: true,
           },
           // Busca um item extra para saber se há próxima página.
@@ -155,6 +157,7 @@ export const listProducts = base
         unit: product.unit,
         image: product.thumbnail ?? "",
         isActive: product.isActive,
+        trackStock: product.trackStock,
       }));
 
       return {

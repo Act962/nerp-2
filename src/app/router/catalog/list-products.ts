@@ -75,6 +75,10 @@ export const listProducts = base
       const products = await prisma.product.findMany({
         where: {
           organizationId: organization.id,
+          // Catálogo público: só produtos ativos E marcados como visíveis.
+          // A caixa/PDV pode continuar usando produto ativo sem exibir.
+          isActive: true,
+          showInCatalog: true,
           category: {
             ...(input.categorySlugs &&
               input.categorySlugs.length > 0 && {

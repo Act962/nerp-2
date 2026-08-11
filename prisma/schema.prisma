@@ -643,6 +643,11 @@ model Product {
   isActive         Boolean         @default(true)
   isFeatured       Boolean         @default(false)
   trackStock       Boolean         @default(true)
+  // Visibilidade no Catálogo Online (storefront público). Independente do
+  // `isActive`: um produto pode estar ativo no ERP (venda balcão) e oculto
+  // do catálogo (ex.: só vende presencial), ou vice-versa. Default true
+  // pra não esconder o catálogo existente após a migration.
+  showInCatalog    Boolean         @default(true)
   // KDS - tempo médio de preparo (min) usado no painel da cozinha
   prepTimeMinutes  Int?
   // Timestamps

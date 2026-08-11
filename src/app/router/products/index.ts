@@ -1,3 +1,4 @@
+import { bulkUpdateProducts } from "./bulk-update";
 import { createProduct } from "./create";
 import { deleteProduct } from "./delete";
 import { duplicateProduct } from "./duplicate";
@@ -20,6 +21,7 @@ export const productsRoutes = {
   duplicate: duplicateProduct,
   matchBySku: matchProductsBySku,
   setImages: setProductImages,
+  bulkUpdate: bulkUpdateProducts,
   import: {
     create: createImport,
     get: getImport,

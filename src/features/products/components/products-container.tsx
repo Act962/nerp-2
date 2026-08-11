@@ -29,12 +29,14 @@ export function ProductsContainer() {
     reset();
   }, [category, sku, minValue, maxValue, dateInit, dateEnd, reset]);
 
+  const categorySlugs = category?.split(",").map((c) => c.trim());
   const {
     data: products,
     nextCursor,
     hasNextPage,
+    totalCount,
   } = useProducts({
-    category: category?.split(",").map((c) => c.trim()),
+    category: categorySlugs,
     sku: sku ?? undefined,
     minValue: minValue ?? undefined,
     maxValue: maxValue ?? undefined,
@@ -88,6 +90,11 @@ export function ProductsContainer() {
         hasPreviousPage={hasPrevious}
         onNextPage={() => goNext(nextCursor)}
         onPreviousPage={goPrevious}
+        totalCount={totalCount}
+        // Filtro atual — enviado pra `bulkUpdate` quando o usuário escolhe
+        // "aplicar em todos os N produtos filtrados". Sem isso o bulk pega
+        // TODOS os produtos da org, ignorando o filtro visível.
+        activeFilter={{ categorySlugs, search: undefined }}
       />
     </div>
   );
