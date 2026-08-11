@@ -34,6 +34,24 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Catálogo público via caminho: /catalogo/{slug}[/rest] → reescreve
+  // internamente pra /{slug}[/rest] e cai na mesma rota do storefront que o
+  // modo subdomínio usa (`(storefront)/[subdomain]/...`).
+  // Segmento único `/catalogo` continua sendo o admin autenticado.
+  // Um header `x-catalog-base` é propagado pro layout do storefront saber
+  // qual é o prefixo público — os <Link href> internos usam esse valor.
+  const catalogPathMatch = pathname.match(
+    /^\/catalogo\/([a-z0-9-]{3,})(\/.*)?$/i,
+  );
+  if (catalogPathMatch) {
+    const slug = catalogPathMatch[1];
+    const rest = catalogPathMatch[2] ?? "/";
+    url.pathname = `/${slug}${rest === "/" ? "" : rest}`;
+    const response = NextResponse.rewrite(url);
+    response.headers.set("x-catalog-base", `/catalogo/${slug}`);
+    return response;
+  }
+
   // Ignora rotas do dashboard
 
   if (

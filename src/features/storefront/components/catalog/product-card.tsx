@@ -13,6 +13,7 @@ import { useConstructUrl } from "@/hooks/use-construct-url";
 import placeholder from "@/assets/background-default-image.svg";
 import Link from "next/link";
 import { useCart } from "@/hooks/use-cart";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 import { ButtonSale } from "../button-sale";
 import { SafeContent } from "@/components/rich-text/safe-content";
 import { type JSONContent, generateText } from "@tiptap/react";
@@ -54,6 +55,7 @@ export function ProductCard({
   const { toggleProduct, isProductInCart } = useCart(subdomain);
   const [isMounted, setIsMounted] = useState(false);
   const parsedDescription = parseDescription(description);
+  const productHref = useCatalogHref(`/${slug}`);
 
   useEffect(() => {
     setIsMounted(true);
@@ -75,7 +77,7 @@ export function ProductCard({
       hover:shadow-md hover:shadow-elegant"
     >
       <div className="aspect-square overflow-hidden w-full relative h-45">
-        <Link href={`/${slug}`}>
+        <Link href={productHref}>
           <Image
             className="object-cover transition-transform rounded-sm cursor-pointer"
             src={imageSrc}
@@ -116,7 +118,7 @@ export function ProductCard({
             </Tooltip>
           ) : (
             <Link
-              href={`/${slug}`}
+              href={productHref}
               className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors leading-tight"
             >
               ver detalhes
