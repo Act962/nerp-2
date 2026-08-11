@@ -324,7 +324,17 @@ export function StampEditor({
         </p>
       )}
 
-      <div className="flex gap-2">
+      {/* Botões fixos no rodapé do viewport: no celular a foto + slider já
+        empurram Salvar pra fora da tela. Sticky garante que "Refazer" e
+        "Salvar foto" fiquem sempre visíveis sem exigir scroll. `-mx-4`
+        neutraliza o `px-4` do wrapper do App Promotor pra o fundo ir de
+        borda a borda. `pb-[safe-area]` respeita a home bar do iOS. */}
+      <div
+        className="sticky bottom-0 -mx-4 flex gap-2 border-t bg-background/95 px-4 pt-3 backdrop-blur"
+        style={{
+          paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
+        }}
+      >
         <Button
           type="button"
           variant="outline"
