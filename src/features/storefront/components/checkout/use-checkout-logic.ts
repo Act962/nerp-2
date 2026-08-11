@@ -23,6 +23,9 @@ export function useCheckoutLogic(subdomain: string) {
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [address, setAddress] = useState("");
   const [observations, setObservations] = useState("");
+  // Guest info — usado só no modo APPROVAL quando o cliente não está logado.
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const { products, clearOrganizationCart } = useCart(subdomain);
   const { user } = useUserStore();
   const { data: catalogSettings } = useCatalogSettings({ subdomain });
@@ -61,6 +64,21 @@ export function useCheckoutLogic(subdomain: string) {
       onSuccess: () => {
         clearOrganizationCart();
         router.push("/checkout/sucesso");
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    }),
+  );
+
+  // Modo APPROVAL — pedido vai pra fila de aprovação no PDV. Após criar, a
+  // tela de sucesso mostra o número do pedido pra o cliente apresentar no
+  // caixa (`?pedido=42`).
+  const approvalPurchase = useMutation(
+    orpc.checkout.approvalCheckout.mutationOptions({
+      onSuccess: (data) => {
+        clearOrganizationCart();
+        router.push(`/checkout/sucesso?pedido=${data.saleNumber}`);
       },
       onError: (error) => {
         toast.error(error.message);
@@ -243,12 +261,41 @@ export function useCheckoutLogic(subdomain: string) {
   };
 
   const isKitchenMode = catalogSettings?.operationMode === "KITCHEN";
+  const isApprovalMode = catalogSettings?.operationMode === "APPROVAL";
 
   const onCheckout = () => {
     const products = productsOfCart?.map((item) => ({
       id: item.id.toString(),
       quantity: findAndConvertQuantity(item.id),
     }));
+
+    if (isApprovalMode) {
+      // Logado → passa customerId; senão exige nome (guest.name é required).
+      if (user?.id) {
+        approvalPurchase.mutate({
+          domain: subdomain,
+          products,
+          customerId: user.id,
+          notes: observations.trim() || undefined,
+        });
+      } else {
+        const name = guestName.trim();
+        if (!name) {
+          toast.error("Informe seu nome pra a loja te identificar");
+          return;
+        }
+        approvalPurchase.mutate({
+          domain: subdomain,
+          products,
+          guest: {
+            name,
+            phone: guestPhone.trim() || undefined,
+          },
+          notes: observations.trim() || undefined,
+        });
+      }
+      return;
+    }
 
     if (isKitchenMode) {
       kitchenPurchase.mutate({
@@ -289,7 +336,15 @@ export function useCheckoutLogic(subdomain: string) {
     onCheckout,
     purchase,
     isKitchenMode,
-    isCheckoutPending: purchase.isPending || kitchenPurchase.isPending,
+    isApprovalMode,
+    guestName,
+    setGuestName,
+    guestPhone,
+    setGuestPhone,
+    isCheckoutPending:
+      purchase.isPending ||
+      kitchenPurchase.isPending ||
+      approvalPurchase.isPending,
     router,
     userHasHydrated,
     user,

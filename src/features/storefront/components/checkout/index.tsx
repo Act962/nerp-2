@@ -2,6 +2,9 @@
 
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { DeliveryMethodCard } from "./delivery-method-card";
 import { PaymentMethodCard } from "./payment-method-card";
 import { ObservationsCard } from "./observations-card";
@@ -40,9 +43,16 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
     cartItems,
     user,
     userHasHydrated,
+    isApprovalMode,
+    guestName,
+    setGuestName,
+    guestPhone,
+    setGuestPhone,
   } = useCheckoutLogic(subdomain);
 
-  if (!user && userHasHydrated) {
+  // Modo APPROVAL dispensa login (paga presencial). Nos demais modos, redireciona
+  // pra cadastro quando anônimo.
+  if (!user && userHasHydrated && !isApprovalMode) {
     redirect("/sign-up");
   }
 
@@ -77,6 +87,41 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
+          {isApprovalMode && !user && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Seus dados</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Precisamos do seu nome pra identificar o pedido quando você
+                  chegar na loja. Telefone é opcional (usado só se
+                  precisarmos falar com você).
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="guest-name">Nome</Label>
+                  <Input
+                    id="guest-name"
+                    placeholder="Ex.: Maria Silva"
+                    value={guestName ?? ""}
+                    onChange={(e) => setGuestName(e.target.value)}
+                    autoComplete="name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-phone">Telefone (opcional)</Label>
+                  <Input
+                    id="guest-phone"
+                    placeholder="(00) 00000-0000"
+                    value={guestPhone ?? ""}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
           <DeliveryMethodCard
             availableDeliveryMethods={availableDeliveryMethods}
             deliveryMethod={deliveryMethod}

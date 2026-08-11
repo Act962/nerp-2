@@ -1,10 +1,15 @@
-import { CheckCircleIcon, ClockIcon, XCircleIcon } from "lucide-react";
+import { CheckCircleIcon, ClockIcon, ShoppingBagIcon, XCircleIcon } from "lucide-react";
 
 export const statusConfig = {
   DRAFT: {
     label: "Rascunho",
     className: "bg-secondary text-secondary-foreground",
     icon: ClockIcon,
+  },
+  PENDING_APPROVAL: {
+    label: "Aguardando aprovação",
+    className: "bg-amber-100 text-amber-800 border-amber-300",
+    icon: ShoppingBagIcon,
   },
   PROCESSING: {
     label: "Processando",

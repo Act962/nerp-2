@@ -14,6 +14,7 @@ import {
 import { parseWeighedBarcode } from "@/features/pdv-weighed/weighed-barcode";
 import { WeighedConfigDialog } from "@/features/pdv-weighed/components/weighed-config-dialog";
 import { usePdvUiStore } from "@/features/sales/pdv-ui-store";
+import { PendingOrdersDialog } from "../pending-orders-dialog";
 import {
   CancelAuthDialog,
   type CancelAuthRequest,
@@ -125,6 +126,12 @@ export default function CreateSalePage({
   const setShortcutsOpen = usePdvUiStore((state) => state.setShortcutsOpen);
   const weighedOpen = usePdvUiStore((state) => state.weighedOpen);
   const setWeighedOpen = usePdvUiStore((state) => state.setWeighedOpen);
+  // Payload de hidratação vindo da aprovação de pedido do catálogo online.
+  // Quando setado, popula o carrinho e limpa (consumo único).
+  const hydratePayload = usePdvUiStore((state) => state.hydratePayload);
+  const setHydratePayload = usePdvUiStore(
+    (state) => state.setHydratePayload,
+  );
 
   // Dialogs
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
@@ -604,6 +611,32 @@ export default function CreateSalePage({
     return () => clearTimeout(timer);
   }, [customerDialogOpen, paymentDialogOpen, shortcutsOpen, weighedOpen]);
 
+  // Aprovação de pedido do Catálogo Online: o dialog "Aprovar" injeta
+  // `hydratePayload` no store; aqui consumimos uma vez e populamos o carrinho
+  // + cliente do form. O `id` da linha reusa o `productId` (sem itens
+  // pesáveis nesse fluxo — quantidade veio do carrinho do cliente).
+  useEffect(() => {
+    if (!hydratePayload) return;
+    form.setValue(
+      "cartItems",
+      hydratePayload.items.map((item) => ({
+        id: item.productId,
+        productId: item.productId,
+        name: item.name,
+        price: item.salePrice,
+        quantity: item.quantity,
+        currentStock: item.currentStock,
+        sku: item.sku,
+        unit: item.unit,
+      })),
+      { shouldValidate: false, shouldDirty: true },
+    );
+    if (hydratePayload.customer) {
+      form.setValue("customer", hydratePayload.customer);
+    }
+    setHydratePayload(null);
+  }, [hydratePayload, form, setHydratePayload]);
+
   useHotkeys(bindings, {
     "abrir-caixa": () => router.push("/vendas/caixa"),
     "finalizar-venda": () => {
@@ -708,6 +741,7 @@ export default function CreateSalePage({
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <WeighedConfigDialog open={weighedOpen} onOpenChange={setWeighedOpen} />
+      <PendingOrdersDialog />
       <CancelAuthDialog
         open={pendingCancel !== null}
         onOpenChange={(next) => {

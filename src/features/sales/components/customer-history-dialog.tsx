@@ -69,6 +69,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 const STATUS_LABELS: Record<SaleStatus, string> = {
   DRAFT: "Rascunho",
+  PENDING_APPROVAL: "Aguardando aprovação",
   CONFIRMED: "Confirmada",
   PROCESSING: "Processando",
   COMPLETED: "Concluída",
@@ -80,6 +81,7 @@ const STATUS_VARIANT: Record<
   "default" | "secondary" | "outline" | "destructive"
 > = {
   DRAFT: "outline",
+  PENDING_APPROVAL: "outline",
   CONFIRMED: "secondary",
   PROCESSING: "secondary",
   COMPLETED: "default",
