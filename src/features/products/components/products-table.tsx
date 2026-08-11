@@ -81,6 +81,10 @@ interface ProductTableProps {
   // Total de produtos que casam com o filtro (todas as páginas). Usado para
   // oferecer "aplicar em todos os N produtos filtrados" além dos visíveis.
   totalCount?: number;
+  // Busca controlada pelo container (vai pro servidor). Sem essas props a
+  // tabela cai num useState local que só filtra a página atual.
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
   // Filtro atual — enviado ao bulk quando aplica em todos, para o server
   // atualizar apenas o mesmo escopo que o usuário está vendo.
   activeFilter?: {
@@ -114,10 +118,16 @@ export function ProductsTable({
   onNextPage,
   onPreviousPage,
   totalCount,
+  searchValue,
+  onSearchChange,
   activeFilter,
 }: ProductTableProps) {
   const queryClient = useQueryClient();
-  const [searchTerm, setSearchTerm] = useState("");
+  // Se o container não controlar, cai num fallback local (comportamento antigo:
+  // filtra só a página). Preferir sempre a versão controlada.
+  const [internalSearch, setInternalSearch] = useState("");
+  const searchTerm = searchValue ?? internalSearch;
+  const setSearchTerm = onSearchChange ?? setInternalSearch;
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   // Quando `true`, os dropdowns de bulk aplicam em TODOS os produtos que
   // casam com o filtro atual (não só nos IDs marcados). Volta pra `false`
@@ -150,12 +160,17 @@ export function ProductsTable({
     });
   };
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.barcode.includes(searchTerm),
-  );
+  // Se o container controla a busca (padrão novo), o server já devolve só
+  // os produtos que casam com `searchTerm` — filtrar de novo aqui apagava
+  // resultados válidos. Só faz filter local no fallback (sem prop).
+  const filteredProducts = onSearchChange
+    ? products
+    : products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.barcode.includes(searchTerm),
+      );
 
   const toggleSelectAll = () => {
     setApplyToAll(false);
