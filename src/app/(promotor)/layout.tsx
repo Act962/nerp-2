@@ -1,7 +1,20 @@
+import type { Viewport } from "next";
 import { Lock } from "lucide-react";
 
 // App do promotor: mobile-first, sem sidebar/header do dashboard. Rodapé com a
 // marca Órbita Hub + selo de segurança.
+//
+// Zoom desabilitado (pinch/double-tap): o app é feito pra ser operado inteiro
+// com um dedo em movimento — abrir zoom sem querer atrapalha a captura de
+// foto e a leitura de campos. Escopo restrito a este layout: o resto do
+// sistema continua permitindo zoom.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export default function PromotorLayout({
   children,
 }: {
