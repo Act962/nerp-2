@@ -2,8 +2,14 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Grid3X3Icon, ListIcon, Search } from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { ProductSale } from ".";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { unitLabel } from "@/features/products/lib/units";
@@ -100,7 +106,7 @@ export function ProductSection({
   const nextIsDisabled = !hasNextPage;
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4">
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
@@ -283,36 +289,172 @@ export function ProductSection({
             </PaginationContent>
           </Pagination>
 
-          {/* Abas de categoria (como na referência): filtram a grade. */}
+          {/* Abas de categoria (como na referência): filtram a grade.
+              Em uma linha só, sem scroll: o que não couber vira "+N" que
+              abre um popover com o restante — evita empurrar a coluna do
+              carrinho e não estica a página em altura. */}
           {categories.length > 0 && (
-            <div className="mt-3 flex gap-2 overflow-x-auto border-t pt-3">
-              <Button
-                type="button"
-                size="sm"
-                variant={selectedCategory === null ? "default" : "outline"}
-                className="shrink-0"
-                onClick={() => onSelectCategory?.(null)}
-              >
-                Todos
-              </Button>
-              {categories.map((category) => (
-                <Button
-                  key={category.id}
-                  type="button"
-                  size="sm"
-                  variant={
-                    selectedCategory === category.id ? "default" : "outline"
-                  }
-                  className="shrink-0"
-                  onClick={() => onSelectCategory?.(category.id)}
-                >
-                  {category.name}
-                </Button>
-              ))}
-            </div>
+            <CategoryTabs
+              categories={categories}
+              selectedCategory={selectedCategory}
+              onSelectCategory={onSelectCategory}
+            />
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+// Uma linha de filtros de categoria com overflow "measured": mede o container
+// depois do render, esconde os botões que não coubessem e mostra "+N" que
+// abre um popover com o restante. Sem scroll horizontal, sem quebra de linha.
+function CategoryTabs({
+  categories,
+  selectedCategory,
+  onSelectCategory,
+}: {
+  categories: Category[];
+  selectedCategory: string | null | undefined;
+  onSelectCategory: ((id: string | null) => void) | undefined;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const [visibleCount, setVisibleCount] = useState<number>(categories.length);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const measure = measureRef.current;
+    if (!container || !measure) return;
+
+    function recompute() {
+      if (!container || !measure) return;
+      const items = Array.from(measure.children) as HTMLElement[];
+      // último item é o botão "+N" (só existe para medir a largura reservada)
+      const overflowBtn = items[items.length - 1];
+      const categoryItems = items.slice(1, -1); // pula "Todos" + "+N"
+      const overflowWidth = overflowBtn?.offsetWidth ?? 0;
+      const todosWidth = items[0]?.offsetWidth ?? 0;
+      const gap = 8; // gap-2 = 0.5rem
+
+      const available = container.clientWidth;
+      let used = todosWidth;
+      let count = 0;
+
+      for (let i = 0; i < categoryItems.length; i++) {
+        const item = categoryItems[i];
+        const w = item.offsetWidth;
+        const isLast = i === categoryItems.length - 1;
+        // reserva espaço pro botão "+N" se ainda vão sobrar categorias
+        const reserve = isLast ? 0 : overflowWidth + gap;
+        const next = used + gap + w + reserve;
+        if (next <= available) {
+          used = used + gap + w;
+          count = i + 1;
+        } else {
+          break;
+        }
+      }
+      setVisibleCount(count);
+    }
+
+    recompute();
+    const observer = new ResizeObserver(recompute);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [categories]);
+
+  const hidden = categories.slice(visibleCount);
+
+  return (
+    <div
+      ref={containerRef}
+      className="mt-3 flex items-center gap-2 overflow-hidden border-t pt-3"
+    >
+      <Button
+        type="button"
+        size="sm"
+        variant={selectedCategory === null ? "default" : "outline"}
+        className="shrink-0"
+        onClick={() => onSelectCategory?.(null)}
+      >
+        Todos
+      </Button>
+      {categories.slice(0, visibleCount).map((category) => (
+        <Button
+          key={category.id}
+          type="button"
+          size="sm"
+          variant={
+            selectedCategory === category.id ? "default" : "outline"
+          }
+          className="shrink-0"
+          onClick={() => onSelectCategory?.(category.id)}
+        >
+          {category.name}
+        </Button>
+      ))}
+      {hidden.length > 0 && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              size="sm"
+              variant={
+                hidden.some((c) => c.id === selectedCategory)
+                  ? "default"
+                  : "outline"
+              }
+              className="shrink-0"
+            >
+              +{hidden.length}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="max-h-72 w-56 overflow-y-auto p-1">
+            <div className="flex flex-col">
+              {hidden.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  className={cn(
+                    "flex items-center rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
+                    selectedCategory === category.id &&
+                      "bg-accent font-medium",
+                  )}
+                  onClick={() => onSelectCategory?.(category.id)}
+                >
+                  {category.name}
+                </button>
+              ))}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+
+      {/* Réplica invisível usada só pra medir a largura real dos botões. */}
+      <div
+        ref={measureRef}
+        aria-hidden
+        className="pointer-events-none invisible absolute -left-full flex items-center gap-2"
+      >
+        <Button type="button" size="sm" variant="outline" className="shrink-0">
+          Todos
+        </Button>
+        {categories.map((category) => (
+          <Button
+            key={category.id}
+            type="button"
+            size="sm"
+            variant="outline"
+            className="shrink-0"
+          >
+            {category.name}
+          </Button>
+        ))}
+        <Button type="button" size="sm" variant="outline" className="shrink-0">
+          +{categories.length}
+        </Button>
+      </div>
     </div>
   );
 }
