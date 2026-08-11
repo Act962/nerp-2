@@ -56,6 +56,7 @@ export const getProductAndProductsByCategory = base
           organizationId: organization.id,
           categoryId: product.categoryId,
           isActive: true,
+          showInCatalog: true,
         },
         take: 4,
       });

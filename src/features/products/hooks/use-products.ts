@@ -101,3 +101,27 @@ export const useCreateProduct = () => {
     }),
   );
 };
+
+// Atualiza um patch (isActive / trackStock / showInCatalog) em vários
+// produtos de uma vez. Usado pela toolbar de seleção em /produtos.
+export const useBulkUpdateProducts = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    orpc.products.bulkUpdate.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.products.list.key(),
+        });
+        toast.success(
+          data.updated === 1
+            ? "1 produto atualizado"
+            : `${data.updated} produtos atualizados`,
+        );
+      },
+      onError: (error) => {
+        toast.error(error.message);
+      },
+    }),
+  );
+};

@@ -22,6 +22,7 @@ import { SelectCustomerDialog } from "../select-customer-dialog";
 import { PaymentDialog, type SalePaymentInput } from "../payment-dialog";
 import { SaleCompletedDialog } from "../sale-completed-dialog";
 import { useProducts } from "@/features/products/hooks/use-products";
+import { constructUrl } from "@/hooks/use-construct-url";
 import type { PersonType } from "@/schemas/customer";
 import { ProductSection } from "./product-section";
 import { CartSale } from "./cart-sale";
@@ -76,6 +77,9 @@ export interface ProductSale {
   minStock: number;
   unit: string;
   isActive: boolean;
+  // Se `false`, o PDV não bloqueia venda por estoque (produto sem controle
+  // de inventário — ex.: serviços, itens contínuos).
+  trackStock: boolean;
   maxStock?: number;
 }
 
@@ -186,12 +190,19 @@ export default function CreateSalePage({
     setSearchTerm(barcode);
   });
 
-  const filteredProducts = products?.filter(
-    (p) =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.barcode.includes(searchTerm),
-  );
+  const filteredProducts = products
+    ?.filter(
+      (p) =>
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.barcode.includes(searchTerm),
+    )
+    // A query devolve `image` como key crua do R2 (ex.: "abc-produto.jpg").
+    // A lista de produtos passa pelo mesmo `constructUrl` (ver
+    // products-container.tsx); sem isso o <img> no PDV busca do domínio
+    // atual e a imagem não carrega, enquanto a mesma foto abre normal em
+    // /produtos. Mesma correção aqui pra a grade e a lista mostrarem a foto.
+    .map((p) => ({ ...p, image: p.image ? constructUrl(p.image) : "" }));
 
   const addToCart = (product: ProductSale) => {
     const currentCart = form.getValues("cartItems");

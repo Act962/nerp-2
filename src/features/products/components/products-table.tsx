@@ -41,6 +41,7 @@ import { useProductModal } from "@/hooks/modals/use-product-modal";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import { toast } from "sonner";
+import { useBulkUpdateProducts } from "@/features/products/hooks/use-products";
 import { FilterProducts } from "./filters";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { CalendarFilter } from "./filter-calendar";
@@ -77,6 +78,15 @@ interface ProductTableProps {
   hasPreviousPage?: boolean;
   onNextPage?: () => void;
   onPreviousPage?: () => void;
+  // Total de produtos que casam com o filtro (todas as páginas). Usado para
+  // oferecer "aplicar em todos os N produtos filtrados" além dos visíveis.
+  totalCount?: number;
+  // Filtro atual — enviado ao bulk quando aplica em todos, para o server
+  // atualizar apenas o mesmo escopo que o usuário está vendo.
+  activeFilter?: {
+    categorySlugs?: string[];
+    search?: string;
+  };
 }
 
 function getStockStatus(current: number, min: number) {
@@ -103,10 +113,16 @@ export function ProductsTable({
   hasPreviousPage,
   onNextPage,
   onPreviousPage,
+  totalCount,
+  activeFilter,
 }: ProductTableProps) {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  // Quando `true`, os dropdowns de bulk aplicam em TODOS os produtos que
+  // casam com o filtro atual (não só nos IDs marcados). Volta pra `false`
+  // depois de aplicar ou quando a seleção muda.
+  const [applyToAll, setApplyToAll] = useState(false);
   const { onOpen } = useProductModal();
 
   useBarcodeScan(true, (barcode) => {
@@ -142,6 +158,7 @@ export function ProductsTable({
   );
 
   const toggleSelectAll = () => {
+    setApplyToAll(false);
     if (selectedProducts.length === filteredProducts.length) {
       setSelectedProducts([]);
     } else {
@@ -150,8 +167,49 @@ export function ProductsTable({
   };
 
   const toggleSelect = (id: string) => {
+    setApplyToAll(false);
     setSelectedProducts((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    );
+  };
+
+  const bulkUpdate = useBulkUpdateProducts();
+
+  // Aplica um patch (ex.: { isActive: true }) no escopo escolhido.
+  //   `applyToAll` true  → todos os produtos que casam com o filtro atual,
+  //                        mesmo os das outras páginas (envia `all: true`).
+  //   `applyToAll` false → só os produtos marcados na página visível.
+  const applyPatch = (patch: {
+    isActive?: boolean;
+    trackStock?: boolean;
+    showInCatalog?: boolean;
+  }) => {
+    if (applyToAll) {
+      bulkUpdate.mutate(
+        {
+          all: true,
+          filter: {
+            categorySlugs: activeFilter?.categorySlugs,
+            // Prioriza a busca local (input desta tabela) sobre o filtro do
+            // container — os dois casam com o que está sendo mostrado.
+            search:
+              searchTerm.trim() || activeFilter?.search || undefined,
+          },
+          patch,
+        },
+        {
+          onSuccess: () => {
+            setSelectedProducts([]);
+            setApplyToAll(false);
+          },
+        },
+      );
+      return;
+    }
+    if (selectedProducts.length === 0) return;
+    bulkUpdate.mutate(
+      { productIds: selectedProducts, patch },
+      { onSuccess: () => setSelectedProducts([]) },
     );
   };
 
@@ -183,24 +241,153 @@ export function ProductsTable({
       </CardHeader>
       <CardContent>
         {selectedProducts.length > 0 && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border bg-muted/50 p-3">
-            <span className="text-sm font-medium">
-              {selectedProducts.length}{" "}
-              {selectedProducts.length === 1
-                ? "produto selecionado"
-                : "produtos selecionados"}
-            </span>
-            <div className="ml-auto flex gap-2">
-              <Button size="sm" variant="outline">
-                Ativar
-              </Button>
-              <Button size="sm" variant="outline">
-                Desativar
-              </Button>
+          <div className="mb-4 flex flex-col gap-2 rounded-lg border bg-muted/50 p-3">
+            {/* Banner "aplicar em todos" — padrão Gmail: quando todos da página
+              estão marcados e existem mais produtos no filtro, oferece
+              estender pra TODAS as páginas. `applyToAll` altera o alvo dos
+              dropdowns abaixo sem exigir marcar item-por-item. */}
+            {typeof totalCount === "number" &&
+              totalCount > filteredProducts.length &&
+              selectedProducts.length === filteredProducts.length && (
+                <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed bg-background px-3 py-2 text-sm">
+                  {applyToAll ? (
+                    <>
+                      <span className="font-medium">
+                        Todos os {totalCount} produtos filtrados serão
+                        atualizados.
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7"
+                        onClick={() => setApplyToAll(false)}
+                      >
+                        Voltar a selecionar apenas os desta página
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        Os {filteredProducts.length} produtos desta página
+                        estão selecionados.
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7"
+                        onClick={() => setApplyToAll(true)}
+                      >
+                        Selecionar todos os {totalCount} produtos filtrados
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium">
+                {applyToAll
+                  ? `${totalCount ?? filteredProducts.length} produtos filtrados`
+                  : `${selectedProducts.length} ${
+                      selectedProducts.length === 1
+                        ? "produto selecionado"
+                        : "produtos selecionados"
+                    }`}
+              </span>
+              {!applyToAll && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7"
+                  onClick={() =>
+                    setSelectedProducts(filteredProducts.map((p) => p.id))
+                  }
+                  disabled={
+                    selectedProducts.length === filteredProducts.length ||
+                    filteredProducts.length === 0
+                  }
+                >
+                  Selecionar todos os {filteredProducts.length} desta página
+                </Button>
+              )}
+              <div className="ml-auto flex flex-wrap gap-2">
+              {/* Cada dropdown aplica um patch nos selecionados. Ação
+                imediata (sem confirmação): "N produtos atualizados" no toast
+                e o service em memória invalida a lista. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkUpdate.isPending}
+                  >
+                    Produto ativo
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => applyPatch({ isActive: true })}
+                  >
+                    Marcar como ativo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => applyPatch({ isActive: false })}
+                  >
+                    Marcar como inativo
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkUpdate.isPending}
+                  >
+                    Controlar estoque
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => applyPatch({ trackStock: true })}
+                  >
+                    Habilitar controle
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => applyPatch({ trackStock: false })}
+                  >
+                    Desabilitar controle (vende ilimitado)
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={bulkUpdate.isPending}
+                  >
+                    Exibir no Catálogo Online
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onClick={() => applyPatch({ showInCatalog: true })}
+                  >
+                    Exibir no catálogo
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => applyPatch({ showInCatalog: false })}
+                  >
+                    Ocultar do catálogo
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button size="sm" variant="destructive">
                 <Trash2 className="h-4 w-4 mr-2" />
                 Excluir
               </Button>
+              </div>
             </div>
           </div>
         )}

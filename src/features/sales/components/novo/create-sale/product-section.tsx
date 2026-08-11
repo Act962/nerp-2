@@ -162,14 +162,18 @@ export function ProductSection({
                 ? Array.from({ length: 12 }).map((_, index) => (
                     <Skeleton key={index} className="h-44 w-full rounded-xl" />
                   ))
-                : products.map((product, index) => (
+                : products.map((product, index) => {
+                    // Produto sem controle de estoque (`trackStock=false`)
+                    // vende ilimitado — ex.: serviços. Nesse caso não bloqueia
+                    // pelo `currentStock`.
+                    const outOfStock =
+                      product.trackStock && Number(product.currentStock) <= 0;
+                    return (
                     <button
                       type="button"
                       key={product.id}
-                      onClick={() =>
-                        Number(product.currentStock) > 0 && addToCart(product)
-                      }
-                      disabled={Number(product.currentStock) === 0}
+                      onClick={() => !outOfStock && addToCart(product)}
+                      disabled={outOfStock}
                       className={cn(
                         "group relative flex flex-col gap-2 overflow-hidden rounded-xl border bg-card p-3 text-left shadow-sm transition hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50",
                         index === selectedIndex &&
@@ -181,9 +185,11 @@ export function ProductSection({
                           {currencyFormatter(product.salePrice)}
                         </span>
                         <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                          {Number(product.currentStock) > 0
-                            ? `${product.currentStock} ${unitLabel(product.unit)}`
-                            : "0"}
+                          {!product.trackStock
+                            ? unitLabel(product.unit)
+                            : Number(product.currentStock) > 0
+                              ? `${product.currentStock} ${unitLabel(product.unit)}`
+                              : "0"}
                         </span>
                       </div>
                       <div className="flex h-24 items-center justify-center">
@@ -213,7 +219,8 @@ export function ProductSection({
                         )}
                       />
                     </button>
-                  ))}
+                    );
+                  })}
             </div>
           ) : (
             <div className="space-y-2">
@@ -221,14 +228,15 @@ export function ProductSection({
                 ? Array.from({ length: 12 }).map((_, index) => (
                     <Skeleton key={index} className="h-16 w-full" />
                   ))
-                : products.map((product) => (
+                : products.map((product) => {
+                    const outOfStock =
+                      product.trackStock && product.currentStock <= 0;
+                    return (
                     <button
                       type="button"
                       key={product.id}
-                      onClick={() =>
-                        product.currentStock > 0 && addToCart(product)
-                      }
-                      disabled={product.currentStock === 0}
+                      onClick={() => !outOfStock && addToCart(product)}
+                      disabled={outOfStock}
                       className="w-full flex items-center gap-3 rounded-lg border bg-card p-3 transition-all hover:border-primary hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Avatar className="h-12 w-12 rounded-md">
@@ -248,18 +256,25 @@ export function ProductSection({
                       </div>
                       <Badge
                         variant={
-                          product.currentStock > 0 ? "secondary" : "destructive"
+                          !product.trackStock
+                            ? "outline"
+                            : product.currentStock > 0
+                              ? "secondary"
+                              : "destructive"
                         }
                       >
-                        {product.currentStock > 0
-                          ? `${product.currentStock} ${unitLabel(product.unit)}`
-                          : "Sem estoque"}
+                        {!product.trackStock
+                          ? "Sem controle"
+                          : product.currentStock > 0
+                            ? `${product.currentStock} ${unitLabel(product.unit)}`
+                            : "Sem estoque"}
                       </Badge>
                       <div className="font-semibold text-primary">
                         {currencyFormatter(product.salePrice)}
                       </div>
                     </button>
-                  ))}
+                    );
+                  })}
             </div>
           )}
 
