@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -60,6 +61,7 @@ export function RegisterFormCatalog({
 }: React.ComponentProps<"div"> & RegisterFormProps) {
   const router = useRouter();
   const { signIn } = useUserStore();
+  const signInHref = useCatalogHref("/sign-in");
   const form = useForm<SignUpSchema>({
     resolver: zodResolver(signUpSchema),
   });
@@ -203,7 +205,7 @@ export function RegisterFormCatalog({
                 </FieldSeparator>
                 <Field>
                   <FieldDescription className="text-center">
-                    Já tem uma conta? <Link href="/sign-in">Entrar</Link>
+                    Já tem uma conta? <Link href={signInHref}>Entrar</Link>
                   </FieldDescription>
                 </Field>
               </FieldGroup>

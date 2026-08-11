@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import { useCart } from "@/hooks/use-cart";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { ItemRequested } from "./item-requested";
 
@@ -35,6 +36,10 @@ export function Header({ settings }: HeaderProps) {
   const { products, updateQuantity, toggleProduct } = useCart(
     settings.subdomain,
   );
+  const homeHref = useCatalogHref("/");
+  const aboutHref = useCatalogHref("/sobre-nos");
+  const cartHref = useCatalogHref("/cart");
+  const accountHref = useCatalogHref("/account");
 
   const { data: productsOfCart } = useQueryProductsOfCart({
     subdomain: settings.subdomain,
@@ -79,7 +84,7 @@ export function Header({ settings }: HeaderProps) {
     >
       <div className="max-w-6xl flex flex-row w-full justify-between">
         {/* Logo + Título */}
-        <Link href="/">
+        <Link href={homeHref}>
           <div className="flex flex-row gap-x-3 items-center cursor-pointer">
             <Avatar>
               <AvatarImage
@@ -99,14 +104,14 @@ export function Header({ settings }: HeaderProps) {
 
         <div className="flex flex-row gap-x-3 items-center">
           {/* Botão Início */}
-          <Link className="hidden sm:block" href="/">
+          <Link className="hidden sm:block" href={homeHref}>
             <Button variant="secondary" className="rounded-full">
               Início
             </Button>
           </Link>
 
           {/* Botão Sobre Nós */}
-          <Link className="hidden sm:block" href="/sobre-nos">
+          <Link className="hidden sm:block" href={aboutHref}>
             <Button variant="secondary" className="rounded-full">
               Sobre Nós
             </Button>
@@ -174,7 +179,7 @@ export function Header({ settings }: HeaderProps) {
                       </ScrollArea>
                     </div>
 
-                    <Link href="/cart">
+                    <Link href={cartHref}>
                       <Button
                         className="w-full mt-3"
                         variant={"secondary"}
@@ -188,7 +193,7 @@ export function Header({ settings }: HeaderProps) {
               </PopoverContent>
             </Popover>
           )}
-          <Link href="/account">
+          <Link href={accountHref}>
             <Button variant="secondary" size="icon-sm" className="rounded-full">
               <User />
             </Button>

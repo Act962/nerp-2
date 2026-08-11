@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { Footer } from "../../../features/storefront/components/footer";
 import type { Metadata } from "next";
 import { useConstructUrl } from "@/hooks/use-construct-url";
+import { headers } from "next/headers";
+import { CatalogBaseProvider } from "@/features/storefront/lib/catalog-base";
 
 interface StoreFrontLayoutProps {
   children: React.ReactNode;
@@ -63,7 +65,13 @@ export default async function SubdomainLayout({
 
   const settings = org.catalogSettings;
 
+  // Modo caminho (/catalogo/{slug}/...) coloca "/catalogo/{slug}" no header
+  // via middleware; modo subdomínio deixa vazio (hostname resolve o tenant).
+  const hdrs = await headers();
+  const catalogBase = hdrs.get("x-catalog-base") ?? "";
+
   return (
+    <CatalogBaseProvider base={catalogBase}>
     <div className="bg-accent-foreground/5 min-h-screen flex flex-col">
       <Header
         settings={{
@@ -98,5 +106,6 @@ export default async function SubdomainLayout({
         }}
       />
     </div>
+    </CatalogBaseProvider>
   );
 }
