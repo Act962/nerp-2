@@ -19,6 +19,10 @@ export function ProductsContainer() {
   const [maxValue] = useQueryState("max_value");
   const [dateInit] = useQueryState("date_init");
   const [dateEnd] = useQueryState("date_end");
+  // Busca controlada pelo container: precisa ir pro servidor pra achar
+  // produto fora da página atual. `search` local só filtrava os 10 itens
+  // que a query trouxe.
+  const [search, setSearch] = useQueryState("q");
 
   const { cursor, hasPrevious, goNext, goPrevious, reset } =
     useCursorPagination();
@@ -27,9 +31,10 @@ export function ProductsContainer() {
   // biome-ignore lint/correctness/useExhaustiveDependencies: as deps de filtro são intencionais — reiniciam a paginação ao mudar qualquer filtro.
   useEffect(() => {
     reset();
-  }, [category, sku, minValue, maxValue, dateInit, dateEnd, reset]);
+  }, [category, sku, minValue, maxValue, dateInit, dateEnd, search, reset]);
 
   const categorySlugs = category?.split(",").map((c) => c.trim());
+  const trimmedSearch = search?.trim() || undefined;
   const {
     data: products,
     nextCursor,
@@ -38,6 +43,7 @@ export function ProductsContainer() {
   } = useProducts({
     category: categorySlugs,
     sku: sku ?? undefined,
+    search: trimmedSearch,
     minValue: minValue ?? undefined,
     maxValue: maxValue ?? undefined,
     dateInit: dateInit ? dayjs(dateInit).startOf("day").toDate() : undefined,
@@ -91,10 +97,14 @@ export function ProductsContainer() {
         onNextPage={() => goNext(nextCursor)}
         onPreviousPage={goPrevious}
         totalCount={totalCount}
+        // Busca controlada pelo container — vai pro servidor via `useProducts`,
+        // então acha produto em qualquer página.
+        searchValue={search ?? ""}
+        onSearchChange={(v) => setSearch(v || null)}
         // Filtro atual — enviado pra `bulkUpdate` quando o usuário escolhe
         // "aplicar em todos os N produtos filtrados". Sem isso o bulk pega
         // TODOS os produtos da org, ignorando o filtro visível.
-        activeFilter={{ categorySlugs, search: undefined }}
+        activeFilter={{ categorySlugs, search: trimmedSearch }}
       />
     </div>
   );
