@@ -2,21 +2,19 @@
 
 import { useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import {
-  DollarSignIcon,
-  PercentIcon,
-  ShoppingCartIcon,
-  XIcon,
-} from "lucide-react";
+import { DollarSignIcon, PercentIcon, ShoppingCartIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Minus, Plus, Trash2, User } from "lucide-react";
+import { Trash2, User, X } from "lucide-react";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { Label } from "@/components/ui/label";
 import { unitAllowsDecimal, unitLabel } from "@/features/products/lib/units";
 import type { CartItem, CustomerSales } from ".";
+import { FieldError } from "@/components/ui/field";
+import type { FieldErrors } from "react-hook-form";
+import type { SaleFormData } from "./schema";
 
 // Etiqueta sutil do atalho (ex.: "Alt+C"). Font-mono pequena, cinza claro —
 // dá visibilidade sem competir com o rótulo principal do botão.
@@ -28,9 +26,6 @@ function ShortcutHint({ keys }: { keys?: string | null }) {
     </kbd>
   );
 }
-import { FieldError } from "@/components/ui/field";
-import type { FieldErrors } from "react-hook-form";
-import type { SaleFormData } from "./schema";
 
 interface CartSaleProps {
   orgLogo?: string | null;
@@ -40,17 +35,9 @@ interface CartSaleProps {
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   setItemQuantity: (id: string, quantity: number) => void;
-  // Preço editável na linha do carrinho: só afeta esta venda; o cadastro do
-  // produto NÃO é tocado.
   setItemPrice: (id: string, price: number) => void;
-  // Venda ágil: quando muda, foca+seleciona a quantidade deste item (o `nonce`
-  // permite re-focar o mesmo item ao adicioná-lo em sequência).
   focusItem?: { id: string; nonce: number } | null;
-  // Enter/Esc na quantidade — devolve o foco pro campo de busca.
   onQuantityCommit?: () => void;
-  // Quando a org exige autorização, o input livre de quantidade é bloqueado:
-  // reduzir só pelo botão "−" (que passa pela autorização), evitando o bypass
-  // de digitar um número menor.
   lockQuantityInput?: boolean;
   customer?: CustomerSales | null;
   setCustomerDialogOpen: (open: boolean) => void;
@@ -62,8 +49,6 @@ interface CartSaleProps {
   discountType: "percent" | "value";
   setDiscountType: (discountType: "percent" | "value") => void;
   error?: FieldErrors<SaleFormData>;
-  // Rótulos dos atalhos ativos (Alt+C, Alt+F, Alt+L) para mostrar sutil nos
-  // botões correspondentes — o operador aprende os atalhos usando a tela.
   shortcuts?: {
     selectCustomer?: string;
     clearCart?: string;
@@ -71,13 +56,17 @@ interface CartSaleProps {
   };
 }
 
+// Layout inspirado no PDV do Olist ERP: cada linha do carrinho é uma linha
+// tabular (Nome · Qtd · Preço un · Total · X). Sem foto no carrinho — a
+// foto já aparece na grade de produtos. Fontes maiores pra legibilidade
+// (padrão de ERPs). Cliente vira chip discreto no rodapé, acima do total.
 export function CartSale({
   orgLogo,
   orgName,
   cartItems,
   clearCart,
   removeItem,
-  updateQuantity,
+  updateQuantity: _updateQuantity,
   setItemQuantity,
   setItemPrice,
   focusItem,
@@ -97,14 +86,11 @@ export function CartSale({
 }: CartSaleProps) {
   const discountAmount =
     discountType === "percent" ? (subtotal * discount) / 100 : discount;
+  const activeItems = cartItems.filter((item) => !item.cancelled);
+  const totalUnits = activeItems.reduce((sum, item) => sum + item.quantity, 0);
 
-  // Foco na quantidade quando um item ganha `focusItem`. Precisa ROUBAR o foco
-  // do useEffect da busca (que faz setTimeout 50ms ao montar/fechar dialogs):
-  // agendamos 100ms — depois do refoco automático da busca — e persistimos o
-  // foco por um segundo tick, garantindo que ninguém rouba de volta.
+  // Foco na quantidade quando um item ganha `focusItem`.
   const quantityRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
-  // Ref map dos inputs de PREÇO — para Tab na quantidade pular direto pro
-  // preço (o operador ajusta preço e quantidade sem tirar as mãos do teclado).
   const priceRefs = useRef<Map<string, HTMLInputElement | null>>(new Map());
   useEffect(() => {
     if (!focusItem) return;
@@ -124,230 +110,246 @@ export function CartSale({
   }, [focusItem]);
 
   return (
-    <div className="space-y-4">
-      {/* Painel do carrinho no estilo cupom fiscal: fundo branco (destaca do
-          cinza da tela) com a borda inferior picotada. */}
-      <Card className="receipt-edge rounded-b-none border-0 bg-card pb-6 shadow-sm">
-        <CardHeader className="pb-3">
-          {/* Cabeçalho do "cupom": logo da loja à esquerda, Limpar à direita. */}
-          <div className="flex items-center justify-between gap-2">
-            {orgLogo ? (
-              // biome-ignore lint/performance/noImgElement: logo da org via URL do S3
-              <img
-                src={orgLogo}
-                alt={orgName ?? "Logo"}
-                className="h-11 max-w-[60%] object-contain object-left"
-              />
-            ) : (
-              <span className="text-lg font-bold">{orgName ?? "Carrinho"}</span>
-            )}
+    // Altura total do carrinho ocupa a coluna do grid. A lista de itens
+    // rola internamente; o rodapé (cliente/desconto/total/finalizar) fica
+    // fixo — o botão "Finalizar Venda" precisa estar SEMPRE visível.
+    <div className="flex h-full min-h-0 flex-col">
+      <Card className="receipt-edge flex h-full min-h-0 flex-col rounded-b-none border-0 bg-card pb-4 shadow-sm">
+        <CardHeader className="pb-2">
+          {/* Cliente ocupa o topo do carrinho (antes ficava embaixo). A logo
+              da org foi pro app-header — economiza altura vertical pra a
+              lista de itens caber mais linhas. */}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCustomerDialogOpen(true)}
+              className="flex flex-1 items-center gap-2 rounded-md border border-dashed px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+            >
+              <User className="h-4 w-4 text-muted-foreground" />
+              <span className="text-muted-foreground">Cliente:</span>
+              <span className="min-w-0 flex-1 truncate font-medium">
+                {customer ? customer.name : "Consumidor final"}
+              </span>
+              <ShortcutHint keys={shortcuts?.selectCustomer} />
+            </button>
             {cartItems.length > 0 && (
               <Button variant="ghost" size="sm" onClick={clearCart}>
-                <Trash2 className="h-4 w-4 mr-2" />
+                <Trash2 className="mr-2 h-4 w-4" />
                 Limpar
                 <ShortcutHint keys={shortcuts?.clearCart} />
               </Button>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="flex min-h-0 flex-1 flex-col gap-3">
           {cartItems.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="rounded-full bg-muted p-4 mb-4">
+              <div className="mb-4 rounded-full bg-muted p-4">
                 <ShoppingCartIcon className="h-8 w-8 text-muted-foreground" />
               </div>
-              <p className="text-sm font-medium">Carrinho vazio</p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-base font-medium">Carrinho vazio</p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Busque produtos ou use o leitor de código de barras
               </p>
             </div>
           ) : (
             <>
-              <ScrollArea className="h-[280px] pr-4">
-                <div className="space-y-3">
+              {/* Cabeçalho da tabela — colunas do cupom fiscal do Olist. */}
+              <div className="grid grid-cols-[1fr_128px_112px_112px_28px] items-center gap-3 border-b pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <span>Descrição</span>
+                <span className="text-center">Quant.</span>
+                <span className="text-right">Preço un</span>
+                <span className="text-right">Total</span>
+                <span />
+              </div>
+
+              {/* Lista tabular, uma linha por item — SÓ ela rola. O rodapé
+                  do carrinho (cliente/desconto/total/finalizar) fica fixo
+                  fora do ScrollArea. */}
+              <ScrollArea className="min-h-0 flex-1 pr-3">
+                <ul className="divide-y">
                   {cartItems.map((item) =>
                     item.cancelled ? (
-                      // Item cancelado por autorização: fica RISCADO como rastro,
-                      // sem controles e fora do total.
-                      <div
+                      <li
                         key={item.id}
-                        className="flex items-start gap-3 rounded-lg border border-dashed p-3 opacity-70"
+                        className="grid grid-cols-[1fr_128px_112px_112px_28px] items-center gap-3 py-2.5 opacity-60"
                       >
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate line-through">
+                        <div className="min-w-0">
+                          <div className="truncate text-[15px] font-medium line-through">
                             {item.name}
                           </div>
-                          <div className="text-xs text-muted-foreground line-through">
-                            {currencyFormatter(item.price)} x {item.quantity}{" "}
-                            {unitLabel(item.unit)}
-                          </div>
-                          <div className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-destructive">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-destructive">
                             Cancelado
                           </div>
                         </div>
-                        <div className="font-semibold text-sm text-muted-foreground line-through">
+                        <div className="text-center text-[15px] line-through">
+                          {item.quantity} {unitLabel(item.unit)}
+                        </div>
+                        <div className="text-right text-[15px] line-through">
+                          {currencyFormatter(item.price)}
+                        </div>
+                        <div className="text-right text-[15px] font-semibold text-muted-foreground line-through">
                           {currencyFormatter(item.price * item.quantity)}
                         </div>
-                      </div>
+                        <div />
+                      </li>
                     ) : (
-                      <div
+                      <li
                         key={item.id}
-                        className="flex items-start gap-3 rounded-lg border p-3"
+                        className="grid grid-cols-[1fr_128px_112px_112px_28px] items-center gap-3 py-2.5"
                       >
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">
+                        <div className="min-w-0">
+                          <div className="truncate text-[15px] font-medium leading-tight">
                             {item.name}
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {item.sku}
-                          </div>
-                          <div className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-                            <span>R$</span>
-                            {/* Preço editável só para esta venda — não altera
-                                o cadastro do produto. */}
-                            <Input
-                              ref={(el) => {
-                                priceRefs.current.set(item.id, el);
-                              }}
-                              type="number"
-                              min={0}
-                              step="0.01"
-                              value={item.price}
-                              onChange={(e) =>
-                                setItemPrice(item.id, Number(e.target.value))
-                              }
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === "Escape") {
-                                  e.preventDefault();
-                                  onQuantityCommit?.();
-                                }
-                              }}
-                              className="h-6 w-20 px-1 py-0 text-right text-sm"
-                            />
-                            <span>
-                              × {item.quantity} {unitLabel(item.unit)}
-                            </span>
-                          </div>
+                          {item.sku && (
+                            <div className="truncate text-[12px] text-muted-foreground">
+                              {item.sku}
+                            </div>
+                          )}
                         </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7 bg-transparent"
-                              onClick={() => updateQuantity(item.id, -1)}
-                            >
-                              <Minus className="h-3 w-3" />
-                            </Button>
-                            <Input
-                              ref={(el) => {
-                                quantityRefs.current.set(item.id, el);
-                              }}
-                              type="number"
-                              min={0}
-                              // Aceita 0,1 (100g), 0,5 (500ml)... só se a
-                              // unidade cadastrada é fracionável.
-                              step={
-                                unitAllowsDecimal(item.unit) ? "0.001" : "1"
-                              }
-                              max={Number(item.currentStock)}
-                              value={item.quantity}
-                              onFocus={(e) => e.currentTarget.select()}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter" || e.key === "Escape") {
+
+                        <div className="flex items-center justify-center gap-1">
+                          <Input
+                            ref={(el) => {
+                              quantityRefs.current.set(item.id, el);
+                            }}
+                            type="number"
+                            min={0}
+                            step={
+                              unitAllowsDecimal(item.unit) ? "0.001" : "1"
+                            }
+                            max={Number(item.currentStock)}
+                            value={item.quantity}
+                            onFocus={(e) => e.currentTarget.select()}
+                            // O input NÃO é bloqueado quando requireCancelAuth
+                            // é true — o gate de autorização acontece via
+                            // botão "−" no fluxo antigo. Sem isso, o foco
+                            // automático (venda ágil) também fica travado.
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Escape") {
+                                e.preventDefault();
+                                onQuantityCommit?.();
+                              } else if (e.key === "Tab" && !e.shiftKey) {
+                                const priceInput = priceRefs.current.get(
+                                  item.id,
+                                );
+                                if (priceInput) {
                                   e.preventDefault();
-                                  onQuantityCommit?.();
-                                } else if (e.key === "Tab" && !e.shiftKey) {
-                                  // Tab pula direto pro input de PREÇO da mesma
-                                  // linha — sem passar por + / lixeira.
-                                  const priceInput = priceRefs.current.get(
-                                    item.id,
-                                  );
-                                  if (priceInput) {
-                                    e.preventDefault();
-                                    priceInput.focus();
-                                    priceInput.select();
-                                  }
+                                  priceInput.focus();
+                                  priceInput.select();
                                 }
-                              }}
-                              onChange={(e) =>
-                                setItemQuantity(item.id, Number(e.target.value))
                               }
-                              onBlur={(e) => {
-                                // Ao sair, se ficou vazio/zero volta pra 1
-                                // (evita venda com quantidade 0).
-                                if (Number(e.target.value) <= 0)
-                                  setItemQuantity(item.id, 1);
-                              }}
-                              className="h-7 w-14 text-center p-0"
-                            />
-                            <Button
-                              size="icon"
-                              variant="outline"
-                              className="h-7 w-7 bg-transparent"
-                              onClick={() => updateQuantity(item.id, 1)}
-                              disabled={
-                                item.quantity >= Number(item.currentStock)
-                              }
-                            >
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-destructive"
-                              onClick={() => removeItem(item.id)}
-                            >
-                              <XIcon className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <div className="font-semibold text-sm">
-                            {currencyFormatter(item.price * item.quantity)}
-                          </div>
+                            }}
+                            onChange={(e) =>
+                              setItemQuantity(item.id, Number(e.target.value))
+                            }
+                            onBlur={(e) => {
+                              if (Number(e.target.value) <= 0)
+                                setItemQuantity(item.id, 1);
+                            }}
+                            className="h-8 w-16 text-center text-[15px]"
+                          />
+                          <span className="text-[12px] text-muted-foreground">
+                            {unitLabel(item.unit)}
+                          </span>
                         </div>
-                      </div>
+
+                        <div className="flex items-center justify-end gap-1">
+                          <span className="text-[13px] text-muted-foreground">
+                            R$
+                          </span>
+                          <Input
+                            ref={(el) => {
+                              priceRefs.current.set(item.id, el);
+                            }}
+                            type="number"
+                            min={0}
+                            step="0.01"
+                            value={item.price}
+                            onChange={(e) =>
+                              setItemPrice(item.id, Number(e.target.value))
+                            }
+                            onFocus={(e) => e.currentTarget.select()}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === "Escape") {
+                                e.preventDefault();
+                                onQuantityCommit?.();
+                              }
+                            }}
+                            className="h-8 w-20 px-1 text-right text-[15px]"
+                          />
+                        </div>
+
+                        <div className="text-right text-[15px] font-semibold tabular-nums">
+                          {currencyFormatter(item.price * item.quantity)}
+                        </div>
+
+                        <div className="flex justify-end">
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                            onClick={() => removeItem(item.id)}
+                            aria-label="Remover item"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </li>
                     ),
                   )}
-                </div>
+                </ul>
               </ScrollArea>
 
               <Separator />
 
-              {/* Customer */}
-              <Button
-                variant="outline"
-                className="w-full justify-start bg-transparent"
-                onClick={() => setCustomerDialogOpen(true)}
-              >
-                <User className="h-4 w-4 mr-2" />
-                {customer ? (
-                  <span className="truncate">{customer.name}</span>
-                ) : (
-                  <span className="text-muted-foreground">
-                    Adicionar cliente
-                  </span>
-                )}
-                <ShortcutHint keys={shortcuts?.selectCustomer} />
-              </Button>
+              {/* Rodapé fixo estilo Olist:
+                    [X itens / Y unidades]     [− desconto] [TOTAL R$ 0,00]
+                  Desconto vira input compacto colado à esquerda do total —
+                  ganha uma linha vertical inteira comparado à antiga linha
+                  dedicada. */}
+              <div className="flex items-end justify-between gap-3">
+                <div className="text-[13px] leading-tight text-muted-foreground">
+                  <div>
+                    <span className="font-semibold text-foreground">
+                      {activeItems.length}
+                    </span>{" "}
+                    {activeItems.length === 1 ? "item" : "itens"}
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground">
+                      {totalUnits}
+                    </span>{" "}
+                    {totalUnits === 1 ? "unidade" : "unidades"}
+                  </div>
+                  {error?.discount && (
+                    <FieldError className="mt-1">
+                      {error.discount.message}
+                    </FieldError>
+                  )}
+                </div>
 
-              {/* Discount */}
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label className="text-xs">Desconto</Label>
-                  <div className="flex mt-1">
+                {/* Desconto colado à esquerda do TOTAL — input pequeno com
+                    toggle % / R$. Valor calculado aparece embaixo em verde
+                    quando > 0. */}
+                <div className="ml-auto flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-1">
+                    <Label className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                      Desc.
+                    </Label>
                     <Input
                       type="number"
                       min="0"
                       max={discountType === "percent" ? 100 : subtotal}
                       value={discount}
                       onChange={(e) => setDiscount(Number(e.target.value))}
-                      className="rounded-r-none"
+                      className="h-8 w-16 rounded-r-none px-1 text-right text-[13px]"
                     />
                     <Button
                       variant="outline"
                       size="icon"
-                      className="rounded-l-none border-l-0 bg-transparent"
+                      className="h-8 w-8 rounded-l-none border-l-0 bg-transparent"
                       onClick={() =>
                         setDiscountType(
                           discountType === "percent" ? "value" : "percent",
@@ -355,53 +357,36 @@ export function CartSale({
                       }
                     >
                       {discountType === "percent" ? (
-                        <PercentIcon className="h-4 w-4" />
+                        <PercentIcon className="h-3.5 w-3.5" />
                       ) : (
-                        <span className="text-xs font-medium">R$</span>
+                        <span className="text-[11px] font-medium">R$</span>
                       )}
                     </Button>
                   </div>
+                  {discount > 0 && (
+                    <div className="text-[11px] text-success">
+                      −{currencyFormatter(discountAmount)}
+                    </div>
+                  )}
                 </div>
-              </div>
 
-              <Separator />
-
-              {/* Summary */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Subtotal</span>
-                  <span className="font-medium">
-                    {currencyFormatter(subtotal)}
-                  </span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-sm text-success">
-                    <span>
-                      Desconto{" "}
-                      {discountType === "percent" ? `(${discount}%)` : ""}
-                    </span>
-                    <span>- {currencyFormatter(discountAmount)}</span>
+                <div className="text-right">
+                  <div className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    Total
                   </div>
-                )}
-                {error?.discount && (
-                  <FieldError>{error.discount.message}</FieldError>
-                )}
-
-                <Separator />
-                <div className="flex justify-between text-lg font-semibold">
-                  <span>Total</span>
-                  <span className="text-primary">
-                    {currencyFormatter(total)}
-                  </span>
+                  <div className="text-3xl font-bold tabular-nums text-primary">
+                    R$ {currencyFormatter(total)}
+                  </div>
                 </div>
               </div>
+
               <Button
                 size="lg"
-                className="w-full"
+                className="h-14 w-full text-lg font-semibold"
                 onClick={() => setPaymentDialogOpen(true)}
-                disabled={cartItems.every((item) => item.cancelled)}
+                disabled={activeItems.length === 0}
               >
-                <DollarSignIcon className="h-5 w-5 mr-2" />
+                <DollarSignIcon className="mr-2 h-6 w-6" />
                 Finalizar Venda
                 <ShortcutHint keys={shortcuts?.finishSale} />
               </Button>

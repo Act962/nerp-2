@@ -13,11 +13,6 @@ import { useLayoutEffect, useRef, useState } from "react";
 import type { ProductSale } from ".";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { unitLabel } from "@/features/products/lib/units";
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-} from "@/components/ui/pagination";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
@@ -78,6 +73,8 @@ interface ProductSessionProps {
   isLoading?: boolean;
   /** Rótulo do atalho da busca (ex.: "Alt+B") — mostrado sutil dentro do input. */
   searchShortcut?: string;
+  /** Logo da org — usada como watermark (cinza + opacidade) nos tiles sem foto. */
+  orgLogo?: string | null;
 }
 
 export function ProductSection({
@@ -101,23 +98,29 @@ export function ProductSection({
   onPreviousPage,
   isLoading,
   searchShortcut,
+  orgLogo,
 }: ProductSessionProps) {
   const previousIsDisabled = !hasPreviousPage;
   const nextIsDisabled = !hasNextPage;
 
   return (
-    <div className="min-w-0 space-y-4">
-      <Card>
+    // Altura total: busca fica no topo, categorias/paginação no rodapé,
+    // a GRADE de produtos rola internamente (não a página).
+    <div className="flex h-full min-h-0 min-w-0 flex-col space-y-4">
+      <Card className="flex h-full min-h-0 flex-col">
         <CardHeader className="pb-3">
           <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
-              {/* No PDV a busca fica sempre pronta para digitar (nome/SKU/código). */}
+              <Search className="absolute left-4 top-1/2 h-6 w-6 -translate-y-1/2 text-slate-500" />
+              {/* No PDV a busca fica sempre pronta para digitar (nome/SKU/código).
+                  Fundo branco + texto preto (mesma paleta dos tiles), altura 35%
+                  maior (h-12 → h-16) e fonte grande (text-xl) alinhando com o
+                  preço em destaque do tile. */}
               <Input
                 ref={searchInputRef}
                 autoFocus
                 placeholder="Buscar por nome, SKU ou código de barras..."
-                className="h-12 rounded-lg pl-12 pr-16 text-base"
+                className="h-16 rounded-lg border-slate-200 bg-white pl-12 pr-16 text-xl text-slate-900 placeholder:text-slate-500 dark:bg-white md:text-xl"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 onKeyDown={(e) => {
@@ -133,9 +136,10 @@ export function ProductSection({
                   }
                 }}
               />
-              {/* Atalho pra focar essa busca — sutil, dentro do próprio input. */}
+              {/* Atalho pra focar essa busca — sutil, sobre o fundo branco
+                  do input (paleta slate pra combinar). */}
               {searchShortcut && (
-                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] font-normal text-muted-foreground">
+                <kbd className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-normal text-slate-500">
                   {searchShortcut}
                 </kbd>
               )}
@@ -155,12 +159,15 @@ export function ProductSection({
             </Tabs>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex min-h-0 flex-1 flex-col">
+          {/* GRADE de produtos rola aqui dentro — categorias/paginação
+              ficam ancoradas no rodapé do card, sempre visíveis. */}
+          <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+            <div className="grid auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3">
               {isLoading
-                ? Array.from({ length: 12 }).map((_, index) => (
-                    <Skeleton key={index} className="h-44 w-full rounded-xl" />
+                ? Array.from({ length: 9 }).map((_, index) => (
+                    <Skeleton key={index} className="w-full rounded-xl" />
                   ))
                 : products.map((product, index) => {
                     // Produto sem controle de estoque (`trackStock=false`)
@@ -175,24 +182,24 @@ export function ProductSection({
                       onClick={() => !outOfStock && addToCart(product)}
                       disabled={outOfStock}
                       className={cn(
-                        "group relative flex flex-col gap-2 overflow-hidden rounded-xl border bg-card p-3 text-left shadow-sm transition hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50",
+                        // Card 100% branco (independente do tema do resto do
+                        // sistema) com texto preto — padrão de tiles de
+                        // produto de e-commerce. Alvo: 3×2 na primeira vista.
+                        "group relative flex flex-col overflow-hidden rounded-xl border bg-white p-3 text-left text-slate-900 shadow-sm transition hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50",
                         index === selectedIndex &&
                           "border-primary ring-2 ring-primary",
                       )}
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <span className="rounded-md bg-muted px-2 py-1 text-sm font-bold">
-                          {currencyFormatter(product.salePrice)}
+                      {/* SKU sutil no canto — onde antes ficava o badge de
+                          estoque. Estoque vira implícito (zerado = disabled). */}
+                      {product.sku && (
+                        <span className="absolute right-3 top-2.5 z-10 max-w-[60%] truncate text-xs font-medium text-slate-500">
+                          {product.sku}
                         </span>
-                        <span className="rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
-                          {!product.trackStock
-                            ? unitLabel(product.unit)
-                            : Number(product.currentStock) > 0
-                              ? `${product.currentStock} ${unitLabel(product.unit)}`
-                              : "0"}
-                        </span>
-                      </div>
-                      <div className="flex h-24 items-center justify-center">
+                      )}
+                      {/* Foto ocupa TODO o espaço vertical restante do tile —
+                          quanto maior o grade, maior a foto. */}
+                      <div className="flex min-h-0 flex-1 items-center justify-center">
                         {product.image ? (
                           // biome-ignore lint/performance/noImgElement: foto do produto via URL do S3
                           <img
@@ -200,24 +207,35 @@ export function ProductSection({
                             alt=""
                             className="h-full w-full object-contain"
                           />
+                        ) : orgLogo ? (
+                          // Fallback sem foto do produto: logo da org em
+                          // grayscale + opacidade bem baixa como watermark.
+                          // biome-ignore lint/performance/noImgElement: logo via URL do S3
+                          <img
+                            src={orgLogo}
+                            alt=""
+                            className="h-full w-full object-contain opacity-20 grayscale"
+                          />
                         ) : (
-                          <Avatar className="h-16 w-16 rounded-md">
+                          <Avatar className="h-24 w-24 rounded-md opacity-40 grayscale">
                             <AvatarFallback>
                               {product.name.substring(0, 2)}
                             </AvatarFallback>
                           </Avatar>
                         )}
                       </div>
-                      <div className="line-clamp-2 text-sm font-bold uppercase leading-tight">
+                      <div className="mt-2 line-clamp-2 text-sm font-semibold uppercase leading-tight text-slate-900">
                         {product.name}
                       </div>
-                      {/* Acento de cor fininho na base (identidade do tile). */}
-                      <span
-                        className={cn(
-                          "absolute inset-x-0 bottom-0 h-1",
-                          tileColor(product.id),
-                        )}
-                      />
+                      {/* Preço + unidade lado a lado, ambos sutis. */}
+                      <div className="mt-1 flex items-baseline gap-1.5">
+                        <span className="text-base font-bold tabular-nums text-slate-900">
+                          R$ {currencyFormatter(product.salePrice)}
+                        </span>
+                        <span className="text-xs font-normal text-slate-500">
+                          / {unitLabel(product.unit)}
+                        </span>
+                      </div>
                     </button>
                     );
                   })}
@@ -225,7 +243,7 @@ export function ProductSection({
           ) : (
             <div className="space-y-2">
               {isLoading
-                ? Array.from({ length: 12 }).map((_, index) => (
+                ? Array.from({ length: 16 }).map((_, index) => (
                     <Skeleton key={index} className="h-16 w-full" />
                   ))
                 : products.map((product) => {
@@ -249,8 +267,10 @@ export function ProductSection({
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1 text-left">
-                        <div className="font-medium">{product.name}</div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-[15px] font-medium">
+                          {product.name}
+                        </div>
+                        <div className="text-[13px] text-muted-foreground">
                           {product.sku} | {product.barcode}
                         </div>
                       </div>
@@ -277,32 +297,7 @@ export function ProductSection({
                   })}
             </div>
           )}
-
-          <Pagination className="mt-4">
-            <PaginationContent>
-              <PaginationItem>
-                <Button
-                  variant={"secondary"}
-                  disabled={previousIsDisabled}
-                  onClick={onPreviousPage}
-                >
-                  Anterior
-                </Button>
-              </PaginationItem>
-              <Button variant={"secondary"} disabled>
-                {pageIndex ?? 1}
-              </Button>
-              <PaginationItem>
-                <Button
-                  variant={"secondary"}
-                  disabled={nextIsDisabled}
-                  onClick={onNextPage}
-                >
-                  Próximo
-                </Button>
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
+          </div>
 
           {/* Abas de categoria (como na referência): filtram a grade.
               Em uma linha só, sem scroll: o que não couber vira "+N" que
@@ -384,7 +379,7 @@ function CategoryTabs({
   return (
     <div
       ref={containerRef}
-      className="mt-3 flex items-center gap-2 overflow-hidden border-t pt-3"
+      className="mt-2 flex items-center gap-2 overflow-hidden border-t pt-2"
     >
       <Button
         type="button"
