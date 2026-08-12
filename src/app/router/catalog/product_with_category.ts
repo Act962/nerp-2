@@ -1,5 +1,6 @@
 import { base } from "@/app/middlewares/base";
 import prisma from "@/lib/db";
+import { resolvePrice, resolveManyPrices } from "@/features/precos/server/resolve-price";
 import z, { string } from "zod";
 
 export const getProductAndProductsByCategory = base
@@ -12,6 +13,8 @@ export const getProductAndProductsByCategory = base
     z.object({
       subdomain: z.string(),
       productSlug: z.string(),
+      // Storefront logado — projeta preço da tabela do usuário.
+      catalogUserId: z.string().optional(),
     }),
   )
   .handler(async ({ input, errors }) => {
@@ -61,6 +64,31 @@ export const getProductAndProductsByCategory = base
         take: 4,
       });
 
+      // Resolve tabela do buyer (guest = default).
+      let buyerPriceListId: string | null = null;
+      if (input.catalogUserId) {
+        const cu = await prisma.catalogUser.findFirst({
+          where: { id: input.catalogUserId, organizationId: organization.id },
+          select: { priceListId: true },
+        });
+        buyerPriceListId = cu?.priceListId ?? null;
+      }
+      const mainPrice = await resolvePrice({
+        organizationId: organization.id,
+        productId: product.id,
+        quantity: 1,
+        priceListId: buyerPriceListId,
+        productSalePrice: Number(product.salePrice),
+      });
+      const relatedResolved = productsWithCategory.length
+        ? await resolveManyPrices({
+            organizationId: organization.id,
+            priceListId: buyerPriceListId,
+            items: productsWithCategory.map((p) => ({ productId: p.id, quantity: 1 })),
+          })
+        : [];
+      const relatedById = new Map(relatedResolved.map((r) => [r.productId, r.unitPrice]));
+
       const productsList = productsWithCategory.map((product) => ({
         id: product.id,
         isActive: product.isActive,
@@ -73,7 +101,7 @@ export const getProductAndProductsByCategory = base
         weight: Number(product.weight),
         thumbnail: product.thumbnail,
         currentStock: Number(product.currentStock),
-        salePrice: Number(product.salePrice),
+        salePrice: relatedById.get(product.id) ?? Number(product.salePrice),
         promotionalPrice: Number(product.promotionalPrice),
         images: product.images,
       }));
@@ -82,7 +110,7 @@ export const getProductAndProductsByCategory = base
       return {
         product: {
           ...product,
-          salePrice: Number(product.salePrice),
+          salePrice: mainPrice.unitPrice,
           currentStock: Number(product.currentStock),
           minStock: Number(product.minStock),
           weight: Number(product.weight),

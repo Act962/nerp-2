@@ -34,12 +34,17 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { getAddressByCep } from "@/utils/get-address-by-cep";
 import { Textarea } from "@/components/ui/textarea";
+import { orpc } from "@/lib/orpc";
+import { useQuery } from "@tanstack/react-query";
 
 interface ViewCustomerProps {
   id: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
+
+// Sentinel usado no Select — Radix não aceita `value=""`.
+const NO_PRICE_LIST = "__default__";
 
 const editCustomerSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres").optional(),
@@ -52,10 +57,12 @@ const editCustomerSchema = z.object({
   cep: z.string().optional(),
   address: z.string().optional(),
   description: z.string().optional(),
+  priceListId: z.string().optional(),
 });
 
 export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
   const { customer, isLoading } = useQueryCustomer(id);
+  const { data: priceLists = [] } = useQuery(orpc.precos.list.queryOptions({ input: {} }));
   const form = useForm<z.infer<typeof editCustomerSchema>>({
     resolver: zodResolver(editCustomerSchema),
     defaultValues: {
@@ -69,6 +76,9 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
       cep: customer?.zipCode ?? "",
       address: customer?.address ?? "",
       description: customer?.notes ?? "",
+      priceListId:
+        (customer as { priceListId?: string | null } | undefined)?.priceListId ??
+        NO_PRICE_LIST,
     },
   });
   const updateCustomer = useUpdateCustomer();
@@ -104,6 +114,11 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
         zipCode: data.cep,
         address: data.address,
         notes: data.description,
+        // "__default__" = usa a tabela default da org (guardamos como null).
+        priceListId:
+          data.priceListId && data.priceListId !== NO_PRICE_LIST
+            ? data.priceListId
+            : null,
       },
       {
         onSuccess: () => {
@@ -126,6 +141,9 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
         cep: customer.zipCode ?? "",
         address: customer.address ?? "",
         description: customer.notes ?? "",
+        priceListId:
+          (customer as { priceListId?: string | null }).priceListId ??
+          NO_PRICE_LIST,
       });
     }
   }, [open, customer, form]);
@@ -322,6 +340,42 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
               )}
             />
 
+            <Controller
+              name="priceListId"
+              control={form.control}
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>
+                    Tabela de preço
+                  </FieldLabel>
+                  <Select
+                    name={field.name}
+                    value={field.value ?? NO_PRICE_LIST}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger
+                      id={field.name}
+                      disabled={isEditCustomerLoading}
+                    >
+                      <SelectValue placeholder="Padrão (Varejo)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PRICE_LIST}>
+                        Padrão da organização
+                      </SelectItem>
+                      {priceLists
+                        .filter((pl) => pl.isActive)
+                        .map((pl) => (
+                          <SelectItem key={pl.id} value={pl.id}>
+                            {pl.name}
+                            {pl.isDefault ? " (padrão)" : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            />
             <Controller
               name="description"
               control={form.control}

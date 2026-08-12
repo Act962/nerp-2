@@ -1,6 +1,7 @@
 import { base } from "@/app/middlewares/base";
 import { CatalogOperationMode, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
+import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import { z } from "zod";
 
 /**
@@ -145,9 +146,22 @@ export const approvalCheckout = base
       });
     }
 
-    const items = input.products.map((inputProduct) => {
+    // Preço resolvido pelo server via `priceListId` do Customer (o pedido de
+    // catálogo já rebaixou o CatalogUser → Customer acima). Guest sem tabela
+    // cai na default da org.
+    const customerForPricing = await prisma.customer.findFirst({
+      where: { id: customerId, organizationId: organization.id },
+      select: { priceListId: true },
+    });
+    const resolved = await resolveManyPrices({
+      organizationId: organization.id,
+      priceListId: customerForPricing?.priceListId ?? null,
+      items: input.products.map((p) => ({ productId: p.id, quantity: p.quantity })),
+    });
+
+    const items = input.products.map((inputProduct, i) => {
       const product = products.find((p) => p.id === inputProduct.id)!;
-      const unitPrice = Number(product.salePrice);
+      const unitPrice = resolved[i].unitPrice;
       return {
         productId: product.id,
         productName: product.name,
@@ -158,6 +172,7 @@ export const approvalCheckout = base
     });
 
     const subtotal = items.reduce((acc, item) => acc + item.total, 0);
+    const usedPriceListId = resolved[0]?.priceListId ?? null;
 
     // Numeração atômica (evita corrida com o count() usado no PDV).
     const org = await prisma.organization.update({
@@ -170,6 +185,7 @@ export const approvalCheckout = base
       data: {
         organizationId: organization.id,
         customerId,
+        priceListId: usedPriceListId,
         subtotal,
         total: subtotal,
         saleNumber: org.lastSaleNumber,

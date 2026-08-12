@@ -1,5 +1,6 @@
 import { base } from "@/app/middlewares/base";
 import prisma from "@/lib/db";
+import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import { sortProducts } from "@/utils/sorteble-products";
 import z, { string } from "zod";
 
@@ -15,6 +16,10 @@ export const listProducts = base
       categorySlugs: z.array(z.string()).optional(),
       maxValue: z.number().optional(),
       minValue: z.number().optional(),
+      // Quando o storefront tem um `CatalogUser` logado, mandar o id aqui
+      // faz a listagem já projetar `salePrice` da tabela desse usuário.
+      // Guest = default da org.
+      catalogUserId: z.string().optional(),
     }),
   )
   .output(
@@ -103,6 +108,25 @@ export const listProducts = base
         },
       });
 
+      // Descobre a `priceListId` do usuário logado (se houver) — guest cai
+      // na default. `salePrice` retornado é o resolvido pra qty=1.
+      let buyerPriceListId: string | null = null;
+      if (input.catalogUserId) {
+        const cu = await prisma.catalogUser.findFirst({
+          where: { id: input.catalogUserId, organizationId: organization.id },
+          select: { priceListId: true },
+        });
+        buyerPriceListId = cu?.priceListId ?? null;
+      }
+      const resolved = products.length
+        ? await resolveManyPrices({
+            organizationId: organization.id,
+            priceListId: buyerPriceListId,
+            items: products.map((p) => ({ productId: p.id, quantity: 1 })),
+          })
+        : [];
+      const resolvedById = new Map(resolved.map((r) => [r.productId, r.unitPrice]));
+
       let productList = products.map((product) => ({
         id: product.id,
         isActive: product.isActive,
@@ -115,7 +139,7 @@ export const listProducts = base
         weight: Number(product.weight),
         thumbnail: product.thumbnail,
         currentStock: Number(product.currentStock),
-        salePrice: Number(product.salePrice),
+        salePrice: resolvedById.get(product.id) ?? Number(product.salePrice),
         promotionalPrice: Number(product.promotionalPrice),
         images: product.images,
         productIsDisponile: Number(product.currentStock) > 0,
