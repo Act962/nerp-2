@@ -1,5 +1,6 @@
 import { base } from "@/app/middlewares/base";
 import prisma from "@/lib/db";
+import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import { constructUrl, getCustomDomain } from "@/lib/utils";
 import { z } from "zod";
 
@@ -110,8 +111,16 @@ export const purchaseAssas = base
 
     const baseUrl = getCustomDomain(input.domain);
 
-    const productItems: ProductItem[] = input.products.map((inputProduct) => {
+    // Preço resolvido server-side pela tabela do CatalogUser.
+    const resolved = await resolveManyPrices({
+      organizationId: organization.id,
+      priceListId: customer.priceListId ?? null,
+      items: input.products.map((p) => ({ productId: p.id, quantity: p.quantity })),
+    });
+
+    const productItems: ProductItem[] = input.products.map((inputProduct, i) => {
       const product = products.find((p) => p.id === inputProduct.id)!;
+      const resolvedUnitPrice = resolved[i].unitPrice;
 
       let image = "";
 
@@ -137,7 +146,7 @@ export const purchaseAssas = base
         description: product.description || "",
         name: product.name.slice(0, 20),
         quantity: inputProduct.quantity,
-        value: Number(product.salePrice),
+        value: resolvedUnitPrice,
       };
     });
 

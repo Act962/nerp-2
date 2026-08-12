@@ -153,6 +153,31 @@ export const auth = betterAuth({
           });
           // Semeia os catálogos padrão do Trade (mídia, negociação, setores).
           await ensureTradeCatalogs(organization.id);
+          // Semeia as 3 tabelas de preço padrão (Varejo=default, Atacado,
+          // Revendedor) — a org já nasce pronta pra vincular clientes por tipo.
+          await prisma.priceList.createMany({
+            data: [
+              {
+                organizationId: organization.id,
+                name: "Varejo",
+                slug: "varejo",
+                isDefault: true,
+              },
+              {
+                organizationId: organization.id,
+                name: "Atacado",
+                slug: "atacado",
+                isDefault: false,
+              },
+              {
+                organizationId: organization.id,
+                name: "Revendedor",
+                slug: "revendedor",
+                isDefault: false,
+              },
+            ],
+            skipDuplicates: true,
+          });
           // Replica org + member do owner no NASA.
           await enqueueSyncOutbox("org", {
             id: organization.id,

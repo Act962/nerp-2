@@ -405,6 +405,59 @@ export default function CreateSalePage({
     form.setValue("cartItems", updatedCart);
   };
 
+  // Marca linhas do carrinho como "tocadas manualmente" — o operador editou o
+  // preço à mão, então a re-resolução automática pela tabela do cliente NÃO
+  // sobrescreve (senão volta a alterar o que ele acabou de digitar). Reset
+  // implícito: remover a linha limpa a marca.
+  const manualPriceOverrides = useRef<Set<string>>(new Set());
+  const setItemPriceManual = (id: string, price: number) => {
+    manualPriceOverrides.current.add(id);
+    setItemPrice(id, price);
+  };
+
+  // Re-resolve preços do carrinho SEMPRE que muda: cliente selecionado, ids
+  // de produtos ou quantidades. O server é a fonte da verdade (mesmo
+  // resolver é chamado no `sales/create`) — aqui a UI só espelha o que
+  // vai ser gravado, evitando o rejeito por total divergente.
+  const cartKey = form
+    .watch("cartItems")
+    .map((i) => `${i.productId}:${i.quantity}`)
+    .join("|");
+  const customerIdForResolve = form.watch("customer")?.id ?? null;
+  useEffect(() => {
+    const items = form.getValues("cartItems");
+    if (items.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await orpc.precos.resolveMany.call({
+          customerId: customerIdForResolve ?? undefined,
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity || 1,
+          })),
+        });
+        if (cancelled) return;
+        // Aplica só onde o resolvido é diferente do que já tá na linha, e
+        // pula linhas em que o operador editou o preço manualmente.
+        res.lines.forEach((line: { unitPrice: number }, i: number) => {
+          const target = items[i];
+          if (!target) return;
+          if (manualPriceOverrides.current.has(target.id)) return;
+          if (Math.abs((target.price ?? 0) - line.unitPrice) > 0.001) {
+            setItemPrice(target.id, line.unitPrice);
+          }
+        });
+      } catch {
+        // silencioso — o server rejeita o create se estiver muito fora.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartKey, customerIdForResolve]);
+
   const removeItem = (id: string) => {
     const currentCart = form.getValues("cartItems");
     form.setValue(
@@ -707,7 +760,7 @@ export default function CreateSalePage({
           setCustomerDialogOpen={setCustomerDialogOpen}
           setPaymentDialogOpen={handleOpenPayment}
           setItemQuantity={setItemQuantity}
-          setItemPrice={setItemPrice}
+          setItemPrice={setItemPriceManual}
           shortcuts={{
             selectCustomer: bindings["selecionar-cliente"],
             clearCart: bindings["limpar-carrinho"],

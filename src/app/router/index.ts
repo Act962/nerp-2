@@ -61,6 +61,7 @@ import { googleDriveRoutes } from "./google-drive";
 import { oracleExplorerRoutes } from "./oracle-explorer";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
 import { orgDashboardRoutes } from "./org-dashboard";
+import { precosRoutes } from "./precos";
 
 export const router = {
   products: productsRoutes,
@@ -126,4 +127,5 @@ export const router = {
   oracleExplorer: oracleExplorerRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
   orgDashboard: orgDashboardRoutes,
+  precos: precosRoutes,
 };

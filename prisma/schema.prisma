@@ -283,6 +283,9 @@ model Organization {
   fiscalConfig              FiscalConfig?
   fiscalDocuments           FiscalDocument[]
   googleDriveConnections    GoogleDriveConnection[]
+  // Tabelas de preço (Varejo/Atacado/Revendedor + customizadas)
+  priceLists                PriceList[]
+  productPrices             ProductPrice[]
 
   @@index([slug])
   @@index([subdomain])
@@ -673,6 +676,7 @@ model Product {
   favorites        Favorite[]
   storeProducts    StoreProduct[]
   batches          ProductBatch[]
+  productPrices    ProductPrice[]
 
   @@unique([organizationId, slug])
   // @@unique([organizationId, sku])
@@ -688,6 +692,72 @@ model Product {
   @@index([isActive])
   @@index([supplierId])
   @@map("products")
+}
+
+// ============================================
+// TABELAS DE PREÇO (Varejo / Atacado / Revendedor + customizadas)
+// ============================================
+
+// Modo de precificação de uma faixa de quantidade:
+// - FIXED           → usa `unitPrice` da faixa (preço absoluto por unidade)
+// - PERCENT_DISCOUNT → aplica `percentDiscount` sobre `Product.salePrice`
+enum PricingMode {
+  FIXED
+  PERCENT_DISCOUNT
+}
+
+// Uma tabela de preço da organização (ex.: Varejo, Atacado, Revendedor,
+// ou qualquer nome customizado). Cada `Customer`/`CatalogUser` pode apontar
+// pra uma; quem não aponta usa a `isDefault` da org (guest do storefront
+// também). Nunca compartilhada entre orgs — sempre por `organizationId`.
+model PriceList {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?  @db.Text
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productPrices  ProductPrice[]
+  customers      Customer[]
+  catalogUsers   CatalogUser[]
+  sales          Sale[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@index([organizationId, isDefault])
+  @@map("price_lists")
+}
+
+// Faixa de preço de um produto numa tabela específica. `minQuantity` é o
+// piso da faixa: a resolução pega a maior faixa cujo `minQuantity <= qty`.
+// Se `pricingMode = FIXED`, usa `unitPrice`. Se `PERCENT_DISCOUNT`, aplica
+// `percentDiscount` sobre `Product.salePrice`. A exclusão é validada no
+// handler (Zod refine + check no Postgres).
+model ProductPrice {
+  id              String      @id @default(cuid())
+  organizationId  String
+  productId       String
+  priceListId     String
+  minQuantity     Int         @default(1)
+  pricingMode     PricingMode @default(FIXED)
+  unitPrice       Decimal?    @db.Decimal(10, 2)
+  percentDiscount Decimal?    @db.Decimal(5, 2)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  product      Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceList    PriceList    @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, priceListId, minQuantity])
+  @@index([organizationId])
+  @@index([productId, priceListId])
+  @@map("product_prices")
 }
 
 // ============================================
@@ -774,17 +844,21 @@ model Customer {
   // Timestamps
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+  // Tabela de preço vinculada — quem não tem cai na PriceList `isDefault` da org.
+  priceListId     String?
   // Relações
   organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sales           Sale[]
   suppliers       Supplier[]
   userCatalog     CatalogUser? @relation(fields: [clientId], references: [id])
   clientId        String?      @unique
+  priceList       PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([document])
   @@index([email])
+  @@index([priceListId])
   @@map("customers")
 }
 
@@ -862,14 +936,20 @@ model CatalogUser {
   // Stripe
   stripeCustomerId String?
 
+  // Tabela de preço vinculada — o storefront resolve preço por aqui quando
+  // o usuário está logado. Sem tabela → cai na PriceList default da org.
+  priceListId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer     Customer?
+  priceList    PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
 
   @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([priceListId])
   @@map("catalog_users")
 }
 
@@ -908,6 +988,9 @@ model Sale {
   // Sessão de caixa em que a venda foi registrada (opcional: preserva vendas
   // históricas e vendas não-PDV).
   cashSessionId  String?
+  // Tabela de preço usada na resolução do server (auditoria/relatório).
+  // Pode ser null pra vendas antigas antes desta feature.
+  priceListId    String?
   // Status
   status         SaleStatus      @default(DRAFT)
   // Valores
@@ -931,6 +1014,7 @@ model Sale {
   customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
   createdBy      User?           @relation("CreatedSales", fields: [createdById], references: [id])
   cashSession    CashSession?    @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+  priceList      PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   items          SaleItem[]
   payments       SalePayment[]
   stockMovements StockMovement[]
@@ -943,6 +1027,7 @@ model Sale {
   @@index([customerId])
   @@index([status])
   @@index([createdAt])
+  @@index([priceListId])
   @@map("sales")
 }
 

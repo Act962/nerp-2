@@ -5,6 +5,7 @@ import type {
 } from "@/context/checkout/types";
 import { useConstructUrl } from "@/hooks/use-construct-url";
 import prisma from "@/lib/db";
+import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import { stripe } from "@/lib/stripe";
 import { constructUrl, getCustomDomain } from "@/lib/utils";
 import type Stripe from "stripe";
@@ -63,9 +64,21 @@ export const purchase = base
       });
     }
 
+    // Resolve preço server-side via tabela do CatalogUser (guest cai na default).
+    const catalogUser = await prisma.catalogUser.findFirst({
+      where: { id: input.customerId, organizationId: organization.id },
+      select: { priceListId: true },
+    });
+    const resolved = await resolveManyPrices({
+      organizationId: organization.id,
+      priceListId: catalogUser?.priceListId ?? null,
+      items: input.products.map((p) => ({ productId: p.id, quantity: p.quantity })),
+    });
+
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] =
-      input.products.map((inputProduct) => {
+      input.products.map((inputProduct, i) => {
         const product = products.find((p) => p.id === inputProduct.id)!;
+        const resolvedUnitPrice = resolved[i].unitPrice;
 
         let images: string[] = [];
 
@@ -89,7 +102,7 @@ export const purchase = base
         return {
           quantity: inputProduct.quantity,
           price_data: {
-            unit_amount: Math.round(Number(product.salePrice) * 100),
+            unit_amount: Math.round(resolvedUnitPrice * 100),
             currency: "brl",
             product_data: {
               name: product.name,
@@ -97,7 +110,7 @@ export const purchase = base
               metadata: {
                 id: product.id,
                 name: product.name,
-                price: Number(product.salePrice),
+                price: resolvedUnitPrice,
                 organizationId: organization.id,
                 organizationName: organization.name,
               } as ProductMetadata,
