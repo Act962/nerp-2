@@ -1,11 +1,19 @@
 -- Tabelas de preço por tipo de cliente + faixas por quantidade
 -- (Varejo / Atacado / Revendedor + customizadas)
+--
+-- DDL idempotente: a primeira execução desta migration falhou em produção
+-- (referenciava "organizations", o @@map correto é "organization"), então
+-- ela precisa aplicar limpo tanto num banco virgem quanto num que tenha
+-- ficado com estado parcial.
 
 -- CreateEnum
-CREATE TYPE "PricingMode" AS ENUM ('FIXED', 'PERCENT_DISCOUNT');
+DO $$ BEGIN
+  CREATE TYPE "PricingMode" AS ENUM ('FIXED', 'PERCENT_DISCOUNT');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CreateTable: PriceList (tabelas de preço da org)
-CREATE TABLE "price_lists" (
+CREATE TABLE IF NOT EXISTS "price_lists" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -20,7 +28,7 @@ CREATE TABLE "price_lists" (
 );
 
 -- CreateTable: ProductPrice (faixa de preço de um produto numa tabela)
-CREATE TABLE "product_prices" (
+CREATE TABLE IF NOT EXISTS "product_prices" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "productId" TEXT NOT NULL,
@@ -36,52 +44,78 @@ CREATE TABLE "product_prices" (
 );
 
 -- Índices PriceList
-CREATE UNIQUE INDEX "price_lists_organizationId_slug_key" ON "price_lists"("organizationId", "slug");
-CREATE INDEX "price_lists_organizationId_idx" ON "price_lists"("organizationId");
-CREATE INDEX "price_lists_organizationId_isDefault_idx" ON "price_lists"("organizationId", "isDefault");
+CREATE UNIQUE INDEX IF NOT EXISTS "price_lists_organizationId_slug_key" ON "price_lists"("organizationId", "slug");
+CREATE INDEX IF NOT EXISTS "price_lists_organizationId_idx" ON "price_lists"("organizationId");
+CREATE INDEX IF NOT EXISTS "price_lists_organizationId_isDefault_idx" ON "price_lists"("organizationId", "isDefault");
 
 -- Índices ProductPrice
-CREATE UNIQUE INDEX "product_prices_productId_priceListId_minQuantity_key" ON "product_prices"("productId", "priceListId", "minQuantity");
-CREATE INDEX "product_prices_organizationId_idx" ON "product_prices"("organizationId");
-CREATE INDEX "product_prices_productId_priceListId_idx" ON "product_prices"("productId", "priceListId");
+CREATE UNIQUE INDEX IF NOT EXISTS "product_prices_productId_priceListId_minQuantity_key" ON "product_prices"("productId", "priceListId", "minQuantity");
+CREATE INDEX IF NOT EXISTS "product_prices_organizationId_idx" ON "product_prices"("organizationId");
+CREATE INDEX IF NOT EXISTS "product_prices_productId_priceListId_idx" ON "product_prices"("productId", "priceListId");
 
 -- Backstop: garante coerência do modo com o valor (defesa contra bugs no handler)
-ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_pricing_mode_check"
-  CHECK (
-    ("pricingMode" = 'FIXED' AND "unitPrice" IS NOT NULL AND "percentDiscount" IS NULL)
-    OR
-    ("pricingMode" = 'PERCENT_DISCOUNT' AND "percentDiscount" IS NOT NULL AND "unitPrice" IS NULL AND "percentDiscount" > 0 AND "percentDiscount" <= 100)
-  );
+DO $$ BEGIN
+  ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_pricing_mode_check"
+    CHECK (
+      ("pricingMode" = 'FIXED' AND "unitPrice" IS NOT NULL AND "percentDiscount" IS NULL)
+      OR
+      ("pricingMode" = 'PERCENT_DISCOUNT' AND "percentDiscount" IS NOT NULL AND "unitPrice" IS NULL AND "percentDiscount" > 0 AND "percentDiscount" <= 100)
+    );
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- FKs PriceList → Organization
-ALTER TABLE "price_lists" ADD CONSTRAINT "price_lists_organizationId_fkey"
-  FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "price_lists" ADD CONSTRAINT "price_lists_organizationId_fkey"
+    FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- FKs ProductPrice
-ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_organizationId_fkey"
-  FOREIGN KEY ("organizationId") REFERENCES "organizations"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_productId_fkey"
-  FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_priceListId_fkey"
-  FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_organizationId_fkey"
+    FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_productId_fkey"
+    FOREIGN KEY ("productId") REFERENCES "products"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  ALTER TABLE "product_prices" ADD CONSTRAINT "product_prices_priceListId_fkey"
+    FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Customer.priceListId
-ALTER TABLE "customers" ADD COLUMN "priceListId" TEXT;
-CREATE INDEX "customers_priceListId_idx" ON "customers"("priceListId");
-ALTER TABLE "customers" ADD CONSTRAINT "customers_priceListId_fkey"
-  FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "customers" ADD COLUMN IF NOT EXISTS "priceListId" TEXT;
+CREATE INDEX IF NOT EXISTS "customers_priceListId_idx" ON "customers"("priceListId");
+DO $$ BEGIN
+  ALTER TABLE "customers" ADD CONSTRAINT "customers_priceListId_fkey"
+    FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- CatalogUser.priceListId
-ALTER TABLE "catalog_users" ADD COLUMN "priceListId" TEXT;
-CREATE INDEX "catalog_users_priceListId_idx" ON "catalog_users"("priceListId");
-ALTER TABLE "catalog_users" ADD CONSTRAINT "catalog_users_priceListId_fkey"
-  FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "catalog_users" ADD COLUMN IF NOT EXISTS "priceListId" TEXT;
+CREATE INDEX IF NOT EXISTS "catalog_users_priceListId_idx" ON "catalog_users"("priceListId");
+DO $$ BEGIN
+  ALTER TABLE "catalog_users" ADD CONSTRAINT "catalog_users_priceListId_fkey"
+    FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Sale.priceListId (auditoria)
-ALTER TABLE "sales" ADD COLUMN "priceListId" TEXT;
-CREATE INDEX "sales_priceListId_idx" ON "sales"("priceListId");
-ALTER TABLE "sales" ADD CONSTRAINT "sales_priceListId_fkey"
-  FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "sales" ADD COLUMN IF NOT EXISTS "priceListId" TEXT;
+CREATE INDEX IF NOT EXISTS "sales_priceListId_idx" ON "sales"("priceListId");
+DO $$ BEGIN
+  ALTER TABLE "sales" ADD CONSTRAINT "sales_priceListId_fkey"
+    FOREIGN KEY ("priceListId") REFERENCES "price_lists"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Backfill: cria 3 tabelas default (Varejo/Atacado/Revendedor) para cada org
 -- existente. `varejo` nasce como default.
@@ -95,7 +129,7 @@ SELECT
   true,
   NOW(),
   NOW()
-FROM "organizations" o
+FROM "organization" o
 ON CONFLICT ("organizationId", "slug") DO NOTHING;
 
 INSERT INTO "price_lists" ("id", "organizationId", "name", "slug", "isDefault", "isActive", "createdAt", "updatedAt")
@@ -108,7 +142,7 @@ SELECT
   true,
   NOW(),
   NOW()
-FROM "organizations" o
+FROM "organization" o
 ON CONFLICT ("organizationId", "slug") DO NOTHING;
 
 INSERT INTO "price_lists" ("id", "organizationId", "name", "slug", "isDefault", "isActive", "createdAt", "updatedAt")
@@ -121,5 +155,5 @@ SELECT
   true,
   NOW(),
   NOW()
-FROM "organizations" o
+FROM "organization" o
 ON CONFLICT ("organizationId", "slug") DO NOTHING;
