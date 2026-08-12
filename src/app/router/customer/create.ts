@@ -19,6 +19,7 @@ export const createCustomer = base
       cep: z.string().optional(),
       address: z.string().optional(),
       description: z.string().optional(),
+      priceListId: z.string().nullable().optional(),
     }),
   )
   .output(
@@ -63,6 +64,7 @@ export const createCustomer = base
         state: input.state,
         address: input.address,
         organizationId: context.org.id,
+        priceListId: input.priceListId,
       },
     });
 

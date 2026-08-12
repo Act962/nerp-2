@@ -49,6 +49,7 @@ import {
   ShoppingCart,
   Store,
   Tag,
+  Tags,
   Ticket,
   TrendingUp,
   Trophy,
@@ -130,6 +131,7 @@ const navigation: NavItem[] = [
     children: [
       { name: "Produtos", href: "/produtos", icon: Package },
       { name: "Categorias", href: "/produtos/categorias", icon: Tag },
+      { name: "Tabelas de preço", href: "/precos", icon: Tags, permission: "precos" },
     ],
   },
   {

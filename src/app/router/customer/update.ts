@@ -5,8 +5,13 @@ import type { CustomerUpdateInput } from "@/generated/prisma/models";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
+// `priceListId` é campo escalar novo — o `CustomerUpdateInput` gerado o
+// expõe como relação (`priceList: {connect: ...}`), o que é chato pro client.
+// Aceitamos os dois: se o cliente enviar `priceListId` (string|null), o
+// handler mapeia pra relação Prisma.
 type UpdateCustomerInput = CustomerUpdateInput & {
   id: string;
+  priceListId?: string | null;
 };
 
 export const updateCustomer = base
@@ -48,6 +53,13 @@ export const updateCustomer = base
         zipCode: input.zipCode,
         address: input.address,
         notes: input.notes,
+        // Tabela de preço vinculada — mapeia `priceListId` (string|null) do
+        // input escalar pra sintaxe de relação Prisma. `null` = desvincula.
+        ...(input.priceListId === null
+          ? { priceList: { disconnect: true } }
+          : input.priceListId
+            ? { priceList: { connect: { id: input.priceListId } } }
+            : {}),
       },
     });
 

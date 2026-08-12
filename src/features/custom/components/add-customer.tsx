@@ -37,6 +37,11 @@ import { formatCPForCNPJ } from "@/utils/format-cnpj";
 import { cepMask } from "@/utils/format-cep";
 import { getAddressByCep } from "@/utils/get-address-by-cep";
 import { Spinner } from "@/components/ui/spinner";
+import { orpc } from "@/lib/orpc";
+import { useQuery } from "@tanstack/react-query";
+
+// Radix não aceita value="", então precisamos de um sentinel para "sem tabela".
+const NO_PRICE_LIST = "__default__";
 
 const createCustomerSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres"),
@@ -49,6 +54,7 @@ const createCustomerSchema = z.object({
   cep: z.string().optional(),
   address: z.string().optional(),
   description: z.string().optional(),
+  priceListId: z.string().optional(),
 });
 
 export const AddCustomerModal = ({
@@ -57,6 +63,7 @@ export const AddCustomerModal = ({
   children: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
+  const { data: priceLists = [] } = useQuery(orpc.precos.list.queryOptions({ input: {} }));
   const form = useForm<z.infer<typeof createCustomerSchema>>({
     resolver: zodResolver(createCustomerSchema),
     defaultValues: {
@@ -70,17 +77,27 @@ export const AddCustomerModal = ({
       cep: "",
       address: "",
       description: "",
+      priceListId: NO_PRICE_LIST,
     },
   });
   const createCustomer = useCreateCustomer();
 
   const onSubmit = async (data: z.infer<typeof createCustomerSchema>) => {
-    createCustomer.mutate(data, {
-      onSuccess: () => {
-        setOpen(false);
-        form.reset();
+    createCustomer.mutate(
+      {
+        ...data,
+        priceListId:
+          data.priceListId && data.priceListId !== NO_PRICE_LIST
+            ? data.priceListId
+            : null,
       },
-    });
+      {
+        onSuccess: () => {
+          setOpen(false);
+          form.reset();
+        },
+      },
+    );
   };
 
   const handleCepChange = async (value: string) => {
@@ -298,6 +315,42 @@ export const AddCustomerModal = ({
               )}
             />
 
+            <Controller
+              name="priceListId"
+              control={form.control}
+              render={({ field }) => (
+                <Field>
+                  <FieldLabel htmlFor={field.name}>
+                    Tabela de preço
+                  </FieldLabel>
+                  <Select
+                    name={field.name}
+                    value={field.value ?? NO_PRICE_LIST}
+                    onValueChange={field.onChange}
+                  >
+                    <SelectTrigger
+                      id={field.name}
+                      disabled={isCreateCustomerLoading}
+                    >
+                      <SelectValue placeholder="Padrão (Varejo)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_PRICE_LIST}>
+                        Padrão da organização
+                      </SelectItem>
+                      {priceLists
+                        .filter((pl) => pl.isActive)
+                        .map((pl) => (
+                          <SelectItem key={pl.id} value={pl.id}>
+                            {pl.name}
+                            {pl.isDefault ? " (padrão)" : ""}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+              )}
+            />
             <Controller
               name="description"
               control={form.control}
