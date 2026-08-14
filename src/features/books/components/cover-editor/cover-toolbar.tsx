@@ -15,8 +15,8 @@ interface CoverToolbarProps {
   onAddPhotoSlot?: () => void;
   onImportBrands: () => void;
   canImportBrands: boolean;
-  onSetDefault: () => void;
-  setDefaultLabel: string;
+  onSetDefault?: () => void;
+  setDefaultLabel?: string;
   isUploadingImage: boolean;
   saveStatus: "idle" | "saving" | "saved";
   backgroundControl?: ReactNode;
@@ -104,15 +104,17 @@ export function CoverToolbar({
           <Tag className="size-4" /> Importar marcas
         </Button>
         <div className="shrink-0">{backgroundControl}</div>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className={`shrink-0 gap-2 ${EDITOR_BUTTON_CLASS}`}
-          onClick={onSetDefault}
-        >
-          <Star className="size-4" /> {setDefaultLabel}
-        </Button>
+        {onSetDefault && setDefaultLabel && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className={`shrink-0 gap-2 ${EDITOR_BUTTON_CLASS}`}
+            onClick={onSetDefault}
+          >
+            <Star className="size-4" /> {setDefaultLabel}
+          </Button>
+        )}
       </div>
       <span className="text-xs text-muted-foreground">
         {saveStatus === "saving" && "Salvando…"}

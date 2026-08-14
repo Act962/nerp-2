@@ -2,66 +2,51 @@
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {
   ArrowLeft,
   DownloadIcon,
-  ImagePlusIcon,
   SendIcon,
   SparklesIcon,
   TriangleAlert,
   Zap,
 } from "lucide-react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useBook, useGenerateBook, useSendBook } from "../hooks/use-books";
 import { formatPeriod } from "../lib/book-format";
+import { buildSampleValues } from "../lib/book-variables";
+import { AddExtraPageButton } from "./book-pages/add-extra-page-button";
+import { BookCoverCard } from "./book-pages/book-cover-card";
 import { BookPagesList } from "./book-pages/book-pages-list";
+import { BookPagesListV2 } from "./book-pages/book-pages-list-v2";
 import { BookStatusBadge } from "./book-status-badge";
-import { ImportPhotosDialog } from "./import-photos-dialog";
-import { SaveTemplateDialog } from "./templates/save-template-dialog";
-
-// Os três editores só existem dentro de abas que começam fechadas, e juntos
-// arrastam o canvas e os painéis de propriedades. Importados de forma estática
-// eles entravam no bundle inicial e atrasavam a abertura do book.
-const tabFallback = () => (
-  <div className="flex justify-center py-12">
-    <Spinner />
-  </div>
-);
-
-const PageLayoutEditor = dynamic(
-  () =>
-    import("./book-pages/page-layout-editor").then(
-      (mod) => mod.PageLayoutEditor,
-    ),
-  { loading: tabFallback },
-);
-
-const CoverEditor = dynamic(
-  () => import("./cover-editor/cover-editor").then((mod) => mod.CoverEditor),
-  { loading: tabFallback },
-);
-
-const TemplateLibrary = dynamic(
-  () =>
-    import("./templates/template-library").then((mod) => mod.TemplateLibrary),
-  { loading: tabFallback },
-);
 
 interface BookEditorProps {
   bookId: string;
 }
 
+// Editor do book em SCROLL ÚNICO: capa → páginas de fotos (das lojas) →
+// página final. Sem tabs — a criação/edição fina de padrões (capa, página
+// extra, layout de página de fotos) mora só em /padroes; aqui a coordenadora
+// vê o book todo e ajusta pontualmente (trocar/excluir foto, excluir página,
+// editar layout da página via dialog).
 export function BookEditor({ bookId }: BookEditorProps) {
   const { book, isLoading } = useBook(bookId);
   const generateBook = useGenerateBook();
   const sendBook = useSendBook();
-  const [openImport, setOpenImport] = useState(false);
-  const [openSaveTemplate, setOpenSaveTemplate] = useState(false);
   const [pendingMode, setPendingMode] = useState<"queue" | "sync" | null>(null);
+
+  const variableValues = useMemo(() => {
+    if (!book) return buildSampleValues();
+    return {
+      ...buildSampleValues(),
+      nomeBook: book.name,
+      periodo: formatPeriod(book.periodMonth, book.periodYear),
+      industria: book.supplierName ?? null,
+      empresaPdv: book.organizationName,
+    };
+  }, [book]);
 
   if (isLoading || !book) {
     return (
@@ -73,7 +58,7 @@ export function BookEditor({ bookId }: BookEditorProps) {
 
   const isGenerating = book.status === "GENERATING";
   const isFailed = book.status === "FAILED";
-  const hasItems = book.items.length > 0;
+  const hasItems = book.items.length > 0 || (book.pages?.length ?? 0) > 0;
 
   const runGenerate = (sync: boolean) => {
     setPendingMode(sync ? "sync" : "queue");
@@ -83,14 +68,15 @@ export function BookEditor({ bookId }: BookEditorProps) {
     );
   };
 
-  const existingPhotoIds = book.items.map((item) => item.pdvPhotoId);
-  // Logos resolvidos na renderização: a capa padrão referencia a origem
-  // ("organization"/"supplier"), não uma key fixa, então troca de logo se
-  // reflete sozinha em todos os books.
   const logos = {
     organization: book.distributorLogo ?? null,
     supplier: book.supplierLogo,
   };
+
+  // Total de páginas do book pro rótulo "Página X/N": capa + páginas de
+  // conteúdo (BookPages + itens legados) + página final.
+  const contentPages = (book.pages?.length ?? 0) + book.items.length;
+  const totalPages = 1 + contentPages + 1;
 
   return (
     <div className="space-y-6">
@@ -130,10 +116,6 @@ export function BookEditor({ bookId }: BookEditorProps) {
               </a>
             </Button>
           )}
-          <Button variant="outline" onClick={() => setOpenImport(true)}>
-            <ImagePlusIcon className="size-4" />
-            Importar fotos
-          </Button>
           {book.canApprove && (
             <Button
               variant={book.sentAt ? "outline" : "default"}
@@ -215,96 +197,90 @@ export function BookEditor({ bookId }: BookEditorProps) {
         </p>
       )}
 
-      <Tabs defaultValue="photos">
-        <TabsList>
-          <TabsTrigger value="photos">Páginas</TabsTrigger>
-          <TabsTrigger value="cover">Capa e Página Final</TabsTrigger>
-        </TabsList>
+      <div className="space-y-6">
+        <BookCoverCard
+          bookId={bookId}
+          bookName={book.name}
+          supplierId={book.supplierId}
+          supplierName={book.supplierName}
+          organizationName={book.organizationName}
+          periodMonth={book.periodMonth}
+          periodYear={book.periodYear}
+          coverLayout={book.coverLayout}
+          closingLayout={book.closingLayout}
+          coverBackground={book.coverBackground}
+          closingBackground={book.closingBackground}
+          logos={logos}
+          variableValues={variableValues}
+          kind="cover"
+          position={1}
+          total={totalPages}
+        />
 
-        <TabsContent value="photos" className="mt-4">
-          <Tabs defaultValue="content">
-            <TabsList>
-              <TabsTrigger value="content">Conteúdo</TabsTrigger>
-              <TabsTrigger value="custom">Personalizado</TabsTrigger>
-              <TabsTrigger value="templates">Padrões</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="content" className="mt-4">
-              <BookPagesList
-                bookId={bookId}
-                periodMonth={book.periodMonth}
-                periodYear={book.periodYear}
-                items={book.items}
-                industryLogo={book.supplierLogo}
-                organizationName={book.organizationName}
-                supplierId={book.supplierId}
-                supplierName={book.supplierName}
-                bookPageLayout={book.pageLayout}
-                bookPageBackground={book.pageBackground}
-                logos={logos}
-              />
-            </TabsContent>
-
-            <TabsContent value="custom" className="mt-4">
-              <PageLayoutEditor
+        {(book.pages?.length ?? 0) > 0 && (
+          <>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm text-muted-foreground">
+                Use as setas ↑/↓ em cada página para reordená-las.
+              </p>
+              <AddExtraPageButton
                 bookId={bookId}
                 supplierId={book.supplierId}
-                supplierName={book.supplierName}
-                organizationName={book.organizationName}
-                periodMonth={book.periodMonth}
-                periodYear={book.periodYear}
-                pageLayout={book.pageLayout}
-                pageBackground={book.pageBackground}
-                items={book.items}
-                onRequestSaveTemplate={() => setOpenSaveTemplate(true)}
-                logos={logos}
               />
-            </TabsContent>
+            </div>
+            <BookPagesListV2
+              bookId={bookId}
+              supplierId={book.supplierId}
+              pages={book.pages ?? []}
+              logos={logos}
+              variableValues={variableValues}
+            />
+          </>
+        )}
 
-            <TabsContent value="templates" className="mt-4">
-              <TemplateLibrary
-                bookId={bookId}
-                supplierId={book.supplierId}
-                supplierName={book.supplierName}
-              />
-            </TabsContent>
-          </Tabs>
-        </TabsContent>
-
-        <TabsContent value="cover" className="mt-4">
-          <CoverEditor
+        {book.items.length > 0 && (
+          <BookPagesList
             bookId={bookId}
-            bookName={book.name}
-            supplierId={book.supplierId}
-            supplierName={book.supplierName}
-            organizationName={book.organizationName}
             periodMonth={book.periodMonth}
             periodYear={book.periodYear}
+            items={book.items}
+            industryLogo={book.supplierLogo}
+            organizationName={book.organizationName}
+            supplierId={book.supplierId}
+            supplierName={book.supplierName}
+            bookPageLayout={book.pageLayout}
+            bookPageBackground={book.pageBackground}
             logos={logos}
-            coverLayout={book.coverLayout}
-            closingLayout={book.closingLayout}
-            coverBackground={book.coverBackground}
-            closingBackground={book.closingBackground}
-            onRequestSaveTemplate={() => setOpenSaveTemplate(true)}
           />
-        </TabsContent>
-      </Tabs>
+        )}
 
-      <ImportPhotosDialog
-        open={openImport}
-        onOpenChange={setOpenImport}
-        bookId={bookId}
-        defaultSupplierId={book.supplierId}
-        existingPhotoIds={existingPhotoIds}
-      />
+        {book.items.length === 0 && (book.pages?.length ?? 0) === 0 && (
+          <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
+            Nenhuma página de conteúdo ainda. Volte para <strong>Books</strong>{" "}
+            e use <strong>Gerar automático</strong> para criar 1 página por
+            supermercado a partir das fotos aprovadas.
+          </div>
+        )}
 
-      <SaveTemplateDialog
-        open={openSaveTemplate}
-        onOpenChange={setOpenSaveTemplate}
-        bookId={bookId}
-        supplierId={book.supplierId}
-        supplierName={book.supplierName}
-      />
+        <BookCoverCard
+          bookId={bookId}
+          bookName={book.name}
+          supplierId={book.supplierId}
+          supplierName={book.supplierName}
+          organizationName={book.organizationName}
+          periodMonth={book.periodMonth}
+          periodYear={book.periodYear}
+          coverLayout={book.coverLayout}
+          closingLayout={book.closingLayout}
+          coverBackground={book.coverBackground}
+          closingBackground={book.closingBackground}
+          logos={logos}
+          variableValues={variableValues}
+          kind="closing"
+          position={totalPages}
+          total={totalPages}
+        />
+      </div>
     </div>
   );
 }

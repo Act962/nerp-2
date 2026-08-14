@@ -38,8 +38,8 @@ interface LayoutEditorProps {
   background: CoverBackground;
   onBackgroundChange: (background: CoverBackground) => void;
   saveStatus: "idle" | "saving" | "saved";
-  onSetDefault: () => void;
-  setDefaultLabel: string;
+  onSetDefault?: () => void;
+  setDefaultLabel?: string;
   onImportBrands: () => void;
   canImportBrands: boolean;
   // Slots de foto e variáveis por item só fazem sentido no layout de página:

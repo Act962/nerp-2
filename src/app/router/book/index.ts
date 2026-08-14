@@ -27,6 +27,21 @@ import { reviewBookItem } from "./review-item";
 import { sendBook } from "./send-book";
 import { bookDashboard } from "./dashboard";
 import { duplicateBookPage } from "./duplicate-page";
+import { autoGenerateBook } from "./auto-generate";
+import { autoGeneratePreview } from "./auto-generate-preview";
+import { setSlotPhoto } from "./set-slot-photo";
+import { setSlotAdjustment } from "./set-slot-adjustment";
+import { getBookPageTemplate } from "./get-page-template";
+import { updateBookPageTemplate } from "./update-page-template";
+import { updateBookPageOwnLayout } from "./update-book-page-layout";
+import { listTemplateIndustries } from "./list-template-industries";
+import { listIndustryTemplates } from "./list-industry-templates";
+import { createIndustryTemplate } from "./create-industry-template";
+import { createIndustryBase } from "./create-industry-base";
+import { reapplyIndustryBase } from "./reapply-industry-base";
+import { addBookExtraPage } from "./add-extra-page";
+import { reorderBookPages } from "./reorder-pages";
+import { deleteBookPage } from "./delete-page";
 
 export const bookRoutes = {
   list: listBook,
@@ -58,4 +73,19 @@ export const bookRoutes = {
   send: sendBook,
   dashboard: bookDashboard,
   duplicatePage: duplicateBookPage,
+  autoGenerate: autoGenerateBook,
+  autoGeneratePreview: autoGeneratePreview,
+  setSlotPhoto: setSlotPhoto,
+  setSlotAdjustment: setSlotAdjustment,
+  getPageTemplate: getBookPageTemplate,
+  updatePageTemplate: updateBookPageTemplate,
+  updateBookPageLayout: updateBookPageOwnLayout,
+  listTemplateIndustries: listTemplateIndustries,
+  listIndustryTemplates: listIndustryTemplates,
+  createIndustryTemplate: createIndustryTemplate,
+  createIndustryBase: createIndustryBase,
+  reapplyIndustryBase: reapplyIndustryBase,
+  addExtraPage: addBookExtraPage,
+  reorderPages: reorderBookPages,
+  deletePage: deleteBookPage,
 };

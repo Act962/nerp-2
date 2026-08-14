@@ -35,6 +35,20 @@ export async function cropPhotoForPdf(
     .toBuffer();
 }
 
+// Lê a proporção (largura/altura) de uma foto. Usado pra decidir a orientação
+// (horizontal/vertical) no auto-gerador.
+export async function readPhotoAspect(url: string): Promise<number | null> {
+  try {
+    const response = await fetch(url);
+    const original = Buffer.from(await response.arrayBuffer());
+    const meta = await sharp(original).rotate().metadata();
+    if (!meta.width || !meta.height) return null;
+    return meta.width / meta.height;
+  } catch {
+    return null;
+  }
+}
+
 // Foco seletivo pro PDF: compõe numa imagem só a foto inteira desfocada com o
 // polígono nítido (o mesmo que o usuário desenhou) por cima. Feito no sharp
 // porque o react-pdf não tem blur nem clip em runtime — o slot recebe uma

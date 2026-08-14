@@ -10,6 +10,10 @@ export interface PhotoAdjustment {
   zoom: number;
   posX: number;
   posY: number;
+  // "cover" (default) preenche o slot cortando as bordas; "contain" mostra a
+  // foto inteira sobre um fundo desfocado dela mesma — resolve fotos em
+  // orientação diferente do slot (retrato num espaço largo, etc.) sem cortar.
+  objectFit?: "cover" | "contain";
   backdrop?: PhotoBackdrop;
   backdropColor?: string;
   // Polígono desenhado pelo usuário que fica nítido quando backdrop === "blur";

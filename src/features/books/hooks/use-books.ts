@@ -363,3 +363,187 @@ export function useUploadCoverImage() {
     onError: () => toast.error("Falha ao enviar imagem"),
   });
 }
+
+// ── Auto-geração + padrões auto-N ────────────────────────────────────────
+
+export function useAutoGeneratePreview(input: {
+  supplierId: string | null;
+  periodMonth: number;
+  periodYear: number;
+}) {
+  const query = useQuery({
+    ...orpc.book.autoGeneratePreview.queryOptions({
+      input: {
+        supplierId: input.supplierId ?? "",
+        periodMonth: input.periodMonth,
+        periodYear: input.periodYear,
+      },
+    }),
+    enabled: !!input.supplierId,
+  });
+  return { preview: query.data, isLoading: query.isPending };
+}
+
+export function useAutoGenerateBook() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.autoGenerate.mutationOptions({
+      onSuccess: (result) => {
+        toast.success(
+          `Book gerado: ${result.storesCount} loja(s) · ${result.pagesCount} página(s) · ${result.photosCount} foto(s).`,
+        );
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useSetSlotPhoto() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.setSlotPhoto.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useSetSlotAdjustment() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.setSlotAdjustment.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function usePageTemplate(id: string) {
+  const query = useQuery({
+    ...orpc.book.getPageTemplate.queryOptions({ input: { id } }),
+    enabled: !!id,
+  });
+  return { template: query.data, isLoading: query.isPending };
+}
+
+export function useUpdatePageTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.book.updatePageTemplate.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.book.getPageTemplate.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.book.listIndustryTemplates.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useTemplateIndustries() {
+  const query = useQuery(
+    orpc.book.listTemplateIndustries.queryOptions({ input: {} }),
+  );
+  return {
+    industries: query.data?.industries ?? [],
+    isLoading: query.isPending,
+  };
+}
+
+export function useIndustryTemplates(supplierId: string) {
+  const query = useQuery({
+    ...orpc.book.listIndustryTemplates.queryOptions({ input: { supplierId } }),
+    enabled: !!supplierId,
+  });
+  return { data: query.data, isLoading: query.isPending };
+}
+
+export function useCreateIndustryTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.book.createIndustryTemplate.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.book.listIndustryTemplates.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.book.listTemplateIndustries.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useCreateIndustryBase() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.book.createIndustryBase.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.book.listIndustryTemplates.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReapplyIndustryBase() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.book.reapplyIndustryBase.mutationOptions({
+      onSuccess: (result) => {
+        toast.success(
+          result.updated === 0
+            ? "Nenhuma página de fotos para atualizar"
+            : `${result.updated} página(s) de fotos atualizada(s) com o padrão base`,
+        );
+        queryClient.invalidateQueries({
+          queryKey: orpc.book.listIndustryTemplates.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useAddBookExtraPage() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.addExtraPage.mutationOptions({
+      onSuccess: () => {
+        toast.success("Página extra adicionada");
+        invalidate();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReorderBookPages() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.reorderPages.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => {
+        toast.error(error.message);
+        invalidate();
+      },
+    }),
+  );
+}
+
+export function useDeleteBookPage() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.deletePage.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
