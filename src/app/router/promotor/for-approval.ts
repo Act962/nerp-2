@@ -18,6 +18,7 @@ export const listPhotosForApproval = base
         .default("PENDING"),
       storeId: z.string().optional(),
       supplierId: z.string().nullable().optional(),
+      promoterName: z.string().optional(),
       ...dateRangeSchema,
     }),
   )
@@ -39,6 +40,7 @@ export const listPhotosForApproval = base
       ...(input.supplierId !== undefined
         ? { supplierId: input.supplierId }
         : {}),
+      ...(input.promoterName ? { promoterName: input.promoterName } : {}),
       ...capturedAtFilter(input.from, input.to),
     };
 
