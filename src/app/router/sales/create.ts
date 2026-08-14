@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
+import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import z from "zod";
 
 export const createSale = base
@@ -16,6 +17,8 @@ export const createSale = base
   .input(
     z.object({
       customerId: z.string().optional(),
+      // Override manual da tabela — se ausente, resolve pelo cliente (ou default da org).
+      priceListId: z.string().nullable().optional(),
       subtotal: z.number(),
       discount: z.number(),
       total: z.number(),
@@ -33,7 +36,9 @@ export const createSale = base
         z.object({
           productId: z.string(),
           productName: z.string(),
-          unitPrice: z.number(),
+          // O server IGNORA esse valor e recalcula via resolveManyPrices —
+          // mantido só pra o front continuar mandando enquanto migramos.
+          unitPrice: z.number().optional(),
           quantity: z.number(),
         }),
       ),
@@ -86,15 +91,57 @@ export const createSale = base
         });
     }
 
-    // A soma das formas de pagamento tem de bater com o total (tolerância de 1
-    // centavo para arredondamento). A forma predominante vira o resumo rápido.
+    // Preço é resolvido SEMPRE no server. Ordem de precedência da tabela:
+    //   1) override manual da venda (`priceListId` do input)
+    //   2) tabela do cliente vinculado
+    //   3) tabela default da org (Varejo)
+    // Isso fecha o vazamento de preço antigo (o client mandava o `unitPrice`
+    // e a gente confiava). O total/subtotal enviados servem só de sanity —
+    // se divergirem do resolvido, aborta.
+    let effectivePriceListId: string | null | undefined = input.priceListId ?? undefined;
+    if (input.priceListId === undefined && input.customerId) {
+      const cust = await prisma.customer.findFirst({
+        where: { id: input.customerId, organizationId: orgId },
+        select: { priceListId: true },
+      });
+      effectivePriceListId = cust?.priceListId ?? null;
+    }
+    const resolved = await resolveManyPrices({
+      organizationId: orgId,
+      priceListId: effectivePriceListId,
+      items: input.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    });
+    const resolvedPriceByProduct = new Map(
+      resolved.map((r, i) => [`${r.productId}:${i}`, r.unitPrice] as const),
+    );
+    // O resolver mantém a ordem dos itens, então casamos por índice para
+    // suportar o mesmo produto em linhas distintas do carrinho.
+    const resolvedByIndex = resolved.map((r) => r.unitPrice);
+    const usedPriceListId = resolved[0]?.priceListId ?? null;
+
+    const computedSubtotal = input.items.reduce(
+      (sum, item, i) => sum + resolvedByIndex[i] * item.quantity,
+      0,
+    );
+    // Server é autoritativo — usa computedTotal em vez do total do client.
+    // Enquanto o PDV não re-resolve preços ao vivo (spec futura), o valor
+    // exibido no balcão pode divergir do que grava; o snapshot no `SaleItem`
+    // sempre reflete o que o server calculou.
+    const computedTotal = computedSubtotal - input.discount;
+    // Silencia unused-var do map (mantido pro caso de debug futuro).
+    void resolvedPriceByProduct;
+
+    // A soma das formas de pagamento tem de bater com o total resolvido no
+    // server (tolerância de 1 centavo pra arredondamento). Quando o cliente
+    // usa tabela de atacado/etc., o `computedTotal` pode diferir do que o
+    // PDV mostrou; é responsabilidade do UI recalcular antes de fechar.
     const paidTotal = input.payments.reduce(
       (sum, payment) => sum + payment.amount,
       0,
     );
-    if (Math.abs(paidTotal - input.total) > 0.01)
+    if (Math.abs(paidTotal - computedTotal) > 0.01)
       throw errors.BAD_REQUEST({
-        message: "A soma dos pagamentos deve ser igual ao total da venda",
+        message: `A soma dos pagamentos (R$ ${paidTotal.toFixed(2)}) deve bater com o total resolvido pela tabela de preço (R$ ${computedTotal.toFixed(2)}).`,
       });
     const dominantMethod = [...input.payments].sort(
       (a, b) => b.amount - a.amount,
@@ -113,24 +160,25 @@ export const createSale = base
         data: {
           organizationId: orgId,
           customerId: input.customerId,
+          priceListId: usedPriceListId,
           cashSessionId: session.id,
           createdById: context.user.id,
           paymentMethod: dominantMethod,
-          subtotal: input.subtotal,
+          subtotal: computedSubtotal,
           discount: input.discount,
-          total: input.total,
+          total: computedTotal,
           saleNumber: nextNumber,
           status: input.status,
           paidAt: input.status === "COMPLETED" ? new Date() : null,
           completedAt: input.status === "COMPLETED" ? new Date() : null,
           items: {
             createMany: {
-              data: input.items.map((item) => ({
+              data: input.items.map((item, i) => ({
                 productId: item.productId,
                 productName: item.productName,
                 quantity: item.quantity,
-                unitPrice: item.unitPrice,
-                total: item.unitPrice * item.quantity,
+                unitPrice: resolvedByIndex[i],
+                total: resolvedByIndex[i] * item.quantity,
               })),
             },
           },

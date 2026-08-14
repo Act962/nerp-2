@@ -5,6 +5,8 @@ import { useEffect, useRef } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { PdvHeaderActions } from "@/features/sales/components/novo/pdv-header-actions";
+import { PdvHeaderInfo } from "@/features/sales/components/novo/pdv-header-info";
+import { PdvHeaderClock } from "@/features/sales/components/novo/pdv-header-clock";
 import { SidebarTrigger, useSidebar } from "./ui/sidebar";
 import { ModeToggle } from "./mode-toggle";
 import { FullscreenToggle } from "./fullscreen-toggle";
@@ -64,9 +66,13 @@ export function AppHeader() {
             />
           </div>
         )}
+        {/* PDV: user + caixa aparecem no header (sem faixa branca acima da
+            tela de venda) — ganha altura vertical pra grade/carrinho. */}
+        {isPdv && <PdvHeaderInfo />}
       </div>
 
       <div className="flex items-center gap-2 md:gap-4">
+        {isPdv && <PdvHeaderClock />}
         {isPdv && <PdvHeaderActions />}
         <FullscreenToggle />
         <ModeToggle />

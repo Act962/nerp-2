@@ -56,6 +56,7 @@ export function middleware(request: NextRequest) {
 
   if (
     pathname.startsWith("/produtos") ||
+    pathname.startsWith("/precos") ||
     pathname.startsWith("/estoque") ||
     pathname.startsWith("/vendas") ||
     pathname.startsWith("/compras") ||

@@ -33,7 +33,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
 import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
-import { CaixaInfoBar } from "@/features/caixa/components/caixa-info-bar";
+// CaixaInfoBar (nome/caixa/relógio) foi movida pro app-header — libera
+// altura vertical na tela de venda. Ver PdvHeaderInfo/PdvHeaderClock.
 import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
@@ -184,7 +185,9 @@ export default function CreateSalePage({
     isLoading,
   } = useProducts({
     cursor,
-    limit: 12,
+    // Alvo: 3 colunas × 3 linhas — tiles maiores, foto ocupa o vertical inteiro.
+    // Sem paginação: o restante fica atrás do scroll interno da grade.
+    limit: 9,
     category: selectedCategory ? [selectedCategory] : undefined,
     // Busca no SERVIDOR (não só na página carregada): produtos fora das 12
     // primeiras também aparecem.
@@ -401,6 +404,59 @@ export default function CreateSalePage({
     );
     form.setValue("cartItems", updatedCart);
   };
+
+  // Marca linhas do carrinho como "tocadas manualmente" — o operador editou o
+  // preço à mão, então a re-resolução automática pela tabela do cliente NÃO
+  // sobrescreve (senão volta a alterar o que ele acabou de digitar). Reset
+  // implícito: remover a linha limpa a marca.
+  const manualPriceOverrides = useRef<Set<string>>(new Set());
+  const setItemPriceManual = (id: string, price: number) => {
+    manualPriceOverrides.current.add(id);
+    setItemPrice(id, price);
+  };
+
+  // Re-resolve preços do carrinho SEMPRE que muda: cliente selecionado, ids
+  // de produtos ou quantidades. O server é a fonte da verdade (mesmo
+  // resolver é chamado no `sales/create`) — aqui a UI só espelha o que
+  // vai ser gravado, evitando o rejeito por total divergente.
+  const cartKey = form
+    .watch("cartItems")
+    .map((i) => `${i.productId}:${i.quantity}`)
+    .join("|");
+  const customerIdForResolve = form.watch("customer")?.id ?? null;
+  useEffect(() => {
+    const items = form.getValues("cartItems");
+    if (items.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await orpc.precos.resolveMany.call({
+          customerId: customerIdForResolve ?? undefined,
+          items: items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity || 1,
+          })),
+        });
+        if (cancelled) return;
+        // Aplica só onde o resolvido é diferente do que já tá na linha, e
+        // pula linhas em que o operador editou o preço manualmente.
+        res.lines.forEach((line: { unitPrice: number }, i: number) => {
+          const target = items[i];
+          if (!target) return;
+          if (manualPriceOverrides.current.has(target.id)) return;
+          if (Math.abs((target.price ?? 0) - line.unitPrice) > 0.001) {
+            setItemPrice(target.id, line.unitPrice);
+          }
+        });
+      } catch {
+        // silencioso — o server rejeita o create se estiver muito fora.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cartKey, customerIdForResolve]);
 
   const removeItem = (id: string) => {
     const currentCart = form.getValues("cartItems");
@@ -649,11 +705,15 @@ export default function CreateSalePage({
   });
 
   return (
-    // Fundo cinza full-bleed (cancela o padding do layout) para o painel branco
-    // do carrinho — estilo cupom — se destacar.
-    <div className="-m-4 min-h-[calc(100dvh-4rem)] bg-muted p-4 md:-m-6 md:p-6">
-      <CaixaInfoBar />
-      <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
+    // Fundo cinza full-bleed (cancela o padding do layout). Altura fixa na
+    // viewport (menos o app-header): a página em si NÃO scrolla, o scroll é
+    // interno da grade de produtos e do carrinho. Padrão de PDV — o operador
+    // não perde o contexto do total/atalhos ao subir/descer a lista.
+    <div className="-m-4 flex h-[calc(100dvh-4rem)] flex-col overflow-hidden bg-muted p-4 md:-m-6 md:p-6">
+      {/* Carrinho ganha ~35% da largura (~620px) — cabem 4 colunas tabulares
+          e ~8 itens sem scroll. A grade de produtos vira 3 colunas (foto
+          preservada) pra sobrar espaço pro carrinho. */}
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_620px]">
         {/* Left Side - Product Selection */}
         <ProductSection
           hasNextPage={hasNextPage}
@@ -681,6 +741,7 @@ export default function CreateSalePage({
           products={filteredProducts}
           isLoading={isLoading}
           searchShortcut={bindings["buscar-produto"]}
+          orgLogo={orgLogo}
         />
 
         {/* Right Side - Cart */}
@@ -699,7 +760,7 @@ export default function CreateSalePage({
           setCustomerDialogOpen={setCustomerDialogOpen}
           setPaymentDialogOpen={handleOpenPayment}
           setItemQuantity={setItemQuantity}
-          setItemPrice={setItemPrice}
+          setItemPrice={setItemPriceManual}
           shortcuts={{
             selectCustomer: bindings["selecionar-cliente"],
             clearCart: bindings["limpar-carrinho"],

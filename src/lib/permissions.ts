@@ -42,6 +42,11 @@ export const PAGE_PERMISSIONS = [
     href: "/produtos",
   },
   {
+    key: "precos",
+    label: "Tabelas de preço",
+    href: "/precos",
+  },
+  {
     key: "estoque",
     label: "Estoque",
     href: "/estoque",
@@ -244,7 +249,7 @@ export const ASSIGNABLE_PERMISSIONS: { key: string; label: string }[] = [
 // chave nova não mapeada cai automaticamente no grupo "Outros".
 export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
   { module: "Dashboard", keys: ["dashboard", "dashboard-org"] },
-  { module: "Produtos", keys: ["produtos"] },
+  { module: "Produtos", keys: ["produtos", "precos"] },
   {
     module: "Frente de caixa",
     keys: [
