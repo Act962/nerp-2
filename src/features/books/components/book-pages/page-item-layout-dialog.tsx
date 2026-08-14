@@ -118,7 +118,7 @@ export function PageItemLayoutDialog({
             <DialogTitle>Editar layout — {storeName}</DialogTitle>
             <DialogDescription>
               As mudanças valem só para esta página e são salvas sozinhas. Para
-              levá-las a um padrão, use “Salvar / atualizar padrão”.
+              levá-las a um padrão reutilizável, use "Salvar padrão de página".
             </DialogDescription>
           </DialogHeader>
 
@@ -140,7 +140,7 @@ export function PageItemLayoutDialog({
               className="h-11 gap-2 md:h-9"
               onClick={() => setSaveTemplateOpen(true)}
             >
-              <LayoutTemplate className="size-4" /> Salvar / atualizar padrão
+              <LayoutTemplate className="size-4" /> Salvar padrão de página
             </Button>
           </div>
 
@@ -156,8 +156,6 @@ export function PageItemLayoutDialog({
               setFundo(next);
             }}
             saveStatus={saveStatus}
-            onSetDefault={() => setSaveTemplateOpen(true)}
-            setDefaultLabel="Salvar como padrão"
             onImportBrands={() => {}}
             canImportBrands={false}
             supportsPhotoSlots

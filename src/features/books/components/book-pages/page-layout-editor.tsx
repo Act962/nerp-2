@@ -48,7 +48,6 @@ interface PageLayoutEditorProps {
   pageLayout: unknown;
   pageBackground: unknown;
   items: PageItemPreview[];
-  onRequestSaveTemplate: () => void;
   logos?: { organization?: string | null; supplier?: string | null };
 }
 
@@ -80,7 +79,6 @@ export function PageLayoutEditor({
   pageLayout,
   pageBackground,
   items,
-  onRequestSaveTemplate,
   logos,
 }: PageLayoutEditorProps) {
   const {
@@ -249,7 +247,7 @@ export function PageLayoutEditor({
             className="h-11 gap-2 md:h-9"
             onClick={() => setSavePageTemplateOpen(true)}
           >
-            <LayoutTemplate className="size-4" /> Salvar / atualizar padrão
+            <LayoutTemplate className="size-4" /> Salvar padrão de página
           </Button>
         </div>
       </div>
@@ -266,8 +264,6 @@ export function PageLayoutEditor({
           setBackground(next);
         }}
         saveStatus={saveStatus}
-        onSetDefault={onRequestSaveTemplate}
-        setDefaultLabel="Salvar como padrão"
         onImportBrands={importBrands}
         canImportBrands={!!supplierId && brands.length > 0}
         supportsPhotoSlots

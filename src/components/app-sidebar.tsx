@@ -233,6 +233,14 @@ const navigation: NavItem[] = [
         href: "/books",
         icon: BookImage,
         permission: "books",
+        children: [
+          { name: "Books", href: "/books", icon: BookImage },
+          {
+            name: "Padrões de página",
+            href: "/padroes",
+            icon: BookImage,
+          },
+        ],
       },
       {
         name: "Cadastros de Trade",

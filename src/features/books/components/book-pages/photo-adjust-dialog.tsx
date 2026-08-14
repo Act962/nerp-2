@@ -40,6 +40,9 @@ interface PhotoAdjustDialogProps {
   // Só os espaços de foto do layout personalizado renderizam fundo/foco; nas
   // páginas de padrão fixo esses controles não teriam efeito, então ficam ocultos.
   allowBackdrop?: boolean;
+  // Mostra o toggle "Preencher / Caber inteira" — o fit passa a ser controlado
+  // pelo próprio ajuste (adjustment.objectFit), não pela prop objectFit.
+  allowFit?: boolean;
   // Troca do arquivo da foto direto do diálogo, sem fechar.
   onReplacePhoto?: (file: File) => void;
 }
@@ -53,6 +56,7 @@ export function PhotoAdjustDialog({
   onSave,
   objectFit = "cover",
   allowBackdrop = false,
+  allowFit = false,
   onReplacePhoto,
 }: PhotoAdjustDialogProps) {
   const replaceInputRef = useRef<HTMLInputElement>(null);
@@ -79,6 +83,10 @@ export function PhotoAdjustDialog({
     : "none";
   const focusPolygon = adjustment.focusPolygon ?? [];
   const focusClip = focusPolygonCss(focusPolygon);
+  // Fit efetivo: com allowFit quem manda é o próprio ajuste; senão a prop.
+  const effectiveFit: "cover" | "contain" = allowFit
+    ? (adjustment.objectFit ?? "cover")
+    : objectFit;
 
   const handlePointerDown = (event: React.PointerEvent<HTMLImageElement>) => {
     event.preventDefault();
@@ -185,24 +193,39 @@ export function PhotoAdjustDialog({
               />
             </>
           ) : (
-            // biome-ignore lint/performance/noImgElement: preview de ajuste, sem otimização do next/image
-            <img
-              ref={imageRef}
-              src={photoUrl}
-              alt=""
-              draggable={false}
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              className={cn(
-                "relative size-full cursor-grab touch-none select-none active:cursor-grabbing",
-                objectFit === "contain" ? "object-contain" : "object-cover",
+            <>
+              {effectiveFit === "contain" && (
+                // Fundo desfocado da própria foto, igual ao que o PDF compõe.
+                // biome-ignore lint/performance/noImgElement: preview de ajuste, sem otimização do next/image
+                <img
+                  src={photoUrl}
+                  alt=""
+                  aria-hidden
+                  className="absolute inset-0 size-full select-none object-cover"
+                  style={{ filter: "blur(12px)", transform: "scale(1.1)" }}
+                />
               )}
-              style={{
-                objectPosition: `${adjustment.posX}% ${adjustment.posY}%`,
-                transform: `scale(${adjustment.zoom})`,
-              }}
-            />
+              {/* biome-ignore lint/performance/noImgElement: preview de ajuste, sem otimização do next/image */}
+              <img
+                ref={imageRef}
+                src={photoUrl}
+                alt=""
+                draggable={false}
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                className={cn(
+                  "relative size-full cursor-grab touch-none select-none active:cursor-grabbing",
+                  effectiveFit === "contain"
+                    ? "object-contain"
+                    : "object-cover",
+                )}
+                style={{
+                  objectPosition: `${adjustment.posX}% ${adjustment.posY}%`,
+                  transform: `scale(${adjustment.zoom})`,
+                }}
+              />
+            </>
           )}
         </div>
         {backdrop === "blur" && (
@@ -249,6 +272,38 @@ export function PhotoAdjustDialog({
               }}
             />
           </>
+        )}
+
+        {allowFit && (
+          <div className="space-y-2 pt-2">
+            <p className="text-xs font-medium text-neutral-500">
+              Como a foto ocupa o espaço
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={effectiveFit === "cover" ? "default" : "outline"}
+                className="h-9"
+                onClick={() =>
+                  setAdjustment((prev) => ({ ...prev, objectFit: "cover" }))
+                }
+              >
+                Preencher
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={effectiveFit === "contain" ? "default" : "outline"}
+                className="h-9"
+                onClick={() =>
+                  setAdjustment((prev) => ({ ...prev, objectFit: "contain" }))
+                }
+              >
+                Caber inteira
+              </Button>
+            </div>
+          </div>
         )}
 
         <div className="space-y-2 pt-2">

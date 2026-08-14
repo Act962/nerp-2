@@ -66,23 +66,43 @@ export const addBookPage = base
         select: { id: true },
       });
 
-      const last = await tx.bookItem.findFirst({
-        where: { bookId: input.bookId },
-        orderBy: { order: "desc" },
-        select: { order: true },
-      });
+      const [lastItem, lastPage] = await Promise.all([
+        tx.bookItem.findFirst({
+          where: { bookId: input.bookId },
+          orderBy: { order: "desc" },
+          select: { order: true },
+        }),
+        tx.bookPage.findFirst({
+          where: { bookId: input.bookId },
+          orderBy: { order: "desc" },
+          select: { order: true },
+        }),
+      ]);
 
-      await tx.bookItem.create({
+      // Cria a BookPage e um BookItem de slot 0. Layout do template (se veio)
+      // fica na BookPage; o BookItem carrega só o vínculo com a foto.
+      const page = await tx.bookPage.create({
         data: {
           bookId: input.bookId,
-          pdvPhotoId: photo.id,
-          order: (last?.order ?? -1) + 1,
+          storeId: input.storeId,
+          order: (lastPage?.order ?? -1) + 1,
           ...(pageTemplate
             ? {
                 pageLayout: pageTemplate.layout ?? Prisma.DbNull,
                 pageBackground: pageTemplate.background ?? Prisma.DbNull,
               }
             : {}),
+        },
+        select: { id: true },
+      });
+
+      await tx.bookItem.create({
+        data: {
+          bookId: input.bookId,
+          bookPageId: page.id,
+          pdvPhotoId: photo.id,
+          slotIndex: 0,
+          order: (lastItem?.order ?? -1) + 1,
         },
       });
 

@@ -30,7 +30,8 @@ export interface BookDocumentItem {
   // faltando os dois, no layout fixo legado.
   pageLayout?: ResolvedCoverElement[] | null;
   pageBackground?: CoverBackground | null;
-  storeName: string;
+  // null em páginas extras (sem loja) — o cabeçalho fixo legado mostra vazio.
+  storeName: string | null;
   storeManager: string | null;
   coordinatorName: string | null;
   consultantName: string | null;
