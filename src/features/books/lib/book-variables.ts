@@ -41,6 +41,20 @@ export const BOOK_VARIABLES: BookVariableDefinition[] = [
   { key: "secao", label: "Seção", scope: "item", sample: "Bebidas" },
   { key: "codigo", label: "Código", scope: "item", sample: "PDV-01234" },
   {
+    key: "cidade",
+    label: "Cidade da loja/PDV",
+    scope: "item",
+    sample: "Teresina",
+  },
+  { key: "uf", label: "UF da loja/PDV", scope: "item", sample: "PI" },
+  {
+    key: "numeroFoto",
+    label: "Número da foto (FOTO N)",
+    scope: "item",
+    sample: "11",
+  },
+  { key: "promotor", label: "Promotor da foto", scope: "item", sample: "João" },
+  {
     key: "valorAcao",
     label: "Valor da ação",
     scope: "item",

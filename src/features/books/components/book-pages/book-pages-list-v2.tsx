@@ -25,6 +25,19 @@ export function BookPagesListV2({
 }: BookPagesListV2Props) {
   const reorder = useReorderBookPages();
 
+  // Numeração sequencial das fotos no book inteiro (para a legenda "FOTO N"):
+  // percorre as páginas na ordem e conta só os slots preenchidos.
+  let running = 1;
+  const numbersByPage = pages.map((page) => {
+    const map: Record<number, number> = {};
+    for (const item of [...page.items]
+      .filter((it) => it.photoKey)
+      .sort((a, b) => a.slotIndex - b.slotIndex)) {
+      map[item.slotIndex] = running++;
+    }
+    return map;
+  });
+
   // Troca a página do índice `from` com a vizinha `to` e persiste a nova ordem.
   const move = (from: number, to: number) => {
     if (to < 0 || to >= pages.length || reorder.isPending) return;
@@ -56,6 +69,7 @@ export function BookPagesListV2({
           total={pages.length}
           logos={logos}
           variableValues={variableValues}
+          photoNumbers={numbersByPage[index]}
           onMoveUp={() => move(index, index - 1)}
           onMoveDown={() => move(index, index + 1)}
           canMoveUp={index > 0}

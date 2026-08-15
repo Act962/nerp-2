@@ -33,6 +33,13 @@ interface ImportPhotoDialogProps {
   onOpenChange: (open: boolean) => void;
   // Indústria do book, pré-selecionada.
   defaultSupplierId?: string | null;
+  defaultSupplierName?: string | null;
+  // Loja da página, pré-selecionada.
+  defaultStoreId?: string | null;
+  defaultStoreName?: string | null;
+  // Quando true (loja + indústria já conhecidas pela página/book), esconde os
+  // seletores de loja/indústria e vai direto pras fotos aprovadas.
+  lockSelection?: boolean;
   onPick: (photoKey: string) => void;
 }
 
@@ -40,14 +47,26 @@ export function ImportPhotoDialog({
   open,
   onOpenChange,
   defaultSupplierId,
+  defaultSupplierName,
+  defaultStoreId,
+  defaultStoreName,
+  lockSelection,
   onPick,
 }: ImportPhotoDialogProps) {
-  const [storeId, setStoreId] = useState<string | null>(null);
-  const [storeName, setStoreName] = useState<string | null>(null);
+  const [storeId, setStoreId] = useState<string | null>(defaultStoreId ?? null);
+  const [storeName, setStoreName] = useState<string | null>(
+    defaultStoreName ?? null,
+  );
   const [supplierId, setSupplierId] = useState<string | null>(
     defaultSupplierId ?? null,
   );
-  const [supplierName, setSupplierName] = useState<string | null>(null);
+  const [supplierName, setSupplierName] = useState<string | null>(
+    defaultSupplierName ?? null,
+  );
+
+  // Trava só vale quando a loja de fato veio preenchida (páginas de foto têm
+  // loja; extras não — nesse caso mantém os seletores manuais).
+  const locked = Boolean(lockSelection && storeId);
   const [storeSearch, setStoreSearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -91,72 +110,89 @@ export function ImportPhotoDialog({
         <DialogHeader>
           <DialogTitle>Adicionar foto</DialogTitle>
           <DialogDescription>
-            Escolha o cliente e a indústria para importar uma foto aprovada do
-            promotor — ou tire/envie uma foto direto.
+            {locked
+              ? "Escolha uma foto aprovada do promotor para este cliente e indústria — ou tire/envie uma foto direto."
+              : "Escolha o cliente e a indústria para importar uma foto aprovada do promotor — ou tire/envie uma foto direto."}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <Command shouldFilter={false} className="rounded-md border">
-            <CommandInput
-              value={storeSearch}
-              onValueChange={setStoreSearch}
-              placeholder="Cliente/loja…"
-            />
-            <CommandList className="max-h-40">
-              <CommandEmpty className="py-4 text-xs text-muted-foreground">
-                Nenhuma loja.
-              </CommandEmpty>
-              <CommandGroup>
-                {stores.map((store) => (
-                  <CommandItem
-                    key={store.id}
-                    value={store.id}
-                    onSelect={() => {
-                      setStoreId(store.id);
-                      setStoreName(store.name);
-                    }}
-                    className={`cursor-pointer gap-2 ${storeId === store.id ? "bg-accent" : ""}`}
-                  >
-                    <StoreIcon className="size-4 text-muted-foreground" />
-                    {store.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
+        {locked && (
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+            <span className="flex items-center gap-1.5">
+              <StoreIcon className="size-4 text-muted-foreground" />
+              {storeName ?? "Cliente"}
+            </span>
+            <span className="text-muted-foreground">·</span>
+            <span className="flex items-center gap-1.5">
+              <Factory className="size-4 text-muted-foreground" />
+              {supplierName ?? "Indústria"}
+            </span>
+          </div>
+        )}
 
-          <Command shouldFilter={false} className="rounded-md border">
-            <CommandInput
-              value={supplierSearch}
-              onValueChange={setSupplierSearch}
-              placeholder="Indústria…"
-            />
-            <CommandList className="max-h-40">
-              <CommandEmpty className="py-4 text-xs text-muted-foreground">
-                Nenhuma indústria.
-              </CommandEmpty>
-              <CommandGroup>
-                {suppliers.map((supplier) => (
-                  <CommandItem
-                    key={supplier.id}
-                    value={supplier.id}
-                    onSelect={() => {
-                      setSupplierId(supplier.id);
-                      setSupplierName(supplier.name);
-                    }}
-                    className={`cursor-pointer gap-2 ${supplierId === supplier.id ? "bg-accent" : ""}`}
-                  >
-                    <Factory className="size-4 text-muted-foreground" />
-                    {supplier.name}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </div>
+        {!locked && (
+          <div className="grid gap-3 md:grid-cols-2">
+            <Command shouldFilter={false} className="rounded-md border">
+              <CommandInput
+                value={storeSearch}
+                onValueChange={setStoreSearch}
+                placeholder="Cliente/loja…"
+              />
+              <CommandList className="max-h-40">
+                <CommandEmpty className="py-4 text-xs text-muted-foreground">
+                  Nenhuma loja.
+                </CommandEmpty>
+                <CommandGroup>
+                  {stores.map((store) => (
+                    <CommandItem
+                      key={store.id}
+                      value={store.id}
+                      onSelect={() => {
+                        setStoreId(store.id);
+                        setStoreName(store.name);
+                      }}
+                      className={`cursor-pointer gap-2 ${storeId === store.id ? "bg-accent" : ""}`}
+                    >
+                      <StoreIcon className="size-4 text-muted-foreground" />
+                      {store.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
 
-        {(storeName || supplierName) && (
+            <Command shouldFilter={false} className="rounded-md border">
+              <CommandInput
+                value={supplierSearch}
+                onValueChange={setSupplierSearch}
+                placeholder="Indústria…"
+              />
+              <CommandList className="max-h-40">
+                <CommandEmpty className="py-4 text-xs text-muted-foreground">
+                  Nenhuma indústria.
+                </CommandEmpty>
+                <CommandGroup>
+                  {suppliers.map((supplier) => (
+                    <CommandItem
+                      key={supplier.id}
+                      value={supplier.id}
+                      onSelect={() => {
+                        setSupplierId(supplier.id);
+                        setSupplierName(supplier.name);
+                      }}
+                      className={`cursor-pointer gap-2 ${supplierId === supplier.id ? "bg-accent" : ""}`}
+                    >
+                      <Factory className="size-4 text-muted-foreground" />
+                      {supplier.name}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </div>
+        )}
+
+        {!locked && (storeName || supplierName) && (
           <p className="text-xs text-muted-foreground">
             {storeName ?? "—"}
             {supplierName ? ` · ${supplierName}` : ""}

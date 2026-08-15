@@ -1,7 +1,9 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { orientationFromAspect } from "@/features/books/server/distribute-photos";
 import { z } from "zod";
 
 export const removeBookItem = base
@@ -24,11 +26,33 @@ export const removeBookItem = base
   .handler(async ({ input, context, errors }) => {
     const book = await prisma.book.findFirst({
       where: { id: input.bookId, organizationId: context.org.id },
-      select: { id: true },
+      select: { id: true, organizationId: true, supplierId: true },
     });
     if (!book) {
       throw errors.NOT_FOUND({ message: "Book não encontrado" });
     }
+
+    // Padrões PHOTO da indústria, indexados por "ORIENTATION-size" — pra
+    // reaplicar o padrão da nova contagem quando uma página perde uma foto.
+    const photoTemplates = book.supplierId
+      ? await prisma.bookPageTemplate.findMany({
+          where: {
+            organizationId: book.organizationId,
+            supplierId: book.supplierId,
+            kind: "PHOTO",
+          },
+          select: {
+            photoOrientation: true,
+            photoSize: true,
+            layout: true,
+            background: true,
+          },
+        })
+      : [];
+    const templateFor = (orientation: string, size: number) =>
+      photoTemplates.find(
+        (t) => t.photoOrientation === orientation && t.photoSize === size,
+      ) ?? null;
 
     // Coleta as páginas afetadas antes de apagar — precisamos delas pra saber
     // se ficaram vazias (nesse caso a BookPage também vai).
@@ -56,7 +80,7 @@ export const removeBookItem = base
         const remaining = await tx.bookItem.findMany({
           where: { bookPageId: pageId },
           orderBy: [{ slotIndex: "asc" }, { order: "asc" }],
-          select: { id: true },
+          select: { id: true, pdvPhoto: { select: { photoAspect: true } } },
         });
         if (remaining.length === 0) {
           await tx.bookPage.delete({ where: { id: pageId } });
@@ -66,6 +90,22 @@ export const removeBookItem = base
           await tx.bookItem.update({
             where: { id: remaining[i].id },
             data: { slotIndex: i },
+          });
+        }
+
+        // Adota o padrão da indústria pra nova contagem: 4→3, 3→2, 2→1. A
+        // orientação vem da 1ª foto restante (a página não mistura orientações).
+        const orientation = orientationFromAspect(
+          remaining[0]?.pdvPhoto.photoAspect ?? null,
+        );
+        const template = templateFor(orientation, remaining.length);
+        if (template) {
+          await tx.bookPage.update({
+            where: { id: pageId },
+            data: {
+              pageLayout: template.layout ?? Prisma.DbNull,
+              pageBackground: template.background ?? Prisma.DbNull,
+            },
           });
         }
       }

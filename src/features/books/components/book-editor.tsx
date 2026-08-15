@@ -226,6 +226,12 @@ export function BookEditor({ bookId }: BookEditorProps) {
               <AddExtraPageButton
                 bookId={bookId}
                 supplierId={book.supplierId}
+                pages={(book.pages ?? []).map((page, index) => ({
+                  id: page.id,
+                  label: `Página ${index + 1} — ${
+                    page.isExtra ? "Página extra" : (page.storeName ?? "Loja")
+                  }`,
+                }))}
               />
             </div>
             <BookPagesListV2

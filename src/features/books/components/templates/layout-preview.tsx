@@ -47,15 +47,19 @@ export interface LayoutLogos {
 function PreviewElement({
   element,
   variableValues,
+  photoVariables,
   photoUrls,
   photoAdjustments,
+  photoNumbers,
   onSlotClick,
   logos,
 }: {
   element: CoverElement;
   variableValues?: BookVariableValues;
+  photoVariables?: Record<number, BookVariableValues>;
   photoUrls?: string[];
   photoAdjustments?: Array<PhotoAdjustment | undefined>;
+  photoNumbers?: Record<number, number>;
   onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
   logos?: LayoutLogos;
 }) {
@@ -70,7 +74,12 @@ function PreviewElement({
   };
 
   if (element.type === "text") {
-    const texto = resolveVariables(element.text, variableValues ?? {});
+    // Texto com "Foto de referência": as variáveis por foto vencem as da página.
+    const values =
+      element.photoRef != null && photoVariables?.[element.photoRef]
+        ? { ...variableValues, ...photoVariables[element.photoRef] }
+        : variableValues;
+    const texto = resolveVariables(element.text, values ?? {});
     return (
       <div
         style={{
@@ -128,9 +137,14 @@ function PreviewElement({
       : `${element.imageOffsetX ?? 50}% ${element.imageOffsetY ?? 50}%`;
     const backdrop = adjustment?.backdrop ?? "none";
     const focusClip = focusPolygonCss(adjustment?.focusPolygon ?? []);
-    // No modo desfoque a parte nítida só aparece com um polígono fechado; sem
-    // ele, mostra só a versão borrada.
+    // Fit efetivo: o ajuste por foto ("Preencher/Caber inteira") vence o do slot.
+    // "contain" mostra a foto inteira (assinatura/senha/logo sem corte).
+    const effectiveFit = adjustment?.objectFit ?? element.objectFit;
     const showSharp = backdrop !== "blur" || !!focusClip;
+    // Legenda "FOTO N": numeração sequencial no book (só quando o slot tem foto
+    // e não foi desativada no padrão).
+    const photoNumber = photoNumbers?.[element.slotIndex];
+    const showNumber = element.showNumber !== false && photoNumber != null;
     const commonBox = {
       ...box,
       ...moldura,
@@ -194,12 +208,30 @@ function PreviewElement({
                 position: "relative",
                 width: "100%",
                 height: "100%",
-                objectFit: backdrop === "blur" ? "cover" : element.objectFit,
+                objectFit: backdrop === "blur" ? "cover" : effectiveFit,
                 objectPosition,
                 transform: `scale(${scale})`,
                 clipPath: backdrop === "blur" ? focusClip : undefined,
               }}
             />
+          )}
+          {showNumber && (
+            <span
+              style={{
+                position: "absolute",
+                bottom: toCqw(6),
+                right: toCqw(8),
+                backgroundColor: "rgba(0,0,0,0.6)",
+                color: "#ffffff",
+                fontSize: toCqw(16),
+                fontWeight: 700,
+                lineHeight: 1,
+                padding: `${toCqw(3)} ${toCqw(7)}`,
+                borderRadius: toCqw(4),
+              }}
+            >
+              FOTO {photoNumber}
+            </span>
           )}
         </Tag>
       );
@@ -267,8 +299,10 @@ interface LayoutPreviewProps {
   layout: unknown;
   background: unknown;
   variableValues?: BookVariableValues;
+  photoVariables?: Record<number, BookVariableValues>;
   photoUrls?: string[];
   photoAdjustments?: Array<PhotoAdjustment | undefined>;
+  photoNumbers?: Record<number, number>;
   onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
   logos?: LayoutLogos;
   className?: string;
@@ -278,8 +312,10 @@ export function LayoutPreview({
   layout,
   background,
   variableValues,
+  photoVariables,
   photoUrls,
   photoAdjustments,
+  photoNumbers,
   onSlotClick,
   logos,
   className,
@@ -318,8 +354,10 @@ export function LayoutPreview({
           key={element.id}
           element={element}
           variableValues={variableValues}
+          photoVariables={photoVariables}
           photoUrls={photoUrls}
           photoAdjustments={photoAdjustments}
+          photoNumbers={photoNumbers}
           onSlotClick={onSlotClick}
           logos={logos}
         />

@@ -1,10 +1,11 @@
 export type PhotoOrientation = "LANDSCAPE" | "PORTRAIT";
 
 // Máximo de fotos por página conforme a orientação: horizontais cabem 2 lado a
-// lado; verticais até 4 (uma do lado da outra).
+// lado; verticais até 3 (dimensão única padronizada — a página de 4 foi
+// removida pra manter o mesmo tamanho de foto em todo o book).
 export const MAX_PER_PAGE: Record<PhotoOrientation, number> = {
   LANDSCAPE: 2,
-  PORTRAIT: 4,
+  PORTRAIT: 3,
 };
 
 export interface PlannedPage {

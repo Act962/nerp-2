@@ -1,18 +1,20 @@
 "use client";
 
-import { ImagePlus, ImagePlay, Loader2, Star, Tag, Type } from "lucide-react";
+import { ImagePlus, Loader2, Star, Tag, Type } from "lucide-react";
 import type { ReactNode } from "react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
+import type { StandardPhotoOrientation } from "@/lib/photo-standard";
 import type { CoverShapeKind } from "../../lib/cover-layout";
 import { EDITOR_BUTTON_CLASS } from "./editor-controls";
+import { PhotoSlotMenu } from "./photo-slot-menu";
 import { ShapeMenu } from "./shape-menu";
 
 interface CoverToolbarProps {
   onAddText: () => void;
   onAddImage: (file: File) => void;
   onAddShape: (kind: CoverShapeKind) => void;
-  onAddPhotoSlot?: () => void;
+  onAddPhotoSlot?: (orientation: StandardPhotoOrientation) => void;
   onImportBrands: () => void;
   canImportBrands: boolean;
   onSetDefault?: () => void;
@@ -81,16 +83,9 @@ export function CoverToolbar({
           <ShapeMenu onAdd={onAddShape} />
         </div>
         {onAddPhotoSlot && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className={`shrink-0 gap-2 ${EDITOR_BUTTON_CLASS}`}
-            onClick={onAddPhotoSlot}
-            title="Espaço que recebe a foto do PDV em cada página"
-          >
-            <ImagePlay className="size-4" /> Espaço de foto
-          </Button>
+          <div className="shrink-0">
+            <PhotoSlotMenu onAdd={onAddPhotoSlot} />
+          </div>
         )}
         <Button
           type="button"

@@ -80,10 +80,20 @@ export function IndustryTemplatesDetail({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/padroes" aria-label="Voltar">
-              <ArrowLeft className="size-4" />
-            </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Voltar"
+            // Volta pra página anterior no histórico (ex.: a lista de indústrias
+            // ou o book de onde vim), não sempre pra /padroes. Sem histórico
+            // (aba nova), cai na lista de padrões.
+            onClick={() =>
+              window.history.length > 1
+                ? router.back()
+                : router.push("/padroes")
+            }
+          >
+            <ArrowLeft className="size-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-semibold">{data.supplier.name}</h1>

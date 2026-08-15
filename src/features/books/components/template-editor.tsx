@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { ArrowLeft, TriangleAlert } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   usePageTemplate,
@@ -42,6 +42,7 @@ interface TemplateEditorProps {
 }
 
 export function TemplateEditor({ templateId }: TemplateEditorProps) {
+  const router = useRouter();
   const { template, isLoading } = usePageTemplate(templateId);
   const updateTemplate = useUpdatePageTemplate();
   const { brands } = useSupplierBrands(template?.supplierId ?? null);
@@ -151,10 +152,26 @@ export function TemplateEditor({ templateId }: TemplateEditorProps) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="icon">
-            <Link href="/padroes" aria-label="Voltar para padrões">
-              <ArrowLeft className="size-4" />
-            </Link>
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Voltar"
+            // Volta pra página anterior no histórico (ex.: a indústria de onde
+            // abri o padrão). Sem histórico (aba nova), cai na indústria do
+            // padrão, ou na lista de padrões.
+            onClick={() => {
+              if (window.history.length > 1) {
+                router.back();
+              } else {
+                router.push(
+                  template?.supplierId
+                    ? `/padroes/industria/${template.supplierId}`
+                    : "/padroes",
+                );
+              }
+            }}
+          >
+            <ArrowLeft className="size-4" />
           </Button>
           <div className="flex flex-col">
             <Input

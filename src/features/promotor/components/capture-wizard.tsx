@@ -34,6 +34,7 @@ import {
   useTogglePromotorFavorite,
 } from "../hooks/use-promotor";
 import { toast } from "sonner";
+import { normalizePhotoToStandard } from "../lib/normalize-photo";
 import { StampEditor } from "./stamp-editor";
 
 type Selected = { id: string; name: string };
@@ -262,8 +263,28 @@ export function CaptureWizard({
     (Selected & { actionCodeImage: string | null }) | null
   >(initialSupplier ?? null);
   const [file, setFile] = useState<File | null>(null);
+  const [normalizing, setNormalizing] = useState(false);
   const [place, setPlace] = useState<Place>(EMPTY_PLACE);
   const [capturedAt, setCapturedAt] = useState<Date | null>(null);
+
+  // Ao escolher/tirar a foto, normaliza para 3:4 ou 4:3 ANTES de entrar no
+  // editor de carimbo: assim a prévia, a posição da senha e o JPEG final
+  // trabalham todos na mesma imagem já no padrão do book.
+  const handleFiles = async (files: File[]) => {
+    const picked = files[0];
+    if (!picked) {
+      setFile(null);
+      return;
+    }
+    setNormalizing(true);
+    try {
+      setFile(await normalizePhotoToStandard(picked));
+    } catch {
+      setFile(picked);
+    } finally {
+      setNormalizing(false);
+    }
+  };
 
   // Localização via hook compartilhado: `autoStartIfGranted` religa sozinho
   // quando a permissão já foi concedida; sem isso, o promotor toca "Ativar
@@ -644,15 +665,19 @@ export function CaptureWizard({
             city={place.city}
             onEnable={startGeo}
           />
-          <PhotoCaptureInput
-            onFiles={(files) => setFile(files[0] ?? null)}
-            autoOpen={autoCapture}
-          />
-          <p className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Camera className="size-3" />
-            Enquadre mostrando os produtos, com boa iluminação e sem poluição
-            visual.
-          </p>
+          <PhotoCaptureInput onFiles={handleFiles} autoOpen={autoCapture} />
+          {normalizing ? (
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Spinner className="size-3" />
+              Ajustando a foto ao formato do book…
+            </p>
+          ) : (
+            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Camera className="size-3" />
+              Enquadre mostrando os produtos, com boa iluminação e sem poluição
+              visual.
+            </p>
+          )}
         </div>
       )}
 

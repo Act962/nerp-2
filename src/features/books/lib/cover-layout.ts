@@ -4,6 +4,11 @@
 // (react-pdf) via posição absoluta. Compartilhado entre client (editor) e
 // server (geração do PDF).
 
+import {
+  STANDARD_SLOT_SIZE,
+  type StandardPhotoOrientation,
+} from "@/lib/photo-standard";
+
 export type CoverElementType =
   | "text"
   | "image"
@@ -44,6 +49,10 @@ export interface CoverTextElement extends CoverElementBase {
   align: "left" | "center" | "right";
   uppercase: boolean;
   fontFamily?: BookFontFamily;
+  // "Foto de referência": slotIndex da foto a que este texto se refere. Quando
+  // definido, as variáveis por foto ({{numeroFoto}}, {{cidade}}, {{uf}},
+  // {{promotor}}) resolvem por aquela foto; sem ele, resolvem por página.
+  photoRef?: number;
 }
 
 // De onde vem a imagem. "upload" usa o `imageKey`; as outras duas resolvem o
@@ -111,6 +120,9 @@ export interface CoverPhotoSlotElement extends CoverElementBase {
   // Recorte: ponto da foto que fica centralizado no espaço, em % (50/50 = meio).
   imageOffsetX?: number;
   imageOffsetY?: number;
+  // Legenda "FOTO N" no canto do espaço, numerada sequencialmente no book
+  // inteiro. Default (undefined) = mostra; só `false` esconde.
+  showNumber?: boolean;
 }
 
 export type CoverElement =
@@ -351,15 +363,17 @@ export function createShapeElement(
 export function createPhotoSlotElement(
   slotIndex: number,
   overrides?: Partial<CoverPhotoSlotElement>,
+  orientation: StandardPhotoOrientation = "LANDSCAPE",
 ): CoverPhotoSlotElement {
+  const size = STANDARD_SLOT_SIZE[orientation];
   return {
     id: nextId("photo-slot"),
     type: "photoSlot",
     slotIndex,
     x: 300,
     y: 120,
-    width: 320,
-    height: 240,
+    width: size.width,
+    height: size.height,
     rotation: 0,
     objectFit: "cover",
     cornerRadius: 0,
@@ -500,7 +514,7 @@ export function buildDefaultPhotoPageLayout(
   orientation: "LANDSCAPE" | "PORTRAIT",
   size: number,
 ): CoverElement[] {
-  const n = Math.max(1, Math.min(size, orientation === "LANDSCAPE" ? 2 : 4));
+  const n = Math.max(1, Math.min(size, orientation === "LANDSCAPE" ? 2 : 3));
 
   const header: CoverElement[] = [
     createImageElement("", {
@@ -543,7 +557,7 @@ export function buildPhotoSlots(
   orientation: "LANDSCAPE" | "PORTRAIT",
   size: number,
 ): CoverElement[] {
-  const n = Math.max(1, Math.min(size, orientation === "LANDSCAPE" ? 2 : 4));
+  const n = Math.max(1, Math.min(size, orientation === "LANDSCAPE" ? 2 : 3));
   const x0 = 40;
   const y0 = 100;
   const areaW = COVER_CANVAS_WIDTH - x0 * 2; // 880
