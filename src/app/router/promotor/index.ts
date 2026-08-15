@@ -14,6 +14,7 @@ import { setMemberLinks } from "./set-member-links";
 import { reverseGeocode } from "./reverse-geocode";
 import { reportGeoState } from "./report-geo-state";
 import { reviewPromotorPhoto } from "./review-photo";
+import { reviewPromotorPhotosBulk } from "./review-photos-bulk";
 import { listPhotosForApproval } from "./for-approval";
 import { listApprovedForImport } from "./approved-for-import";
 import { listGalleryDrafts } from "./gallery-drafts";
@@ -34,6 +35,7 @@ export const promotorRoutes = {
   reverseGeocode,
   reportGeoState,
   reviewPhoto: reviewPromotorPhoto,
+  reviewPhotosBulk: reviewPromotorPhotosBulk,
   forApproval: listPhotosForApproval,
   approvalGroups: listApprovalGroups,
   applySeal: applyPromotorSeal,

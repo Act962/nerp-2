@@ -19,9 +19,12 @@ export type PromotorPhotoStatus =
 export type PhotoScope = {
   storeId?: string;
   supplierId?: string | null;
+  promoterName?: string;
   from?: string;
   to?: string;
 };
+
+export type ApprovalGroupBy = "store" | "promoter" | "supplier";
 
 export function useMyPhotos(
   status: PromotorPhotoStatus,
@@ -295,10 +298,11 @@ export function useApprovalGroups(
   storeId?: string,
   enabled = true,
   dates?: { from?: string; to?: string },
+  groupBy: ApprovalGroupBy = "store",
 ) {
   const query = useQuery({
     ...orpc.promotor.approvalGroups.queryOptions({
-      input: { status, storeId, from: dates?.from, to: dates?.to },
+      input: { status, groupBy, storeId, from: dates?.from, to: dates?.to },
     }),
     enabled,
   });
@@ -329,6 +333,7 @@ export function usePhotosForApproval(
         status,
         storeId: scope?.storeId,
         supplierId: scope?.supplierId,
+        promoterName: scope?.promoterName,
         from: scope?.from,
         to: scope?.to,
       },
@@ -372,6 +377,19 @@ export function useReviewPromotorPhoto() {
   return useMutation(
     orpc.promotor.reviewPhoto.mutationOptions({
       onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReviewPromotorPhotosBulk() {
+  const invalidate = useInvalidateApproval();
+  return useMutation(
+    orpc.promotor.reviewPhotosBulk.mutationOptions({
+      onSuccess: (result) => {
+        toast.success(`${result.count} foto(s) atualizada(s)`);
+        invalidate();
+      },
       onError: (error) => toast.error(error.message),
     }),
   );
