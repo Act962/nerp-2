@@ -2939,6 +2939,14 @@ enum PhotoLocationStatus {
   UNKNOWN
 }
 
+// Origem da foto do promotor: câmera ao vivo dentro do app (fluxo esperado,
+// alimenta a "Galeria App") vs biblioteca do celular (brecha de reuso). Usado
+// para proveniência e alerta à coordenadora.
+enum PdvPhotoSource {
+  APP_CAMERA
+  PHONE_LIBRARY
+}
+
 model PdvPhoto {
   id                 String                 @id @default(cuid())
   organizationId     String
@@ -2985,6 +2993,20 @@ model PdvPhoto {
   reviewedById       String?
   reviewedByName     String?
   reviewedAt         DateTime?
+  // Origem + trava anti-reuso (App Promotor).
+  source             PdvPhotoSource         @default(APP_CAMERA)
+  // Impressão digital INVISÍVEL (não carimbada) da imagem CRUA — antes do selo.
+  // imageHash: SHA-256 do arquivo cru (pega reenvio idêntico). perceptualHash:
+  // dHash 64-bit (pega a mesma foto recomprimida/reeditada).
+  imageHash          String?
+  perceptualHash     String?
+  // "Galeria App": rascunho (submittedAt null) fica fora da fila da coordenadora
+  // até o promotor enviar. consumedAt é setado na aprovação — a foto sai da galeria.
+  submittedAt        DateTime?
+  consumedAt         DateTime?
+  // Reuso detectado na captura (nunca bloqueia; só alerta a coordenadora).
+  possibleReuse      Boolean                @default(false)
+  reuseOfId          String?
   createdById        String
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt
@@ -2994,6 +3016,8 @@ model PdvPhoto {
   supplier           Supplier?              @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   mediaType          MediaType?             @relation(fields: [mediaTypeId], references: [id], onDelete: SetNull)
   createdBy          User                   @relation("CreatedPdvPhotos", fields: [createdById], references: [id])
+  reuseOf            PdvPhoto?              @relation("PhotoReuse", fields: [reuseOfId], references: [id], onDelete: SetNull)
+  reusedBy           PdvPhoto[]             @relation("PhotoReuse")
   bookItems          BookItem[]
 
   @@index([organizationId])
@@ -3006,6 +3030,8 @@ model PdvPhoto {
   @@index([organizationId, mediaTypeId])
   @@index([organizationId, createdById])
   @@index([organizationId, approvalStatus])
+  @@index([organizationId, imageHash])
+  @@index([organizationId, createdById, submittedAt])
   @@map("pdv_photos")
 }
 

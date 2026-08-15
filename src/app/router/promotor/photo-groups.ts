@@ -15,7 +15,9 @@ export const listMyPhotoGroups = base
   .use(requireOrgMiddleware)
   .input(
     z.object({
-      status: z.enum(["ALL", "APPROVED", "REJECTED", "PENDING"]).default("ALL"),
+      status: z
+        .enum(["ALL", "APPROVED", "REJECTED", "PENDING", "APP_GALLERY"])
+        .default("ALL"),
       // Ausente: agrupa por cliente. Presente: agrupa por indústria dentro dele.
       storeId: z.string().optional(),
       ...dateRangeSchema,
@@ -36,10 +38,16 @@ export const listMyPhotoGroups = base
     }),
   )
   .handler(async ({ input, context }) => {
+    const statusWhere =
+      input.status === "ALL"
+        ? {}
+        : input.status === "APP_GALLERY"
+          ? { source: "APP_CAMERA" as const, consumedAt: null }
+          : { approvalStatus: input.status };
     const where = {
       organizationId: context.org.id,
       createdById: context.user.id,
-      ...(input.status === "ALL" ? {} : { approvalStatus: input.status }),
+      ...statusWhere,
       ...(input.storeId ? { storeId: input.storeId } : {}),
       ...capturedAtFilter(input.from, input.to),
     };

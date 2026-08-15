@@ -351,7 +351,7 @@ export function StampEditor({
           onClick={save}
         >
           {saving ? <Spinner /> : <Check className="size-4" />}
-          Salvar foto
+          Salvar na galeria
         </Button>
       </div>
     </div>

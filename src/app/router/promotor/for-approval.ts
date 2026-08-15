@@ -13,8 +13,10 @@ export const listPhotosForApproval = base
   .use(requireOrgMiddleware)
   .input(
     z.object({
+      // APP_GALLERY existe só pra alinhar com o tipo compartilhado do promotor;
+      // a fila da coordenadora nunca a usa (rascunho não entra aqui).
       status: z
-        .enum(["ALL", "APPROVED", "REJECTED", "PENDING"])
+        .enum(["ALL", "APPROVED", "REJECTED", "PENDING", "APP_GALLERY"])
         .default("PENDING"),
       storeId: z.string().optional(),
       supplierId: z.string().nullable().optional(),
@@ -35,6 +37,9 @@ export const listPhotosForApproval = base
     const scope = {
       organizationId: context.org.id,
       promoterName: { not: null },
+      // Rascunho da Galeria App (submittedAt null) não aparece pra coordenadora
+      // até o promotor enviar.
+      submittedAt: { not: null },
       ...(input.storeId ? { storeId: input.storeId } : {}),
       ...(input.supplierId !== undefined
         ? { supplierId: input.supplierId }
@@ -45,7 +50,11 @@ export const listPhotosForApproval = base
     const photos = await prisma.pdvPhoto.findMany({
       where: {
         ...scope,
-        ...(input.status === "ALL" ? {} : { approvalStatus: input.status }),
+        ...(input.status === "APPROVED" ||
+        input.status === "REJECTED" ||
+        input.status === "PENDING"
+          ? { approvalStatus: input.status }
+          : {}),
       },
       orderBy: { capturedAt: "desc" },
       take: 120,
@@ -60,6 +69,16 @@ export const listPhotosForApproval = base
         approvalStatus: true,
         approvalNote: true,
         sealMissing: true,
+        possibleReuse: true,
+        // Foto original apontada pela suspeita de reuso — a coordenadora compara.
+        reuseOf: {
+          select: {
+            id: true,
+            photos: true,
+            capturedAt: true,
+            promoterName: true,
+          },
+        },
         store: { select: { name: true } },
         supplier: { select: { id: true, name: true, actionCodeImage: true } },
       },
@@ -88,6 +107,15 @@ export const listPhotosForApproval = base
         sealMissing: photo.sealMissing,
         approvalStatus: photo.approvalStatus,
         approvalNote: photo.approvalNote,
+        possibleReuse: photo.possibleReuse,
+        reuseOf: photo.reuseOf
+          ? {
+              id: photo.reuseOf.id,
+              photoKey: photo.reuseOf.photos[0] ?? null,
+              capturedAt: photo.reuseOf.capturedAt.toISOString(),
+              promoterName: photo.reuseOf.promoterName,
+            }
+          : null,
       })),
       counts: {
         pending: countBy("PENDING"),

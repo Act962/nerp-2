@@ -12,7 +12,9 @@ export const listMyPromotorPhotos = base
   .use(requireOrgMiddleware)
   .input(
     z.object({
-      status: z.enum(["ALL", "APPROVED", "REJECTED", "PENDING"]).default("ALL"),
+      status: z
+        .enum(["ALL", "APPROVED", "REJECTED", "PENDING", "APP_GALLERY"])
+        .default("ALL"),
       // Recorte vindo da navegação de "Minhas fotos". `supplierId: null` é o
       // grupo "Sem indústria" (dado legado — hoje a captura sempre exige uma).
       storeId: z.string().optional(),
@@ -31,11 +33,17 @@ export const listMyPromotorPhotos = base
       ...capturedAtFilter(input.from, input.to),
     };
 
+    // "Galeria App" é uma dimensão à parte do approvalStatus: fotos tiradas no
+    // app (source) ainda não consumidas (aprovadas + usadas). Some ao ser aprovada.
+    const statusWhere =
+      input.status === "ALL"
+        ? {}
+        : input.status === "APP_GALLERY"
+          ? { source: "APP_CAMERA" as const, consumedAt: null }
+          : { approvalStatus: input.status };
+
     const photos = await prisma.pdvPhoto.findMany({
-      where: {
-        ...scope,
-        ...(input.status === "ALL" ? {} : { approvalStatus: input.status }),
-      },
+      where: { ...scope, ...statusWhere },
       orderBy: { capturedAt: "desc" },
       // Teto de segurança: dentro de um par cliente+indústria isso é histórico
       // de sobra, e impede que um promotor antigo puxe milhares de linhas.
@@ -49,6 +57,8 @@ export const listMyPromotorPhotos = base
         capturedState: true,
         approvalStatus: true,
         approvalNote: true,
+        submittedAt: true,
+        possibleReuse: true,
         store: { select: { id: true, name: true } },
         supplier: { select: { id: true, name: true, actionCodeImage: true } },
       },
@@ -66,6 +76,11 @@ export const listMyPromotorPhotos = base
       counts.find((row) => row.approvalStatus === status)?._count ?? 0;
     const total = counts.reduce((sum, row) => sum + row._count, 0);
 
+    // "Galeria App" é dimensão ortogonal ao approvalStatus — contagem à parte.
+    const appGallery = await prisma.pdvPhoto.count({
+      where: { ...scope, source: "APP_CAMERA", consumedAt: null },
+    });
+
     return {
       photos: photos.map((photo) => ({
         id: photo.id,
@@ -82,12 +97,16 @@ export const listMyPromotorPhotos = base
         status: photo.approvalStatus,
         rejectionNote:
           photo.approvalStatus === "REJECTED" ? photo.approvalNote : null,
+        // Rascunho na Galeria App (ainda não enviado pra aprovação).
+        isDraft: photo.submittedAt === null,
+        possibleReuse: photo.possibleReuse,
       })),
       counts: {
         all: total,
         approved: countBy("APPROVED"),
         rejected: countBy("REJECTED"),
         pending: countBy("PENDING"),
+        appGallery,
       },
     };
   });

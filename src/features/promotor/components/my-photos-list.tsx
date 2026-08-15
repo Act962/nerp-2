@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {
+  AlertTriangle,
   ArrowLeft,
   Camera,
   Check,
@@ -21,6 +22,7 @@ import {
   Download,
   Factory,
   MapPin,
+  Send,
   Share2,
   Store as StoreIcon,
   X,
@@ -42,10 +44,12 @@ import {
   useMyPhotoCounts,
   useMyPhotoGroups,
   useMyPhotos,
+  useSubmitGalleryPhotos,
 } from "../hooks/use-promotor";
 
 const FILTERS: { value: PromotorPhotoStatus; label: string }[] = [
   { value: "ALL", label: "Todas" },
+  { value: "APP_GALLERY", label: "Galeria App" },
   { value: "APPROVED", label: "Aprovadas" },
   { value: "REJECTED", label: "Reprovadas" },
   { value: "PENDING", label: "Pendentes" },
@@ -147,6 +151,7 @@ export function MyPhotosList({
     ...(store ? { storeId: store.id, supplierId: supplier?.id } : {}),
     ...dates,
   });
+  const submitGallery = useSubmitGalleryPhotos();
 
   const opened = photos.find((photo) => photo.id === openedId) ?? null;
 
@@ -203,11 +208,13 @@ export function MyPhotosList({
   const countFor = (value: PromotorPhotoStatus) =>
     value === "ALL"
       ? counts.all
-      : value === "APPROVED"
-        ? counts.approved
-        : value === "REJECTED"
-          ? counts.rejected
-          : counts.pending;
+      : value === "APP_GALLERY"
+        ? counts.appGallery
+        : value === "APPROVED"
+          ? counts.approved
+          : value === "REJECTED"
+            ? counts.rejected
+            : counts.pending;
 
   const goBack = () => {
     exitSelection();
@@ -427,7 +434,21 @@ export function MyPhotosList({
                   )}
                 </div>
                 <div className="space-y-1 p-2">
-                  <StatusBadge status={photo.status} />
+                  {photo.isDraft ? (
+                    <Badge className="gap-1 bg-amber-500">
+                      <Clock className="size-3" /> Rascunho
+                    </Badge>
+                  ) : (
+                    <StatusBadge status={photo.status} />
+                  )}
+                  {photo.possibleReuse && (
+                    <Badge
+                      variant="outline"
+                      className="ml-1 gap-1 border-amber-500 text-amber-600"
+                    >
+                      <AlertTriangle className="size-3" /> Possível reuso
+                    </Badge>
+                  )}
                   {/* Na lista corrida o card é a única pista de onde a foto foi
                   tirada — dentro de um cliente isso já está no cabeçalho. */}
                   {isFlat && (
@@ -447,6 +468,27 @@ export function MyPhotosList({
                     <p className="rounded bg-red-50 px-1.5 py-1 text-[11px] text-red-700">
                       Motivo: {photo.rejectionNote}
                     </p>
+                  )}
+
+                  {/* Rascunho da Galeria App: enviar pra fila da coordenadora. */}
+                  {photo.isDraft && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="mt-1 h-9 w-full gap-1.5"
+                      disabled={submitGallery.isPending}
+                      onClick={() =>
+                        submitGallery.mutate(
+                          { photoIds: [photo.id] },
+                          {
+                            onSuccess: () =>
+                              toast.success("Foto enviada para aprovação"),
+                          },
+                        )
+                      }
+                    >
+                      <Send className="size-4" /> Enviar
+                    </Button>
                   )}
 
                   {/* Refazer: volta à captura com a MESMA loja e indústria. Sem

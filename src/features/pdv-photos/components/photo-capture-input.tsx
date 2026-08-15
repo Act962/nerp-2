@@ -17,6 +17,12 @@ interface PhotoCaptureInputProps {
    * continua sendo necessário.
    */
   autoOpen?: boolean;
+  /**
+   * Esconde o botão "Galeria/Adicionar fotos" (biblioteca do celular). Usado na
+   * captura do promotor: só foto tirada ao vivo alimenta a Galeria App — é a
+   * trava que impede reenviar uma foto antiga da galeria do aparelho.
+   */
+  cameraOnly?: boolean;
 }
 
 // Dois inputs irmãos em vez de um com `capture` condicional: na prática
@@ -29,8 +35,12 @@ export function PhotoCaptureInput({
   isUploading,
   className,
   autoOpen,
+  cameraOnly,
 }: PhotoCaptureInputProps) {
   const isMobile = useIsMobile();
+  // Só esconde a biblioteca quando há câmera pra oferecer (mobile). No desktop
+  // não existe câmera via input, então manter o botão evita uma UI sem ação.
+  const hideGallery = cameraOnly && isMobile;
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,31 +85,35 @@ export function PhotoCaptureInput({
         </>
       )}
 
-      <Button
-        type="button"
-        variant={isMobile ? "outline" : "default"}
-        className="h-11 flex-1 gap-2"
-        disabled={disabled || isUploading}
-        onClick={() => galleryInputRef.current?.click()}
-      >
-        {isUploading && !isMobile ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          <ImagePlus className="size-4" />
-        )}
-        {isMobile ? "Galeria" : "Adicionar fotos"}
-      </Button>
-      <input
-        ref={galleryInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        className="hidden"
-        onChange={(event) => {
-          handleChange(event.target.files);
-          event.target.value = "";
-        }}
-      />
+      {!hideGallery && (
+        <>
+          <Button
+            type="button"
+            variant={isMobile ? "outline" : "default"}
+            className="h-11 flex-1 gap-2"
+            disabled={disabled || isUploading}
+            onClick={() => galleryInputRef.current?.click()}
+          >
+            {isUploading && !isMobile ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <ImagePlus className="size-4" />
+            )}
+            {isMobile ? "Galeria" : "Adicionar fotos"}
+          </Button>
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              handleChange(event.target.files);
+              event.target.value = "";
+            }}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { compressImage } from "@/lib/compress-image";
 import { uploadToR2 } from "@/lib/upload-to-r2";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   ChevronRight,
@@ -307,6 +308,31 @@ export function PhotosForApprovalList({
                         Motivo: {photo.approvalNote}
                       </p>
                     )}
+
+                  {/* Trava anti-reuso: a impressão digital bateu com uma foto já
+                    enviada. Não bloqueia — a coordenadora decide vendo a original. */}
+                  {photo.possibleReuse && (
+                    <div className="space-y-1 rounded border border-amber-300 bg-amber-50 p-1.5 text-amber-900">
+                      <p className="flex items-center gap-1 font-medium">
+                        <AlertTriangle className="size-3" /> Possível reuso
+                      </p>
+                      {photo.reuseOf?.photoKey ? (
+                        <a
+                          href={constructUrl(photo.reuseOf.photoKey)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline"
+                        >
+                          Ver foto original
+                          {photo.reuseOf.capturedAt
+                            ? ` (${formatDateTime(photo.reuseOf.capturedAt)})`
+                            : ""}
+                        </a>
+                      ) : (
+                        <p>Parece igual a uma foto já enviada antes.</p>
+                      )}
+                    </div>
+                  )}
 
                   {/* Foto salva sem selo: aplicar aqui evita reprovar e mandar
                     o promotor refazer uma visita que já foi feita direito. */}
