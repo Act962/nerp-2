@@ -368,9 +368,10 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
   return (
     <Document title={data.bookName}>
       <Page size={PAGE_SIZE}>
-        {data.coverLayout && data.coverLayout.length > 0 ? (
+        {(data.coverLayout && data.coverLayout.length > 0) ||
+        data.coverBackground?.imageKey ? (
           <CoverLayoutView
-            elements={data.coverLayout}
+            elements={data.coverLayout ?? []}
             background={data.coverBackground}
             variableValues={buildBookVariables(data)}
           />
@@ -410,10 +411,10 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
           ? item.pageBackground
           : data.pageBackground;
 
-        return layout && layout.length > 0 ? (
+        return (layout && layout.length > 0) || layoutBackground?.imageKey ? (
           <Page key={`${item.storeName}-${index}`} size={PAGE_SIZE}>
             <CoverLayoutView
-              elements={layout}
+              elements={layout ?? []}
               background={layoutBackground}
               variableValues={buildItemVariables(data, item, index)}
               photoSources={item.photoSources}
@@ -484,9 +485,10 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
       })}
 
       <Page size={PAGE_SIZE}>
-        {data.closingLayout && data.closingLayout.length > 0 ? (
+        {(data.closingLayout && data.closingLayout.length > 0) ||
+        data.closingBackground?.imageKey ? (
           <CoverLayoutView
-            elements={data.closingLayout}
+            elements={data.closingLayout ?? []}
             background={data.closingBackground}
             variableValues={buildBookVariables(data)}
           />
