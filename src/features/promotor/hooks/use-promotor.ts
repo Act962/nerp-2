@@ -254,8 +254,8 @@ export function useCapturePromotorPhoto() {
   const queryClient = useQueryClient();
   return useMutation(
     orpc.promotor.capture.mutationOptions({
+      // O toast fica com quem chama (a mensagem muda entre Pendentes e Galeria).
       onSuccess: () => {
-        toast.success("Foto enviada");
         queryClient.invalidateQueries({
           queryKey: orpc.promotor.myPhotos.key(),
         });
@@ -267,6 +267,9 @@ export function useCapturePromotorPhoto() {
         });
         queryClient.invalidateQueries({
           queryKey: orpc.promotor.forApproval.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.galleryDrafts.key(),
         });
         queryClient.invalidateQueries({
           queryKey: orpc.book.dashboard.key(),

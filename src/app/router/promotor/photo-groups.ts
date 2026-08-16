@@ -47,6 +47,8 @@ export const listMyPhotoGroups = base
     const where = {
       organizationId: context.org.id,
       createdById: context.user.id,
+      // Rascunhos da Galeria do App não aparecem no índice de "Minhas fotos".
+      submittedAt: { not: null },
       ...statusWhere,
       ...(input.storeId ? { storeId: input.storeId } : {}),
       ...capturedAtFilter(input.from, input.to),

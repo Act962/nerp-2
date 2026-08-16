@@ -26,6 +26,8 @@ export const listMyPromotorPhotos = base
     const scope = {
       organizationId: context.org.id,
       createdById: context.user.id,
+      // Rascunhos da Galeria do App (submittedAt null) ficam só na aba Galeria.
+      submittedAt: { not: null },
       ...(input.storeId ? { storeId: input.storeId } : {}),
       ...(input.supplierId !== undefined
         ? { supplierId: input.supplierId }
@@ -76,9 +78,15 @@ export const listMyPromotorPhotos = base
       counts.find((row) => row.approvalStatus === status)?._count ?? 0;
     const total = counts.reduce((sum, row) => sum + row._count, 0);
 
-    // "Galeria App" é dimensão ortogonal ao approvalStatus — contagem à parte.
+    // Chip "Galeria App": conta os RASCUNHOS do banco (submittedAt null),
+    // sobrescrevendo o `submittedAt: { not: null }` do scope.
     const appGallery = await prisma.pdvPhoto.count({
-      where: { ...scope, source: "APP_CAMERA", consumedAt: null },
+      where: {
+        ...scope,
+        submittedAt: null,
+        source: "APP_CAMERA",
+        consumedAt: null,
+      },
     });
 
     return {

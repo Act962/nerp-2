@@ -32,6 +32,8 @@ export const getMyPhotoCounts = base
     const scope = {
       organizationId: context.org.id,
       createdById: context.user.id,
+      // Rascunhos da Galeria do App não contam em "Minhas fotos".
+      submittedAt: { not: null },
       ...(input.storeId ? { storeId: input.storeId } : {}),
       ...(input.supplierId !== undefined
         ? { supplierId: input.supplierId }
@@ -46,7 +48,12 @@ export const getMyPhotoCounts = base
         _count: true,
       }),
       prisma.pdvPhoto.count({
-        where: { ...scope, source: "APP_CAMERA", consumedAt: null },
+        where: {
+          ...scope,
+          submittedAt: null,
+          source: "APP_CAMERA",
+          consumedAt: null,
+        },
       }),
     ]);
 
