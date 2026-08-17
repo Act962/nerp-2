@@ -5,7 +5,7 @@ import { Slider } from "@/components/ui/slider";
 import { Spinner } from "@/components/ui/spinner";
 import { compressImage } from "@/lib/compress-image";
 import { uploadToR2 } from "@/lib/upload-to-r2";
-import { Check, RotateCcw } from "lucide-react";
+import { Check, ClipboardCopy, RotateCcw, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -87,7 +87,7 @@ export function StampEditor({
   codigoKey: string | null;
   textLines: string[];
   onCancel: () => void;
-  onBaked: (photoKey: string, sealMissing: boolean) => void;
+  onBaked: (photoKey: string, sealMissing: boolean) => void | Promise<void>;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -96,6 +96,12 @@ export function StampEditor({
   const [pos, setPos] = useState({ x: 0.05, y: 0.2, scale: 0.3 });
   const [brandLoaded, setBrandLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
+  // Erro fica FIXO na tela (não some como o toast) pra o promotor conseguir
+  // tirar print e mandar pro suporte com a etapa exata que falhou.
+  const [errorInfo, setErrorInfo] = useState<{
+    step: string;
+    detail: string;
+  } | null>(null);
   const dragging = useRef(false);
 
   // Object URL criado dentro do efeito (uma por `file`): assim o double-invoke
@@ -133,6 +139,10 @@ export function StampEditor({
 
   const save = async () => {
     setSaving(true);
+    setErrorInfo(null);
+    // A etapa corrente é atualizada antes de cada passo; se algo estourar, ela
+    // diz EXATAMENTE onde parou (montar / otimizar / enviar / registrar).
+    let step = "montar a foto";
     try {
       const { blob, codigoFaltando } = await bakePhoto({
         file,
@@ -152,17 +162,34 @@ export function StampEditor({
       const baked = new File([blob], `promotor-${Date.now()}.jpg`, {
         type: "image/jpeg",
       });
-      const key = await uploadToR2(await compressImage(baked), true);
-      onBaked(key, codigoFaltando);
+      step = "otimizar a foto";
+      const compressed = await compressImage(baked);
+      step = "enviar a foto";
+      const key = await uploadToR2(compressed, true);
+      step = "registrar a foto no servidor";
+      await onBaked(key, codigoFaltando);
     } catch (error) {
-      toast.error(
-        error instanceof Error && /suport|bitmap|imagem/i.test(error.message)
-          ? "Formato de imagem não suportado, tente outra foto"
-          : "Não foi possível salvar a foto",
-      );
+      const detail =
+        error instanceof Error
+          ? `${error.name !== "Error" ? `${error.name}: ` : ""}${error.message}`
+          : String(error);
+      setErrorInfo({ step, detail });
+      toast.error(`Não foi possível ${step}`, {
+        description: detail,
+        duration: 12000,
+      });
     } finally {
       setSaving(false);
     }
+  };
+
+  const copyError = () => {
+    if (!errorInfo) return;
+    const text = `Erro ao ${errorInfo.step}: ${errorInfo.detail}`;
+    navigator.clipboard
+      ?.writeText(text)
+      .then(() => toast.success("Erro copiado"))
+      .catch(() => toast.error("Não foi possível copiar"));
   };
 
   return (
@@ -322,6 +349,34 @@ export function StampEditor({
           Esta indústria não tem senha do mês cadastrada — a foto será salva só
           com o texto.
         </p>
+      )}
+
+      {/* Erro fixo na tela — some só quando o promotor tenta salvar de novo.
+        Mostra a ETAPA e o detalhe técnico (status HTTP / mensagem) pra o
+        suporte identificar sem depender de console no celular. */}
+      {errorInfo && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-destructive">
+          <div className="flex items-start gap-2">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="text-sm font-semibold">
+                Não foi possível {errorInfo.step}
+              </p>
+              <p className="break-words text-xs opacity-90">
+                {errorInfo.detail}
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="mt-1 h-8 gap-1.5"
+                onClick={copyError}
+              >
+                <ClipboardCopy className="size-3.5" /> Copiar erro
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Botões fixos no rodapé do viewport: no celular a foto + slider já
