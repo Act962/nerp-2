@@ -30,6 +30,9 @@ export const listBook = base
         organization: { select: { logo: true } },
         _count: { select: { items: true } },
         items: { select: { approvalStatus: true } },
+        // Lojas do book (1 página = 1 loja) — alimenta o filtro "por loja" em
+        // /books. Páginas extras não têm loja e ficam de fora.
+        pages: { select: { store: { select: { name: true } } } },
       },
     });
 
@@ -51,6 +54,13 @@ export const listBook = base
         const approvedCount = book.items.filter(
           (item) => item.approvalStatus === "APPROVED",
         ).length;
+        const storeNames = [
+          ...new Set(
+            book.pages
+              .map((page) => page.store?.name)
+              .filter((name): name is string => Boolean(name)),
+          ),
+        ].sort((a, b) => a.localeCompare(b, "pt-BR"));
         return {
           id: book.id,
           name: book.name,
@@ -61,6 +71,7 @@ export const listBook = base
           generatedAt: book.generatedAt?.toISOString() ?? null,
           sentAt: book.sentAt?.toISOString() ?? null,
           supplierName: book.supplier?.name ?? null,
+          storeNames,
           itemsCount: book._count.items,
           rejectedCount,
           approvedCount,

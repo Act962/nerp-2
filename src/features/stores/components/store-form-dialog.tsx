@@ -21,15 +21,23 @@ import { LogoUploader } from "@/components/logo-uploader/uploader";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect } from "react";
+import { Building2, Search } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { z } from "zod";
-import { useCreateStore, useStore, useUpdateStore } from "../hooks/use-stores";
+import {
+  useCreateStore,
+  useMatchDirectoryStore,
+  useStore,
+  useUpdateStore,
+} from "../hooks/use-stores";
 
 const storeFormSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   code: z.string().optional(),
   managerName: z.string().optional(),
+  document: z.string().optional(),
   city: z.string().optional(),
   state: z.string().optional(),
   address: z.string().optional(),
@@ -40,12 +48,22 @@ const storeFormSchema = z.object({
   customersPerDay: z.string().optional(),
 });
 
+type DirectoryMatch = {
+  latitude: number | null;
+  longitude: number | null;
+  directoryStoreId: string;
+  name: string;
+  city: string | null;
+  distanceM: number | null;
+};
+
 type StoreFormValues = z.infer<typeof storeFormSchema>;
 
 const emptyValues: StoreFormValues = {
   name: "",
   code: "",
   managerName: "",
+  document: "",
   city: "",
   state: "",
   address: "",
@@ -77,6 +95,13 @@ export function StoreFormDialog({
   const { store, isLoading: isLoadingStore } = useStore(storeId ?? "");
   const createStore = useCreateStore();
   const updateStore = useUpdateStore();
+  const matchDirectory = useMatchDirectoryStore();
+  // Preview de dedup (só no cadastro): match no diretório + ponto escolhido.
+  const [match, setMatch] = useState<DirectoryMatch | null>(null);
+  const [linkedDirectoryId, setLinkedDirectoryId] = useState<string | null>(
+    null,
+  );
+  const [checked, setChecked] = useState(false);
 
   const form = useForm<StoreFormValues>({
     resolver: zodResolver(storeFormSchema),
@@ -85,6 +110,9 @@ export function StoreFormDialog({
 
   useEffect(() => {
     if (!open) return;
+    setMatch(null);
+    setLinkedDirectoryId(null);
+    setChecked(false);
     if (isEditing && store) {
       form.reset({
         name: store.name,
@@ -108,6 +136,49 @@ export function StoreFormDialog({
 
   const isSaving = createStore.isPending || updateStore.isPending;
 
+  // Confere no diretório Tradegram se o endereço já é uma loja cadastrada.
+  const checkDirectory = () => {
+    const values = form.getValues();
+    if (!values.name || values.name.length < 2) {
+      toast.error("Informe o nome da loja antes de conferir");
+      return;
+    }
+    matchDirectory.mutate(
+      {
+        name: values.name,
+        address: values.address || undefined,
+        city: values.city || undefined,
+        state: values.state || undefined,
+        document: values.document || undefined,
+      },
+      {
+        onSuccess: (result) => {
+          setChecked(true);
+          setMatch(
+            result.match
+              ? {
+                  latitude: result.latitude,
+                  longitude: result.longitude,
+                  directoryStoreId: result.match.directoryStoreId,
+                  name: result.match.name,
+                  city: result.match.city,
+                  distanceM: result.match.distanceM,
+                }
+              : {
+                  latitude: result.latitude,
+                  longitude: result.longitude,
+                  directoryStoreId: "",
+                  name: "",
+                  city: null,
+                  distanceM: null,
+                },
+          );
+        },
+        onError: (error) => toast.error(error.message),
+      },
+    );
+  };
+
   const onSubmit = (values: StoreFormValues) => {
     const payload = {
       ...values,
@@ -123,12 +194,21 @@ export function StoreFormDialog({
       );
       return;
     }
-    createStore.mutate(payload, {
-      onSuccess: () => {
-        onOpenChange(false);
-        form.reset(emptyValues);
+    createStore.mutate(
+      {
+        ...payload,
+        latitude: match?.latitude ?? null,
+        longitude: match?.longitude ?? null,
+        directoryStoreId: linkedDirectoryId,
+        document: values.document || undefined,
       },
-    });
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          form.reset(emptyValues);
+        },
+      },
+    );
   };
 
   return (
@@ -252,6 +332,98 @@ export function StoreFormDialog({
                     </Field>
                   )}
                 />
+
+                {!isEditing && (
+                  <>
+                    <Controller
+                      name="document"
+                      control={form.control}
+                      render={({ field }) => (
+                        <Field>
+                          <FieldLabel htmlFor={field.name}>
+                            CNPJ (opcional)
+                          </FieldLabel>
+                          <Input
+                            {...field}
+                            id={field.name}
+                            placeholder="Reforça a busca no Tradegram"
+                            disabled={isSaving}
+                          />
+                        </Field>
+                      )}
+                    />
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full gap-2"
+                      disabled={matchDirectory.isPending}
+                      onClick={checkDirectory}
+                    >
+                      {matchDirectory.isPending ? (
+                        <Spinner />
+                      ) : (
+                        <Search className="size-4" />
+                      )}
+                      Conferir no Tradegram
+                    </Button>
+
+                    {checked && match && match.directoryStoreId && (
+                      <div className="space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-950/40">
+                        <p className="flex items-center gap-1.5 font-medium text-amber-900 dark:text-amber-200">
+                          <Building2 className="size-4" /> Já existe no
+                          Tradegram
+                        </p>
+                        <p className="text-amber-900/90 dark:text-amber-200/90">
+                          «{match.name}»{match.city ? ` · ${match.city}` : ""}
+                          {match.distanceM != null
+                            ? ` · a ${match.distanceM} m`
+                            : ""}
+                        </p>
+                        {linkedDirectoryId ? (
+                          <p className="text-xs text-emerald-700 dark:text-emerald-300">
+                            Vinculada ao Tradegram
+                            {form.getValues("name") === match.name
+                              ? " (nome adotado)"
+                              : ""}
+                            .
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => {
+                                form.setValue("name", match.name);
+                                setLinkedDirectoryId(match.directoryStoreId);
+                              }}
+                            >
+                              Usar o nome do Tradegram
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setLinkedDirectoryId(match.directoryStoreId)
+                              }
+                            >
+                              Manter meu nome
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {checked && match && !match.directoryStoreId && (
+                      <p className="rounded-md border border-dashed p-2 text-xs text-muted-foreground">
+                        {match.latitude != null
+                          ? "Nenhuma loja parecida no Tradegram — será cadastrada como nova."
+                          : "Não consegui localizar o endereço; a loja será cadastrada mesmo assim."}
+                      </p>
+                    )}
+                  </>
+                )}
                 <Controller
                   name="coverImageKey"
                   control={form.control}

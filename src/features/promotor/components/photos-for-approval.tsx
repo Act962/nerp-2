@@ -14,6 +14,7 @@ import { constructUrl } from "@/hooks/use-construct-url";
 import { compressImage } from "@/lib/compress-image";
 import { uploadToR2 } from "@/lib/upload-to-r2";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   ChevronRight,
@@ -594,6 +595,11 @@ function PhotoCard({
             {[photo.capturedCity, photo.capturedState]
               .filter(Boolean)
               .join("/")}
+          </p>
+        )}
+        {photo.offSite && (
+          <p className="flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-1 font-medium text-amber-900">
+            <AlertTriangle className="size-3" /> Foto fora do local da loja
           </p>
         )}
         {photo.approvalStatus === "REJECTED" && photo.approvalNote && (

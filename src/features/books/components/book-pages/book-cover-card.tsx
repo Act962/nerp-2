@@ -27,6 +27,7 @@ import {
   LayoutPreview,
   type LayoutLogos,
 } from "../templates/layout-preview";
+import { TradegramMark } from "../tradegram-mark";
 
 // Editor Konva completo — pesado, só entra no bundle quando o usuário clica
 // em "Editar". Reusa o CoverEditor que já sabe sub-tabs Capa/Página Final.
@@ -116,12 +117,15 @@ export function BookCoverCard(props: BookCoverCardProps) {
       </div>
 
       <div className="bg-muted/10 p-4">
-        <LayoutPreview
-          layout={layout}
-          background={background}
-          logos={props.logos}
-          variableValues={props.variableValues}
-        />
+        <div className="relative">
+          <LayoutPreview
+            layout={layout}
+            background={background}
+            logos={props.logos}
+            variableValues={props.variableValues}
+          />
+          <TradegramMark />
+        </div>
       </div>
 
       {editing && (

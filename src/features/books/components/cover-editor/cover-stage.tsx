@@ -49,8 +49,8 @@ function BackgroundImage({ imageKey }: { imageKey: string }) {
 interface CoverStageProps {
   elements: CoverElement[];
   background: CoverBackground;
-  selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  selectedIds: string[];
+  onSelect: (id: string | null, additive?: boolean) => void;
   onChange: (id: string, patch: Partial<CoverElement>) => void;
   variableValues?: BookVariableValues;
   // Fotos reais do primeiro item do book, por índice de slot — deixa o
@@ -62,7 +62,7 @@ interface CoverStageProps {
 export function CoverStage({
   elements,
   background,
-  selectedId,
+  selectedIds,
   onSelect,
   onChange,
   variableValues,
@@ -79,6 +79,16 @@ export function CoverStage({
     setIsTouch(window.matchMedia("(pointer: coarse)").matches);
   }, []);
 
+  // Espaço de foto tem proporção fixa (3:4 ou 4:3): quando só slots estão
+  // selecionados, o resize trava na proporção (só cantos, sem anchors laterais)
+  // e a rotação fica desabilitada — o padrão de dimensão não pode ser distorcido.
+  const onlyPhotoSlots =
+    selectedIds.length > 0 &&
+    selectedIds.every(
+      (id) =>
+        elements.find((element) => element.id === id)?.type === "photoSlot",
+    );
+
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
@@ -89,14 +99,80 @@ export function CoverStage({
     return () => observer.disconnect();
   }, []);
 
+  // Transformer com TODOS os selecionados: resize/rotação valem em grupo. O
+  // move em grupo é tratado pelo efeito de arraste abaixo.
   useEffect(() => {
     const transformer = transformerRef.current;
     const stage = stageRef.current;
     if (!transformer || !stage) return;
-    const node = selectedId ? stage.findOne(`#${selectedId}`) : null;
-    transformer.nodes(node ? [node] : []);
+    const nodes = selectedIds
+      .map((id) => stage.findOne(`#${id}`))
+      .filter((node): node is Konva.Node => Boolean(node));
+    transformer.nodes(nodes);
     transformer.getLayer()?.batchDraw();
-  }, [selectedId]);
+  }, [selectedIds]);
+
+  // Arraste em grupo: ao arrastar um nó selecionado com vários na seleção,
+  // aplica o mesmo deslocamento aos demais (ao vivo) e comita no fim.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage || selectedIds.length < 2) return;
+    let starts: Map<string, { x: number; y: number }> | null = null;
+    let draggedId: string | null = null;
+
+    const begin = (event: Konva.KonvaEventObject<DragEvent>) => {
+      const id = event.target?.id?.();
+      if (!id || !selectedIds.includes(id)) {
+        starts = null;
+        return;
+      }
+      draggedId = id;
+      starts = new Map();
+      for (const sid of selectedIds) {
+        const n = stage.findOne(`#${sid}`);
+        if (n) starts.set(sid, { x: n.x(), y: n.y() });
+      }
+    };
+    const move = (event: Konva.KonvaEventObject<DragEvent>) => {
+      if (!starts || !draggedId || event.target?.id?.() !== draggedId) return;
+      const from = starts.get(draggedId);
+      if (!from) return;
+      const dx = event.target.x() - from.x;
+      const dy = event.target.y() - from.y;
+      for (const [sid, pos] of starts) {
+        if (sid === draggedId) continue;
+        stage.findOne(`#${sid}`)?.position({ x: pos.x + dx, y: pos.y + dy });
+      }
+      // Mantém a caixa do Transformer acompanhando os nós movidos.
+      transformerRef.current?.forceUpdate();
+      stage.batchDraw();
+    };
+    const end = (event: Konva.KonvaEventObject<DragEvent>) => {
+      if (!starts || !draggedId || event.target?.id?.() !== draggedId) {
+        starts = null;
+        draggedId = null;
+        return;
+      }
+      const from = starts.get(draggedId);
+      const dx = event.target.x() - (from?.x ?? 0);
+      const dy = event.target.y() - (from?.y ?? 0);
+      for (const [sid, pos] of starts) {
+        if (sid === draggedId) continue;
+        onChange(sid, { x: pos.x + dx, y: pos.y + dy });
+      }
+      starts = null;
+      draggedId = null;
+    };
+
+    stage.on("dragstart.multi", begin);
+    stage.on("dragmove.multi", move);
+    stage.on("dragend.multi", end);
+    return () => {
+      stage.off("dragstart.multi");
+      stage.off("dragmove.multi");
+      stage.off("dragend.multi");
+    };
+  }, [selectedIds, onChange]);
 
   return (
     <div
@@ -144,7 +220,7 @@ export function CoverStage({
               <CoverElementNode
                 key={element.id}
                 element={element}
-                isSelected={element.id === selectedId}
+                isSelected={selectedIds.includes(element.id)}
                 onSelect={onSelect}
                 onChange={onChange}
                 variableValues={variableValues}
@@ -158,7 +234,13 @@ export function CoverStage({
             ))}
             <Transformer
               ref={transformerRef}
-              rotateEnabled
+              rotateEnabled={!onlyPhotoSlots}
+              keepRatio={onlyPhotoSlots}
+              enabledAnchors={
+                onlyPhotoSlots
+                  ? ["top-left", "top-right", "bottom-left", "bottom-right"]
+                  : undefined
+              }
               // Os anchors são desenhados no espaço do stage, que está
               // escalado pra caber na tela: sem dividir pelo scale eles
               // encolhem junto e no celular viram alvos de 4px.

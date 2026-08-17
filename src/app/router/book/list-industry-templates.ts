@@ -61,7 +61,7 @@ export const listIndustryTemplates = base
       );
       return { size, template: t ? map(t) : null };
     });
-    const portraitSlots = [1, 2, 3, 4].map((size) => {
+    const portraitSlots = [1, 2, 3].map((size) => {
       const t = photos.find(
         (p) => p.photoOrientation === "PORTRAIT" && p.photoSize === size,
       );

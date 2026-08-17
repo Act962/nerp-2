@@ -26,7 +26,7 @@ import {
 interface CoverElementNodeProps {
   element: CoverElement;
   isSelected: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, additive: boolean) => void;
   onChange: (id: string, patch: Partial<CoverElement>) => void;
   // Valores de exemplo pros tokens {{variavel}} — sem eles o usuário monta o
   // layout olhando pra token cru e não consegue julgar tamanho de fonte.
@@ -274,7 +274,9 @@ export function CoverElementNode({
 }: CoverElementNodeProps) {
   const handleSelect = (event: KonvaEventObject<MouseEvent | TouchEvent>) => {
     event.cancelBubble = true;
-    onSelect(element.id);
+    // Shift-clique adiciona/remove da seleção (multi-seleção).
+    const additive = (event.evt as MouseEvent)?.shiftKey ?? false;
+    onSelect(element.id, additive);
   };
 
   const handleDragEnd = (event: KonvaEventObject<DragEvent>) => {

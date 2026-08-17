@@ -14,6 +14,7 @@ import {
   type PhotoSource,
   type ResolvedCoverElement,
 } from "./cover-layout-view";
+import { TRADEGRAM_LOGO_PNG } from "./tradegram-mark";
 
 // Reexportados porque generate-book.tsx monta os dados a partir daqui — o
 // renderizador de capa em si é compartilhado com o catálogo de PDV.
@@ -32,6 +33,8 @@ export interface BookDocumentItem {
   pageBackground?: CoverBackground | null;
   // null em páginas extras (sem loja) — o cabeçalho fixo legado mostra vazio.
   storeName: string | null;
+  storeCity?: string | null;
+  storeState?: string | null;
   storeManager: string | null;
   coordinatorName: string | null;
   consultantName: string | null;
@@ -41,6 +44,13 @@ export interface BookDocumentItem {
   code: string | null;
   actionValueLabel: string | null;
   photoSources: PhotoSource[];
+  // Fit por foto ("Caber inteira" vence o do slot); indexado por slotIndex.
+  photoFits?: Array<"cover" | "contain">;
+  // Número sequencial de cada foto no book (legenda "FOTO N"); por slotIndex.
+  photoNumbers?: number[];
+  // Variáveis por foto (numeroFoto/cidade/uf/promotor) pros textos que
+  // referenciam uma foto; indexado por slotIndex.
+  photoVariables?: Record<number, BookVariableValues>;
   photoBackdrops?: Array<PhotoBackdropSource | undefined>;
   photoLayoutPattern: PdvPhotoLayoutPattern | null;
 }
@@ -86,6 +96,8 @@ function buildItemVariables(
     midia: item.mediaTypeName,
     secao: item.section,
     codigo: item.code,
+    cidade: item.storeCity ?? null,
+    uf: item.storeState ?? null,
     valorAcao: item.actionValueLabel,
     numeroPagina: `${index + 1} / ${data.items.length}`,
     nomeBook: data.bookName,
@@ -232,6 +244,18 @@ const styles = StyleSheet.create({
   brandLogo: { height: 24, maxWidth: 90, objectFit: "contain" },
   footerPage: { fontSize: 9, color: MUTED },
 
+  // "Desenvolvido por [TradeGram]" no canto inferior direito de cada página.
+  devMark: {
+    position: "absolute",
+    bottom: 6,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+  },
+  devMarkText: { fontSize: 6, color: "#9ca3af", fontFamily: "Helvetica" },
+  devMarkLogo: { width: 42, height: 13, objectFit: "contain" },
+
   closing: {
     flexDirection: "column",
     alignItems: "center",
@@ -330,13 +354,24 @@ function PhotoLayout({
   );
 }
 
+// Marca "Desenvolvido por [TradeGram]" — sobreposta no rodapé de cada página.
+function DevMark() {
+  return (
+    <View style={styles.devMark}>
+      <Text style={styles.devMarkText}>Desenvolvido por</Text>
+      <Image src={TRADEGRAM_LOGO_PNG} style={styles.devMarkLogo} />
+    </View>
+  );
+}
+
 export function BookDocument({ data }: { data: BookDocumentData }) {
   return (
     <Document title={data.bookName}>
       <Page size={PAGE_SIZE}>
-        {data.coverLayout && data.coverLayout.length > 0 ? (
+        {(data.coverLayout && data.coverLayout.length > 0) ||
+        data.coverBackground?.imageKey ? (
           <CoverLayoutView
-            elements={data.coverLayout}
+            elements={data.coverLayout ?? []}
             background={data.coverBackground}
             variableValues={buildBookVariables(data)}
           />
@@ -363,6 +398,7 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
             )}
           </View>
         )}
+        <DevMark />
       </Page>
 
       {data.items.map((item, index) => {
@@ -375,15 +411,19 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
           ? item.pageBackground
           : data.pageBackground;
 
-        return layout && layout.length > 0 ? (
+        return (layout && layout.length > 0) || layoutBackground?.imageKey ? (
           <Page key={`${item.storeName}-${index}`} size={PAGE_SIZE}>
             <CoverLayoutView
-              elements={layout}
+              elements={layout ?? []}
               background={layoutBackground}
               variableValues={buildItemVariables(data, item, index)}
               photoSources={item.photoSources}
+              photoFits={item.photoFits}
+              photoNumbers={item.photoNumbers}
+              photoVariables={item.photoVariables}
               photoBackdrops={item.photoBackdrops}
             />
+            <DevMark />
           </Page>
         ) : (
           <Page key={`${item.storeName}-${index}`} size={PAGE_SIZE}>
@@ -439,14 +479,16 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
                 </Text>
               </View>
             </View>
+            <DevMark />
           </Page>
         );
       })}
 
       <Page size={PAGE_SIZE}>
-        {data.closingLayout && data.closingLayout.length > 0 ? (
+        {(data.closingLayout && data.closingLayout.length > 0) ||
+        data.closingBackground?.imageKey ? (
           <CoverLayoutView
-            elements={data.closingLayout}
+            elements={data.closingLayout ?? []}
             background={data.closingBackground}
             variableValues={buildBookVariables(data)}
           />
@@ -458,6 +500,7 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
             <Text style={styles.closingText}>Obrigado!</Text>
           </View>
         )}
+        <DevMark />
       </Page>
     </Document>
   );

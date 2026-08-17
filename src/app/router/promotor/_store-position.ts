@@ -111,6 +111,8 @@ export async function refreshStorePositionFromPhotos(params: {
       where: {
         organizationId,
         storeId,
+        // Foto marcada "fora do local" nunca entra no cálculo do pino.
+        offSite: false,
         capturedLatitude: { not: null },
         capturedLongitude: { not: null },
       },

@@ -36,6 +36,109 @@ export interface ResolvedDirectoryStore {
   created: boolean;
 }
 
+export interface DirectoryStoreMatch {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  /** Distância até o ponto de entrada, em metros (só no casamento por proximidade). */
+  distanceM: number | null;
+}
+
+/**
+ * Só BUSCA um ponto do catálogo que já represente esta loja — nunca cria.
+ *
+ * Mesma ordem de identidade do `resolveDirectoryStore` (CNPJ → osmId → nome +
+ * 250 m). É a leitura que alimenta o preview do cadastro ("já existe como X?")
+ * sem gravar nada. `resolveDirectoryStore` reusa esta função.
+ */
+export async function findDirectoryStoreMatch(
+  input: ResolveDirectoryStoreInput,
+): Promise<DirectoryStoreMatch | null> {
+  const select = {
+    id: true,
+    name: true,
+    address: true,
+    city: true,
+    state: true,
+    latitude: true,
+    longitude: true,
+  } as const;
+
+  const name = input.name.trim();
+
+  // 1. CNPJ do estabelecimento: identidade exata, dispensa coordenada.
+  const document = normalizeDocument(input.document);
+  if (document) {
+    const byDocument = await prisma.directoryStore.findUnique({
+      where: { document },
+      select,
+    });
+    if (byDocument) return { ...byDocument, distanceM: null };
+  }
+
+  // 2. O mesmo ponto do OpenStreetMap é o mesmo ponto.
+  if (input.osmId) {
+    const byOsm = await prisma.directoryStore.findUnique({
+      where: { osmId: input.osmId },
+      select,
+    });
+    if (byOsm) return { ...byOsm, distanceM: null };
+  }
+
+  const latitude = input.latitude ?? null;
+  const longitude = input.longitude ?? null;
+  const hasPosition =
+    latitude !== null &&
+    longitude !== null &&
+    Number.isFinite(latitude) &&
+    Number.isFinite(longitude) &&
+    isInBrazil(latitude, longitude);
+
+  // 3. Nome normalizado igual E a menos de 250 m (só com posição).
+  const target = normalizeStoreName(name);
+  if (hasPosition && target && name.length >= 2) {
+    const nearby = await prisma.directoryStore.findMany({
+      where: {
+        latitude: {
+          gte: latitude - SEARCH_DEGREES,
+          lte: latitude + SEARCH_DEGREES,
+        },
+        longitude: {
+          gte: longitude - SEARCH_DEGREES,
+          lte: longitude + SEARCH_DEGREES,
+        },
+      },
+      select,
+      take: 200,
+    });
+
+    let best: { store: DirectoryStoreMatch; distance: number } | null = null;
+    for (const point of nearby) {
+      if (point.latitude === null || point.longitude === null) continue;
+      if (normalizeStoreName(point.name) !== target) continue;
+      const distance = distanceMeters(
+        { latitude, longitude },
+        { latitude: point.latitude, longitude: point.longitude },
+      );
+      if (distance > NEAR_METERS) continue;
+      if (!best || distance < best.distance) {
+        best = {
+          store: { ...point, distanceM: Math.round(distance) },
+          distance,
+        };
+      }
+    }
+
+    if (best) return best.store;
+  }
+
+  return null;
+}
+
 /**
  * A ÚNICA porta de escrita do catálogo nacional de PDVs.
  *
@@ -63,25 +166,11 @@ export async function resolveDirectoryStore(
   const name = input.name.trim();
   if (name.length < 2) return null;
 
-  // 1. CNPJ do estabelecimento: identidade exata, dispensa coordenada.
+  // Identidade (CNPJ → osmId → nome+250 m) mora no matcher read-only.
+  const match = await findDirectoryStoreMatch(input);
+  if (match) return { id: match.id, created: false };
+
   const document = normalizeDocument(input.document);
-  if (document) {
-    const byDocument = await prisma.directoryStore.findUnique({
-      where: { document },
-      select: { id: true },
-    });
-    if (byDocument) return { id: byDocument.id, created: false };
-  }
-
-  // 2. O mesmo ponto do OpenStreetMap é o mesmo ponto, ponto final.
-  if (input.osmId) {
-    const byOsm = await prisma.directoryStore.findUnique({
-      where: { osmId: input.osmId },
-      select: { id: true },
-    });
-    if (byOsm) return { id: byOsm.id, created: false };
-  }
-
   const latitude = input.latitude ?? null;
   const longitude = input.longitude ?? null;
   const hasPosition =
@@ -90,42 +179,6 @@ export async function resolveDirectoryStore(
     Number.isFinite(latitude) &&
     Number.isFinite(longitude) &&
     isInBrazil(latitude, longitude);
-
-  // 3. Semelhança, só quando há posição: nome normalizado igual E a menos de
-  // 250 m. Os dois juntos — "Supermercado São José" da Zona Leste e o da Zona
-  // Sul são lojas diferentes com o mesmo nome, e duas lojas coladas com nomes
-  // distintos também são duas.
-  const target = normalizeStoreName(name);
-  if (hasPosition && target) {
-    const nearby = await prisma.directoryStore.findMany({
-      where: {
-        latitude: {
-          gte: latitude - SEARCH_DEGREES,
-          lte: latitude + SEARCH_DEGREES,
-        },
-        longitude: {
-          gte: longitude - SEARCH_DEGREES,
-          lte: longitude + SEARCH_DEGREES,
-        },
-      },
-      select: { id: true, name: true, latitude: true, longitude: true },
-      take: 200,
-    });
-
-    let best: { id: string; distance: number } | null = null;
-    for (const point of nearby) {
-      if (point.latitude === null || point.longitude === null) continue;
-      if (normalizeStoreName(point.name) !== target) continue;
-      const distance = distanceMeters(
-        { latitude, longitude },
-        { latitude: point.latitude, longitude: point.longitude },
-      );
-      if (distance > NEAR_METERS) continue;
-      if (!best || distance < best.distance) best = { id: point.id, distance };
-    }
-
-    if (best) return { id: best.id, created: false };
-  }
 
   // Sem coordenada E sem CNPJ, o único casamento possível seria por nome solto
   // — que juntaria lojas diferentes em cidades diferentes. Recusar é o certo.
