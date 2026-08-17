@@ -2979,6 +2979,10 @@ model PdvPhoto {
   // celular do promotor). Marca a foto para a coordenadora aplicar o selo em
   // /books em vez de reprovar e mandar refazer a visita.
   sealMissing        Boolean                @default(false)
+  // Captura longe do local conhecido da loja escolhida (pino confiável). Não
+  // bloqueia a captura; sinaliza pra coordenadora e protege o pino da loja de
+  // ser movido por uma foto tirada fora do lugar.
+  offSite            Boolean                @default(false)
   // Aprovação da foto pela coordenadora (QC antes de entrar no book).
   approvalStatus     BookItemApproval       @default(PENDING)
   approvalNote       String?

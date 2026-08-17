@@ -54,6 +54,7 @@ import {
 } from "@/features/shopper/components/store-qr-dialog";
 import { useStores } from "../hooks/use-stores";
 import { DeleteStore } from "./delete-store";
+import { MergeCandidatesCard } from "./merge-candidates-card";
 import { StoreCoverCell } from "./store-cover-cell";
 import { StoreFormDialog } from "./store-form-dialog";
 
@@ -102,6 +103,9 @@ export function ListStores({ readOnly = false }: { readOnly?: boolean }) {
 
   return (
     <>
+      <div className="mb-4">
+        <MergeCandidatesCard />
+      </div>
       <Card>
         <CardHeader>
           <InputGroup className="max-w-sm">

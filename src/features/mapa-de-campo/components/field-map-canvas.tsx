@@ -1,7 +1,10 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
+import "leaflet.markercluster/dist/MarkerCluster.css";
+import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import L from "leaflet";
+import "leaflet.markercluster";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { escapeHtml } from "@/lib/escape-html";
 import { createLocationMarkers, createStorePin } from "../lib/pin-marker";
@@ -409,13 +412,23 @@ export function FieldMapCanvas({
     );
 
     mapRef.current = map;
-    storeLayerRef.current = L.layerGroup().addTo(map);
-    osmLayerRef.current = L.layerGroup().addTo(map);
+    // Camadas de pino puro (loja, OSM, presença) viram clusters: com muitos
+    // promotores/lojas o mapa virava sopa de avatares. `disableClusteringAtZoom`
+    // deixa os avatares aparecerem individualmente ao dar zoom.
+    const cluster = () =>
+      L.markerClusterGroup({
+        maxClusterRadius: 50,
+        showCoverageOnHover: false,
+        spiderfyOnMaxZoom: true,
+        disableClusteringAtZoom: 17,
+      });
+    storeLayerRef.current = cluster().addTo(map);
+    osmLayerRef.current = cluster().addTo(map);
     trailLayerRef.current = L.layerGroup().addTo(map);
     // Depois do trajeto de propósito: a rota planejada desenha por cima.
     routeLayerRef.current = L.layerGroup().addTo(map);
     // Acima do trajeto: a pessoa importa mais que o rastro que ela deixou.
-    presenceLayerRef.current = L.layerGroup().addTo(map);
+    presenceLayerRef.current = cluster().addTo(map);
     // Por último: "onde estou" é referência de leitura e fica acima de tudo.
     meLayerRef.current = L.layerGroup().addTo(map);
 
