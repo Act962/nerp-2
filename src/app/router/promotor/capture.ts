@@ -2,10 +2,19 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { PhotoLocationStatus } from "@/generated/prisma/enums";
+import { distanceMeters } from "@/lib/geo-distance";
 import prisma from "@/lib/db";
 import { z } from "zod";
 import { assertSupplierInOrg } from "../pdv-photo/assert-relations";
 import { refreshStorePositionFromPhotos } from "./_store-position";
+
+// Acima disto a captura está longe demais do pino confiável da loja escolhida —
+// provável loja errada / foto fora do local. Só marca (nunca bloqueia).
+const OFFSITE_METERS = 300;
+
+// Amostras de foto que tornam o pino da loja confiável o bastante pra servir de
+// referência de "está no local". Espelha RELIABLE_SAMPLES do _store-position.
+const RELIABLE_SAMPLES = 3;
 
 // Captura do promotor: a foto já vem carimbada (código + nome + data + geo) e
 // enviada ao R2 pelo client; aqui só criamos o PdvPhoto com os metadados.
@@ -35,7 +44,7 @@ export const capturePromotorPhoto = base
       sealMissing: z.boolean().default(false),
     }),
   )
-  .output(z.object({ id: z.string() }))
+  .output(z.object({ id: z.string(), offSite: z.boolean() }))
   .handler(async ({ input, context, errors }) => {
     // Perfil incompleto trava a captura. A tela já bloqueia antes, mas a regra
     // vive aqui: sem rosto e telefone a foto entra no book sem quem responda
@@ -53,11 +62,37 @@ export const capturePromotorPhoto = base
 
     const store = await prisma.store.findFirst({
       where: { id: input.storeId, organizationId: context.org.id },
-      select: { id: true },
+      select: {
+        id: true,
+        latitude: true,
+        longitude: true,
+        geoSource: true,
+        geoSampleCount: true,
+      },
     });
     if (!store) throw errors.NOT_FOUND({ message: "Loja não encontrada" });
 
     await assertSupplierInOrg(input.supplierId, context.org.id, errors);
+
+    // Loja com pino confiável (ajustado à mão OU firmado por ≥3 fotos): se a
+    // captura tem GPS e está longe dele, marca "fora do local". Nunca bloqueia.
+    const reliablePin =
+      store.latitude !== null &&
+      store.longitude !== null &&
+      (store.geoSource === "MANUAL" ||
+        (store.geoSource === "FOTO" &&
+          store.geoSampleCount >= RELIABLE_SAMPLES));
+    const offSite =
+      reliablePin &&
+      input.latitude !== undefined &&
+      input.longitude !== undefined &&
+      distanceMeters(
+        { latitude: input.latitude, longitude: input.longitude },
+        {
+          latitude: store.latitude as number,
+          longitude: store.longitude as number,
+        },
+      ) > OFFSITE_METERS;
     // Sem exigência de vínculo promotor↔loja/indústria: qualquer membro da org
     // (perfil completo já checado acima) registra foto de qualquer loja +
     // indústria da sua organização. O escopo continua sendo a org — a loja é
@@ -71,6 +106,7 @@ export const capturePromotorPhoto = base
         supplierId: input.supplierId,
         code: input.code,
         photos: [input.photoKey],
+        offSite,
         capturedAt: input.capturedAt ? new Date(input.capturedAt) : new Date(),
         promoterName: context.user.name ?? null,
         sealMissing: input.sealMissing,
@@ -92,8 +128,13 @@ export const capturePromotorPhoto = base
     });
 
     // A posição da loja nasce do trabalho de campo: o promotor está na porta
-    // quando fotografa. Best-effort — nunca derruba a captura.
-    if (input.latitude !== undefined && input.longitude !== undefined) {
+    // quando fotografa. Best-effort — nunca derruba a captura. Se a foto está
+    // fora do local (offSite), NÃO usamos ela pra mover o pino já confiável.
+    if (
+      !offSite &&
+      input.latitude !== undefined &&
+      input.longitude !== undefined
+    ) {
       await refreshStorePositionFromPhotos({
         organizationId: context.org.id,
         storeId: store.id,
@@ -108,5 +149,5 @@ export const capturePromotorPhoto = base
       });
     }
 
-    return { id: photo.id };
+    return { id: photo.id, offSite };
   });

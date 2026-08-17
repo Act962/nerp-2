@@ -422,7 +422,14 @@ export function CaptureWizard({
         capturedSuburb: place.suburb ?? undefined,
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
+          if (result.offSite) {
+            toast.warning("Foto longe do local da loja", {
+              description:
+                "O GPS ficou distante do endereço desta loja. A coordenação vai ver o alerta na aprovação.",
+              duration: 8000,
+            });
+          }
           reset();
           onCaptured?.();
         },
