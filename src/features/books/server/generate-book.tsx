@@ -28,6 +28,7 @@ import {
 } from "../pdf/book-document";
 import { composeFocusPhotoForPdf, cropPhotoForPdf } from "./crop-photo";
 import { getIndustryChrome } from "./industry-chrome";
+import type { BookVariableValues } from "../lib/book-variables";
 
 // Resolve UMA foto de página V2 pro PDF. As fotos já caem em slots casados por
 // orientação (horizontal em slot largo, vertical em slot alto), então o padrão
@@ -38,6 +39,11 @@ async function resolveV2PhotoSource(
   adjustment: PhotoAdjustment | undefined,
   slotAspect: number,
 ): Promise<PhotoSource> {
+  // "Caber inteira" (contain) mostra a foto completa — não cortar, senão
+  // perderíamos justamente a assinatura/senha/logo que o usuário quer manter.
+  if (adjustment?.objectFit === "contain") {
+    return url;
+  }
   if (
     adjustment &&
     (adjustment.zoom > 1 || adjustment.posX !== 50 || adjustment.posY !== 50)
@@ -200,7 +206,14 @@ export async function generateBook(bookId: string): Promise<string> {
       pages: {
         orderBy: { order: "asc" },
         include: {
-          store: { select: { name: true, managerName: true } },
+          store: {
+            select: {
+              name: true,
+              managerName: true,
+              city: true,
+              state: true,
+            },
+          },
           items: {
             orderBy: [{ slotIndex: "asc" }, { order: "asc" }],
             include: {
@@ -222,7 +235,14 @@ export async function generateBook(bookId: string): Promise<string> {
         include: {
           pdvPhoto: {
             include: {
-              store: { select: { name: true, managerName: true } },
+              store: {
+                select: {
+                  name: true,
+                  managerName: true,
+                  city: true,
+                  state: true,
+                },
+              },
               mediaType: { select: { name: true } },
             },
           },
@@ -310,6 +330,9 @@ export async function generateBook(bookId: string): Promise<string> {
           return {
             key,
             adjustment: readPhotoAdjustments(it.pdvPhoto.photoAdjustments)[key],
+            capturedCity: it.pdvPhoto.capturedCity,
+            capturedState: it.pdvPhoto.capturedState,
+            promoterName: it.pdvPhoto.promoterName,
           };
         });
 
@@ -327,6 +350,15 @@ export async function generateBook(bookId: string): Promise<string> {
         }),
       );
 
+      // Fit efetivo por foto: o ajuste do usuário ("Caber inteira") vence o do
+      // slot do padrão. É o que o cover-layout-view usa pra não cortar.
+      const photoFits = photosInPage.map(
+        (p, index) =>
+          p.adjustment?.objectFit ??
+          photoSlots?.get(index)?.objectFit ??
+          "cover",
+      );
+
       return {
         pageLayout: itemPageLayout,
         pageBackground: itemPageLayout
@@ -334,6 +366,8 @@ export async function generateBook(bookId: string): Promise<string> {
           : null,
         storeName: page.store?.name ?? null,
         storeManager: primary?.managerName ?? page.store?.managerName ?? null,
+        storeCity: page.store?.city ?? null,
+        storeState: page.store?.state ?? null,
         coordinatorName: primary?.coordinatorName ?? null,
         consultantName: primary?.consultantName ?? null,
         responsibleCompany: primary?.responsibleCompany ?? null,
@@ -344,6 +378,14 @@ export async function generateBook(bookId: string): Promise<string> {
           ? currency.format(Number(primary.actionValue))
           : null,
         photoSources,
+        photoFits,
+        // Captura por foto (pra variáveis quando um texto referencia uma foto):
+        // cidade/UF da loja com fallback pra captura, e o promotor.
+        photoCaptures: photosInPage.map((p) => ({
+          cidade: page.store?.city ?? p.capturedCity ?? null,
+          uf: page.store?.state ?? p.capturedState ?? null,
+          promotor: p.promoterName ?? null,
+        })),
         // O fundo desfocado já vem composto na própria imagem (caber-inteira),
         // então não há backdrop separado no modelo V2.
         photoBackdrops: photoSources.map(() => undefined),
@@ -367,6 +409,8 @@ export async function generateBook(bookId: string): Promise<string> {
           ? readBackground(item.pageBackground)
           : null,
         storeName: item.pdvPhoto.store.name,
+        storeCity: item.pdvPhoto.store.city,
+        storeState: item.pdvPhoto.store.state,
         storeManager:
           item.pdvPhoto.managerName ?? item.pdvPhoto.store.managerName,
         coordinatorName: item.pdvPhoto.coordinatorName,
@@ -394,7 +438,26 @@ export async function generateBook(bookId: string): Promise<string> {
     }),
   );
 
-  const items = [...pageItems, ...legacyItems];
+  // Numeração sequencial das fotos no book inteiro (legenda "FOTO N"): as
+  // páginas V2 já estão em ordem; conta uma por foto renderizada. Monta também
+  // as variáveis por foto (numeroFoto/cidade/uf/promotor) pros textos que
+  // referenciam uma foto.
+  let runningPhotoNumber = 1;
+  const numberedPageItems = pageItems.map((item) => {
+    const photoNumbers = item.photoSources.map(() => runningPhotoNumber++);
+    const photoVariables: Record<number, BookVariableValues> = {};
+    item.photoCaptures.forEach((cap, slotIndex) => {
+      photoVariables[slotIndex] = {
+        numeroFoto: String(photoNumbers[slotIndex]),
+        cidade: cap.cidade,
+        uf: cap.uf,
+        promotor: cap.promotor,
+      };
+    });
+    return { ...item, photoNumbers, photoVariables };
+  });
+
+  const items = [...numberedPageItems, ...legacyItems];
 
   const data: BookDocumentData = {
     bookName: book.name,

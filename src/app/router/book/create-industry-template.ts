@@ -26,7 +26,7 @@ export const createIndustryTemplate = base
       supplierId: z.string(),
       kind: z.enum(["COVER", "PHOTO", "EXTRA", "CLOSING"]),
       photoOrientation: z.enum(["LANDSCAPE", "PORTRAIT"]).optional(),
-      photoSize: z.number().int().min(1).max(4).optional(),
+      photoSize: z.number().int().min(1).max(3).optional(),
       name: z.string().min(1).max(80).optional(),
     }),
   )
@@ -46,7 +46,7 @@ export const createIndustryTemplate = base
           message: "Informe a orientação e o tamanho da página de fotos.",
         });
       }
-      const max = input.photoOrientation === "LANDSCAPE" ? 2 : 4;
+      const max = input.photoOrientation === "LANDSCAPE" ? 2 : 3;
       if (input.photoSize > max) {
         throw errors.BAD_REQUEST({
           message: `Página ${input.photoOrientation === "LANDSCAPE" ? "horizontal" : "vertical"} comporta no máximo ${max} fotos.`,

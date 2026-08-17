@@ -12,6 +12,7 @@ import {
 import { useRef, useState } from "react";
 import { PhotoAdjustDialog } from "../book-pages/photo-adjust-dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -46,6 +47,9 @@ interface CoverPropertiesPanelProps {
   // Foto real que preenche cada espaço no preview — sem ela não há o que
   // cortar, e o botão de recorte some.
   photoPreviewUrls?: string[];
+  // slotIndex de cada espaço de foto do layout — alimenta o select "Foto de
+  // referência" dos textos.
+  photoSlotIndexes?: number[];
   allowItemScope: boolean;
 }
 
@@ -92,6 +96,7 @@ export function CoverPropertiesPanel({
   onDelete,
   onReplaceImage,
   photoPreviewUrls,
+  photoSlotIndexes,
   allowItemScope,
 }: CoverPropertiesPanelProps) {
   const replaceInputRef = useRef<HTMLInputElement>(null);
@@ -153,6 +158,41 @@ export function CoverPropertiesPanel({
           />
         </>
       )}
+
+      {element.type === "text" &&
+        allowItemScope &&
+        (photoSlotIndexes?.length ?? 0) > 0 && (
+          <div className="flex flex-col gap-1.5">
+            <Label className="text-xs">Foto de referência</Label>
+            <Select
+              value={
+                element.photoRef != null ? String(element.photoRef) : "page"
+              }
+              onValueChange={(value) =>
+                patch({
+                  photoRef: value === "page" ? undefined : Number(value),
+                })
+              }
+            >
+              <SelectTrigger className={cn("w-full", EDITOR_SELECT_CLASS)}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="page">Página (padrão)</SelectItem>
+                {photoSlotIndexes?.map((slotIndex) => (
+                  <SelectItem key={slotIndex} value={String(slotIndex)}>
+                    Foto {slotIndex + 1}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {
+                "{{numeroFoto}}, {{cidade}}, {{uf}} e {{promotor}} resolvem por esta foto."
+              }
+            </p>
+          </div>
+        )}
 
       {element.type === "text" && (
         <>
@@ -376,6 +416,18 @@ export function CoverPropertiesPanel({
                 <SelectItem value="contain">Caber inteira</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Checkbox
+              id="slot-show-number"
+              checked={element.showNumber !== false}
+              onCheckedChange={(checked) =>
+                patch({ showNumber: checked === true })
+              }
+            />
+            <Label htmlFor="slot-show-number" className="text-xs">
+              Mostrar número da foto (FOTO N)
+            </Label>
           </div>
           <NumberField
             label="Cantos arredondados (0 = quadrado)"

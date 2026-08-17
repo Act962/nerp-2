@@ -22,6 +22,7 @@ const textElementSchema = baseElementSchema.extend({
   align: z.enum(["left", "center", "right"]),
   uppercase: z.boolean(),
   fontFamily: fontFamilySchema,
+  photoRef: z.number().int().min(0).optional(),
 });
 
 const imageElementSchema = baseElementSchema.extend({
@@ -61,6 +62,7 @@ const photoSlotElementSchema = baseElementSchema.extend({
   imageScale: z.number().min(0.1).max(4).optional(),
   imageOffsetX: z.number().min(0).max(100).optional(),
   imageOffsetY: z.number().min(0).max(100).optional(),
+  showNumber: z.boolean().optional(),
 });
 
 export const coverElementSchema = z.discriminatedUnion("type", [

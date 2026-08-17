@@ -9,6 +9,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -60,15 +67,55 @@ interface BooksListProps {
   onClearFilter: () => void;
 }
 
+const ALL = "__all__";
+
 export function BooksList({ filter, onClearFilter }: BooksListProps) {
   const { books: allBooks, isLoading } = useBooks();
   const [selectedId, setSelectedId] = useState("");
   const [openDelete, setOpenDelete] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
+  const [periodFilter, setPeriodFilter] = useState(ALL);
+  const [supplierFilter, setSupplierFilter] = useState(ALL);
+  const [storeFilter, setStoreFilter] = useState(ALL);
 
-  const books = filter
-    ? allBooks.filter((book) => matchesFilter(book, filter))
-    : allBooks;
+  // Opções derivadas dos books carregados (distintas, ordenadas). Período usa
+  // a chave "ano-mês" pra ordenar cronologicamente e rotula com formatPeriod.
+  const periods = [
+    ...new Map(
+      allBooks.map((b) => [
+        `${b.periodYear}-${String(b.periodMonth).padStart(2, "0")}`,
+        { month: b.periodMonth, year: b.periodYear },
+      ]),
+    ),
+  ].sort(([a], [b]) => b.localeCompare(a));
+  const suppliers = [
+    ...new Set(
+      allBooks
+        .map((b) => b.supplierName)
+        .filter((name): name is string => Boolean(name)),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const stores = [...new Set(allBooks.flatMap((b) => b.storeNames))].sort(
+    (a, b) => a.localeCompare(b, "pt-BR"),
+  );
+
+  const books = allBooks.filter((book) => {
+    if (filter && !matchesFilter(book, filter)) return false;
+    if (
+      periodFilter !== ALL &&
+      `${book.periodYear}-${String(book.periodMonth).padStart(2, "0")}` !==
+        periodFilter
+    )
+      return false;
+    if (supplierFilter !== ALL && book.supplierName !== supplierFilter)
+      return false;
+    if (storeFilter !== ALL && !book.storeNames.includes(storeFilter))
+      return false;
+    return true;
+  });
+
+  const hasExtraFilters =
+    periodFilter !== ALL || supplierFilter !== ALL || storeFilter !== ALL;
 
   const askDelete = (id: string) => {
     setSelectedId(id);
@@ -77,6 +124,66 @@ export function BooksList({ filter, onClearFilter }: BooksListProps) {
 
   return (
     <>
+      <div className="flex flex-wrap items-center gap-2">
+        <Select value={periodFilter} onValueChange={setPeriodFilter}>
+          <SelectTrigger size="sm" className="w-[150px]">
+            <SelectValue placeholder="Data" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as datas</SelectItem>
+            {periods.map(([key, { month, year }]) => (
+              <SelectItem key={key} value={key}>
+                {formatPeriod(month, year)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+          <SelectTrigger size="sm" className="w-[170px]">
+            <SelectValue placeholder="Indústria" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as indústrias</SelectItem>
+            {suppliers.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={storeFilter} onValueChange={setStoreFilter}>
+          <SelectTrigger size="sm" className="w-[170px]">
+            <SelectValue placeholder="Loja" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as lojas</SelectItem>
+            {stores.map((name) => (
+              <SelectItem key={name} value={name}>
+                {name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {hasExtraFilters && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8"
+            onClick={() => {
+              setPeriodFilter(ALL);
+              setSupplierFilter(ALL);
+              setStoreFilter(ALL);
+            }}
+          >
+            Limpar
+          </Button>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         {filter ? (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">

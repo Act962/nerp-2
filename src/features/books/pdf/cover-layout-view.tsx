@@ -137,6 +137,9 @@ export function CoverLayoutView({
   background,
   variableValues,
   photoSources,
+  photoFits,
+  photoNumbers,
+  photoVariables,
   photoBackdrops,
 }: {
   elements: ResolvedCoverElement[];
@@ -148,10 +151,25 @@ export function CoverLayoutView({
    */
   variableValues?: BookVariableValues;
   photoSources?: PhotoSource[];
+  // Fit por foto ("Caber inteira" vence o do slot), indexado por slotIndex.
+  photoFits?: Array<"cover" | "contain">;
+  // Número da foto no book (legenda "FOTO N"), indexado por slotIndex.
+  photoNumbers?: number[];
+  // Variáveis por foto (numeroFoto/cidade/uf/promotor), indexado por slotIndex.
+  photoVariables?: Record<number, BookVariableValues>;
   photoBackdrops?: Array<PhotoBackdropSource | undefined>;
 }) {
   const resolveText = (text: string) =>
     variableValues ? resolveVariables(text, variableValues) : text;
+  // Texto com "Foto de referência": as variáveis por foto vencem as da página.
+  const resolveTextElement = (text: string, photoRef: number | undefined) => {
+    if (photoRef == null || !variableValues) return resolveText(text);
+    const perPhoto = photoVariables?.[photoRef];
+    return resolveVariables(
+      text,
+      perPhoto ? { ...variableValues, ...perPhoto } : variableValues,
+    );
+  };
 
   return (
     <View
@@ -202,7 +220,7 @@ export function CoverLayoutView({
         };
 
         if (element.type === "text") {
-          const resolved = resolveText(element.text);
+          const resolved = resolveTextElement(element.text, element.photoRef);
           return (
             <Text
               key={element.id}
@@ -235,7 +253,14 @@ export function CoverLayoutView({
           if (!source) return null;
           const backdrop = photoBackdrops?.[element.slotIndex];
           const strokeWidth = element.strokeWidth ?? 0;
-          const scale = element.imageScale ?? 1;
+          const photoNumber = photoNumbers?.[element.slotIndex];
+          const showNumber =
+            element.showNumber !== false && photoNumber != null;
+          // "Caber inteira" (contain) ignora zoom: mostra a foto inteira.
+          const effectiveFit =
+            photoFits?.[element.slotIndex] ?? element.objectFit;
+          const scale =
+            effectiveFit === "contain" ? 1 : (element.imageScale ?? 1);
           // Moldura como View com overflow hidden: o zoom estoura as bordas da
           // foto de propósito, e sem o recorte ela invadiria os elementos
           // vizinhos da página.
@@ -289,11 +314,35 @@ export function CoverLayoutView({
                   height: `${scale * 100}%`,
                   marginLeft: `${(1 - scale) * (element.imageOffsetX ?? 50)}%`,
                   marginTop: `${(1 - scale) * (element.imageOffsetY ?? 50)}%`,
-                  objectFit: element.objectFit,
+                  objectFit: effectiveFit,
                   objectPositionX: `${element.imageOffsetX ?? 50}%`,
                   objectPositionY: `${element.imageOffsetY ?? 50}%`,
                 }}
               />
+              {showNumber && (
+                <View
+                  style={{
+                    position: "absolute",
+                    bottom: 6,
+                    right: 6,
+                    backgroundColor: "rgba(0,0,0,0.6)",
+                    borderRadius: 3,
+                    paddingVertical: 2,
+                    paddingHorizontal: 5,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#ffffff",
+                      fontSize: 9,
+                      fontFamily: "Helvetica",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    FOTO {photoNumber}
+                  </Text>
+                </View>
+              )}
             </View>
           );
         }

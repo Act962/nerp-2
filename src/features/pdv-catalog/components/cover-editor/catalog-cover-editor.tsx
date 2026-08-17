@@ -200,8 +200,8 @@ export function CatalogCoverEditor({
             <CoverStage
               elements={elements}
               background={background}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
+              selectedIds={selectedId ? [selectedId] : []}
+              onSelect={(id) => setSelectedId(id)}
               onChange={updateElement}
             />
             <div className="rounded-lg border p-3">
