@@ -597,6 +597,11 @@ function PhotoCard({
               .join("/")}
           </p>
         )}
+        {photo.offSite && (
+          <p className="flex items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-1 font-medium text-amber-900">
+            <AlertTriangle className="size-3" /> Foto fora do local da loja
+          </p>
+        )}
         {photo.approvalStatus === "REJECTED" && photo.approvalNote && (
           <p className="rounded bg-red-50 px-1.5 py-1 text-red-700">
             Motivo: {photo.approvalNote}
