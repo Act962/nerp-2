@@ -33,6 +33,23 @@ export function codigoSource(key: string): string {
   return `/api/s3/image?key=${encodeURIComponent(key)}`;
 }
 
+/**
+ * Teto da maior borda do canvas de composição.
+ *
+ * O celular entrega fotos de 12MP+; montar o canvas nesse tamanho gera um pico
+ * de memória (duas decodificações grandes — aqui e no `compressImage`) que
+ * derruba a captura no iOS, e o arquivo carimbado sai enorme. Limitar já aqui
+ * corta a memória pela metade e garante o teto de tamanho na origem. Como todo
+ * o layout do carimbo é em FRAÇÃO das dimensões do canvas, encolher não desloca
+ * nem redimensiona selo, rodapé ou logo. 1600px cobre com folga o book impresso
+ * (960x540pt). */
+export const MAX_CANVAS_EDGE = 1600;
+
+/** Escala pra caber a maior borda em `MAX_CANVAS_EDGE`; nunca faz upscale. */
+function fitScale(width: number, height: number): number {
+  return Math.min(1, MAX_CANVAS_EDGE / Math.max(width, height));
+}
+
 /** Largura da logo TradeGram como fração da largura da foto. */
 export const BRAND_WIDTH_RATIO = 0.198;
 export const BRAND_PAD_RATIO = 0.02;
@@ -106,12 +123,13 @@ export async function applySealToPhoto(opts: {
   if (!codeResponse.ok) throw new Error("Não foi possível carregar o selo");
 
   const photoBitmap = await createImageBitmap(await photoResponse.blob());
+  const scale = fitScale(photoBitmap.width, photoBitmap.height);
   const canvas = document.createElement("canvas");
-  canvas.width = photoBitmap.width;
-  canvas.height = photoBitmap.height;
+  canvas.width = Math.round(photoBitmap.width * scale);
+  canvas.height = Math.round(photoBitmap.height * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas não suportado");
-  ctx.drawImage(photoBitmap, 0, 0);
+  ctx.drawImage(photoBitmap, 0, 0, canvas.width, canvas.height);
   photoBitmap.close?.();
 
   const codeBitmap = await createImageBitmap(await codeResponse.blob());
@@ -151,15 +169,27 @@ export async function bakePhoto(opts: {
   brandUrl?: string;
 }): Promise<BakeResult> {
   // `from-image` normaliza a orientação EXIF (fotos de celular vêm giradas).
-  const bitmap = await createImageBitmap(opts.file, {
-    imageOrientation: "from-image",
-  });
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(opts.file, {
+      imageOrientation: "from-image",
+    });
+  } catch (error) {
+    // iOS pode entregar HEIC/formato que o `createImageBitmap` não decodifica.
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(
+      `Formato de imagem não suportado (${opts.file.type || "desconhecido"}): ${detail}`,
+    );
+  }
+  // Canvas limitado a MAX_CANVAS_EDGE: a foto de origem é desenhada escalada
+  // pra caber, poupando memória e limitando o tamanho do arquivo final.
+  const scale = fitScale(bitmap.width, bitmap.height);
   const canvas = document.createElement("canvas");
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas não suportado");
-  ctx.drawImage(bitmap, 0, 0);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   bitmap.close?.();
 
   const fontSize = Math.max(14, Math.round(canvas.width * FOOTER_FONT_RATIO));
