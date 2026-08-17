@@ -19,9 +19,11 @@ import {
   ArrowLeft,
   Camera,
   Factory,
+  Images,
   LocateFixed,
   MapPin,
   MapPinOff,
+  Send,
   Star,
   Store as StoreIcon,
 } from "lucide-react";
@@ -29,12 +31,20 @@ import { useEffect, useRef, useState } from "react";
 import {
   reverseGeocode,
   useCapturePromotorPhoto,
+  useGalleryDrafts,
   useMyIndustries,
   useMyStores,
+  useSubmitGalleryPhotos,
   useTogglePromotorFavorite,
 } from "../hooks/use-promotor";
 import { toast } from "sonner";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { normalizePhotoToStandard } from "../lib/normalize-photo";
+import {
+  fingerprintPhoto,
+  type PhotoFingerprint,
+} from "../lib/photo-fingerprint";
+import { GalleryPicker } from "./gallery-picker";
 import { StampEditor } from "./stamp-editor";
 
 type Selected = { id: string; name: string };
@@ -234,6 +244,7 @@ export function CaptureWizard({
   autoCapture,
   photoCredits,
   onCaptured,
+  galleryMode = false,
 }: {
   promoterName: string;
   // Loja vinda por contexto (do /mapa): pula a etapa de escolher a loja e
@@ -251,6 +262,11 @@ export function CaptureWizard({
   photoCredits?: { name: string; role: string }[];
   /** Chamado após a foto ser aceita — a página usa para abrir "Minhas fotos". */
   onCaptured?: () => void;
+  /**
+   * "Galeria do App": a foto vai pro banco como rascunho (não pra Pendentes),
+   * o promotor tira VÁRIAS em sequência pra mesma loja+indústria e envia depois.
+   */
+  galleryMode?: boolean;
 }) {
   const hasFixedStore = !!initialStore;
   const minStep = hasFixedStore ? 2 : 1;
@@ -264,12 +280,17 @@ export function CaptureWizard({
   >(initialSupplier ?? null);
   const [file, setFile] = useState<File | null>(null);
   const [normalizing, setNormalizing] = useState(false);
+  // Impressão digital do arquivo CRU (antes de normalizar/carimbar) — trava
+  // anti-reuso. Fica no wizard porque é ele quem chama a mutation de captura.
+  const [fingerprint, setFingerprint] = useState<PhotoFingerprint | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
   const [place, setPlace] = useState<Place>(EMPTY_PLACE);
   const [capturedAt, setCapturedAt] = useState<Date | null>(null);
 
-  // Ao escolher/tirar a foto, normaliza para 3:4 ou 4:3 ANTES de entrar no
-  // editor de carimbo: assim a prévia, a posição da senha e o JPEG final
-  // trabalham todos na mesma imagem já no padrão do book.
+  // Ao escolher/tirar a foto: (1) calcula a impressão digital do arquivo CRU
+  // (o hash tem que ser de antes do carimbo, senão a senha do mês muda os bytes
+  // todo mês) e (2) normaliza para 3:4 ou 4:3 antes do editor de carimbo — assim
+  // a prévia, a senha e o JPEG final trabalham na mesma imagem já no padrão.
   const handleFiles = async (files: File[]) => {
     const picked = files[0];
     if (!picked) {
@@ -277,6 +298,9 @@ export function CaptureWizard({
       return;
     }
     setNormalizing(true);
+    fingerprintPhoto(picked)
+      .then(setFingerprint)
+      .catch(() => setFingerprint(null));
     try {
       setFile(await normalizePhotoToStandard(picked));
     } catch {
@@ -332,6 +356,12 @@ export function CaptureWizard({
 
   const capture = useCapturePromotorPhoto();
   const toggleFavorite = useTogglePromotorFavorite();
+  // Banco da Galeria do App (só no modo galeria): rascunhos desta loja+indústria.
+  const submitGallery = useSubmitGalleryPhotos();
+  const { photos: galleryPhotos } = useGalleryDrafts(
+    { storeId: store?.id, supplierId: supplier?.id },
+    galleryMode && !!store && !!supplier,
+  );
 
   const favoriteStores = stores.filter((item) => item.isFavorite);
   const otherStores = stores.filter((item) => !item.isFavorite);
@@ -378,6 +408,7 @@ export function CaptureWizard({
     setStore(initialStore ?? null);
     setSupplier(initialSupplier ?? null);
     setFile(null);
+    setFingerprint(null);
     setPlace(EMPTY_PLACE);
     geocodedRef.current = false;
     setCapturedAt(null);
@@ -408,11 +439,17 @@ export function CaptureWizard({
     if (!store || !supplier) {
       throw new Error("Loja ou indústria não selecionada. Recomece a captura.");
     }
-    await capture.mutateAsync({
+    const result = await capture.mutateAsync({
       storeId: store.id,
       supplierId: supplier.id,
       photoKey,
       sealMissing,
+      // Fluxo normal: vai DIRETO pra Pendentes. Modo galeria: fica no banco
+      // (rascunho) pra enviar depois.
+      submitNow: !galleryMode,
+      source: "APP_CAMERA",
+      imageHash: fingerprint?.imageHash || undefined,
+      perceptualHash: fingerprint?.perceptualHash || undefined,
       capturedAt: (capturedAt ?? new Date()).toISOString(),
       latitude: position?.latitude,
       longitude: position?.longitude,
@@ -425,6 +462,26 @@ export function CaptureWizard({
       capturedHouseNumber: place.houseNumber ?? undefined,
       capturedSuburb: place.suburb ?? undefined,
     });
+    if (galleryMode) {
+      // Fica no passo 3 pra tirar a próxima: só limpa a foto atual.
+      setFile(null);
+      setFingerprint(null);
+      toast.success(
+        result.possibleReuse
+          ? "Guardada — possível reuso"
+          : "Guardada na Galeria do App",
+      );
+      return;
+    }
+    if (result.possibleReuse) {
+      toast.warning("Enviada — possível reuso", {
+        description:
+          "Esta foto parece igual a uma já enviada. A coordenação vai ver o alerta na aprovação.",
+        duration: 8000,
+      });
+    } else {
+      toast.success("Foto enviada para aprovação");
+    }
     reset();
     onCaptured?.();
   };
@@ -664,7 +721,11 @@ export function CaptureWizard({
             city={place.city}
             onEnable={startGeo}
           />
-          <PhotoCaptureInput onFiles={handleFiles} autoOpen={autoCapture} />
+          <PhotoCaptureInput
+            onFiles={handleFiles}
+            autoOpen={autoCapture}
+            cameraOnly
+          />
           {normalizing ? (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
               <Spinner className="size-3" />
@@ -673,9 +734,94 @@ export function CaptureWizard({
           ) : (
             <p className="flex items-center gap-1 text-xs text-muted-foreground">
               <Camera className="size-3" />
-              Enquadre mostrando os produtos, com boa iluminação e sem poluição
-              visual.
+              {galleryMode
+                ? "Tire quantas fotos quiser — todas ficam na Galeria do App."
+                : "Enquadre mostrando os produtos, com boa iluminação e sem poluição visual."}
             </p>
+          )}
+
+          {/* Modo galeria: banco desta loja+indústria + envio em massa. */}
+          {galleryMode && store && supplier && (
+            <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+              <p className="text-sm font-medium">
+                Nesta galeria: {galleryPhotos.length} foto(s)
+              </p>
+              {galleryPhotos.length > 0 && (
+                <>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {galleryPhotos.slice(0, 8).map((p) => (
+                      <div
+                        key={p.id}
+                        className="aspect-square overflow-hidden rounded border"
+                      >
+                        {/* biome-ignore lint/performance/noImgElement: thumbnail de key do R2 */}
+                        <img
+                          src={constructUrl(p.photoKey)}
+                          alt=""
+                          loading="lazy"
+                          className="size-full object-cover"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    className="h-11 w-full gap-2"
+                    disabled={submitGallery.isPending}
+                    onClick={() =>
+                      submitGallery.mutate(
+                        { photoIds: galleryPhotos.map((p) => p.id) },
+                        {
+                          onSuccess: (r) =>
+                            toast.success(
+                              `${r.submitted} foto(s) enviada(s) para aprovação`,
+                            ),
+                        },
+                      )
+                    }
+                  >
+                    <Send className="size-4" /> Enviar {galleryPhotos.length}{" "}
+                    para aprovação
+                  </Button>
+                </>
+              )}
+              <p className="text-center text-xs text-muted-foreground">
+                Tire quantas quiser; envie quando terminar.
+              </p>
+            </div>
+          )}
+
+          {/* Fluxo normal: escolher fotos que já estão na Galeria do App. */}
+          {!galleryMode && store && supplier && (
+            <>
+              <div className="flex items-center gap-2 py-1">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">ou</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                className="h-11 w-full gap-2"
+                onClick={() => setGalleryOpen(true)}
+              >
+                <Images className="size-4" /> Adicionar da Galeria do App
+              </Button>
+              <p className="text-center text-xs text-muted-foreground">
+                Escolha fotos que você já tirou no app e ainda não enviou.
+              </p>
+              <GalleryPicker
+                open={galleryOpen}
+                onOpenChange={setGalleryOpen}
+                storeId={store.id}
+                supplierId={supplier.id}
+                onSubmitted={() => {
+                  setGalleryOpen(false);
+                  reset();
+                  onCaptured?.();
+                }}
+              />
+            </>
           )}
         </div>
       )}

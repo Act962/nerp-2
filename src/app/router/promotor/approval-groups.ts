@@ -14,8 +14,10 @@ export const listApprovalGroups = base
   .use(requireOrgMiddleware)
   .input(
     z.object({
+      // APP_GALLERY existe só pra alinhar com o tipo compartilhado do promotor;
+      // a fila da coordenadora nunca a usa (rascunho não entra aqui).
       status: z
-        .enum(["ALL", "APPROVED", "REJECTED", "PENDING"])
+        .enum(["ALL", "APPROVED", "REJECTED", "PENDING", "APP_GALLERY"])
         .default("PENDING"),
       // Dimensão do topo da fila: por loja (com drill loja→indústria), por
       // promotor ou por indústria (nível único → fotos).
@@ -52,7 +54,13 @@ export const listApprovalGroups = base
     const where = {
       organizationId: context.org.id,
       promoterName: { not: null },
-      ...(input.status === "ALL" ? {} : { approvalStatus: input.status }),
+      // Rascunho da Galeria App não aparece pra coordenadora.
+      submittedAt: { not: null },
+      ...(input.status === "APPROVED" ||
+      input.status === "REJECTED" ||
+      input.status === "PENDING"
+        ? { approvalStatus: input.status }
+        : {}),
       ...(input.storeId ? { storeId: input.storeId } : {}),
       ...capturedAtFilter(input.from, input.to),
     };

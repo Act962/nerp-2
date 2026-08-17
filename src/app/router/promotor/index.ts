@@ -17,6 +17,8 @@ import { reviewPromotorPhoto } from "./review-photo";
 import { reviewPromotorPhotosBulk } from "./review-photos-bulk";
 import { listPhotosForApproval } from "./for-approval";
 import { listApprovedForImport } from "./approved-for-import";
+import { listGalleryDrafts } from "./gallery-drafts";
+import { submitGalleryPhotos } from "./submit-gallery-photos";
 
 export const promotorRoutes = {
   capture: capturePromotorPhoto,
@@ -38,4 +40,6 @@ export const promotorRoutes = {
   approvalGroups: listApprovalGroups,
   applySeal: applyPromotorSeal,
   approvedForImport: listApprovedForImport,
+  galleryDrafts: listGalleryDrafts,
+  submitGalleryPhotos: submitGalleryPhotos,
 };

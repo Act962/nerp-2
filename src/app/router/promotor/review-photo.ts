@@ -43,6 +43,8 @@ export const reviewPromotorPhoto = base
         reviewedById: reviewing ? context.user.id : null,
         reviewedByName: reviewing ? (context.user.name ?? null) : null,
         reviewedAt: reviewing ? new Date() : null,
+        // Aprovar consome a foto: sai da Galeria App. Reabrir/reprovar devolve.
+        consumedAt: input.status === "APPROVED" ? new Date() : null,
       },
     });
 

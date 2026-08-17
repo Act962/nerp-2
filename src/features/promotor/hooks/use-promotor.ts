@@ -9,7 +9,12 @@ import {
 } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-export type PromotorPhotoStatus = "ALL" | "APPROVED" | "REJECTED" | "PENDING";
+export type PromotorPhotoStatus =
+  | "ALL"
+  | "APPROVED"
+  | "REJECTED"
+  | "PENDING"
+  | "APP_GALLERY";
 
 export type PhotoScope = {
   storeId?: string;
@@ -45,6 +50,7 @@ export function useMyPhotos(
       approved: 0,
       rejected: 0,
       pending: 0,
+      appGallery: 0,
     },
     isLoading: query.isPending,
   };
@@ -64,9 +70,54 @@ export function useMyPhotoCounts(scope?: PhotoScope) {
     }),
   );
   return {
-    counts: query.data ?? { all: 0, approved: 0, rejected: 0, pending: 0 },
+    counts: query.data ?? {
+      all: 0,
+      approved: 0,
+      rejected: 0,
+      pending: 0,
+      appGallery: 0,
+    },
     isLoading: query.isPending,
   };
+}
+
+// Rascunhos da Galeria App do promotor (fotos in-app ainda não enviadas), pro
+// picker "Adicionar da Galeria App" no passo 3. Filtro por loja+indústria.
+export function useGalleryDrafts(
+  scope?: { storeId?: string; supplierId?: string },
+  enabled = true,
+) {
+  const query = useQuery({
+    ...orpc.promotor.galleryDrafts.queryOptions({
+      input: { storeId: scope?.storeId, supplierId: scope?.supplierId },
+    }),
+    enabled,
+  });
+  return { photos: query.data?.photos ?? [], isLoading: query.isPending };
+}
+
+// Envia rascunhos selecionados pra fila da coordenadora (seta submittedAt).
+export function useSubmitGalleryPhotos() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotor.submitGalleryPhotos.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.galleryDrafts.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.myPhotos.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.photoCounts.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.photoGroups.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
 }
 
 // Índice de "Minhas fotos": clientes (sem `storeId`) ou indústrias dentro de um
@@ -203,8 +254,8 @@ export function useCapturePromotorPhoto() {
   const queryClient = useQueryClient();
   return useMutation(
     orpc.promotor.capture.mutationOptions({
+      // O toast fica com quem chama (a mensagem muda entre Pendentes e Galeria).
       onSuccess: () => {
-        toast.success("Foto enviada");
         queryClient.invalidateQueries({
           queryKey: orpc.promotor.myPhotos.key(),
         });
@@ -216,6 +267,9 @@ export function useCapturePromotorPhoto() {
         });
         queryClient.invalidateQueries({
           queryKey: orpc.promotor.forApproval.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotor.galleryDrafts.key(),
         });
         queryClient.invalidateQueries({
           queryKey: orpc.book.dashboard.key(),

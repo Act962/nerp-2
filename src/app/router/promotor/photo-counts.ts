@@ -25,22 +25,37 @@ export const getMyPhotoCounts = base
       approved: z.number(),
       rejected: z.number(),
       pending: z.number(),
+      appGallery: z.number(),
     }),
   )
   .handler(async ({ input, context }) => {
-    const rows = await prisma.pdvPhoto.groupBy({
-      by: ["approvalStatus"],
-      where: {
-        organizationId: context.org.id,
-        createdById: context.user.id,
-        ...(input.storeId ? { storeId: input.storeId } : {}),
-        ...(input.supplierId !== undefined
-          ? { supplierId: input.supplierId }
-          : {}),
-        ...capturedAtFilter(input.from, input.to),
-      },
-      _count: true,
-    });
+    const scope = {
+      organizationId: context.org.id,
+      createdById: context.user.id,
+      // Rascunhos da Galeria do App não contam em "Minhas fotos".
+      submittedAt: { not: null },
+      ...(input.storeId ? { storeId: input.storeId } : {}),
+      ...(input.supplierId !== undefined
+        ? { supplierId: input.supplierId }
+        : {}),
+      ...capturedAtFilter(input.from, input.to),
+    };
+
+    const [rows, appGallery] = await Promise.all([
+      prisma.pdvPhoto.groupBy({
+        by: ["approvalStatus"],
+        where: scope,
+        _count: true,
+      }),
+      prisma.pdvPhoto.count({
+        where: {
+          ...scope,
+          submittedAt: null,
+          source: "APP_CAMERA",
+          consumedAt: null,
+        },
+      }),
+    ]);
 
     const countBy = (status: string) =>
       rows.find((row) => row.approvalStatus === status)?._count ?? 0;
@@ -50,5 +65,6 @@ export const getMyPhotoCounts = base
       approved: countBy("APPROVED"),
       rejected: countBy("REJECTED"),
       pending: countBy("PENDING"),
+      appGallery,
     };
   });
