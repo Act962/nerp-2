@@ -401,40 +401,32 @@ export function CaptureWizard({
       ? "DENIED"
       : "UNAVAILABLE";
 
-  const onBaked = (photoKey: string, sealMissing: boolean) => {
-    if (!store || !supplier) return;
-    capture.mutate(
-      {
-        storeId: store.id,
-        supplierId: supplier.id,
-        photoKey,
-        sealMissing,
-        capturedAt: (capturedAt ?? new Date()).toISOString(),
-        latitude: position?.latitude,
-        longitude: position?.longitude,
-        capturedAccuracy: position?.accuracy,
-        locationStatus,
-        capturedCity: place.city ?? undefined,
-        capturedState: place.state ?? undefined,
-        capturedAddress: place.label ?? undefined,
-        capturedRoad: place.road ?? undefined,
-        capturedHouseNumber: place.houseNumber ?? undefined,
-        capturedSuburb: place.suburb ?? undefined,
-      },
-      {
-        onSuccess: (result) => {
-          if (result.offSite) {
-            toast.warning("Foto longe do local da loja", {
-              description:
-                "O GPS ficou distante do endereço desta loja. A coordenação vai ver o alerta na aprovação.",
-              duration: 8000,
-            });
-          }
-          reset();
-          onCaptured?.();
-        },
-      },
-    );
+  // `async` + `mutateAsync`: se o RPC falhar, o erro sobe pro `StampEditor`, que
+  // o mostra na caixa fixa junto com a etapa "registrar a foto no servidor" —
+  // antes esse erro só piscava num toast e o promotor não sabia o que houve.
+  const onBaked = async (photoKey: string, sealMissing: boolean) => {
+    if (!store || !supplier) {
+      throw new Error("Loja ou indústria não selecionada. Recomece a captura.");
+    }
+    await capture.mutateAsync({
+      storeId: store.id,
+      supplierId: supplier.id,
+      photoKey,
+      sealMissing,
+      capturedAt: (capturedAt ?? new Date()).toISOString(),
+      latitude: position?.latitude,
+      longitude: position?.longitude,
+      capturedAccuracy: position?.accuracy,
+      locationStatus,
+      capturedCity: place.city ?? undefined,
+      capturedState: place.state ?? undefined,
+      capturedAddress: place.label ?? undefined,
+      capturedRoad: place.road ?? undefined,
+      capturedHouseNumber: place.houseNumber ?? undefined,
+      capturedSuburb: place.suburb ?? undefined,
+    });
+    reset();
+    onCaptured?.();
   };
 
   const title =
