@@ -21,8 +21,8 @@ main
 ```
 
 - Cada fase nova nasce de `feat/desktop` e é mesclada de volta em `feat/desktop` — **nunca** direto na `main`.
-- `feat/desktop` só vira PR para a `main` quando o **mínimo do app desktop** estiver pronto.
-- Fase 0 e Fase 1 já estão consolidadas em `feat/desktop` (as branches `feat/desktop-fase-0/1` foram interinas e viraram história dessa principal).
+- **Nada vai para a `main` enquanto o fluxo inteiro não estiver validado e testado pelo dev.** Abrir PR para a `main` é decisão exclusiva e explícita do dev — não é disparada por "MVP pronto" nem por nenhum marco automático. Não sugerir/preparar PR para a `main` sem pedido explícito.
+- As branches de fase (`feat/desktop-fase-N`) são interinas e viram história de `feat/desktop` ao serem mescladas.
 
 ---
 
