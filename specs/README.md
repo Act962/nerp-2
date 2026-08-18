@@ -19,6 +19,7 @@ feature depois de trabalhar em outra coisa.
 - [`desktop-offline.md`](./desktop-offline.md) — App desktop Tauri + offline-first (SQLite + sync por operações), packages compartilhados · 📋 proposta
 - [`desktop-fase-0.md`](./desktop-fase-0.md) — Desktop Fase 0: fundações (client tipado, auth de device, CORS) · ✅ implementado
 - [`desktop-fase-1.md`](./desktop-fase-1.md) — Desktop Fase 1: app Tauri online-only (login + PDV) · ✅ implementado
+- [`desktop-fase-2.md`](./desktop-fase-2.md) — Desktop Fase 2: banco local (SQLite/IndexedDB) + leitura offline · ✅ implementado
 
 ## Specs por feature
 

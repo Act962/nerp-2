@@ -43,5 +43,25 @@ export type DesktopApi = {
       nextCursor: string | null;
       hasNextPage: boolean;
     }>;
+    // Sync incremental do catálogo (server → device). Espelha router/products/pull.ts.
+    pull: (input: {
+      updatedAt: string | null;
+      id: string | null;
+      limit: number;
+    }) => Promise<{
+      products: Array<{
+        id: string;
+        name: string;
+        sku: string;
+        barcode: string;
+        salePrice: number;
+        currentStock: number;
+        unit: string;
+        isActive: boolean;
+        updatedAt: string;
+      }>;
+      cursor: { updatedAt: string; id: string } | null;
+      hasMore: boolean;
+    }>;
   };
 };

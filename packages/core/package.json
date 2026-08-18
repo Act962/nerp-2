@@ -1,0 +1,26 @@
+{
+  "name": "@nerp/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./indexeddb": "./src/adapters/indexeddb-catalog.ts",
+    "./sqlite": "./src/adapters/sqlite-catalog.ts"
+  },
+  "scripts": {
+    "lint": "biome check",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "idb": "^8.0.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@nerp/typescript-config": "workspace:*",
+    "@tauri-apps/plugin-sql": "^2.2.0",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}

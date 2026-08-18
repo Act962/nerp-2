@@ -5,6 +5,7 @@ import { duplicateProduct } from "./duplicate";
 import { findProductByCode } from "./find-by-code";
 import { getProduct } from "./get";
 import { listProducts } from "./list";
+import { pullProducts } from "./pull";
 import { matchProductsBySku } from "./match-by-sku";
 import { setProductImages } from "./set-images";
 import { updateProduct } from "./update";
@@ -13,6 +14,7 @@ import { getImport } from "./import/get";
 
 export const productsRoutes = {
   list: listProducts,
+  pull: pullProducts,
   create: createProduct,
   get: getProduct,
   findByCode: findProductByCode,

@@ -41,3 +41,16 @@ Tauri (`tauri://localhost` no macOS/Linux, `https://tauri.localhost` no Windows)
 - `src/features/login` — pareamento por credenciais (`device.pairWithCredentials`).
 - `src/features/pdv` — busca de produtos online.
 - `src-tauri/` — shell nativo (Rust). **Não compilado neste ambiente** (sem Rust).
+
+
+## Banco local (Fase 2)
+
+O catálogo é cacheado localmente (`@nerp/core`): **IndexedDB** no navegador/dev,
+**SQLite** no Tauri nativo. O PDV lê desse cache — funciona offline; sincroniza
+por `products.pull` (incremental) quando online.
+
+Para ligar o SQLite no nativo (ainda não feito — precisa do Tauri rodando):
+1. `Cargo.toml`: `tauri-plugin-sql = { version = "2", features = ["sqlite"] }`.
+2. `src-tauri/src/lib.rs`: `.plugin(tauri_plugin_sql::Builder::new().build())`.
+3. `capabilities/default.json`: permissão `sql:default` (+ `sql:allow-execute`/`sql:allow-select`).
+O adapter TS já está pronto em `@nerp/core/sqlite`.

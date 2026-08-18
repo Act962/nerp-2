@@ -192,7 +192,7 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 - `apps/desktop`: Tauri + Vite + React. Login contra a API, tela de PDV consumindo `@nerp/api` **sem offline**.
 - Entrega um desktop que já vende **quando há rede** — valida bundle Tauri, auth em webview, keychain e CORS antes de investir no offline.
 
-### Fase 2 — Banco local + leitura offline
+### Fase 2 — Banco local + leitura offline ✅ (ver `desktop-fase-2.md`)
 - `@nerp/core`: SQLite (Drizzle + `@tauri-apps/plugin-sql`), migrações locais.
 - Pull incremental de catálogo/preços/clientes/estoque (cursor `updatedSince`).
 - PDV **lê** offline: busca de produto, preço, carrinho e total — tudo sem rede. Ainda **sem** escrever offline.
