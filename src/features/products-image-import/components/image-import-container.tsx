@@ -4,11 +4,20 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Cloud,
+  EyeOff,
   FolderOpen,
   ImageIcon,
   Loader2,
@@ -21,6 +30,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMatchBySku, useSetProductImages } from "../hooks/use-image-import";
 import { skuFromFilename } from "../lib/sku-from-filename";
 import { DriveFolderPicker } from "./drive-folder-picker";
+import { OracleImageSearch } from "./oracle-image-search";
 
 // Tipos de imagem aceitos localmente (mesma whitelist da rota /api/s3/upload).
 const IMAGE_MIME = new Set([
@@ -57,13 +67,31 @@ interface ItemRow {
   // Estado do upload:
   uploadStatus?: "idle" | "uploading" | "done" | "error";
   uploadError?: string;
+  // "Ocultar" no cliente: some da lista visível e para de contar como
+  // elegível pro upload. Nada é apagado no servidor — a foto do produto
+  // que já estava vinculada continua vinculada.
+  hidden?: boolean;
 }
+
+// Fila fica paginada acima disto — abaixo, scroll natural do navegador
+// resolve. Escolhido pra 25 itens caberem inteiros na primeira dobra de
+// desktop 1080p com o resto do card.
+const PAGE_SIZE = 25;
 
 export function ImageImportContainer() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<ItemRow[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [drivePickerOpen, setDrivePickerOpen] = useState(false);
+  // Chave do item cuja foto está aberta em preview (Dialog). null = fechado.
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  // Paginação client-side da fila. Reseta pra 0 quando a fila troca (nova
+  // seleção de pasta) ou quando o total encolhe abaixo do começo da página.
+  const [page, setPage] = useState(0);
+  const hideItem = (key: string) =>
+    setItems((prev) =>
+      prev.map((r) => (r.key === key ? { ...r, hidden: true } : r)),
+    );
   const matchMutation = useMatchBySku();
   const setImagesMutation = useSetProductImages();
   // Drive: estado da conexão + procedures do server.
@@ -87,19 +115,43 @@ export function ImageImportContainer() {
     };
   }, [items]);
 
+  const visibleItems = useMemo(
+    () => items.filter((row) => !row.hidden),
+    [items],
+  );
+  const pageCount = Math.max(1, Math.ceil(visibleItems.length / PAGE_SIZE));
+
+  // Puxa a página pra dentro do range sempre que o total visível encolhe —
+  // sem isso, ocultar os últimos itens da página final deixaria o usuário
+  // olhando um bloco vazio, com "Página 5" quando só existem 4.
+  useEffect(() => {
+    if (page > 0 && page >= pageCount) setPage(pageCount - 1);
+  }, [page, pageCount]);
+
+  const pageItems = visibleItems.slice(
+    page * PAGE_SIZE,
+    (page + 1) * PAGE_SIZE,
+  );
+
   const summary = useMemo(() => {
-    const matched = items.filter(
+    // Ocultos saem de todas as contagens: se o usuário mandou esconder,
+    // não conta como "pronto pra enviar" nem entra no "sem produto" — some.
+    const visible = items.filter((item) => !item.hidden);
+    const matched = visible.filter(
       (item) =>
         item.status === "MATCHED_NEW" || item.status === "MATCHED_EXISTS",
     ).length;
-    const unmatched = items.filter(
+    const unmatched = visible.filter(
       (item) => item.status === "UNMATCHED",
     ).length;
-    const unsupported = items.filter(
+    const unsupported = visible.filter(
       (item) => item.status === "UNSUPPORTED",
     ).length;
-    const done = items.filter((item) => item.uploadStatus === "done").length;
-    const errors = items.filter((item) => item.uploadStatus === "error").length;
+    const done = visible.filter((item) => item.uploadStatus === "done").length;
+    const errors = visible.filter(
+      (item) => item.uploadStatus === "error",
+    ).length;
+    const hidden = items.length - visible.length;
     return {
       total: items.length,
       matched,
@@ -107,6 +159,7 @@ export function ImageImportContainer() {
       unsupported,
       done,
       errors,
+      hidden,
     };
   }, [items]);
 
@@ -136,11 +189,13 @@ export function ImageImportContainer() {
     const imageRows = rows.filter((row) => row.status !== "UNSUPPORTED");
     if (imageRows.length === 0) {
       setItems(rows);
+      setPage(0);
       toast.error("Nenhum arquivo de imagem válido na pasta selecionada");
       return;
     }
 
     setIsProcessing(true);
+    setPage(0);
     try {
       const { matches } = await matchMutation.mutateAsync({
         skus: imageRows.map((row) => row.sku),
@@ -209,6 +264,7 @@ export function ImageImportContainer() {
         setIsProcessing(false);
         return;
       }
+      setPage(0);
 
       // Build rows sem previewUrl (preview local só existe pra Files locais).
       const rows: ItemRow[] = allFiles.map((file) => ({
@@ -303,6 +359,7 @@ export function ImageImportContainer() {
   async function handleUploadAll() {
     const eligible = items.filter(
       (item) =>
+        !item.hidden &&
         (item.status === "MATCHED_NEW" || item.status === "MATCHED_EXISTS") &&
         item.uploadStatus !== "done",
     );
@@ -455,18 +512,33 @@ export function ImageImportContainer() {
                   label={`${summary.errors} com erro`}
                 />
               )}
+              {summary.hidden > 0 && (
+                <SummaryPill
+                  icon={<EyeOff className="size-4 text-muted-foreground" />}
+                  label={`${summary.hidden} oculta${summary.hidden === 1 ? "" : "s"}`}
+                />
+              )}
             </div>
 
             <Separator />
 
-            {/* Lista */}
+            {/* Lista — ocultos saem da renderização, não da fila (o contador
+                em `summary.hidden` mostra pro usuário quantos ele escondeu).
+                Paginada em `PAGE_SIZE` para que uma seleção de pasta com
+                milhares de fotos não trave a página nem force scroll infinito. */}
             <ul className="flex flex-col divide-y">
-              {items.map((row) => (
+              {pageItems.map((row) => (
                 <li
                   key={row.key}
                   className="flex items-center gap-3 py-2 text-sm"
                 >
-                  <div className="relative size-12 shrink-0 overflow-hidden rounded border bg-muted">
+                  <button
+                    type="button"
+                    onClick={() => row.previewUrl && setPreviewKey(row.key)}
+                    disabled={!row.previewUrl}
+                    title={row.previewUrl ? "Abrir prévia" : undefined}
+                    className="relative size-12 shrink-0 overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80 disabled:cursor-default disabled:hover:opacity-100"
+                  >
                     {row.previewUrl ? (
                       // biome-ignore lint/performance/noImgElement: preview local
                       <img
@@ -483,7 +555,7 @@ export function ImageImportContainer() {
                         )}
                       </div>
                     )}
-                  </div>
+                  </button>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -499,18 +571,65 @@ export function ImageImportContainer() {
                     </div>
                   </div>
 
-                  <div className="shrink-0">
+                  <div className="flex shrink-0 items-center gap-1.5">
                     <UploadStatusBadge row={row} />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      title="Ocultar da lista (não apaga nada)"
+                      onClick={() => hideItem(row.key)}
+                      className="size-7 text-muted-foreground"
+                    >
+                      <EyeOff className="size-3.5" />
+                    </Button>
                   </div>
                 </li>
               ))}
             </ul>
 
+            {/* Paginação — só aparece quando faz diferença. Sem "Página 1
+                de 1" em fila curta, sem pedir seleção quando cabe tudo. */}
+            {pageCount > 1 && (
+              <div className="flex items-center justify-between border-t pt-3 text-xs text-muted-foreground">
+                <span>
+                  Página {page + 1} de {pageCount} • {visibleItems.length}{" "}
+                  arquivo{visibleItems.length === 1 ? "" : "s"}
+                </span>
+                <div className="flex gap-1.5">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page === 0}
+                    onClick={() =>
+                      setPage((current) => Math.max(0, current - 1))
+                    }
+                  >
+                    <ChevronLeft className="mr-1 size-3.5" />
+                    Anterior
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= pageCount - 1}
+                    onClick={() =>
+                      setPage((current) => Math.min(pageCount - 1, current + 1))
+                    }
+                  >
+                    Próxima
+                    <ChevronRight className="ml-1 size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Amostra pequena: preview do que já subiu (thumbnail atualizado). */}
             {summary.done > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
                 {items
-                  .filter((r) => r.uploadStatus === "done")
+                  .filter((r) => !r.hidden && r.uploadStatus === "done")
                   .slice(0, 12)
                   .map((row) => (
                     <div
@@ -532,6 +651,21 @@ export function ImageImportContainer() {
         )}
       </Card>
 
+      <ImagePreviewDialog
+        item={
+          previewKey
+            ? (items.find((row) => row.key === previewKey) ?? null)
+            : null
+        }
+        onOpenChange={(open) => {
+          if (!open) setPreviewKey(null);
+        }}
+        onHide={(key) => {
+          hideItem(key);
+          setPreviewKey(null);
+        }}
+      />
+
       {/* Amostra "como fica o produto no server" para 1 dos itens já enviados —
           confirma que a imagem foi persistida (usa constructUrl). */}
       {items.some((r) => r.uploadStatus === "done" && r.productId) && (
@@ -541,6 +675,10 @@ export function ImageImportContainer() {
           fica disponível também no catálogo online.
         </p>
       )}
+
+      {/* Só aparece para orgs com ERP Oracle configurado — auto-oculta caso
+          contrário (ver OracleImageSearch). */}
+      <OracleImageSearch />
 
       <DriveFolderPicker
         open={drivePickerOpen}
@@ -590,6 +728,62 @@ function StatusText({ row }: { row: ItemRow }) {
         Já tem {row.imagesCount} — será adicionada
       </Badge>
     </span>
+  );
+}
+
+// Dialog de zoom para a prévia da imagem. `object-contain` + limite via
+// viewport (max-w / max-h) mantém a foto inteira visível, sem cortar. Um
+// botão "Ocultar" no cabeçalho permite tirar da fila sem sair da tela.
+function ImagePreviewDialog({
+  item,
+  onOpenChange,
+  onHide,
+}: {
+  item: ItemRow | null;
+  onOpenChange: (open: boolean) => void;
+  onHide: (key: string) => void;
+}) {
+  const open = item !== null && !!item.previewUrl;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl">
+        {item && (
+          <>
+            <DialogHeader className="pr-8">
+              <DialogTitle className="truncate">{item.fileName}</DialogTitle>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-mono">SKU: {item.sku}</span>
+                {item.productName && (
+                  <>
+                    <span>·</span>
+                    <span className="truncate">{item.productName}</span>
+                  </>
+                )}
+              </div>
+            </DialogHeader>
+            <div className="flex justify-center overflow-hidden rounded-lg border bg-muted/30">
+              {/* biome-ignore lint/performance/noImgElement: preview local (blob URL) */}
+              <img
+                src={item.previewUrl}
+                alt={item.fileName}
+                className="max-h-[70vh] w-auto object-contain"
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onHide(item.key)}
+              >
+                <EyeOff className="mr-2 size-4" />
+                Ocultar da lista
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
