@@ -17,6 +17,7 @@
     "@nerp/api": "workspace:*",
     "@nerp/core": "workspace:*",
     "@nerp/types": "workspace:*",
+    "@tauri-apps/plugin-store": "^2.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0"
   },

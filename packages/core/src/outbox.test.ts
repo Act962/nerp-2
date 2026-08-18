@@ -19,6 +19,9 @@ function fakeOutbox(seed: OutboxItem[] = []) {
     async pending() {
       return [...items.values()].filter((i) => i.status === "pending");
     },
+    async failed() {
+      return [...items.values()].filter((i) => i.status === "failed");
+    },
     async update(id, patch) {
       const cur = items.get(id);
       if (cur) items.set(id, { ...cur, ...patch });

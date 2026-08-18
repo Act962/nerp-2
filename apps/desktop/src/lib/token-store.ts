@@ -1,9 +1,15 @@
 /**
  * Guarda a sessão do device (token + org pareada).
  *
- * Fase 1: `localStorage` — simples e suficiente para validar o fluxo. Na Fase 4
- * de endurecimento isto vira o keychain do SO (tauri-plugin-stronghold/keyring);
- * a interface abaixo é o ponto único de troca, o resto do app não muda.
+ * Abstração com cache em memória: a leitura do storage é assíncrona (para
+ * suportar keychain no nativo), mas `getCurrentToken()` é síncrono para o
+ * cliente oRPC não pagar um I/O por request.
+ *
+ * - Web/dev: `localStorage`.
+ * - Tauri (nativo): `@tauri-apps/plugin-store` (arquivo no app-data), carregado
+ *   por import dinâmico — não entra no bundle web. É persistência app-scoped, um
+ *   degrau acima do localStorage; o keychain criptografado (Stronghold) é o
+ *   próximo passo (ver README).
  */
 export type StoredSession = {
   token: string;
@@ -11,22 +17,69 @@ export type StoredSession = {
   organizationName: string;
 };
 
+export interface SessionStorage {
+  read(): Promise<StoredSession | null>;
+  write(session: StoredSession): Promise<void>;
+  clear(): Promise<void>;
+}
+
 const KEY = "nerp.device.session";
 
-export function getStoredSession(): StoredSession | null {
-  const raw = localStorage.getItem(KEY);
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as StoredSession;
-  } catch {
-    return null;
-  }
+const localStorageBacked: SessionStorage = {
+  async read() {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as StoredSession;
+    } catch {
+      return null;
+    }
+  },
+  async write(session) {
+    localStorage.setItem(KEY, JSON.stringify(session));
+  },
+  async clear() {
+    localStorage.removeItem(KEY);
+  },
+};
+
+function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI__" in window;
 }
 
-export function setStoredSession(session: StoredSession): void {
-  localStorage.setItem(KEY, JSON.stringify(session));
+let storagePromise: Promise<SessionStorage> | null = null;
+function storage(): Promise<SessionStorage> {
+  storagePromise ??= (async () => {
+    if (isTauri()) {
+      const { createTauriSessionStorage } = await import(
+        "./tauri-session-storage"
+      );
+      return createTauriSessionStorage();
+    }
+    return localStorageBacked;
+  })();
+  return storagePromise;
 }
 
-export function clearStoredSession(): void {
-  localStorage.removeItem(KEY);
+let current: StoredSession | null = null;
+
+/** Carrega a sessão do storage para o cache. Chamada no boot do app. */
+export async function loadSession(): Promise<StoredSession | null> {
+  current = await (await storage()).read();
+  return current;
+}
+
+/** Token atual, síncrono (lê o cache). Usado pelo cliente oRPC. */
+export function getCurrentToken(): string | null {
+  return current?.token ?? null;
+}
+
+export async function persistSession(session: StoredSession): Promise<void> {
+  current = session;
+  await (await storage()).write(session);
+}
+
+export async function clearSession(): Promise<void> {
+  current = null;
+  await (await storage()).clear();
 }

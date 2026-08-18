@@ -265,3 +265,31 @@ body {
   padding-top: 10px;
   font-size: 18px;
 }
+
+/* ── Dead-letter (Fase 4) ──────────────────────────────────────────── */
+.badge.failed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.dead-letter {
+  border: 1px solid var(--danger);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dead-letter ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dead-letter li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}

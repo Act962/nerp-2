@@ -54,3 +54,27 @@ Para ligar o SQLite no nativo (ainda não feito — precisa do Tauri rodando):
 2. `src-tauri/src/lib.rs`: `.plugin(tauri_plugin_sql::Builder::new().build())`.
 3. `capabilities/default.json`: permissão `sql:default` (+ `sql:allow-execute`/`sql:allow-select`).
 O adapter TS já está pronto em `@nerp/core/sqlite`.
+
+## Endurecimento (Fase 4)
+
+- **Conectividade real:** o indicador Online/Offline reflete o alcance do
+  servidor (ping em `/api/health`), não só `navigator.onLine`. Pendências drenam
+  ao reconectar e por timer.
+- **Dead-letter:** venda que esgota as tentativas de sync vira "com falha"
+  visível, com retry manual.
+- **Sessão do token:** abstraída (`token-store.ts`). Web/dev = `localStorage`;
+  nativo = `@tauri-apps/plugin-store` (arquivo app-data). Para ligar no nativo:
+  1. `Cargo.toml`: `tauri-plugin-store = "2"`.
+  2. `src-tauri/src/lib.rs`: `.plugin(tauri_plugin_store::Builder::new().build())`.
+  3. `capabilities/default.json`: `store:default`.
+  Upgrade de segurança (token criptografado no keychain do SO): trocar por
+  `tauri-plugin-stronghold`.
+
+### Auto-update (a fazer no nativo)
+
+O updater do Tauri exige assinatura e um endpoint de releases:
+1. `pnpm --filter @nerp/desktop tauri signer generate` → gera o par de chaves.
+2. `tauri.conf.json` → `plugins.updater` com `pubkey` + `endpoints`.
+3. `Cargo.toml`: `tauri-plugin-updater = "2"`; `lib.rs`: `.plugin(tauri_plugin_updater::Builder::new().build())`.
+4. Publicar os bundles + `latest.json` no endpoint (CI do `tauri build`).
+Não configurado aqui porque exige as chaves/infra de distribuição.

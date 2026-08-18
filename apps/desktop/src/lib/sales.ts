@@ -59,3 +59,19 @@ export function drainSales() {
 export async function countPendingSales(): Promise<number> {
   return (await getOutbox()).countPending();
 }
+
+/** Vendas que esgotaram as tentativas (dead-letter) — para a UI e o retry. */
+export async function listFailedSales() {
+  return (await getOutbox()).failed();
+}
+
+/** Re-arma uma venda em falha: volta para pending (attempts 0) e tenta drenar. */
+export async function retrySale(id: string) {
+  const outbox = await getOutbox();
+  await outbox.update(id, {
+    status: "pending",
+    attempts: 0,
+    lastError: undefined,
+  });
+  return drainSales();
+}

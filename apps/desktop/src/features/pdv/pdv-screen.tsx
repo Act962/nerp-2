@@ -1,10 +1,17 @@
-import { isOnline, type LocalProduct, onConnectivityChange } from "@nerp/core";
+import {
+  type LocalProduct,
+  type OutboxItem,
+  watchReachability,
+} from "@nerp/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getCatalog, syncNow } from "../../lib/catalog";
+import { API_URL } from "../../lib/config";
 import {
   countPendingSales,
   drainSales,
   enqueueSale,
+  listFailedSales,
+  retrySale,
   type SalePayload,
 } from "../../lib/sales";
 import type { StoredSession } from "../../lib/token-store";
@@ -23,9 +30,10 @@ const timeAgo = (iso: string | null) => {
 type CartLine = { product: LocalProduct; qty: number };
 
 /**
- * PDV — Fase 3: vende OFFLINE. O catálogo é lido do banco local (Fase 2); a
- * venda é gravada numa outbox local (nunca se perde) e replicada no server
- * quando há rede, que atribui o número oficial. Idempotente.
+ * PDV — Fase 4 (endurecido): o indicador reflete o ALCANCE REAL do servidor
+ * (ping em /api/health, não só navigator.onLine); pendências drenam sozinhas ao
+ * reconectar e por timer; vendas que esgotam as tentativas viram dead-letter
+ * visível, com retry manual.
  */
 export function PdvScreen({
   session,
@@ -37,10 +45,11 @@ export function PdvScreen({
   const [search, setSearch] = useState("");
   const [products, setProducts] = useState<LocalProduct[]>([]);
   const [cart, setCart] = useState<Map<string, CartLine>>(new Map());
-  const [online, setOnline] = useState(isOnline());
+  const [reachable, setReachable] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
+  const [failed, setFailed] = useState<OutboxItem[]>([]);
   const [finalizing, setFinalizing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const searchRef = useRef(search);
@@ -51,13 +60,13 @@ export function PdvScreen({
     setProducts(await catalog.searchProducts(term));
   }, []);
 
-  const refreshPending = useCallback(async () => {
+  const refreshQueue = useCallback(async () => {
     setPending(await countPendingSales());
+    setFailed(await listFailedSales());
   }, []);
 
-  // Sincroniza catálogo (pull) e drena vendas (outbox) — só quando online.
+  // Sincroniza catálogo (pull) e drena a outbox. Chamado ao reconectar e por timer.
   const syncAll = useCallback(async () => {
-    if (!isOnline()) return;
     setSyncing(true);
     try {
       await syncNow();
@@ -65,43 +74,49 @@ export function PdvScreen({
       setLastSyncedAt(await catalog.getLastSyncedAt());
       await searchLocal(searchRef.current);
       await drainSales();
-      await refreshPending();
+      await refreshQueue();
     } catch {
-      // offline/instável: mantém o que há local, tenta de novo depois.
+      // instável: mantém o que há local, tenta de novo no próximo ciclo.
     } finally {
       setSyncing(false);
     }
-  }, [searchLocal, refreshPending]);
+  }, [searchLocal, refreshQueue]);
 
   useEffect(() => {
     void (async () => {
       await searchLocal("");
-      await refreshPending();
+      await refreshQueue();
       const catalog = await getCatalog();
       setLastSyncedAt(await catalog.getLastSyncedAt());
-      await syncAll();
     })();
-    return onConnectivityChange((up) => {
-      setOnline(up);
+
+    // Alcance real do servidor: dispara sync quando (re)fica acessível.
+    const stopWatch = watchReachability(API_URL, (up) => {
+      setReachable(up);
       if (up) void syncAll();
     });
-  }, [searchLocal, refreshPending, syncAll]);
+    // Rede de segurança: enquanto acessível, drena pendências a cada 20s.
+    const timer = setInterval(() => void syncAll(), 20000);
+    return () => {
+      stopWatch();
+      clearInterval(timer);
+    };
+  }, [searchLocal, refreshQueue, syncAll]);
 
   useEffect(() => {
     const id = setTimeout(() => void searchLocal(search), 200);
     return () => clearTimeout(id);
   }, [search, searchLocal]);
 
-  const addToCart = (product: LocalProduct) => {
+  const addToCart = (product: LocalProduct) =>
     setCart((prev) => {
       const next = new Map(prev);
       const line = next.get(product.id);
       next.set(product.id, { product, qty: (line?.qty ?? 0) + 1 });
       return next;
     });
-  };
 
-  const changeQty = (id: string, delta: number) => {
+  const changeQty = (id: string, delta: number) =>
     setCart((prev) => {
       const next = new Map(prev);
       const line = next.get(id);
@@ -111,13 +126,9 @@ export function PdvScreen({
       else next.set(id, { ...line, qty });
       return next;
     });
-  };
 
   const lines = [...cart.values()];
-  const cartTotal = lines.reduce(
-    (sum, l) => sum + l.product.salePrice * l.qty,
-    0,
-  );
+  const cartTotal = lines.reduce((s, l) => s + l.product.salePrice * l.qty, 0);
 
   const finalizeSale = async () => {
     if (lines.length === 0) return;
@@ -139,16 +150,10 @@ export function PdvScreen({
       };
       await enqueueSale(payload);
       setCart(new Map());
-      await refreshPending();
-      setNotice(
-        isOnline()
-          ? "Venda registrada. Sincronizando…"
-          : "Venda registrada offline. Vai sincronizar ao reconectar.",
-      );
-      if (isOnline()) {
-        await drainSales();
-        await refreshPending();
-      }
+      setNotice("Venda registrada.");
+      // Tenta drenar sempre; se o server estiver fora, fica pendente e sincroniza depois.
+      await drainSales();
+      await refreshQueue();
     } catch (err) {
       setNotice(
         err instanceof Error ? err.message : "Falha ao registrar venda",
@@ -156,6 +161,11 @@ export function PdvScreen({
     } finally {
       setFinalizing(false);
     }
+  };
+
+  const onRetry = async (id: string) => {
+    await retrySale(id);
+    await refreshQueue();
   };
 
   return (
@@ -166,11 +176,14 @@ export function PdvScreen({
           <span className="muted"> · {session.organizationName}</span>
         </div>
         <div className="topbar-right">
-          <span className={`badge ${online ? "online" : "offline"}`}>
-            {online ? "Online" : "Offline"}
+          <span className={`badge ${reachable ? "online" : "offline"}`}>
+            {reachable ? "Online" : "Offline"}
           </span>
           {pending > 0 && (
             <span className="badge pending">{pending} por sincronizar</span>
+          )}
+          {failed.length > 0 && (
+            <span className="badge failed">{failed.length} com falha</span>
           )}
           <span className="muted small">
             sync {syncing ? "…" : timeAgo(lastSyncedAt)}
@@ -197,6 +210,30 @@ export function PdvScreen({
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Buscar produto por nome, SKU ou código de barras…"
           />
+
+          {failed.length > 0 && (
+            <div className="dead-letter">
+              <strong>Vendas com falha de sincronização</strong>
+              <ul>
+                {failed.map((item) => (
+                  <li key={item.id}>
+                    <span className="muted small">
+                      {brl((item.payload as SalePayload).total)} ·{" "}
+                      {item.lastError}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => void onRetry(item.id)}
+                    >
+                      Tentar de novo
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           <ul className="product-list">
             {products.map((product) => (
               <li key={product.id}>
