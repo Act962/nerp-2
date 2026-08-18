@@ -202,7 +202,7 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 - Detecção de conexão + indicadores ("N vendas pendentes de sincronização").
 - Sessão de caixa (`pdv-caixa`) espelhada offline.
 
-### Fase 4 — Endurecimento
+### Fase 4 — Endurecimento ✅ (ver `desktop-fase-4.md`)
 - Relatório de anomalias (oversell, divergências), auto-update do Tauri (updater assinado), storage seguro de token, observabilidade de *lag* de sync.
 - Handoff de contingência fiscal (emitir NFCe ao reconectar) — se/quando `fiscal-emissao` existir.
 

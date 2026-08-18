@@ -63,6 +63,13 @@ export async function createSqliteOutbox(
       return rows.map(toItem);
     },
 
+    async failed() {
+      const rows = await db.select<OutboxRow[]>(
+        "SELECT * FROM outbox WHERE status = 'failed' ORDER BY createdAt ASC",
+      );
+      return rows.map(toItem);
+    },
+
     async update(id, patch) {
       const rows = await db.select<OutboxRow[]>(
         "SELECT * FROM outbox WHERE id = $1",

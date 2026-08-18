@@ -10,6 +10,8 @@ export interface Outbox {
   enqueue(op: { id: string; type: string; payload: unknown }): Promise<void>;
   /** Operações ainda pendentes, em ordem de criação (FIFO). */
   pending(): Promise<OutboxItem[]>;
+  /** Operações que esgotaram as tentativas (dead-letter) — para a UI e o retry. */
+  failed(): Promise<OutboxItem[]>;
   /** Atualiza campos de uma operação (status/attempts/result/erro). */
   update(id: string, patch: Partial<OutboxItem>): Promise<void>;
   /** Quantas pendentes (para o indicador "N vendas por sincronizar"). */

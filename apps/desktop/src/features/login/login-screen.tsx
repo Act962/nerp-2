@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { client } from "../../lib/client";
 import { detectPlatform } from "../../lib/platform";
-import { setStoredSession, type StoredSession } from "../../lib/token-store";
+import { persistSession, type StoredSession } from "../../lib/token-store";
 
 // Tela de pareamento (o "login" do terminal). Autentica por credenciais via
 // `device.pairWithCredentials`, guarda o token e entra no PDV. Sem cookie.
@@ -32,7 +32,7 @@ export function LoginScreen({
         organizationId: result.organizationId,
         organizationName: result.organizationName,
       };
-      setStoredSession(session);
+      await persistSession(session);
       onPaired(session);
     } catch (err) {
       setError(

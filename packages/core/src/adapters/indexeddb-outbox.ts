@@ -41,6 +41,14 @@ export function createIndexedDbOutbox(dbName = "nerp-outbox"): Outbox {
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     },
 
+    async failed() {
+      const database = await db();
+      const all = await database.getAll(STORE);
+      return all
+        .filter((item) => item.status === "failed")
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    },
+
     async update(id, patch) {
       const database = await db();
       const current = await database.get(STORE, id);
