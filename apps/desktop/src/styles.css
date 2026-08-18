@@ -131,6 +131,10 @@ body {
   color: var(--ok);
   border-color: var(--ok);
 }
+.badge.offline {
+  color: var(--danger);
+  border-color: var(--danger);
+}
 
 .pdv {
   padding: 18px;

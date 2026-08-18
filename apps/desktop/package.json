@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@nerp/api": "workspace:*",
+    "@nerp/core": "workspace:*",
     "@nerp/types": "workspace:*",
     "react": "19.1.0",
     "react-dom": "19.1.0"

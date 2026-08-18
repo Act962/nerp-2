@@ -1,21 +1,24 @@
-import { useCallback, useEffect, useState } from "react";
-import { client } from "../../lib/client";
+import { isOnline, type LocalProduct, onConnectivityChange } from "@nerp/core";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getCatalog, syncNow } from "../../lib/catalog";
 import type { StoredSession } from "../../lib/token-store";
-
-type Product = {
-  id: string;
-  name: string;
-  sku: string;
-  salePrice: number;
-  currentStock: number;
-  unit: string;
-};
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-// Tela de PDV — Fase 1 é só LEITURA online: busca produtos pela API com o token
-// de device. Carrinho e venda offline entram nas fases seguintes.
+const timeAgo = (iso: string | null) => {
+  if (!iso) return "nunca";
+  const secs = Math.round((Date.now() - new Date(iso).getTime()) / 1000);
+  if (secs < 60) return "agora";
+  if (secs < 3600) return `há ${Math.floor(secs / 60)} min`;
+  return `há ${Math.floor(secs / 3600)} h`;
+};
+
+/**
+ * PDV — Fase 2: LÊ do catálogo LOCAL (funciona offline). Quando online,
+ * sincroniza o catálogo em background; a busca sempre bate no banco local.
+ * Escrita de venda offline é a Fase 3.
+ */
 export function PdvScreen({
   session,
   onLogout,
@@ -24,32 +27,60 @@ export function PdvScreen({
   onLogout: () => void;
 }) {
   const [search, setSearch] = useState("");
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<LocalProduct[]>([]);
+  const [online, setOnline] = useState(isOnline());
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
+  const [count, setCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const searchRef = useRef(search);
+  searchRef.current = search;
 
-  const load = useCallback(async (term: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await client.products.list({
-        limit: 20,
-        search: term || undefined,
-      });
-      setProducts(result.products);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Falha ao carregar produtos",
-      );
-    } finally {
-      setLoading(false);
-    }
+  const searchLocal = useCallback(async (term: string) => {
+    const catalog = await getCatalog();
+    setProducts(await catalog.searchProducts(term));
   }, []);
 
+  const refreshMeta = useCallback(async () => {
+    const catalog = await getCatalog();
+    setCount(await catalog.count());
+    setLastSyncedAt(await catalog.getLastSyncedAt());
+  }, []);
+
+  // Sincroniza (se online) e recarrega a busca atual do banco local.
+  const sync = useCallback(async () => {
+    if (!isOnline()) return;
+    setSyncing(true);
+    setError(null);
+    try {
+      await syncNow();
+      await refreshMeta();
+      await searchLocal(searchRef.current);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao sincronizar");
+    } finally {
+      setSyncing(false);
+    }
+  }, [refreshMeta, searchLocal]);
+
+  // Boot: mostra o que já tem local na hora, depois tenta sincronizar.
   useEffect(() => {
-    const id = setTimeout(() => load(search), 300);
+    void (async () => {
+      await refreshMeta();
+      await searchLocal("");
+      await sync();
+    })();
+    return onConnectivityChange((isUp) => {
+      setOnline(isUp);
+      if (isUp) void sync();
+    });
+  }, [refreshMeta, searchLocal, sync]);
+
+  // Busca sempre local (offline-capable), com debounce.
+  useEffect(() => {
+    const id = setTimeout(() => void searchLocal(search), 200);
     return () => clearTimeout(id);
-  }, [search, load]);
+  }, [search, searchLocal]);
 
   return (
     <div className="screen">
@@ -59,9 +90,19 @@ export function PdvScreen({
           <span className="muted"> · {session.organizationName}</span>
         </div>
         <div className="topbar-right">
-          <span className="badge online">
-            {navigator.onLine ? "Online" : "Offline"}
+          <span className={`badge ${online ? "online" : "offline"}`}>
+            {online ? "Online" : "Offline"}
           </span>
+          <span className="muted small">
+            {count ?? 0} itens · sync {syncing ? "…" : timeAgo(lastSyncedAt)}
+          </span>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => void sync()}
+          >
+            Sincronizar
+          </button>
           <button type="button" className="btn ghost" onClick={onLogout}>
             Sair
           </button>
@@ -78,10 +119,12 @@ export function PdvScreen({
         />
 
         {error && <p className="error">{error}</p>}
-        {loading && <p className="muted">Carregando…</p>}
 
-        {!loading && products.length === 0 && !error && (
-          <p className="muted">Nenhum produto encontrado.</p>
+        {count === 0 && !syncing && (
+          <p className="muted">
+            Catálogo local vazio.{" "}
+            {online ? "Sincronizando…" : "Conecte para sincronizar."}
+          </p>
         )}
 
         <ul className="product-list">
@@ -90,7 +133,8 @@ export function PdvScreen({
               <div>
                 <div className="product-name">{product.name}</div>
                 <div className="muted small">
-                  {product.sku} · estoque {product.currentStock} {product.unit}
+                  {product.sku || product.barcode || "sem código"} · estoque{" "}
+                  {product.currentStock} {product.unit}
                 </div>
               </div>
               <div className="product-price">{brl(product.salePrice)}</div>
