@@ -8,3 +8,18 @@ services:
       POSTGRES_DB: nerp-db
     ports:
       - "5433:5432"
+
+  # Banco exclusivo da suíte de integração — ela TRUNCA tabelas, então não pode
+  # dividir instância com o banco de desenvolvimento. Sem volume: descartável
+  # por definição, `docker compose down` limpa tudo.
+  db-test:
+    image: postgres:17
+    container_name: nerp-db-test
+    environment:
+      POSTGRES_USER: docker
+      POSTGRES_PASSWORD: docker
+      POSTGRES_DB: nerp-test
+    ports:
+      - "5434:5432"
+    tmpfs:
+      - /var/lib/postgresql/data

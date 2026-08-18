@@ -9,11 +9,16 @@
     "ignoreUnknown": true,
     "includes": [
       "**",
-      "!node_modules",
-      "!.next",
-      "!dist",
-      "!build",
-      "!src/features/dashboard-widgets/lib/geo"
+      "!**/node_modules",
+      "!**/.next",
+      "!**/.turbo",
+      "!**/dist",
+      "!**/build",
+      "!**/coverage",
+      "!**/playwright-report",
+      "!**/test-results",
+      "!**/src/generated",
+      "!apps/web/src/features/dashboard-widgets/lib/geo"
     ]
   },
   "formatter": {

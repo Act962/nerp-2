@@ -4,5 +4,11 @@ nixPkgs = ["nodejs-22_x", "pnpm"]
 [phases.install]
 cmds = ["pnpm install --frozen-lockfile"]
 
+# `db:deploy` é um passo separado de propósito: o `build` do turbo é cacheável,
+# e uma build restaurada do cache pularia a migration silenciosamente. Aplicar
+# aqui garante que o schema sobe em todo deploy.
 [phases.build]
-cmds = ["pnpm build"]
+cmds = ["pnpm db:deploy", "pnpm build"]
+
+[start]
+cmd = "pnpm start"

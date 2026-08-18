@@ -1,0 +1,17 @@
+# Os blobs do repositório são LF. Sem esta regra, `core.autocrlf=true` no
+# Windows escreve CRLF no working tree e o Biome acusa erro de formatação em
+# TODOS os arquivos — `pnpm lint` vira inutilizável localmente.
+* text=auto eol=lf
+
+# Binários: nunca converter.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.svg text eol=lf
+*.wasm binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.mp3 binary
+*.xlsx binary

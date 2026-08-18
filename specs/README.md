@@ -13,6 +13,10 @@ feature depois de trabalhar em outra coisa.
 - [`_TEMPLATE.md`](./_TEMPLATE.md) — Template padrao para novos specs
 - [`COMO-SOLICITAR.md`](./COMO-SOLICITAR.md) — Guia de como formular requisicoes eficientes
 
+## Infraestrutura
+
+- [`turborepo.md`](./turborepo.md) — Monorepo (Turborepo + pnpm workspaces), Vitest/Playwright, deploy no Coolify · `feat/turborepo` · 🟡 em andamento
+
 ## Specs por feature
 
 - [`dashboard.md`](./dashboard.md) — Dashboard pessoal + org + publico: 18 widgets, Oracle, alertas, pendencias
