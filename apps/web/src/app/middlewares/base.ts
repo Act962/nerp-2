@@ -7,6 +7,12 @@ export type BaseContext = {
   s2sOrg?: Organization;
   s2sUser?: User;
   s2sScopes?: string[];
+  // Principal de dispositivo desktop (bearer). Espelha o S2S; ver
+  // `device-auth-verify.ts` e o ramo device nos middlewares de auth/org.
+  isDevice?: true;
+  deviceOrg?: Organization;
+  deviceUser?: User;
+  deviceScopes?: string[];
 };
 
 export const base = os.$context<BaseContext>().errors({

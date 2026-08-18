@@ -3,6 +3,27 @@ import { base } from "./base";
 
 export const requireAuthMiddleware = base.middleware(
   async ({ context, next, errors }) => {
+    if (context.isDevice && context.deviceUser && context.deviceOrg) {
+      const now = new Date();
+      const session = {
+        id: `device-${context.deviceOrg.id}`,
+        token: "device",
+        userId: context.deviceUser.id,
+        activeOrganizationId: context.deviceOrg.id,
+        ipAddress: null,
+        userAgent: null,
+        expiresAt: new Date(now.getTime() + 60 * 1000),
+        createdAt: now,
+        updatedAt: now,
+      };
+      return next({
+        context: {
+          session,
+          user: context.deviceUser,
+        },
+      });
+    }
+
     if (context.isS2S && context.s2sUser && context.s2sOrg) {
       const now = new Date();
       const session = {

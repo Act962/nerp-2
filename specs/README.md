@@ -16,6 +16,8 @@ feature depois de trabalhar em outra coisa.
 ## Infraestrutura
 
 - [`turborepo.md`](./turborepo.md) — Monorepo (Turborepo + pnpm workspaces), Vitest/Playwright, deploy no Coolify · `feat/turborepo` · 🟡 em andamento
+- [`desktop-offline.md`](./desktop-offline.md) — App desktop Tauri + offline-first (SQLite + sync por operações), packages compartilhados · 📋 proposta
+- [`desktop-fase-0.md`](./desktop-fase-0.md) — Desktop Fase 0: fundações (client tipado, auth de device, CORS) — design detalhado · 📋 pronto p/ implementar
 
 ## Specs por feature
 

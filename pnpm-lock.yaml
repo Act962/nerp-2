@@ -41,6 +41,12 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.70.0(react@19.1.0))
+      '@nerp/api':
+        specifier: workspace:*
+        version: link:../../packages/api
+      '@nerp/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       '@orpc/client':
         specifier: ^1.13.2
         version: 1.13.2(@opentelemetry/api@1.9.1)
@@ -372,6 +378,37 @@ importers:
       '@types/node':
         specifier: ^20.19.27
         version: 20.19.27
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/api:
+    dependencies:
+      '@orpc/client':
+        specifier: ^1.13.2
+        version: 1.13.2(@opentelemetry/api@1.9.1)
+      '@orpc/server':
+        specifier: ^1.13.2
+        version: 1.13.2(@opentelemetry/api@1.9.1)(ws@8.21.3)
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.2.0
+        version: 2.2.0
+      '@nerp/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+
+  packages/types:
+    devDependencies:
+      '@biomejs/biome':
+        specifier: 2.2.0
+        version: 2.2.0
+      '@nerp/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       typescript:
         specifier: ^5
         version: 5.9.3

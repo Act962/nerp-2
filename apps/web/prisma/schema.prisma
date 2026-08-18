@@ -1533,6 +1533,27 @@ model NasaIntegrationKey {
   @@map("nasa_integration_keys")
 }
 
+// Terminal desktop pareado a uma organização. Autentica por token opaco
+// (bearer) — guardamos só o hash, nunca o token. Sem @relation de propósito:
+// mantém a migration self-contained (só CREATE TABLE, sem ALTER em User/Org);
+// a integridade org/user é validada em `device-auth-verify.ts`.
+model Device {
+  id             String    @id @default(cuid())
+  organizationId String
+  userId         String
+  name           String // "Caixa 01 — Loja Centro"
+  platform       String // "windows" | "macos" | "linux"
+  tokenHash      String    @unique // sha256 do token opaco
+  scopes         String[]
+  lastSeenAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([organizationId])
+  @@map("devices")
+}
+
 // ============================================
 // SYNC DE AUTH NERP → NASA (outbox)
 // ============================================

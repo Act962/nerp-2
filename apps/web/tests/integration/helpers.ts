@@ -22,6 +22,24 @@ export function s2sContext(
   };
 }
 
+/**
+ * Contexto de dispositivo desktop — o principal que `verifyDeviceAuth` injeta
+ * na rota. Usa o ramo `isDevice` de `requireAuthMiddleware`/`requireOrgMiddleware`.
+ */
+export function deviceContext(
+  user: User,
+  org: Organization,
+  scopes: string[] = [],
+) {
+  return {
+    headers: new Headers(),
+    isDevice: true as const,
+    deviceUser: user,
+    deviceOrg: org,
+    deviceScopes: scopes,
+  };
+}
+
 let counter = 0;
 const unique = () => `${Date.now().toString(36)}-${counter++}`;
 
@@ -48,9 +66,16 @@ export async function createMember(user: User, org: Organization) {
 
 /**
  * Limpa o que os testes criam. Cascata de `Organization` derruba fornecedor e
- * member; o usuário precisa ir separado.
+ * member; `Device` (sem @relation) e o usuário precisam ir separado.
  */
 export async function resetDb() {
+  const testOrgs = await prisma.organization.findMany({
+    where: { slug: { startsWith: "org-" } },
+    select: { id: true },
+  });
+  await prisma.device.deleteMany({
+    where: { organizationId: { in: testOrgs.map((org) => org.id) } },
+  });
   await prisma.organization.deleteMany({
     where: { slug: { startsWith: "org-" } },
   });

@@ -29,6 +29,12 @@ export const auth = betterAuth({
     baseOrigin,
     `${scheme}://${baseHost}`,
     `${scheme}://*.${baseHost}`,
+    // Origins do app desktop (Tauri) — para o login interativo do pareamento
+    // funcionar cross-origin. CSV em DESKTOP_ALLOWED_ORIGINS (mesma lista do CORS).
+    ...(process.env.DESKTOP_ALLOWED_ORIGINS ?? "")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter(Boolean),
   ],
 
   socialProviders: {

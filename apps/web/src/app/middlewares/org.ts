@@ -7,6 +7,17 @@ type FullOrganization = NonNullable<
 
 export const requireOrgMiddleware = base.middleware(
   async ({ context, next, errors }) => {
+    if (context.isDevice && context.deviceOrg) {
+      const org = {
+        ...context.deviceOrg,
+        members: [],
+        invitations: [],
+      } as unknown as FullOrganization;
+      return next({
+        context: { org },
+      });
+    }
+
     if (context.isS2S && context.s2sOrg) {
       const org = {
         ...context.s2sOrg,
