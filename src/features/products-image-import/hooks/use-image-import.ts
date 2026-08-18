@@ -10,6 +10,13 @@ export function useMatchBySku() {
   return useMutation(orpc.products.matchBySku.mutationOptions({}));
 }
 
+// Busca no Winthor (Oracle) — disparada por botão/debounce, não useQuery: é
+// consulta ao vivo contra o ERP de produção do cliente, então o componente
+// decide quando vale a pena gastar uma chamada (não em toda tecla digitada).
+export function useSearchOracleImages() {
+  return useMutation(orpc.products.searchOracleImages.mutationOptions({}));
+}
+
 // Após o upload da imagem pro R2, o client chama esta mutation por produto
 // para vincular a key ao registro. Invalida a listagem de produtos ao fim.
 export function useSetProductImages() {
