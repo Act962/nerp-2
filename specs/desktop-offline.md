@@ -197,7 +197,7 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 - Pull incremental de catálogo/preços/clientes/estoque (cursor `updatedSince`).
 - PDV **lê** offline: busca de produto, preço, carrinho e total — tudo sem rede. Ainda **sem** escrever offline.
 
-### Fase 3 — Escrita offline (o marco central)
+### Fase 3 — Escrita offline (o marco central) ✅ (ver `desktop-fase-3.md`)
 - Outbox local + replay por operação (§3.4): idempotência, ledger `DeviceOperation` no server, numeração server-assigns, reconciliação de estoque.
 - Detecção de conexão + indicadores ("N vendas pendentes de sincronização").
 - Sessão de caixa (`pdv-caixa`) espelhada offline.

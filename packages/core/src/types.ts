@@ -35,3 +35,16 @@ export type SyncResult = {
   cursor: SyncCursor | null;
   syncedAt: string;
 };
+
+/** Uma operação na outbox local (venda offline aguardando replay). */
+export type OutboxItem<T = unknown> = {
+  /** operationId — uuid v7, chave de idempotência no server. */
+  id: string;
+  type: string; // ex.: "sale.create"
+  payload: T;
+  status: "pending" | "done" | "failed";
+  attempts: number;
+  createdAt: string;
+  lastError?: string;
+  result?: unknown; // ex.: { saleNumber } devolvido pelo server
+};

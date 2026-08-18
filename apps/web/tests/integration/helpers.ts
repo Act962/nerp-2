@@ -73,9 +73,15 @@ export async function resetDb() {
     where: { slug: { startsWith: "org-" } },
     select: { id: true },
   });
-  await prisma.device.deleteMany({
-    where: { organizationId: { in: testOrgs.map((org) => org.id) } },
-  });
+  const orgIds = { organizationId: { in: testOrgs.map((org) => org.id) } };
+
+  // Ordem importa: SaleItem/StockMovement referenciam Product (FK restrita), e
+  // a cascata da Organization tentaria apagar Product antes deles. Removemos os
+  // filhos que travam a cascata primeiro.
+  await prisma.stockMovement.deleteMany({ where: orgIds });
+  await prisma.sale.deleteMany({ where: orgIds }); // cascata: SaleItem + SalePayment
+  await prisma.product.deleteMany({ where: orgIds });
+  await prisma.device.deleteMany({ where: orgIds });
   await prisma.organization.deleteMany({
     where: { slug: { startsWith: "org-" } },
   });
