@@ -12,6 +12,7 @@
  * O token sai de `device.pair` (chamado logado no ambiente-alvo).
  */
 import { createNerpClient } from "@nerp/api";
+import type { RouterClient } from "@orpc/server";
 import type { AppRouter } from "@/rpc-type";
 
 async function main() {
@@ -23,7 +24,7 @@ async function main() {
     );
   }
 
-  const client = createNerpClient<AppRouter>({
+  const client = createNerpClient<RouterClient<AppRouter>>({
     baseUrl,
     getToken: () => token,
   });

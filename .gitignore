@@ -57,3 +57,10 @@ next-env.d.ts
 
 # WASM do leitor de código de barras — copiado de node_modules em dev/build
 **/public/wasm
+
+# vite / desktop build
+dist
+
+# tauri (build nativo)
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen

@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Git
 
 - **NUNCA** faça `git commit` ou `git push` sem uma solicitação explícita do dev. Resolver conflitos, corrigir código ou finalizar uma tarefa NÃO é autorização para commitar — deixe as mudanças no working tree e informe que estão prontas para revisão.
+- **App desktop (Tauri) — branch de integração `feat/desktop`.** Enquanto o **MVP do app desktop** não fica pronto, todo o trabalho do desktop se ACUMULA em `feat/desktop` (a "principal" do desktop); ela **não** é mesclada na `main` a cada fase. As branches de cada fase (`feat/desktop-fase-N`) **partem de `feat/desktop` e voltam para ela** — nunca direto para a `main`. Só quando o mínimo do app estiver pronto é que `feat/desktop` vira um PR para a `main`. Base: `feat/desktop` descende de `feat/turborepo` (o monorepo). Detalhes em `specs/desktop-offline.md` (§ Fluxo de branches).
 
 ## Monorepo layout
 

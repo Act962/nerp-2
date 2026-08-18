@@ -1,12 +1,17 @@
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
-import type { RouterClient } from "@orpc/server";
 
 /**
  * Factory do cliente oRPC do NERP para consumidores FORA do processo do web
- * (desktop, scripts, futuros clients). É genérico sobre o tipo do router, então
- * este package NÃO depende de `apps/web` — quem junta o tipo (`AppRouter`) com
- * a factory é o consumidor.
+ * (desktop, scripts, futuros clients). É genérico sobre o TIPO DO CLIENTE, então
+ * este package NÃO depende de `apps/web`.
+ *
+ * `TClient` pode ser:
+ * - `RouterClient<AppRouter>` — no mesmo processo/monorepo com acesso ao tipo do
+ *   router (ex.: um script em `apps/web`), inferência total.
+ * - um contrato hand-authored das chamadas usadas — para consumidores que NÃO
+ *   podem importar `AppRouter` do fonte sem compilar o servidor (o desktop, até
+ *   o router ser extraído para um package que emita `.d.ts` na Fase 5).
  *
  * Difere do `src/lib/orpc.ts` do web em dois pontos que só um cliente externo
  * precisa: a base URL é PARÂMETRO (o web usa `window.location.origin`) e o token
@@ -21,10 +26,7 @@ export type NerpClientOptions = {
   fetch?: typeof globalThis.fetch;
 };
 
-// biome-ignore lint/suspicious/noExplicitAny: TRouter é o tipo do router oRPC do web, resolvido no consumidor.
-export function createNerpClient<TRouter extends Record<string, any>>(
-  options: NerpClientOptions,
-): RouterClient<TRouter> {
+export function createNerpClient<TClient>(options: NerpClientOptions): TClient {
   const link = new RPCLink({
     url: `${options.baseUrl.replace(/\/$/, "")}/api/rpc`,
     fetch: options.fetch,
@@ -34,5 +36,5 @@ export function createNerpClient<TRouter extends Record<string, any>>(
     },
   });
 
-  return createORPCClient(link);
+  return createORPCClient(link) as unknown as TClient;
 }

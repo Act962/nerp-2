@@ -7,6 +7,25 @@
 
 ---
 
+## Fluxo de branches (enquanto o MVP do desktop não fica pronto)
+
+Estratégia deliberada: **uma branch de integração acumula todo o app desktop até o MVP**, em vez de mesclar cada fase na `main`.
+
+```
+main
+ └─ feat/turborepo            (monorepo — base)
+     └─ feat/desktop          ← PRINCIPAL do desktop; acumula TODAS as fases
+         ├─ feat/desktop-fase-2  (parte de feat/desktop, volta para feat/desktop)
+         ├─ feat/desktop-fase-3  (idem)
+         └─ …
+```
+
+- Cada fase nova nasce de `feat/desktop` e é mesclada de volta em `feat/desktop` — **nunca** direto na `main`.
+- `feat/desktop` só vira PR para a `main` quando o **mínimo do app desktop** estiver pronto.
+- Fase 0 e Fase 1 já estão consolidadas em `feat/desktop` (as branches `feat/desktop-fase-0/1` foram interinas e viraram história dessa principal).
+
+---
+
 ## 0. Restrição inegociável
 
 **Não mexer no ERP web em produção.** Toda a Fase 0–1 é *aditiva*: novos arquivos type-only, novos packages, config de CORS/origens. Nenhuma mudança de comportamento no `apps/web`. Só quando o desktop estiver validado é que se considera extrair código do web para packages (Fase 5, opcional).
@@ -169,7 +188,7 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 - CORS em `/api/rpc` + `trustedOrigins`; token de dispositivo (Better Auth bearer) — **tudo aditivo**.
 - **Prova:** um script Node usando `@nerp/api` autentica por bearer e chama um procedure contra staging. Sem UI ainda.
 
-### Fase 1 — Desktop online-only (de-risk de empacotamento/auth/CORS)
+### Fase 1 — Desktop online-only ✅ (ver `desktop-fase-1.md`)
 - `apps/desktop`: Tauri + Vite + React. Login contra a API, tela de PDV consumindo `@nerp/api` **sem offline**.
 - Entrega um desktop que já vende **quando há rede** — valida bundle Tauri, auth em webview, keychain e CORS antes de investir no offline.
 
