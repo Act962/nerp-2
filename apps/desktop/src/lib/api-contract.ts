@@ -64,4 +64,31 @@ export type DesktopApi = {
       hasMore: boolean;
     }>;
   };
+  sales: {
+    // Replay idempotente de venda offline. Espelha router/sales/create-from-device.ts.
+    createFromDevice: (input: {
+      operationId: string;
+      customerId?: string;
+      discount: number;
+      total: number;
+      status: "COMPLETED";
+      soldAt?: string;
+      payments: Array<{ method: PaymentMethod; amount: number }>;
+      items: Array<{
+        productId: string;
+        productName: string;
+        quantity: number;
+        unitPrice: number;
+      }>;
+    }) => Promise<{ saleId: string; saleNumber: number; duplicate: boolean }>;
+  };
 };
+
+type PaymentMethod =
+  | "DINHEIRO"
+  | "PIX"
+  | "DEBITO"
+  | "CREDITO"
+  | "BOLETO"
+  | "TRANSFERENCIA"
+  | "OUTROS";

@@ -182,3 +182,86 @@ body {
   font-variant-numeric: tabular-nums;
   font-weight: 600;
 }
+
+/* ── PDV com carrinho (Fase 3) ─────────────────────────────────────── */
+.badge.pending {
+  color: #d29922;
+  border-color: #d29922;
+}
+.pdv-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+  padding: 16px;
+  align-items: start;
+}
+.pdv-products {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.product-row.as-button {
+  width: 100%;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.product-row.as-button:hover {
+  border-color: var(--primary);
+}
+.pdv-cart {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pdv-cart h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.cart-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cart-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+.cart-line-info {
+  min-width: 0;
+}
+.qty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qty button {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 16px;
+}
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 18px;
+}

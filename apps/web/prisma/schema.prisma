@@ -985,6 +985,9 @@ model Sale {
   // Numeração
   invoiceNumber  String? // Número da nota fiscal
   saleNumber     Int // Número sequencial da venda
+  // Idempotência do replay offline (uuid v7 gerado no device). Único: reenviar
+  // a mesma venda não duplica — o handler devolve a venda já criada.
+  clientOperationId String? @unique
   // Sessão de caixa em que a venda foi registrada (opcional: preserva vendas
   // históricas e vendas não-PDV).
   cashSessionId  String?
