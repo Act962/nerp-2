@@ -411,3 +411,55 @@ body {
     transform: rotate(360deg);
   }
 }
+.pay-tenders {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pay-tenders li {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  padding: 6px 10px;
+  background: var(--panel-2);
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+.pay-remaining {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  font-size: 15px;
+}
+.pay-remaining strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+.pay-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pay-amount input {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.pay-amount input:focus {
+  outline: 2px solid var(--primary);
+  border-color: transparent;
+}
+.pay-method:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -1,10 +1,11 @@
-import type {
-  MockOutcome,
-  PaymentInstrument,
-  PaymentSnapshot,
+import {
+  isFullyPaid,
+  type MockOutcome,
+  type PaymentInstrument,
+  type PaymentSnapshot,
 } from "@nerp/core";
 import type { PaymentMethod } from "@nerp/types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   capturePayment,
   getMockOutcome,
@@ -16,6 +17,13 @@ import {
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
+const round2 = (n: number) => Math.round(n * 100) / 100;
+const parseAmount = (str: string) =>
+  round2(Number(str.replace(/\./g, "").replace(",", ".")) || 0);
+const toInput = (n: number) => n.toFixed(2).replace(".", ",");
+
+/** Um pagamento já liquidado nesta venda (dinheiro manual ou cartão aprovado). */
+type AddedTender = { method: PaymentMethod; amount: number; label: string };
 type Payment = { method: PaymentMethod; amount: number };
 
 const INSTRUMENTS: {
@@ -35,12 +43,12 @@ const OUTCOMES: { value: MockOutcome; label: string }[] = [
 ];
 
 /**
- * Passo de pagamento do PDV (corte 2). Uma forma por venda (MVP).
+ * Passo de pagamento do PDV (corte 3): pagamento MISTO.
  *
- * Dinheiro é tender manual (aprovado na hora). Cartão/PIX passam pelo
- * `PaymentProcessor` (hoje o Mock): inicia → `capturePayment` faz o polling e a
- * UI reflete processando/aprovado/recusado/erro/timeout. Em `timeout` a venda
- * NÃO finaliza (não assume pago nem não-pago) — oferece Reconciliar.
+ * Acumula tenders (dinheiro manual e/ou cartão/PIX pelo `PaymentProcessor`) com
+ * um valor por lançamento — default = "falta receber". A venda só finaliza
+ * (`onPaid`) quando os tenders aprovados cobrem o total (`isFullyPaid`).
+ * `timeout` NÃO finaliza às cegas — oferece Reconciliar.
  */
 export function PaymentStep({
   total,
@@ -51,7 +59,19 @@ export function PaymentStep({
   onPaid: (payments: Payment[]) => void;
   onCancel: () => void;
 }) {
-  const [instrument, setInstrument] = useState<PaymentInstrument | null>(null);
+  const [tenders, setTenders] = useState<AddedTender[]>([]);
+  const remaining = useMemo(
+    () => round2(total - tenders.reduce((s, t) => s + t.amount, 0)),
+    [total, tenders],
+  );
+  const [amountStr, setAmountStr] = useState(() => toInput(total));
+
+  // Estado da captura de cartão em andamento.
+  const [pending, setPending] = useState<{
+    instrument: PaymentInstrument;
+    amount: number;
+    label: string;
+  } | null>(null);
   const [snapshot, setSnapshot] = useState<PaymentSnapshot | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,23 +80,52 @@ export function PaymentStep({
   const state = snapshot?.state;
   const processing = busy && (state === "in_progress" || state === "pending");
   const timedOut = state === "timeout";
+  const idle = !processing && !timedOut && !error;
+
+  // Valor a lançar agora: o digitado, limitado ao que falta (não passa do total).
+  const charge = Math.min(parseAmount(amountStr), remaining);
+
+  // Adiciona um tender liquidado; se cobrir o total, finaliza a venda.
+  const settle = useCallback(
+    (method: PaymentMethod, amount: number, label: string) => {
+      const next = [...tenders, { method, amount, label }];
+      const covered = isFullyPaid(
+        total,
+        next.map((t) => ({ amount: t.amount, approved: true })),
+      );
+      if (covered) {
+        onPaid(next.map((t) => ({ method: t.method, amount: t.amount })));
+        return;
+      }
+      setTenders(next);
+      setAmountStr(
+        toInput(round2(total - next.reduce((s, t) => s + t.amount, 0))),
+      );
+      setSnapshot(null);
+      setPending(null);
+      setError(null);
+    },
+    [tenders, total, onPaid],
+  );
 
   const payCash = useCallback(() => {
-    onPaid([{ method: "DINHEIRO", amount: total }]);
-  }, [onPaid, total]);
+    if (charge <= 0) return;
+    settle("DINHEIRO", charge, "Dinheiro");
+  }, [charge, settle]);
 
   const payWith = useCallback(
-    async (chosen: PaymentInstrument) => {
-      setInstrument(chosen);
+    async (instrument: PaymentInstrument, label: string) => {
+      if (charge <= 0) return;
+      setPending({ instrument, amount: charge, label });
       setError(null);
       setBusy(true);
       try {
         const result = await capturePayment(
-          { amount: total, instrument: chosen },
+          { amount: charge, instrument },
           { onSnapshot: setSnapshot },
         );
         if (result.state === "approved") {
-          onPaid([{ method: instrumentToMethod(chosen), amount: total }]);
+          settle(instrumentToMethod(instrument), charge, label);
         } else if (result.state !== "timeout") {
           setError(result.message ?? "Pagamento não aprovado.");
         }
@@ -86,28 +135,32 @@ export function PaymentStep({
         setBusy(false);
       }
     },
-    [onPaid, total],
+    [charge, settle],
   );
 
   const reconcile = useCallback(async () => {
-    if (!snapshot || !instrument) return;
+    if (!snapshot || !pending) return;
     setBusy(true);
     try {
       const result = await reconcilePayment(snapshot.id);
       setSnapshot(result);
       if (result.state === "approved") {
-        onPaid([{ method: instrumentToMethod(instrument), amount: total }]);
+        settle(
+          instrumentToMethod(pending.instrument),
+          pending.amount,
+          pending.label,
+        );
       } else {
         setError(result.message ?? "Pagamento recusado na reconciliação.");
       }
     } finally {
       setBusy(false);
     }
-  }, [snapshot, instrument, onPaid, total]);
+  }, [snapshot, pending, settle]);
 
   const backToChoice = useCallback(() => {
     setSnapshot(null);
-    setInstrument(null);
+    setPending(null);
     setError(null);
   }, []);
 
@@ -116,18 +169,17 @@ export function PaymentStep({
     setOutcome(value);
   };
 
-  // Atalhos de teclado: Esc cancela; 1 = dinheiro; 2/3/4 = cartão/PIX (na escolha).
-  const idle = !processing && !timedOut && !error;
+  // Atalhos: Esc cancela; 1 = dinheiro; 2/3/4 = cartão/PIX (fora do campo de valor).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         onCancel();
         return;
       }
-      if (!idle || busy) return;
-      if (e.key === "1") void payCash();
+      if (!idle || busy || e.target instanceof HTMLInputElement) return;
+      if (e.key === "1") payCash();
       const found = INSTRUMENTS.find((i) => i.hotkey === e.key);
-      if (found) void payWith(found.instrument);
+      if (found) void payWith(found.instrument, found.label);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -141,12 +193,43 @@ export function PaymentStep({
           <strong>{brl(total)}</strong>
         </div>
 
+        {tenders.length > 0 && (
+          <ul className="pay-tenders">
+            {tenders.map((t, i) => (
+              <li key={`${t.label}-${i}`}>
+                <span>{t.label}</span>
+                <span>{brl(t.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
         {idle && (
           <>
+            <div className="pay-remaining">
+              <span>Falta receber</span>
+              <strong>{brl(remaining)}</strong>
+            </div>
+
+            <label className="pay-amount">
+              <span className="muted small">Valor deste pagamento</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amountStr}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setAmountStr(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") e.currentTarget.blur();
+                }}
+              />
+            </label>
+
             <div className="pay-methods">
               <button
                 type="button"
                 className="btn primary pay-method"
+                disabled={charge <= 0}
                 onClick={payCash}
               >
                 <span className="pay-key">1</span> Dinheiro
@@ -156,7 +239,8 @@ export function PaymentStep({
                   key={i.instrument}
                   type="button"
                   className="btn pay-method"
-                  onClick={() => void payWith(i.instrument)}
+                  disabled={charge <= 0}
+                  onClick={() => void payWith(i.instrument, i.label)}
                 >
                   <span className="pay-key">{i.hotkey}</span> {i.label}
                 </button>
@@ -187,7 +271,9 @@ export function PaymentStep({
           <div className="pay-status">
             <div className="spinner" />
             <p>Processando na maquininha…</p>
-            <span className="muted small">Aguardando aprovação</span>
+            <span className="muted small">
+              {pending ? `${pending.label} · ${brl(pending.amount)}` : ""}
+            </span>
           </div>
         )}
 
