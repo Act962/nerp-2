@@ -1,3 +1,4 @@
+import type { SQLInputValue } from "node:sqlite";
 import { describe, expect, it, vi } from "vitest";
 import { drainOutbox } from "../outbox";
 import type { LocalProduct } from "../types";
@@ -17,10 +18,11 @@ vi.mock("@tauri-apps/plugin-sql", async () => {
   const { DatabaseSync } = await import("node:sqlite");
   const pool = new Map<string, InstanceType<typeof DatabaseSync>>();
 
-  const named = (params?: unknown[]): Record<string, unknown> => {
-    const obj: Record<string, unknown> = {};
+  // Valores vêm dos adapters como primitivos SQL (string/number/null).
+  const named = (params?: unknown[]): Record<string, SQLInputValue> => {
+    const obj: Record<string, SQLInputValue> = {};
     (params ?? []).forEach((v, i) => {
-      obj[String(i + 1)] = v === undefined ? null : v;
+      obj[String(i + 1)] = (v ?? null) as SQLInputValue;
     });
     return obj;
   };

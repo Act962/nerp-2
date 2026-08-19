@@ -7,3 +7,9 @@ export * from "./connectivity";
 export { createIndexedDbCatalog } from "./adapters/indexeddb-catalog";
 export * from "./outbox";
 export { createIndexedDbOutbox } from "./adapters/indexeddb-outbox";
+// Domínio de pagamento (ports & adapters). O mock não tem dep nativa, então
+// entra no barrel; adapters reais (TEF/adquirente) irão por subpath depois.
+export * from "./payment";
+export * from "./payment-processor";
+export * from "./sale";
+export { createMockPaymentProcessor } from "./adapters/mock-payment-processor";
