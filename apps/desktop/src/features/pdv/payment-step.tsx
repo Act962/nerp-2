@@ -56,7 +56,7 @@ export function PaymentStep({
   onCancel,
 }: {
   total: number;
-  onPaid: (payments: Payment[]) => void;
+  onPaid: (payments: Payment[], change: number) => void;
   onCancel: () => void;
 }) {
   const [tenders, setTenders] = useState<AddedTender[]>([]);
@@ -82,19 +82,25 @@ export function PaymentStep({
   const timedOut = state === "timeout";
   const idle = !processing && !timedOut && !error;
 
-  // Valor a lançar agora: o digitado, limitado ao que falta (não passa do total).
-  const charge = Math.min(parseAmount(amountStr), remaining);
+  // O digitado. Cartão/PIX não passam do que falta; dinheiro pode passar (troco).
+  const typed = parseAmount(amountStr);
+  const charge = Math.min(typed, remaining);
+  // Troco só existe quando o dinheiro recebido cobre tudo o que falta.
+  const cashChange = typed > remaining ? round2(typed - remaining) : 0;
 
-  // Adiciona um tender liquidado; se cobrir o total, finaliza a venda.
+  // Adiciona um tender liquidado; se cobrir o total, finaliza a venda (com troco).
   const settle = useCallback(
-    (method: PaymentMethod, amount: number, label: string) => {
+    (method: PaymentMethod, amount: number, label: string, change = 0) => {
       const next = [...tenders, { method, amount, label }];
       const covered = isFullyPaid(
         total,
         next.map((t) => ({ amount: t.amount, approved: true })),
       );
       if (covered) {
-        onPaid(next.map((t) => ({ method: t.method, amount: t.amount })));
+        onPaid(
+          next.map((t) => ({ method: t.method, amount: t.amount })),
+          change,
+        );
         return;
       }
       setTenders(next);
@@ -110,8 +116,9 @@ export function PaymentStep({
 
   const payCash = useCallback(() => {
     if (charge <= 0) return;
-    settle("DINHEIRO", charge, "Dinheiro");
-  }, [charge, settle]);
+    // O tender registrado é o que falta (o que entra na venda); o excedente é troco.
+    settle("DINHEIRO", charge, "Dinheiro", cashChange);
+  }, [charge, cashChange, settle]);
 
   const payWith = useCallback(
     async (instrument: PaymentInstrument, label: string) => {
@@ -212,7 +219,7 @@ export function PaymentStep({
             </div>
 
             <label className="pay-amount">
-              <span className="muted small">Valor deste pagamento</span>
+              <span className="muted small">Valor recebido</span>
               <input
                 type="text"
                 inputMode="decimal"
@@ -224,6 +231,13 @@ export function PaymentStep({
                 }}
               />
             </label>
+
+            {cashChange > 0 && (
+              <div className="pay-change">
+                <span>Troco (dinheiro)</span>
+                <strong>{brl(cashChange)}</strong>
+              </div>
+            )}
 
             <div className="pay-methods">
               <button

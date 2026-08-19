@@ -254,12 +254,29 @@ kbd {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 18px;
-  background: rgba(224, 168, 59, 0.12);
-  border-bottom: 1px solid rgba(224, 168, 59, 0.3);
+  padding: 9px 18px;
+  background: rgba(224, 168, 59, 0.14);
+  border-bottom: 1px solid rgba(224, 168, 59, 0.35);
   color: var(--warning);
   font-size: 13px;
   flex-shrink: 0;
+}
+.offline-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--warning);
+  flex-shrink: 0;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
 }
 
 /* ── Caixa: faixa (aberto) e foco central (fechado) ─────────────────── */
@@ -759,6 +776,21 @@ kbd {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
+.pay-change {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 14px;
+  border-radius: var(--r);
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 15px;
+}
+.pay-change strong {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
 .pay-amount {
   display: flex;
   flex-direction: column;
@@ -777,4 +809,65 @@ kbd {
 .pay-amount input:focus {
   outline: 2px solid var(--primary);
   border-color: transparent;
+}
+
+/* ── Confirmação de venda concluída ─────────────────────────────────── */
+.sale-done {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: none;
+  cursor: pointer;
+  background: rgba(4, 20, 15, 0.72);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+  font: inherit;
+}
+.sale-done-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.sale-done-check {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--primary-ink);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.sale-done-card h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.sale-done-total {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -1px;
+}
+.sale-done-change {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 4px;
+  padding: 10px 20px;
+  border-radius: var(--r-lg);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.sale-done-change strong {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
 }

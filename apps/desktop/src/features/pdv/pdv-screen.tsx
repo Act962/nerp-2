@@ -120,6 +120,10 @@ export function PdvScreen({
   const [finalizing, setFinalizing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [saleResult, setSaleResult] = useState<{
+    total: number;
+    change: number;
+  } | null>(null);
   const [caixaSession, setCaixaSession] = useState<LocalCashSession | null>(
     null,
   );
@@ -190,6 +194,24 @@ export function PdvScreen({
     if (!paying && caixaSession?.status === "open")
       searchInputRef.current?.focus();
   }, [paying, caixaSession]);
+
+  // Confirmação de venda: some sozinha em ~3,5s, ou com Enter/Esc; devolve o foco.
+  useEffect(() => {
+    if (!saleResult) return;
+    const dismiss = () => {
+      setSaleResult(null);
+      searchInputRef.current?.focus();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" || e.key === "Escape") dismiss();
+    };
+    window.addEventListener("keydown", onKey);
+    const id = setTimeout(dismiss, 3500);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      clearTimeout(id);
+    };
+  }, [saleResult]);
 
   const addToCart = (product: LocalProduct) => {
     setCart((prev) => {
@@ -274,8 +296,10 @@ export function PdvScreen({
   // liquidados (dinheiro manual e/ou transação aprovada do PaymentProcessor).
   const handlePaid = async (
     payments: { method: PaymentMethod; amount: number }[],
+    change: number,
   ) => {
     if (lines.length === 0) return;
+    const soldTotal = cartTotal;
     setFinalizing(true);
     setNotice(null);
     try {
@@ -306,14 +330,14 @@ export function PdvScreen({
       setCaixaSession(await currentSession());
       setCart(new Map());
       setPaying(false);
-      setNotice("Venda registrada.");
+      setNotice(null);
+      // Confirmação forte da venda (com troco em destaque quando há).
+      setSaleResult({ total: soldTotal, change });
       // Tenta drenar sempre; se o server estiver fora, fica pendente e sincroniza depois.
       await drainAll();
       await refreshQueue();
     } catch (err) {
-      setNotice(
-        err instanceof Error ? err.message : "Falha ao registrar venda",
-      );
+      setNotice(humanizeError(err instanceof Error ? err.message : undefined));
     } finally {
       setFinalizing(false);
     }
@@ -376,8 +400,12 @@ export function PdvScreen({
 
       {!reachable && (
         <div className="offline-strip">
-          Modo offline — {pending} na fila. As vendas continuam e sincronizam
-          sozinhas ao reconectar.
+          <span className="offline-dot" />
+          <strong>Modo offline</strong>
+          <span>
+            — {pending} na fila. As vendas continuam e sincronizam sozinhas ao
+            reconectar.
+          </span>
         </div>
       )}
 
@@ -573,8 +601,32 @@ export function PdvScreen({
         <PaymentStep
           total={cartTotal}
           onCancel={() => setPaying(false)}
-          onPaid={(payments) => void handlePaid(payments)}
+          onPaid={(payments, change) => void handlePaid(payments, change)}
         />
+      )}
+
+      {saleResult && (
+        <button
+          type="button"
+          className="sale-done"
+          onClick={() => {
+            setSaleResult(null);
+            searchInputRef.current?.focus();
+          }}
+        >
+          <div className="sale-done-card">
+            <div className="sale-done-check">✓</div>
+            <h2>Venda concluída</h2>
+            <div className="sale-done-total tnum">{brl(saleResult.total)}</div>
+            {saleResult.change > 0 && (
+              <div className="sale-done-change">
+                <span>Troco</span>
+                <strong className="tnum">{brl(saleResult.change)}</strong>
+              </div>
+            )}
+            <p className="muted small">Pressione Enter para a próxima venda</p>
+          </div>
+        </button>
       )}
     </div>
   );
