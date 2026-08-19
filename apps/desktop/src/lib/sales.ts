@@ -1,5 +1,6 @@
 import { createIndexedDbOutbox, drainOutbox, type Outbox } from "@nerp/core";
 import { client } from "./client";
+import { isNative } from "./platform";
 
 /** Payload de uma venda offline (o que vai na outbox e, no replay, ao server). */
 export type SalePayload = {
@@ -18,13 +19,9 @@ export type SalePayload = {
 
 let outboxPromise: Promise<Outbox> | null = null;
 
-function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
-}
-
 export function getOutbox(): Promise<Outbox> {
   outboxPromise ??= (async () => {
-    if (isTauri()) {
+    if (isNative()) {
       const { createSqliteOutbox } = await import("@nerp/core/sqlite-outbox");
       return createSqliteOutbox();
     }

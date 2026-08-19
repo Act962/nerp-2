@@ -29,6 +29,12 @@ importers:
       '@nerp/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@tauri-apps/api':
+        specifier: ^2.1.0
+        version: 2.11.1
+      '@tauri-apps/plugin-sql':
+        specifier: ^2.2.0
+        version: 2.4.0
       '@tauri-apps/plugin-store':
         specifier: ^2.2.0
         version: 2.4.4
@@ -939,6 +945,7 @@ packages:
 
   '@better-auth/cli@1.4.10':
     resolution: {integrity: sha512-pysFWEL4gq2Zn4Q0eH75fz5x8tw5CvwrFAPrpzEskyQOHb/h4UGqtk5RVJ9bhw/O4mXmJttKc06HIp0OuRnu1g==}
+    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
     hasBin: true
 
   '@better-auth/core@1.4.10':

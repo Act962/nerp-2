@@ -11,6 +11,8 @@
  *   degrau acima do localStorage; o keychain criptografado (Stronghold) é o
  *   próximo passo (ver README).
  */
+import { isNative } from "./platform";
+
 export type StoredSession = {
   token: string;
   organizationId: string;
@@ -43,14 +45,10 @@ const localStorageBacked: SessionStorage = {
   },
 };
 
-function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
-}
-
 let storagePromise: Promise<SessionStorage> | null = null;
 function storage(): Promise<SessionStorage> {
   storagePromise ??= (async () => {
-    if (isTauri()) {
+    if (isNative()) {
       const { createTauriSessionStorage } = await import(
         "./tauri-session-storage"
       );

@@ -206,9 +206,22 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 - Relatório de anomalias (oversell, divergências), auto-update do Tauri (updater assinado), storage seguro de token, observabilidade de *lag* de sync.
 - Handoff de contingência fiscal (emitir NFCe ao reconectar) — se/quando `fiscal-emissao` existir.
 
-### Fase 5 — Convergência (opcional)
-- Extrair o `router` para `packages/api` de verdade (web vira só o mount HTTP).
+### Fase 5 — App nativo real + guard de tipos ✅ (ver `desktop-fase-5.md`)
+- Com o Rust instalado, o shell Tauri saiu do papel: `isNative()` correto,
+  `plugin-sql`(sqlite)+`plugin-store` ligados e permissionados, ícones gerados —
+  `cargo build` → `.exe` e `tauri build` → instaladores Windows (`.msi` + NSIS).
+- SQL dos adapters nativos verificado contra SQLite real (`node:sqlite`).
+- **Inferência total do `AppRouter` descartada por limite do TS** (TS7056: o tipo
+  do router é grande demais para serializar num `.d.ts`). No lugar, um **guard de
+  conformidade** no `apps/web` quebra o build se o contrato `DesktopApi` divergir
+  do router real — mesmo valor (zero drift), sem a serialização inviável.
+
+### Fase 6 — Convergência (opcional, futuro)
+- Extrair o `router` para `packages/api` de verdade (web vira só o mount HTTP) —
+  se/quando compensar; com o guard de conformidade no lugar, a pressão por isso
+  caiu. Extração real exigiria contrato-first (oRPC) para contornar o TS7056.
 - `@nerp/ui` e `@nerp/utils` compartilhados de fato entre web e desktop.
+- Keychain criptografado (Stronghold), auto-update assinado, code-signing dos instaladores.
 - Levar o **mesmo `@nerp/core`** para o PWA do `pdv-offline.md` → um motor de offline, dois hosts (desktop nativo + PWA no navegador).
 
 ---
@@ -228,7 +241,7 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 - **Server-authoritative** em numeração, estoque e fiscal; vendas são append-only (sem CRDT).
 - **`orgId` do payload é ignorado no replay** — reamarrado ao contexto autenticado (regra de multi-tenancy manual).
 - **Desktop = Vite+React SPA** (não Next); sempre cliente HTTP.
-- **Router permanece em `apps/web`** (type-only export) até a Fase 5; nada de mover ~55 entidades agora.
+- **Router permanece em `apps/web`** (contrato hand-authored no `@nerp/api` + guard de conformidade); mover ~55 entidades fica para a Fase 6 (opcional). Emitir `.d.ts` do router inteiro é inviável (TS7056).
 - **Auth por token de dispositivo** em keychain (bearer), não cookie.
 
 ## 7. Melhorias futuras / questões em aberto
