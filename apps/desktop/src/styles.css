@@ -293,3 +293,121 @@ body {
   align-items: center;
   gap: 12px;
 }
+
+/* ── Passo de pagamento (corte 2) ──────────────────────────────────── */
+.pay-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+.pay-modal {
+  width: 380px;
+  max-width: calc(100vw - 32px);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.pay-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 15px;
+}
+.pay-head strong {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+.pay-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.pay-method {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  padding: 16px;
+}
+.pay-method:hover {
+  border-color: var(--primary);
+}
+.pay-method.primary {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+.pay-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.15);
+  font-size: 13px;
+  font-weight: 700;
+}
+.pay-sim {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.chip {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip.on {
+  color: var(--text);
+  border-color: var(--primary);
+  background: rgba(47, 129, 247, 0.15);
+}
+.pay-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 12px 0;
+}
+.pay-status.warn {
+  color: #d29922;
+}
+.pay-status.err {
+  color: var(--danger);
+}
+.pay-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+.spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

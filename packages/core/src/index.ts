@@ -13,3 +13,7 @@ export * from "./payment";
 export * from "./payment-processor";
 export * from "./sale";
 export { createMockPaymentProcessor } from "./adapters/mock-payment-processor";
+export type {
+  MockOutcome,
+  MockPaymentProcessorConfig,
+} from "./adapters/mock-payment-processor";

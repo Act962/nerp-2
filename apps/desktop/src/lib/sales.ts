@@ -1,4 +1,5 @@
 import { createIndexedDbOutbox, drainOutbox, type Outbox } from "@nerp/core";
+import type { PaymentMethod } from "@nerp/types";
 import { client } from "./client";
 import { isNative } from "./platform";
 
@@ -8,7 +9,7 @@ export type SalePayload = {
   total: number;
   status: "COMPLETED";
   soldAt: string;
-  payments: Array<{ method: "DINHEIRO"; amount: number }>;
+  payments: Array<{ method: PaymentMethod; amount: number }>;
   items: Array<{
     productId: string;
     productName: string;

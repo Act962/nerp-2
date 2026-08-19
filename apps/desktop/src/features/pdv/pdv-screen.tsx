@@ -15,6 +15,8 @@ import {
   type SalePayload,
 } from "../../lib/sales";
 import type { StoredSession } from "../../lib/token-store";
+import type { PaymentMethod } from "@nerp/types";
+import { PaymentStep } from "./payment-step";
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -51,6 +53,7 @@ export function PdvScreen({
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState<OutboxItem[]>([]);
   const [finalizing, setFinalizing] = useState(false);
+  const [paying, setPaying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const searchRef = useRef(search);
   searchRef.current = search;
@@ -130,7 +133,12 @@ export function PdvScreen({
   const lines = [...cart.values()];
   const cartTotal = lines.reduce((s, l) => s + l.product.salePrice * l.qty, 0);
 
-  const finalizeSale = async () => {
+  // Chamado pelo passo de pagamento quando a venda está paga: grava na outbox
+  // (offline-first, nunca perde) e tenta drenar. As formas vêm dos tenders
+  // liquidados (dinheiro manual e/ou transação aprovada do PaymentProcessor).
+  const handlePaid = async (
+    payments: { method: PaymentMethod; amount: number }[],
+  ) => {
     if (lines.length === 0) return;
     setFinalizing(true);
     setNotice(null);
@@ -140,7 +148,7 @@ export function PdvScreen({
         total: cartTotal,
         status: "COMPLETED",
         soldAt: new Date().toISOString(),
-        payments: [{ method: "DINHEIRO", amount: cartTotal }],
+        payments,
         items: lines.map((l) => ({
           productId: l.product.id,
           productName: l.product.name,
@@ -150,6 +158,7 @@ export function PdvScreen({
       };
       await enqueueSale(payload);
       setCart(new Map());
+      setPaying(false);
       setNotice("Venda registrada.");
       // Tenta drenar sempre; se o server estiver fora, fica pendente e sincroniza depois.
       await drainSales();
@@ -302,11 +311,19 @@ export function PdvScreen({
             type="button"
             className="btn primary"
             disabled={lines.length === 0 || finalizing}
-            onClick={() => void finalizeSale()}
+            onClick={() => setPaying(true)}
           >
             {finalizing ? "Registrando…" : "Finalizar venda"}
           </button>
         </aside>
+
+        {paying && (
+          <PaymentStep
+            total={cartTotal}
+            onCancel={() => setPaying(false)}
+            onPaid={(payments) => void handlePaid(payments)}
+          />
+        )}
       </div>
     </div>
   );
