@@ -1,3 +1,9 @@
+import {
+  activateContract,
+  cancelContract,
+  expireContracts,
+  listContracts,
+} from "./contract";
 import { createSpaceNegotiation } from "./create";
 import { deleteSpaceNegotiation } from "./delete";
 import { listSpaceNegotiations } from "./list";
@@ -10,4 +16,8 @@ export const spaceNegotiationRoutes = {
   listExpiring: listExpiringNegotiations,
   update: updateSpaceNegotiation,
   delete: deleteSpaceNegotiation,
+  activateContract,
+  cancelContract,
+  listContracts,
+  expireContracts,
 };
