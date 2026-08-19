@@ -5,6 +5,7 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import {
   Ban,
+  Boxes,
   BrickWall,
   DoorClosed,
   DoorOpen,
@@ -27,10 +28,14 @@ import {
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
+import { toast } from "sonner";
+import { readFixtureProps } from "../engine/fixture-catalog";
 import { useSceneStore } from "../engine/scene-store";
 import { CREATE_TOOLS } from "../engine/tools";
 import type { EditorTool, MapObjectType } from "../engine/types";
 import type { SaveState } from "../hooks/use-floor-plan-scene";
+import { FixturePalette } from "./fixture-palette";
+import { GenerateLayoutDialog } from "./generate-layout-dialog";
 
 const TYPE_ICONS: Record<MapObjectType, LucideIcon> = {
   WALL: BrickWall,
@@ -107,6 +112,22 @@ export function EditorToolbar({ saveState }: EditorToolbarProps) {
 
   const setToolTo = (next: EditorTool) => () => setTool(next);
 
+  // Seleciona de uma vez todos os móveis do catálogo (gôndolas/ilhas/etc.) — o
+  // atalho para reagarrar a estrutura inteira depois de clicar fora, já que o
+  // clique numa peça seleciona só uma. Entra no modo SELECT pra permitir mover.
+  const selectAllFixtures = () => {
+    const state = useSceneStore.getState();
+    const ids = Object.values(state.objects)
+      .filter((object) => readFixtureProps(object.properties))
+      .map((object) => object.id);
+    if (ids.length === 0) {
+      toast.info("Nenhuma gôndola no mapa ainda.");
+      return;
+    }
+    setTool("SELECT");
+    state.setSelection(ids);
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-1 border-b bg-background p-2">
       <ToolButton
@@ -133,6 +154,16 @@ export function EditorToolbar({ saveState }: EditorToolbarProps) {
           onClick={setToolTo(createTool.type)}
         />
       ))}
+
+      <Separator orientation="vertical" className="mx-1 h-6" />
+
+      <FixturePalette />
+      <GenerateLayoutDialog />
+      <ToolButton
+        label="Selecionar todas as gôndolas"
+        icon={Boxes}
+        onClick={selectAllFixtures}
+      />
 
       <Separator orientation="vertical" className="mx-1 h-6" />
 
