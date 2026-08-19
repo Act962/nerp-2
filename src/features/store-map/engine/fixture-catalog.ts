@@ -97,8 +97,10 @@ export interface FixtureProps {
   kind: FixtureKind;
   /** Total de prateleiras da célula (o "6" do badge 3/6). */
   shelfCount: number;
-  /** Prateleiras já negociadas (o "3" do badge 3/6). */
+  /** Prateleiras já negociadas (o "3" do badge 3/6). Derivado: = negotiatedShelfIndexes.length. */
   negotiatedShelves: number;
+  /** Índices (0 = prateleira do topo) das prateleiras negociadas — fonte da verdade. */
+  negotiatedShelfIndexes: number[];
   /** Faces na profundidade (colunas da grade vista de cima). */
   lanes: number;
   moduleCount: number;
@@ -119,6 +121,7 @@ export function buildFixtureProps(model: MapFixtureModel): FixtureProps {
     kind: model.kind,
     shelfCount: model.shelfCount,
     negotiatedShelves: 0,
+    negotiatedShelfIndexes: [],
     lanes: model.lanes,
     moduleCount: 1,
     widthMm: Math.round(model.widthM * 1000),
@@ -127,6 +130,27 @@ export function buildFixtureProps(model: MapFixtureModel): FixtureProps {
     baseHeightMm:
       FIXTURE_PRESETS.find((p) => p.id === model.id)?.baseHeightMm ?? 100,
   };
+}
+
+/** Índices dedup + em faixa [0, shelfCount) + ordenados (topo → base). */
+function normalizeShelfIndexes(
+  indexes: number[],
+  shelfCount: number,
+): number[] {
+  const max = Math.max(0, Math.round(shelfCount));
+  return [...new Set(indexes.map((n) => Math.round(n)))]
+    .filter((n) => n >= 0 && n < max)
+    .sort((a, b) => a - b);
+}
+
+/** Alterna uma prateleira (índice) no conjunto de negociadas. */
+export function toggleShelfIndex(
+  indexes: number[],
+  shelfIndex: number,
+): number[] {
+  return indexes.includes(shelfIndex)
+    ? indexes.filter((n) => n !== shelfIndex)
+    : [...indexes, shelfIndex];
 }
 
 /** Lê os metadados de mobiliário de um objeto, se ele for um móvel do catálogo. */
@@ -138,14 +162,32 @@ export function readFixtureProps(
   const fixture = raw as Partial<FixtureProps>;
   if (typeof fixture.presetId !== "string") return null;
   const kind = (fixture.kind ?? "GONDOLA") as FixtureKind;
+  const shelfCount =
+    typeof fixture.shelfCount === "number" ? fixture.shelfCount : 1;
+  // Fonte da verdade são os ÍNDICES. Móveis antigos só têm a contagem
+  // `negotiatedShelves` — nesse caso as N negociadas eram as N de baixo.
+  const rawIndexes = Array.isArray(fixture.negotiatedShelfIndexes)
+    ? fixture.negotiatedShelfIndexes.filter(
+        (n): n is number => typeof n === "number",
+      )
+    : typeof fixture.negotiatedShelves === "number"
+      ? Array.from(
+          {
+            length: Math.min(
+              Math.max(0, Math.round(fixture.negotiatedShelves)),
+              Math.max(0, Math.round(shelfCount)),
+            ),
+          },
+          (_, k) => Math.max(0, Math.round(shelfCount)) - 1 - k,
+        )
+      : [];
+  const negotiatedShelfIndexes = normalizeShelfIndexes(rawIndexes, shelfCount);
   return {
     presetId: fixture.presetId,
     kind,
-    shelfCount: typeof fixture.shelfCount === "number" ? fixture.shelfCount : 1,
-    negotiatedShelves:
-      typeof fixture.negotiatedShelves === "number"
-        ? fixture.negotiatedShelves
-        : 0,
+    shelfCount,
+    negotiatedShelves: negotiatedShelfIndexes.length,
+    negotiatedShelfIndexes,
     // Móveis criados antes das faces caem no padrão do tipo (retrocompatível).
     lanes:
       typeof fixture.lanes === "number"
@@ -226,8 +268,19 @@ export function withFixtureProps(
 ): Record<string, unknown> {
   const current = readFixtureProps(object.properties);
   if (!current) return object.properties ?? {};
+  const merged = { ...current, ...patch };
+  const shelfCount = Math.max(1, Math.round(merged.shelfCount));
+  const negotiatedShelfIndexes = normalizeShelfIndexes(
+    merged.negotiatedShelfIndexes,
+    shelfCount,
+  );
   return {
     ...(object.properties ?? {}),
-    fixture: { ...current, ...patch },
+    fixture: {
+      ...merged,
+      shelfCount,
+      negotiatedShelfIndexes,
+      negotiatedShelves: negotiatedShelfIndexes.length,
+    },
   };
 }
