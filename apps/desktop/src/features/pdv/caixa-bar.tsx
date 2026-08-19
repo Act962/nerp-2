@@ -19,9 +19,35 @@ const msg = (e: unknown) =>
 type Dialog = "open" | "sangria" | "suprimento" | "close";
 type CloseResult = CashSummary & { difference: number };
 
+const LockIcon = () => (
+  <svg
+    width="30"
+    height="30"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect
+      x="5"
+      y="11"
+      width="14"
+      height="9"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth="1.6"
+    />
+    <path
+      d="M8 11V8a4 4 0 0 1 8 0v3"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
 /**
- * Barra de caixa do PDV: status (aberto/fechado · terminal · operador) e as
- * ações (abrir/sangria/suprimento/fechar). O fechamento é contagem CEGA — o
+ * Caixa do PDV. Dois modos: FECHADO vira o único foco da tela ("Abrir caixa");
+ * ABERTO vira uma faixa fina (status + ações). O fechamento é contagem CEGA — o
  * esperado só aparece depois que o operador informa o contado.
  */
 export function CaixaBar({
@@ -105,215 +131,224 @@ export function CaixaBar({
     setCloseResult(null);
   };
 
-  return (
-    <div className="caixa-bar">
-      <div className="caixa-status">
-        <span className={`badge ${open ? "online" : "offline"}`}>
-          {open ? "Caixa aberto" : "Caixa fechado"}
-        </span>
-        {open && (
-          <span className="muted small">
-            {registerName} · {operatorName} · abertura{" "}
-            {brl(open.openingBalance)}
-          </span>
-        )}
-      </div>
-
-      <div className="caixa-actions">
-        {open ? (
+  const overlay = dialog && (
+    <div className="pay-overlay">
+      <div className="pay-modal">
+        {dialog === "open" && (
           <>
+            <div className="pay-head">
+              <span>Abrir caixa</span>
+              <span className="muted small">{registerName}</span>
+            </div>
+            <label className="pay-amount">
+              <span className="muted small">Saldo inicial (troco)</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+                autoFocus
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <div className="pay-actions">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy}
+                onClick={() => void doOpen()}
+              >
+                {busy ? "Abrindo…" : "Abrir"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setDialog(null)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+
+        {(dialog === "sangria" || dialog === "suprimento") && (
+          <>
+            <div className="pay-head">
+              <span>{dialog === "sangria" ? "Sangria" : "Suprimento"}</span>
+            </div>
+            <label className="pay-amount">
+              <span className="muted small">Valor</span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+                autoFocus
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <div className="pay-actions">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy}
+                onClick={() =>
+                  void doMovement(dialog === "sangria" ? sangria : suprimento)
+                }
+              >
+                {busy ? "…" : "Confirmar"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setDialog(null)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+
+        {dialog === "close" && !closeResult && (
+          <>
+            <div className="pay-head">
+              <span>Fechar caixa</span>
+            </div>
+            <label className="pay-amount">
+              <span className="muted small">
+                Valor contado na gaveta (contagem cega)
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={amount}
+                // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+                autoFocus
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </label>
+            {error && <p className="error">{error}</p>}
+            <div className="pay-actions">
+              <button
+                type="button"
+                className="btn primary"
+                disabled={busy}
+                onClick={() => void doClose()}
+              >
+                {busy ? "Fechando…" : "Fechar"}
+              </button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => setDialog(null)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </>
+        )}
+
+        {dialog === "close" && closeResult && (
+          <>
+            <div className="pay-head">
+              <span>Caixa fechado</span>
+            </div>
+            <ul className="pay-tenders">
+              <li>
+                <span>Esperado</span>
+                <span>{brl(closeResult.expectedCash)}</span>
+              </li>
+              <li>
+                <span>Contado</span>
+                <span>{brl(parseAmount(amount))}</span>
+              </li>
+              <li>
+                <span>Diferença</span>
+                <span className={closeResult.difference === 0 ? "" : "error"}>
+                  {brl(closeResult.difference)}
+                </span>
+              </li>
+            </ul>
             <button
               type="button"
-              className="btn ghost"
-              onClick={() => start("suprimento")}
+              className="btn primary"
+              onClick={() => void finishClose()}
             >
-              Suprimento
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => start("sangria")}
-            >
-              Sangria
-            </button>
-            <button
-              type="button"
-              className="btn ghost"
-              onClick={() => start("close")}
-            >
-              Fechar caixa
+              Concluir
             </button>
           </>
-        ) : (
-          <button
-            type="button"
-            className="btn primary"
-            onClick={() => start("open")}
-          >
-            Abrir caixa
-          </button>
         )}
       </div>
+    </div>
+  );
 
-      {dialog && (
-        <div className="pay-overlay">
-          <div className="pay-modal">
-            {dialog === "open" && (
-              <>
-                <div className="pay-head">
-                  <span>Abrir caixa</span>
-                  <span className="muted small">{registerName}</span>
-                </div>
-                <label className="pay-amount">
-                  <span className="muted small">Saldo inicial (troco)</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={amount}
-                    // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
-                    autoFocus
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0,00"
-                  />
-                </label>
-                {error && <p className="error">{error}</p>}
-                <div className="pay-actions">
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={() => void doOpen()}
-                  >
-                    {busy ? "Abrindo…" : "Abrir"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={() => setDialog(null)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </>
-            )}
-
-            {(dialog === "sangria" || dialog === "suprimento") && (
-              <>
-                <div className="pay-head">
-                  <span>{dialog === "sangria" ? "Sangria" : "Suprimento"}</span>
-                </div>
-                <label className="pay-amount">
-                  <span className="muted small">Valor</span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={amount}
-                    // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
-                    autoFocus
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0,00"
-                  />
-                </label>
-                {error && <p className="error">{error}</p>}
-                <div className="pay-actions">
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={() =>
-                      void doMovement(
-                        dialog === "sangria" ? sangria : suprimento,
-                      )
-                    }
-                  >
-                    {busy ? "…" : "Confirmar"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={() => setDialog(null)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </>
-            )}
-
-            {dialog === "close" && !closeResult && (
-              <>
-                <div className="pay-head">
-                  <span>Fechar caixa</span>
-                </div>
-                <label className="pay-amount">
-                  <span className="muted small">
-                    Valor contado na gaveta (contagem cega)
-                  </span>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={amount}
-                    // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
-                    autoFocus
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0,00"
-                  />
-                </label>
-                {error && <p className="error">{error}</p>}
-                <div className="pay-actions">
-                  <button
-                    type="button"
-                    className="btn primary"
-                    disabled={busy}
-                    onClick={() => void doClose()}
-                  >
-                    {busy ? "Fechando…" : "Fechar"}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn ghost"
-                    onClick={() => setDialog(null)}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </>
-            )}
-
-            {dialog === "close" && closeResult && (
-              <>
-                <div className="pay-head">
-                  <span>Caixa fechado</span>
-                </div>
-                <ul className="pay-tenders">
-                  <li>
-                    <span>Esperado</span>
-                    <span>{brl(closeResult.expectedCash)}</span>
-                  </li>
-                  <li>
-                    <span>Contado</span>
-                    <span>{brl(parseAmount(amount))}</span>
-                  </li>
-                  <li>
-                    <span>Diferença</span>
-                    <span
-                      className={closeResult.difference === 0 ? "" : "error"}
-                    >
-                      {brl(closeResult.difference)}
-                    </span>
-                  </li>
-                </ul>
-                <button
-                  type="button"
-                  className="btn primary"
-                  onClick={() => void finishClose()}
-                >
-                  Concluir
-                </button>
-              </>
-            )}
+  // FECHADO — único foco da tela.
+  if (!open) {
+    return (
+      <>
+        <div className="caixa-focus">
+          <div className="caixa-focus-card">
+            <div className="caixa-focus-icon">
+              <LockIcon />
+            </div>
+            <h2>Caixa fechado</h2>
+            <p className="muted">Abra o caixa para começar a vender.</p>
+            <button
+              type="button"
+              className="btn primary lg"
+              onClick={() => start("open")}
+            >
+              Abrir caixa
+            </button>
           </div>
         </div>
-      )}
-    </div>
+        {overlay}
+      </>
+    );
+  }
+
+  // ABERTO — faixa fina.
+  return (
+    <>
+      <div className="caixa-strip">
+        <span className="caixa-state">
+          <span className="dot on" />
+          Caixa aberto
+          <span className="muted">
+            · {registerName} · {operatorName} · abertura{" "}
+            {brl(open.openingBalance)}
+          </span>
+        </span>
+        <div className="caixa-strip-actions">
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => start("suprimento")}
+          >
+            Suprimento
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => start("sangria")}
+          >
+            Sangria
+          </button>
+          <button
+            type="button"
+            className="btn ghost"
+            onClick={() => start("close")}
+          >
+            Fechar caixa
+          </button>
+        </div>
+      </div>
+      {overlay}
+    </>
   );
 }

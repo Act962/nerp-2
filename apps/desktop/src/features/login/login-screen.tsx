@@ -48,6 +48,22 @@ export function LoginScreen({
   return (
     <div className="screen center">
       <form className="card login-card" onSubmit={handleSubmit}>
+        <div className="login-mark">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6v12M8 6v12M12 6v12M16 6v12M20 6v12"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+          </svg>
+        </div>
         <h1 className="brand">NERP Caixa</h1>
         <p className="muted">Parear este terminal</p>
 

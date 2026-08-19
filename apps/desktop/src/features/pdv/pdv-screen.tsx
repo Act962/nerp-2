@@ -48,13 +48,57 @@ const describeFailed = (item: OutboxItem): string => {
   }
 };
 
+// O operador não deve ver jargão do servidor. Traduz o erro técnico mais comum.
+const humanizeError = (raw: string | undefined): string => {
+  if (!raw) return "Falha ao sincronizar";
+  if (/validation/i.test(raw))
+    return "Dados incompatíveis — precisa de revisão";
+  if (/fetch|network|timeout|ECONN/i.test(raw)) return "Sem conexão no momento";
+  return raw;
+};
+
+const BarcodeIcon = () => (
+  <svg
+    width="22"
+    height="22"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      d="M4 6v12M8 6v12M12 6v12M16 6v12M20 6v12"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+    />
+  </svg>
+);
+
+const RefreshIcon = () => (
+  <svg
+    width="17"
+    height="17"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      d="M20 11a8 8 0 1 0-.5 3M20 5v6h-6"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
 type CartLine = { product: LocalProduct; qty: number };
 
 /**
- * PDV — Fase 4 (endurecido): o indicador reflete o ALCANCE REAL do servidor
- * (ping em /api/health, não só navigator.onLine); pendências drenam sozinhas ao
- * reconectar e por timer; vendas que esgotam as tentativas viram dead-letter
- * visível, com retry manual.
+ * PDV — Corte 1 (redesenho): tela limpa e guiada. Um foco por vez — o campo de
+ * leitura em destaque, a venda e o total como protagonistas, e o sync/pendências
+ * fora do caminho (indicador discreto no cabeçalho + faixa recolhível). O caixa
+ * fechado vira um único foco ("Abrir caixa"); a lógica (sync/venda/caixa) é a mesma.
  */
 export function PdvScreen({
   session,
@@ -71,6 +115,7 @@ export function PdvScreen({
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState<OutboxItem[]>([]);
+  const [showFailed, setShowFailed] = useState(false);
   const [finalizing, setFinalizing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -79,6 +124,7 @@ export function PdvScreen({
   );
   const searchRef = useRef(search);
   searchRef.current = search;
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const searchLocal = useCallback(async (term: string) => {
     const catalog = await getCatalog();
@@ -134,13 +180,15 @@ export function PdvScreen({
     return () => clearTimeout(id);
   }, [search, searchLocal]);
 
-  const addToCart = (product: LocalProduct) =>
+  const addToCart = (product: LocalProduct) => {
     setCart((prev) => {
       const next = new Map(prev);
       const line = next.get(product.id);
       next.set(product.id, { product, qty: (line?.qty ?? 0) + 1 });
       return next;
     });
+    searchInputRef.current?.focus();
+  };
 
   const changeQty = (id: string, delta: number) =>
     setCart((prev) => {
@@ -155,6 +203,8 @@ export function PdvScreen({
 
   const lines = [...cart.values()];
   const cartTotal = lines.reduce((s, l) => s + l.product.salePrice * l.qty, 0);
+  const caixaOpen = caixaSession?.status === "open";
+  const canFinalize = caixaOpen && lines.length > 0 && !finalizing && !paying;
 
   // Chamado pelo passo de pagamento quando a venda está paga: grava na outbox
   // (offline-first, nunca perde) e tenta drenar. As formas vêm dos tenders
@@ -211,38 +261,62 @@ export function PdvScreen({
     await refreshQueue();
   };
 
+  // Atalho F2 = finalizar venda (a ação primária do balcão).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "F2" && canFinalize) {
+        e.preventDefault();
+        setPaying(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canFinalize]);
+
   return (
     <div className="screen">
-      <header className="topbar">
-        <div>
-          <strong>NERP Caixa</strong>
-          <span className="muted"> · {session.organizationName}</span>
+      <header className="app-header">
+        <div className="app-id">
+          <span className="app-brand">
+            <BarcodeIcon />
+            NERP Caixa
+          </span>
+          <span className="dot-sep">·</span>
+          <span className="muted small">{session.organizationName}</span>
         </div>
-        <div className="topbar-right">
-          <span className={`badge ${reachable ? "online" : "offline"}`}>
-            {reachable ? "Online" : "Offline"}
-          </span>
-          {pending > 0 && (
-            <span className="badge pending">{pending} por sincronizar</span>
-          )}
-          {failed.length > 0 && (
-            <span className="badge failed">{failed.length} com falha</span>
-          )}
-          <span className="muted small">
-            sync {syncing ? "…" : timeAgo(lastSyncedAt)}
-          </span>
+        <div className="app-actions">
           <button
             type="button"
-            className="btn ghost"
+            className="icon-btn sync-chip"
             onClick={() => void syncAll()}
+            title={
+              syncing
+                ? "Sincronizando…"
+                : reachable
+                  ? `Sincronizar · última ${timeAgo(lastSyncedAt)}`
+                  : "Sem conexão"
+            }
           >
-            Sincronizar
+            <span className={syncing ? "spin" : undefined}>
+              <RefreshIcon />
+            </span>
+            {pending > 0 && <span className="count">{pending}</span>}
+            {failed.length > 0 && (
+              <span className="count danger">{failed.length}</span>
+            )}
           </button>
-          <button type="button" className="btn ghost" onClick={onLogout}>
+          <button type="button" className="icon-btn" onClick={onLogout}>
             Sair
           </button>
         </div>
       </header>
+
+      {!reachable && (
+        <div className="offline-strip">
+          Modo offline — {pending} na fila. As vendas continuam e sincronizam
+          sozinhas ao reconectar.
+        </div>
+      )}
 
       <CaixaBar
         session={caixaSession}
@@ -251,128 +325,165 @@ export function PdvScreen({
         onChange={setCaixaSession}
       />
 
-      <div className="pdv-layout">
-        <main className="pdv-products">
-          <input
-            className="search"
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar produto por nome, SKU ou código de barras…"
-          />
+      {caixaOpen && (
+        <main className="pdv-main">
+          <div className="scan">
+            <BarcodeIcon />
+            <input
+              ref={searchInputRef}
+              type="search"
+              value={search}
+              // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+              autoFocus
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Escaneie o código de barras ou busque…"
+            />
+          </div>
 
           {failed.length > 0 && (
-            <div className="dead-letter">
-              <strong>Operações com falha de sincronização</strong>
-              <ul>
-                {failed.map((item) => (
-                  <li key={item.id}>
-                    <span className="muted small">
-                      {describeFailed(item)} · {item.lastError}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn ghost"
-                      onClick={() => void onRetry(item.id)}
-                    >
-                      Tentar de novo
-                    </button>
-                  </li>
-                ))}
-              </ul>
+            <div className="failed-strip">
+              <button
+                type="button"
+                className={`failed-head ${showFailed ? "open" : ""}`}
+                onClick={() => setShowFailed((v) => !v)}
+              >
+                {failed.length} operação(ões) precisam de atenção
+                <span className="chev">▾</span>
+              </button>
+              {showFailed && (
+                <ul className="failed-list">
+                  {failed.map((item) => (
+                    <li key={item.id}>
+                      <span className="muted small">
+                        {describeFailed(item)} · {humanizeError(item.lastError)}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn ghost"
+                        onClick={() => void onRetry(item.id)}
+                      >
+                        Tentar de novo
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
 
-          <ul className="product-list">
-            {products.map((product) => (
-              <li key={product.id}>
-                <button
-                  type="button"
-                  className="product-row as-button"
-                  onClick={() => addToCart(product)}
-                >
-                  <div>
-                    <div className="product-name">{product.name}</div>
-                    <div className="muted small">
-                      {product.sku || product.barcode || "sem código"} · estoque{" "}
-                      {product.currentStock} {product.unit}
-                    </div>
-                  </div>
-                  <div className="product-price">{brl(product.salePrice)}</div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </main>
-
-        <aside className="pdv-cart">
-          <h2>Venda</h2>
-          {lines.length === 0 && (
-            <p className="muted">Toque num produto para adicionar.</p>
+          {search.trim() && (
+            <>
+              <p className="section-label">Resultados</p>
+              <div className="results">
+                {products.length === 0 ? (
+                  <p className="muted small">
+                    Nada encontrado para “{search}”.
+                  </p>
+                ) : (
+                  products.map((product) => (
+                    <button
+                      key={product.id}
+                      type="button"
+                      className="result-row"
+                      onClick={() => addToCart(product)}
+                    >
+                      <div>
+                        <div className="result-name">{product.name}</div>
+                        <div className="muted small">
+                          {product.sku || product.barcode || "sem código"} ·
+                          estoque {product.currentStock} {product.unit}
+                        </div>
+                      </div>
+                      <div className="result-price tnum">
+                        {brl(product.salePrice)}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
           )}
-          <ul className="cart-list">
-            {lines.map((line) => (
-              <li key={line.product.id} className="cart-line">
-                <div className="cart-line-info">
-                  <div className="product-name">{line.product.name}</div>
-                  <div className="muted small">
-                    {brl(line.product.salePrice)}
-                  </div>
-                </div>
-                <div className="qty">
-                  <button
-                    type="button"
-                    onClick={() => changeQty(line.product.id, -1)}
-                  >
-                    −
-                  </button>
-                  <span>{line.qty}</span>
-                  <button
-                    type="button"
-                    onClick={() => changeQty(line.product.id, 1)}
-                  >
-                    +
-                  </button>
-                </div>
-                <div className="product-price">
-                  {brl(line.product.salePrice * line.qty)}
-                </div>
-              </li>
-            ))}
-          </ul>
 
-          {notice && <p className="muted small">{notice}</p>}
+          <section className="venda">
+            {lines.length === 0 ? (
+              <div className="venda-empty">
+                <BarcodeIcon />
+                <p>Escaneie ou busque um produto para começar a venda.</p>
+              </div>
+            ) : (
+              <ul className="sale-list">
+                {lines.map((line) => (
+                  <li key={line.product.id} className="sale-row">
+                    <div className="sale-info">
+                      <div className="sale-name">{line.product.name}</div>
+                      <div className="muted small tnum">
+                        {brl(line.product.salePrice)}
+                      </div>
+                    </div>
+                    <div className="qty">
+                      <button
+                        type="button"
+                        onClick={() => changeQty(line.product.id, -1)}
+                        aria-label="Diminuir"
+                      >
+                        −
+                      </button>
+                      <span>{line.qty}</span>
+                      <button
+                        type="button"
+                        onClick={() => changeQty(line.product.id, 1)}
+                        aria-label="Aumentar"
+                      >
+                        +
+                      </button>
+                    </div>
+                    <div className="sale-total tnum">
+                      {brl(line.product.salePrice * line.qty)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </main>
+      )}
 
-          <div className="cart-total">
-            <span>Total</span>
-            <strong>{brl(cartTotal)}</strong>
+      {caixaOpen && (
+        <div className="checkout">
+          <div className="checkout-bar">
+            <div className="checkout-total">
+              <span className="muted small">Total</span>
+              <strong className="tnum">{brl(cartTotal)}</strong>
+            </div>
+            <button
+              type="button"
+              className="btn primary lg checkout-action"
+              disabled={!canFinalize}
+              onClick={() => setPaying(true)}
+            >
+              {finalizing ? "Registrando…" : "Finalizar venda"}
+              <kbd>F2</kbd>
+            </button>
           </div>
-          <button
-            type="button"
-            className="btn primary"
-            disabled={
-              lines.length === 0 ||
-              finalizing ||
-              caixaSession?.status !== "open"
-            }
-            onClick={() => setPaying(true)}
-          >
-            {finalizing
-              ? "Registrando…"
-              : caixaSession?.status === "open"
-                ? "Finalizar venda"
-                : "Abra o caixa para vender"}
-          </button>
-        </aside>
+          {notice && <p className="checkout-notice">{notice}</p>}
+          <div className="hotkeys">
+            <span>
+              <kbd>F2</kbd> Finalizar
+            </span>
+            <span>
+              <kbd>Esc</kbd> Cancelar pagamento
+            </span>
+          </div>
+        </div>
+      )}
 
-        {paying && (
-          <PaymentStep
-            total={cartTotal}
-            onCancel={() => setPaying(false)}
-            onPaid={(payments) => void handlePaid(payments)}
-          />
-        )}
-      </div>
+      {paying && (
+        <PaymentStep
+          total={cartTotal}
+          onCancel={() => setPaying(false)}
+          onPaid={(payments) => void handlePaid(payments)}
+        />
+      )}
     </div>
   );
 }
