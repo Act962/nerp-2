@@ -1,22 +1,18 @@
 import {
+  type LocalCashSession,
   type LocalProduct,
   type OutboxItem,
   watchReachability,
 } from "@nerp/core";
+import type { PaymentMethod } from "@nerp/types";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { currentSession, recordSale } from "../../lib/caixa";
 import { getCatalog, syncNow } from "../../lib/catalog";
 import { API_URL } from "../../lib/config";
-import {
-  countPendingSales,
-  drainSales,
-  enqueueSale,
-  listFailedSales,
-  retrySale,
-  type SalePayload,
-} from "../../lib/sales";
+import { enqueueSale, type SalePayload } from "../../lib/sales";
+import { countPending, drainAll, listFailed, retryOp } from "../../lib/sync";
 import type { StoredSession } from "../../lib/token-store";
-import type { PaymentMethod } from "@nerp/types";
-import { currentSession } from "../../lib/caixa";
+import { CaixaBar } from "./caixa-bar";
 import { PaymentStep } from "./payment-step";
 
 const brl = (value: number) =>
@@ -56,6 +52,9 @@ export function PdvScreen({
   const [finalizing, setFinalizing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [caixaSession, setCaixaSession] = useState<LocalCashSession | null>(
+    null,
+  );
   const searchRef = useRef(search);
   searchRef.current = search;
 
@@ -65,8 +64,8 @@ export function PdvScreen({
   }, []);
 
   const refreshQueue = useCallback(async () => {
-    setPending(await countPendingSales());
-    setFailed(await listFailedSales());
+    setPending(await countPending());
+    setFailed(await listFailed());
   }, []);
 
   // Sincroniza catálogo (pull) e drena a outbox. Chamado ao reconectar e por timer.
@@ -77,7 +76,7 @@ export function PdvScreen({
       const catalog = await getCatalog();
       setLastSyncedAt(await catalog.getLastSyncedAt());
       await searchLocal(searchRef.current);
-      await drainSales();
+      await drainAll();
       await refreshQueue();
     } catch {
       // instável: mantém o que há local, tenta de novo no próximo ciclo.
@@ -90,6 +89,7 @@ export function PdvScreen({
     void (async () => {
       await searchLocal("");
       await refreshQueue();
+      setCaixaSession(await currentSession());
       const catalog = await getCatalog();
       setLastSyncedAt(await catalog.getLastSyncedAt());
     })();
@@ -166,11 +166,14 @@ export function PdvScreen({
         })),
       };
       await enqueueSale(payload);
+      // Registra a venda no livro do caixa (VENDA por forma) para o esperado.
+      await recordSale(payments);
+      setCaixaSession(await currentSession());
       setCart(new Map());
       setPaying(false);
       setNotice("Venda registrada.");
       // Tenta drenar sempre; se o server estiver fora, fica pendente e sincroniza depois.
-      await drainSales();
+      await drainAll();
       await refreshQueue();
     } catch (err) {
       setNotice(
@@ -182,7 +185,7 @@ export function PdvScreen({
   };
 
   const onRetry = async (id: string) => {
-    await retrySale(id);
+    await retryOp(id);
     await refreshQueue();
   };
 
@@ -218,6 +221,13 @@ export function PdvScreen({
           </button>
         </div>
       </header>
+
+      <CaixaBar
+        session={caixaSession}
+        operatorName={session.operatorName}
+        registerName={session.registerName}
+        onChange={setCaixaSession}
+      />
 
       <div className="pdv-layout">
         <main className="pdv-products">
@@ -319,10 +329,18 @@ export function PdvScreen({
           <button
             type="button"
             className="btn primary"
-            disabled={lines.length === 0 || finalizing}
+            disabled={
+              lines.length === 0 ||
+              finalizing ||
+              caixaSession?.status !== "open"
+            }
             onClick={() => setPaying(true)}
           >
-            {finalizing ? "Registrando…" : "Finalizar venda"}
+            {finalizing
+              ? "Registrando…"
+              : caixaSession?.status === "open"
+                ? "Finalizar venda"
+                : "Abra o caixa para vender"}
           </button>
         </aside>
 

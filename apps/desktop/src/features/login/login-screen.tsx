@@ -31,6 +31,8 @@ export function LoginScreen({
         token: result.token,
         organizationId: result.organizationId,
         organizationName: result.organizationName,
+        operatorName: result.operatorName,
+        registerName: deviceName,
       };
       await persistSession(session);
       onPaired(session);

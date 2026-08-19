@@ -17,6 +17,9 @@ export type StoredSession = {
   token: string;
   organizationId: string;
   organizationName: string;
+  /** Operador pareado (para a barra de caixa) e o nome do terminal (= register). */
+  operatorName: string;
+  registerName: string;
 };
 
 export interface SessionStorage {

@@ -31,17 +31,21 @@ export const pairDeviceWithCredentials = base
       token: z.string(),
       organizationId: z.string(),
       organizationName: z.string(),
+      // Nome do usuário pareado = operador do caixa (identidade plugável).
+      operatorName: z.string(),
     }),
   )
   .handler(async ({ input, errors }) => {
     // 1) Verifica a senha pelo Better Auth. Lança em credencial inválida.
     let userId: string;
+    let operatorName: string;
     try {
       const result = await auth.api.signInEmail({
         body: { email: input.email, password: input.password },
         headers: new Headers(),
       });
       userId = result.user.id;
+      operatorName = result.user.name;
     } catch {
       throw errors.UNAUTHORIZED({ message: "E-mail ou senha inválidos" });
     }
@@ -90,5 +94,6 @@ export const pairDeviceWithCredentials = base
       token,
       organizationId: org.id,
       organizationName: org.name,
+      operatorName,
     };
   });

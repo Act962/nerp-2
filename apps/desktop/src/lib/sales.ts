@@ -1,7 +1,5 @@
-import { createIndexedDbOutbox, drainOutbox, type Outbox } from "@nerp/core";
 import type { PaymentMethod } from "@nerp/types";
-import { client } from "./client";
-import { isNative } from "./platform";
+import { enqueueOp } from "./sync";
 
 /** Payload de uma venda offline (o que vai na outbox e, no replay, ao server). */
 export type SalePayload = {
@@ -20,58 +18,10 @@ export type SalePayload = {
   }>;
 };
 
-let outboxPromise: Promise<Outbox> | null = null;
-
-export function getOutbox(): Promise<Outbox> {
-  outboxPromise ??= (async () => {
-    if (isNative()) {
-      const { createSqliteOutbox } = await import("@nerp/core/sqlite-outbox");
-      return createSqliteOutbox();
-    }
-    return createIndexedDbOutbox();
-  })();
-  return outboxPromise;
-}
-
 /**
- * Finaliza uma venda: grava na outbox local (funciona offline, nunca perde) e
- * devolve o operationId. O drain leva ao server depois.
+ * Finaliza uma venda: grava na outbox local (offline-first, nunca perde) e
+ * devolve o operationId. O drain (em `sync.ts`) leva ao server depois, em ordem.
  */
-export async function enqueueSale(payload: SalePayload): Promise<string> {
-  const outbox = await getOutbox();
-  const operationId = crypto.randomUUID();
-  await outbox.enqueue({ id: operationId, type: "sale.create", payload });
-  return operationId;
-}
-
-/** Drena a outbox: replica cada venda pendente via o replay idempotente. */
-export function drainSales() {
-  return getOutbox().then((outbox) =>
-    drainOutbox(outbox, (item) =>
-      client.sales.createFromDevice({
-        operationId: item.id,
-        ...(item.payload as SalePayload),
-      }),
-    ),
-  );
-}
-
-export async function countPendingSales(): Promise<number> {
-  return (await getOutbox()).countPending();
-}
-
-/** Vendas que esgotaram as tentativas (dead-letter) — para a UI e o retry. */
-export async function listFailedSales() {
-  return (await getOutbox()).failed();
-}
-
-/** Re-arma uma venda em falha: volta para pending (attempts 0) e tenta drenar. */
-export async function retrySale(id: string) {
-  const outbox = await getOutbox();
-  await outbox.update(id, {
-    status: "pending",
-    attempts: 0,
-    lastError: undefined,
-  });
-  return drainSales();
+export function enqueueSale(payload: SalePayload): Promise<string> {
+  return enqueueOp("sale.create", payload);
 }

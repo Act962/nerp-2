@@ -463,3 +463,23 @@ body {
   opacity: 0.5;
   cursor: default;
 }
+
+/* ── Barra de caixa (Corte 2) ──────────────────────────────────────── */
+.caixa-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel-2);
+}
+.caixa-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.caixa-actions {
+  display: flex;
+  gap: 8px;
+}

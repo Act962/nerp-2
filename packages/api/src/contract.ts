@@ -39,6 +39,7 @@ export type DesktopApi = {
       token: string;
       organizationId: string;
       organizationName: string;
+      operatorName: string;
     }>;
   };
   products: {
