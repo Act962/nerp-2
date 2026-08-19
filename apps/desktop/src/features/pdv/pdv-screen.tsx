@@ -26,6 +26,28 @@ const timeAgo = (iso: string | null) => {
   return `há ${Math.floor(secs / 3600)} h`;
 };
 
+// A outbox é unificada (venda + caixa): um item em falha NÃO é sempre uma venda.
+// Cada tipo tem payload próprio — descrever por tipo evita ler `.total` de uma
+// operação de caixa (que não tem) e quebrar o render inteiro do PDV.
+const describeFailed = (item: OutboxItem): string => {
+  const p = item.payload as Record<string, unknown>;
+  const money = (v: unknown) => (typeof v === "number" ? brl(v) : "—");
+  switch (item.type) {
+    case "sale.create":
+      return `Venda ${money(p.total)}`;
+    case "cashSession.open":
+      return `Abertura de caixa ${money(p.openingBalance)}`;
+    case "cash.sangria":
+      return `Sangria ${money(p.amount)}`;
+    case "cash.suprimento":
+      return `Suprimento ${money(p.amount)}`;
+    case "cashSession.close":
+      return `Fechamento de caixa ${money(p.countedBalance)}`;
+    default:
+      return item.type;
+  }
+};
+
 type CartLine = { product: LocalProduct; qty: number };
 
 /**
@@ -241,13 +263,12 @@ export function PdvScreen({
 
           {failed.length > 0 && (
             <div className="dead-letter">
-              <strong>Vendas com falha de sincronização</strong>
+              <strong>Operações com falha de sincronização</strong>
               <ul>
                 {failed.map((item) => (
                   <li key={item.id}>
                     <span className="muted small">
-                      {brl((item.payload as SalePayload).total)} ·{" "}
-                      {item.lastError}
+                      {describeFailed(item)} · {item.lastError}
                     </span>
                     <button
                       type="button"
