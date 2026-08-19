@@ -1,9 +1,19 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { Eye, EyeOff, Lock, LockOpen, Plus, Trash2 } from "lucide-react";
-import { useMemo } from "react";
+import {
+  Check,
+  Eye,
+  EyeOff,
+  Lock,
+  LockOpen,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import { useSceneStore } from "../engine/scene-store";
 import { useMapLayerMutations } from "../hooks/use-map-layers";
 
@@ -19,8 +29,39 @@ export function LayersPanel({ floorPlanId }: LayersPanelProps) {
   const updateLayer = useSceneStore((state) => state.updateLayer);
   const addLayer = useSceneStore((state) => state.addLayer);
   const removeLayer = useSceneStore((state) => state.removeLayer);
+  const setSelection = useSceneStore((state) => state.setSelection);
+  const setTool = useSceneStore((state) => state.setTool);
 
   const { create, update, remove } = useMapLayerMutations();
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [draftName, setDraftName] = useState("");
+
+  // Clicar no setor seleciona todas as gôndolas dele (e o deixa ativo).
+  const handleSelectLayer = (id: string) => {
+    setActiveLayer(id);
+    setTool("SELECT");
+    setSelection(
+      Object.values(objects)
+        .filter((object) => object.layerId === id)
+        .map((object) => object.id),
+    );
+  };
+
+  const startRename = (id: string, name: string) => {
+    setEditingId(id);
+    setDraftName(name);
+  };
+
+  const commitRename = () => {
+    if (!editingId) return;
+    const name = draftName.trim();
+    if (name) {
+      updateLayer(editingId, { name });
+      update.mutate({ id: editingId, name });
+    }
+    setEditingId(null);
+  };
 
   const countByLayer = useMemo(() => {
     const counts = new Map<string, number>();
@@ -41,13 +82,14 @@ export function LayersPanel({ floorPlanId }: LayersPanelProps) {
   };
 
   const handleAdd = () => {
-    const layer = addLayer("Nova camada");
+    const layer = addLayer("Novo setor");
     create.mutate({
       id: layer.id,
       floorPlanId,
       name: layer.name,
       order: layer.order,
     });
+    startRename(layer.id, layer.name);
   };
 
   const handleRemove = (id: string) => {
@@ -58,13 +100,13 @@ export function LayersPanel({ floorPlanId }: LayersPanelProps) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b p-3">
-        <h3 className="text-sm font-semibold">Camadas</h3>
+        <h3 className="text-sm font-semibold">Setores</h3>
         <Button
           type="button"
           variant="ghost"
           size="icon"
           className="size-7"
-          title="Adicionar camada"
+          title="Adicionar setor"
           onClick={handleAdd}
         >
           <Plus className="size-4" />
@@ -82,14 +124,47 @@ export function LayersPanel({ floorPlanId }: LayersPanelProps) {
                 isActive ? "bg-accent" : "hover:bg-accent/50",
               )}
             >
-              <button
+              {editingId === layer.id ? (
+                <Input
+                  autoFocus
+                  value={draftName}
+                  className="h-7 flex-1"
+                  onChange={(event) => setDraftName(event.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") commitRename();
+                    if (event.key === "Escape") setEditingId(null);
+                  }}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="flex flex-1 items-center gap-2 text-left"
+                  title="Selecionar as gôndolas deste setor"
+                  onClick={() => handleSelectLayer(layer.id)}
+                >
+                  <span className="flex-1 truncate">{layer.name}</span>
+                  <span className="text-xs text-muted-foreground">{count}</span>
+                </button>
+              )}
+              <Button
                 type="button"
-                className="flex flex-1 items-center gap-2 text-left"
-                onClick={() => setActiveLayer(layer.id)}
+                variant="ghost"
+                size="icon"
+                className="size-7"
+                title="Renomear setor"
+                onClick={() =>
+                  editingId === layer.id
+                    ? commitRename()
+                    : startRename(layer.id, layer.name)
+                }
               >
-                <span className="flex-1 truncate">{layer.name}</span>
-                <span className="text-xs text-muted-foreground">{count}</span>
-              </button>
+                {editingId === layer.id ? (
+                  <Check className="size-4" />
+                ) : (
+                  <Pencil className="size-4" />
+                )}
+              </Button>
               <Button
                 type="button"
                 variant="ghost"
@@ -123,7 +198,7 @@ export function LayersPanel({ floorPlanId }: LayersPanelProps) {
                 variant="ghost"
                 size="icon"
                 className="size-7 text-destructive"
-                title="Excluir camada"
+                title="Excluir setor"
                 onClick={() => handleRemove(layer.id)}
                 disabled={layers.length <= 1}
               >

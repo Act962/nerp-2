@@ -17,6 +17,7 @@ const categoryOutput = z.object({
   icon: z.string().nullable(),
   parentId: z.string().nullable(),
   isActive: z.boolean(),
+  isOperational: z.boolean(),
 });
 
 export const listCategories = p
@@ -49,6 +50,7 @@ export const createCategory = p
       color: z.string().optional(),
       icon: z.string().optional(),
       parentId: z.string().optional(),
+      isOperational: z.boolean().optional(),
     }),
   )
   .output(z.object({ id: z.string() }))
@@ -69,6 +71,7 @@ export const createCategory = p
         color: input.color || null,
         icon: input.icon || null,
         parentId: input.parentId || null,
+        isOperational: input.isOperational ?? true,
       },
       select: { id: true },
     });
@@ -83,6 +86,7 @@ export const updateCategory = p
       color: z.string().nullable().optional(),
       icon: z.string().nullable().optional(),
       isActive: z.boolean().optional(),
+      isOperational: z.boolean().optional(),
     }),
   )
   .output(z.object({ ok: z.boolean() }))
@@ -100,6 +104,7 @@ export const updateCategory = p
         color: input.color,
         icon: input.icon,
         isActive: input.isActive,
+        isOperational: input.isOperational,
       },
     });
     return { ok: true };

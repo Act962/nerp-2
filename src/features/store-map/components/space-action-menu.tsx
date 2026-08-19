@@ -26,9 +26,12 @@ import {
   MoreVertical,
   Pencil,
   Printer,
+  Table2,
   Trash2,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useCreatePlanogram } from "@/features/planogram/hooks/use-planograms";
 import { boundsOf } from "../engine/geometry";
 import { useSceneStore } from "../engine/scene-store";
 import { useExportFloorPlanPdf } from "../hooks/use-floor-plan-export";
@@ -72,6 +75,8 @@ export function SpaceActionMenu({
   const [renameFont, setRenameFont] = useState(DEFAULT_LABEL_FONT_M);
 
   const exportPdf = useExportFloorPlanPdf();
+  const createPlanogram = useCreatePlanogram();
+  const router = useRouter();
 
   // Mantém o botão enquanto o menu está aberto, mesmo sem hover.
   const activeId = hoveredId ?? menuFor;
@@ -106,13 +111,26 @@ export function SpaceActionMenu({
     exportPdf.mutate({ floorPlanId });
   };
 
+  const handleCreatePlanogram = (id: string) => {
+    const target = objects[id];
+    if (!target) return;
+    createPlanogram.mutate(
+      { mapObjectId: id, name: labelOf(target.name, target.spaceCode) },
+      {
+        onSuccess: (result) => {
+          const query = result.fixtureId ? `?fixture=${result.fixtureId}` : "";
+          router.push(`/trade/planograma/${result.id}/editar${query}`);
+        },
+      },
+    );
+  };
+
   const button = (() => {
     if (!active) return null;
     const bounds = boundsOf(active.geometry);
     const scale = viewport.zoom * ppm;
     const left = bounds.maxX * scale + viewport.x;
     const top = bounds.minY * scale + viewport.y;
-    const negotiationLabel = labelOf(active.name, active.spaceCode);
 
     return (
       <div
@@ -153,6 +171,13 @@ export function SpaceActionMenu({
               <History className="size-4" />
               Últimas negociações
             </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() => handleCreatePlanogram(active.id)}
+              disabled={createPlanogram.isPending}
+            >
+              <Table2 className="size-4" />
+              Criar planograma
+            </DropdownMenuItem>
             {isAdmin && (
               <>
                 <DropdownMenuSeparator />
@@ -183,7 +208,9 @@ export function SpaceActionMenu({
     );
   })();
 
-  const negotiationObject = negotiationFor ? objects[negotiationFor] : undefined;
+  const negotiationObject = negotiationFor
+    ? objects[negotiationFor]
+    : undefined;
   const historyObject = historyFor ? objects[historyFor] : undefined;
 
   return (
@@ -193,7 +220,10 @@ export function SpaceActionMenu({
       {negotiationObject && (
         <SpaceNegotiationDialog
           mapObjectId={negotiationObject.id}
-          spaceLabel={labelOf(negotiationObject.name, negotiationObject.spaceCode)}
+          spaceLabel={labelOf(
+            negotiationObject.name,
+            negotiationObject.spaceCode,
+          )}
           open={!!negotiationFor}
           onOpenChange={(open) => !open && setNegotiationFor(null)}
         />
