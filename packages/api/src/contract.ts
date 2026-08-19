@@ -84,6 +84,7 @@ export type DesktopApi = {
     // Replay idempotente de venda offline. Espelha router/sales/create-from-device.ts.
     createFromDevice: (input: {
       operationId: string;
+      clientSessionId: string;
       customerId?: string;
       discount: number;
       total: number;
@@ -97,5 +98,34 @@ export type DesktopApi = {
         unitPrice: number;
       }>;
     }) => Promise<{ saleId: string; saleNumber: number; duplicate: boolean }>;
+  };
+  caixa: {
+    // Sessão de caixa offline (replay idempotente). Espelha router/caixa/*-from-device.
+    openFromDevice: (input: {
+      operationId: string;
+      openingBalance: number;
+      registerName: string;
+      openedAt?: string;
+      openingNotes?: string;
+    }) => Promise<{ sessionId: string; openedAt: string; duplicate: boolean }>;
+    movementFromDevice: (input: {
+      operationId: string;
+      clientSessionId: string;
+      kind: "SANGRIA" | "SUPRIMENTO";
+      amount: number;
+      description?: string;
+    }) => Promise<{ id: string; duplicate: boolean }>;
+    closeFromDevice: (input: {
+      operationId: string;
+      clientSessionId: string;
+      countedBalance: number;
+      closedAt?: string;
+      closingNotes?: string;
+    }) => Promise<{
+      expectedBalance: number;
+      countedBalance: number;
+      difference: number;
+      duplicate: boolean;
+    }>;
   };
 };

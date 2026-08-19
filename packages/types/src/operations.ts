@@ -11,10 +11,14 @@ import type { PaymentMethod } from "./enums";
 export type OperationType =
   | "sale.create"
   | "cashSession.open"
+  | "cash.sangria"
+  | "cash.suprimento"
   | "cashSession.close"
   | "stock.adjust";
 
 export type SaleCreatePayload = {
+  /** Âncora local da sessão de caixa OPEN que recebe a venda (caixa obrigatório). */
+  clientSessionId: string;
   customerId?: string;
   priceListId?: string | null;
   subtotal: number;
@@ -24,11 +28,22 @@ export type SaleCreatePayload = {
   items: Array<{ productId: string; productName: string; quantity: number }>;
 };
 
+// Vocabulário alinhado ao servidor (openingBalance/countedBalance/registerName).
+// O `operationId` do envelope é o `clientSessionId` da sessão (abertura).
 export type CashSessionOpenPayload = {
-  openingAmount: number;
-  registerName?: string;
+  openingBalance: number;
+  registerName: string;
 };
-export type CashSessionClosePayload = { countedAmount: number; notes?: string };
+export type CashMovementPayload = {
+  clientSessionId: string;
+  amount: number;
+  description?: string;
+};
+export type CashSessionClosePayload = {
+  clientSessionId: string;
+  countedBalance: number;
+  notes?: string;
+};
 export type StockAdjustPayload = {
   productId: string;
   delta: number;
@@ -38,6 +53,8 @@ export type StockAdjustPayload = {
 export type OperationPayload = {
   "sale.create": SaleCreatePayload;
   "cashSession.open": CashSessionOpenPayload;
+  "cash.sangria": CashMovementPayload;
+  "cash.suprimento": CashMovementPayload;
   "cashSession.close": CashSessionClosePayload;
   "stock.adjust": StockAdjustPayload;
 };

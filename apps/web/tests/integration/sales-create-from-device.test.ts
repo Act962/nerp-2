@@ -1,9 +1,12 @@
 import { call } from "@orpc/server";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { openCaixaFromDevice } from "@/app/router/caixa/open-from-device";
 import { createSaleFromDevice } from "@/app/router/sales/create-from-device";
 import type { Organization, Product, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { createOrg, createUser, deviceContext, resetDb } from "./helpers";
+
+const SESSION = "sess-A";
 
 async function makeProduct(org: Organization, user: User, stock: number) {
   return prisma.product.create({
@@ -22,6 +25,7 @@ async function makeProduct(org: Organization, user: User, stock: number) {
 function saleInput(product: Product, operationId: string) {
   return {
     operationId,
+    clientSessionId: SESSION,
     discount: 0,
     total: 30,
     status: "COMPLETED" as const,
@@ -52,6 +56,12 @@ describe("sales.createFromDevice (Fase 3 — replay offline)", () => {
       data: { organizationId: orgA.id, userId: userA.id, role: "owner" },
     });
     productA = await makeProduct(orgA, userA, 10);
+    // Caixa obrigatório: abre uma sessão para as vendas caírem nela.
+    await call(
+      openCaixaFromDevice,
+      { operationId: SESSION, openingBalance: 0, registerName: "Caixa Teste" },
+      { context: deviceContext(userA, orgA) },
+    );
   });
 
   afterAll(resetDb);

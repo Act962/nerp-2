@@ -5,6 +5,8 @@ import { isNative } from "./platform";
 
 /** Payload de uma venda offline (o que vai na outbox e, no replay, ao server). */
 export type SalePayload = {
+  /** Âncora local da sessão de caixa OPEN (caixa obrigatório para vender). */
+  clientSessionId: string;
   discount: number;
   total: number;
   status: "COMPLETED";

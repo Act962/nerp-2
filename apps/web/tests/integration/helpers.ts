@@ -75,11 +75,14 @@ export async function resetDb() {
   });
   const orgIds = { organizationId: { in: testOrgs.map((org) => org.id) } };
 
-  // Ordem importa: SaleItem/StockMovement referenciam Product (FK restrita), e
-  // a cascata da Organization tentaria apagar Product antes deles. Removemos os
-  // filhos que travam a cascata primeiro.
+  // Ordem importa: SaleItem/StockMovement/CashMovement referenciam Product/Sale
+  // (FK restrita), e a cascata da Organization tentaria apagá-los na ordem
+  // errada. Removemos os filhos que travam a cascata primeiro.
+  await prisma.cashMovement.deleteMany({ where: orgIds });
   await prisma.stockMovement.deleteMany({ where: orgIds });
   await prisma.sale.deleteMany({ where: orgIds }); // cascata: SaleItem + SalePayment
+  await prisma.cashSession.deleteMany({ where: orgIds });
+  await prisma.cashRegister.deleteMany({ where: orgIds });
   await prisma.product.deleteMany({ where: orgIds });
   await prisma.device.deleteMany({ where: orgIds });
   await prisma.organization.deleteMany({

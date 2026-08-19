@@ -16,6 +16,7 @@ import {
 } from "../../lib/sales";
 import type { StoredSession } from "../../lib/token-store";
 import type { PaymentMethod } from "@nerp/types";
+import { currentSession } from "../../lib/caixa";
 import { PaymentStep } from "./payment-step";
 
 const brl = (value: number) =>
@@ -143,7 +144,15 @@ export function PdvScreen({
     setFinalizing(true);
     setNotice(null);
     try {
+      // Caixa obrigatório: a venda tem de cair numa sessão aberta.
+      const session = await currentSession();
+      if (!session || session.status !== "open") {
+        setPaying(false);
+        setNotice("Abra o caixa antes de vender.");
+        return;
+      }
       const payload: SalePayload = {
+        clientSessionId: session.clientSessionId,
         discount: 0,
         total: cartTotal,
         status: "COMPLETED",

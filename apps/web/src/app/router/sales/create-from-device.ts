@@ -29,6 +29,8 @@ export const createSaleFromDevice = base
   .input(
     z.object({
       operationId: z.string().min(1),
+      // Caixa obrigatório: âncora local da sessão OPEN que recebe esta venda.
+      clientSessionId: z.string().min(1),
       customerId: z.string().optional(),
       discount: z.number().min(0).default(0),
       total: z.number(),
@@ -95,6 +97,18 @@ export const createSaleFromDevice = base
         });
     }
 
+    // Caixa obrigatório: a venda cai numa sessão OPEN (resolvida por clientSessionId).
+    const session = await prisma.cashSession.findUnique({
+      where: { clientSessionId: input.clientSessionId },
+      select: { id: true, organizationId: true, status: true },
+    });
+    if (!session || session.organizationId !== orgId)
+      throw errors.NOT_FOUND({ message: "Sessão de caixa não encontrada" });
+    if (session.status !== "OPEN")
+      throw errors.BAD_REQUEST({
+        message: "O caixa desta venda já foi fechado",
+      });
+
     const subtotal = input.items.reduce(
       (sum, item) => sum + item.unitPrice * item.quantity,
       0,
@@ -116,6 +130,7 @@ export const createSaleFromDevice = base
           data: {
             organizationId: orgId,
             clientOperationId: input.operationId,
+            cashSessionId: session.id,
             customerId: input.customerId,
             createdById: context.user.id,
             paymentMethod: dominantMethod,
@@ -171,6 +186,25 @@ export const createSaleFromDevice = base
           await tx.product.update({
             where: { id: item.productId },
             data: { currentStock: newStock },
+          });
+        }
+
+        // Um CashMovement VENDA por forma de pagamento (como create.ts online).
+        // Registra o pagamento contra a sessão; só DINHEIRO afeta a gaveta física
+        // (o esperado filtra por método em summarizeSession). CashMovement ≠
+        // SalePayment ≠ tender — são três conceitos distintos.
+        for (const payment of input.payments) {
+          await tx.cashMovement.create({
+            data: {
+              organizationId: orgId,
+              sessionId: session.id,
+              type: "VENDA",
+              amount: payment.amount,
+              paymentMethod: payment.method,
+              saleId: created.id,
+              description: `Venda #${created.saleNumber}`,
+              createdById: context.user.id,
+            },
           });
         }
 

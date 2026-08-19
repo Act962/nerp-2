@@ -17,3 +17,8 @@ export type {
   MockOutcome,
   MockPaymentProcessorConfig,
 } from "./adapters/mock-payment-processor";
+// Domínio de caixa (sessão). Store SQLite (nativo) fica no subpath
+// "@nerp/core/sqlite-cash-session".
+export * from "./cash-session";
+export * from "./cash-session-store";
+export { createIndexedDbCashSessionStore } from "./adapters/indexeddb-cash-session";

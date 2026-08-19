@@ -1093,6 +1093,7 @@ model CashSession {
   closedById      String? // User que fechou
   accountId       String? // FinancialAccount (CAIXA) opcional
   registerId      String // caixa físico (terminal) numerado desta sessão
+  clientSessionId String?           @unique // id local do device — idempotência do replay offline
   status          CashSessionStatus @default(OPEN)
   openingBalance  Decimal           @db.Decimal(10, 2)
   expectedBalance Decimal?          @db.Decimal(10, 2) // calculado no fechamento
@@ -1122,10 +1123,11 @@ model CashSession {
 }
 
 model CashMovement {
-  id             String           @id @default(cuid())
-  organizationId String
-  sessionId      String
-  type           CashMovementType
+  id                String           @id @default(cuid())
+  organizationId    String
+  sessionId         String
+  clientOperationId String?          @unique // idempotência do replay (sangria/suprimento/fechamento)
+  type              CashMovementType
   amount         Decimal          @db.Decimal(10, 2) // sempre positivo; a direção vem do tipo
   paymentMethod  PaymentMethod? // só VENDA em DINHEIRO afeta a gaveta física
   saleId         String?

@@ -22,19 +22,35 @@ export interface Outbox {
 const MAX_ATTEMPTS = 5;
 
 /**
- * Drena a outbox: replica cada pendente no server, em ordem.
+ * Drena a outbox: replica cada pendente no server, ESTRITAMENTE em ordem (FIFO).
+ *
+ * Ordenação causal (segurança transacional de PDV): as operações de uma sessão
+ * de caixa formam uma cadeia — `OPEN → (VENDA|SANGRIA|SUPRIMENTO)* → CLOSE`. Uma
+ * operação NUNCA pode ser replayada antes de uma anterior não-resolvida, senão o
+ * server fecharia o caixa com valor errado, ou uma venda cairia numa sessão
+ * inexistente. Por isso o drain PARA no primeiro item não-`done`:
  *
  * - Sucesso → marca `done` (guarda o resultado, ex.: o saleNumber do server).
- * - Falha transitória (rede) → incrementa `attempts`, mantém `pending` e PARA
- *   (provável queda de conexão; retoma no próximo drain). O replay é idempotente
- *   no server, então reenviar é seguro.
- * - Falha persistente (esgotou `MAX_ATTEMPTS`) → dead-letter (`failed`) e SEGUE
- *   para a próxima, para uma venda problemática não travar a fila inteira.
+ * - Falha transitória (rede) → incrementa `attempts`, mantém `pending` e PARA.
+ * - Dead-letter (esgotou `MAX_ATTEMPTS`) → marca `failed` e PARA — NÃO pula os
+ *   sucessores. Fica visível para a UI e volta à fila via retry (re-arma
+ *   `pending`), que então libera o resto. Nunca vira falha permanente.
+ *
+ * O replay é idempotente no server (mesmo `operationId` → resultado existente),
+ * então reenviar após timeout é seguro.
  */
 export async function drainOutbox(
   outbox: Outbox,
   replay: (item: OutboxItem) => Promise<unknown>,
 ): Promise<{ synced: number; failed: number; remaining: number }> {
+  // Se há um item morto na FRENTE da fila (dead-letter de um drain anterior),
+  // nada depois dele pode drenar. Como o drain para no 1º não-resolvido, um item
+  // `failed` é sempre o mais antigo pendente — logo bloqueia todos os seguintes.
+  const stuck = await outbox.failed();
+  if (stuck.length > 0) {
+    return { synced: 0, failed: 0, remaining: await outbox.countPending() };
+  }
+
   const items = await outbox.pending();
   let synced = 0;
   let failed = 0;
@@ -54,10 +70,10 @@ export async function drainOutbox(
           status: "failed",
         });
         failed += 1;
-        continue; // dead-letter: não trava as próximas
+      } else {
+        await outbox.update(item.id, { attempts, lastError: message });
       }
-      await outbox.update(item.id, { attempts, lastError: message });
-      break; // provável conectividade: para e retoma depois
+      break; // estritamente em ordem: para no 1º item não-resolvido
     }
   }
 
