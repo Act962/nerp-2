@@ -127,6 +127,8 @@ export function PdvScreen({
   const [caixaSession, setCaixaSession] = useState<LocalCashSession | null>(
     null,
   );
+  const [booted, setBooted] = useState(false);
+  const [catalogEmpty, setCatalogEmpty] = useState(false);
   const searchRef = useRef(search);
   searchRef.current = search;
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -148,6 +150,7 @@ export function PdvScreen({
       await syncNow();
       const catalog = await getCatalog();
       setLastSyncedAt(await catalog.getLastSyncedAt());
+      setCatalogEmpty((await catalog.count()) === 0);
       await searchLocal(searchRef.current);
       await drainAll();
       await refreshQueue();
@@ -165,6 +168,8 @@ export function PdvScreen({
       setCaixaSession(await currentSession());
       const catalog = await getCatalog();
       setLastSyncedAt(await catalog.getLastSyncedAt());
+      setCatalogEmpty((await catalog.count()) === 0);
+      setBooted(true);
     })();
 
     // Alcance real do servidor: dispara sync quando (re)fica acessível.
@@ -409,12 +414,23 @@ export function PdvScreen({
         </div>
       )}
 
-      <CaixaBar
-        session={caixaSession}
-        operatorName={session.operatorName}
-        registerName={session.registerName}
-        onChange={setCaixaSession}
-      />
+      {!booted && (
+        <div className="boot">
+          <div className="skeleton skeleton-scan" />
+          <div className="skeleton skeleton-row" />
+          <div className="skeleton skeleton-row" />
+          <div className="skeleton skeleton-row" />
+        </div>
+      )}
+
+      {booted && (
+        <CaixaBar
+          session={caixaSession}
+          operatorName={session.operatorName}
+          registerName={session.registerName}
+          onChange={setCaixaSession}
+        />
+      )}
 
       {caixaOpen && (
         <main className="pdv-main">
@@ -504,7 +520,20 @@ export function PdvScreen({
             {lines.length === 0 ? (
               <div className="venda-empty">
                 <BarcodeIcon />
-                <p>Escaneie ou busque um produto para começar a venda.</p>
+                {catalogEmpty ? (
+                  <>
+                    <p>Catálogo vazio neste terminal.</p>
+                    <button
+                      type="button"
+                      className="btn ghost"
+                      onClick={() => void syncAll()}
+                    >
+                      Sincronizar produtos
+                    </button>
+                  </>
+                ) : (
+                  <p>Escaneie ou busque um produto para começar a venda.</p>
+                )}
               </div>
             ) : (
               <ul className="sale-list">

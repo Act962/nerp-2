@@ -17,7 +17,11 @@ const msg = (e: unknown) =>
   e instanceof Error ? e.message : "Falha na operação";
 
 type Dialog = "open" | "sangria" | "suprimento" | "close";
-type CloseResult = CashSummary & { difference: number };
+type CloseResult = CashSummary & {
+  difference: number;
+  openingBalance: number;
+  counted: number;
+};
 
 const LockIcon = () => (
   <svg
@@ -258,22 +262,41 @@ export function CaixaBar({
             <div className="pay-head">
               <span>Caixa fechado</span>
             </div>
-            <ul className="pay-tenders">
+            <ul className="close-breakdown">
               <li>
-                <span>Esperado</span>
-                <span>{brl(closeResult.expectedCash)}</span>
+                <span>Abertura</span>
+                <span className="tnum">{brl(closeResult.openingBalance)}</span>
+              </li>
+              <li>
+                <span>Suprimentos</span>
+                <span className="tnum">+ {brl(closeResult.suprimentos)}</span>
+              </li>
+              <li>
+                <span>Vendas em dinheiro</span>
+                <span className="tnum">+ {brl(closeResult.salesCash)}</span>
+              </li>
+              <li>
+                <span>Sangrias</span>
+                <span className="tnum">− {brl(closeResult.sangrias)}</span>
+              </li>
+              <li className="close-expected">
+                <span>Esperado na gaveta</span>
+                <span className="tnum">{brl(closeResult.expectedCash)}</span>
               </li>
               <li>
                 <span>Contado</span>
-                <span>{brl(parseAmount(amount))}</span>
+                <span className="tnum">{brl(closeResult.counted)}</span>
               </li>
-              <li>
+              <li
+                className={`close-diff ${closeResult.difference === 0 ? "ok" : "off"}`}
+              >
                 <span>Diferença</span>
-                <span className={closeResult.difference === 0 ? "" : "error"}>
-                  {brl(closeResult.difference)}
-                </span>
+                <span className="tnum">{brl(closeResult.difference)}</span>
               </li>
             </ul>
+            <p className="muted small">
+              Total vendido na sessão: {brl(closeResult.salesTotal)}
+            </p>
             <button
               type="button"
               className="btn primary"

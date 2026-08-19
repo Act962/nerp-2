@@ -134,7 +134,9 @@ export async function recordSale(
 export async function closeCaixa(
   countedBalance: number,
   closingNotes?: string,
-): Promise<CashSummary & { difference: number }> {
+): Promise<
+  CashSummary & { difference: number; openingBalance: number; counted: number }
+> {
   const store = await getCashSessionStore();
   const cur = await store.getCurrent();
   if (!cur || cur.status !== "open") throw new Error("Nenhum caixa aberto.");
@@ -150,7 +152,12 @@ export async function closeCaixa(
     closingNotes,
   });
   await drainAll();
-  return { ...summary, difference };
+  return {
+    ...summary,
+    difference,
+    openingBalance: cur.openingBalance,
+    counted: countedBalance,
+  };
 }
 
 /** Descarta a sessão fechada do store (para abrir uma nova). */
