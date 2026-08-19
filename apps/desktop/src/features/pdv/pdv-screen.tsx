@@ -116,6 +116,7 @@ export function PdvScreen({
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState<OutboxItem[]>([]);
   const [showFailed, setShowFailed] = useState(false);
+  const [highlight, setHighlight] = useState(0);
   const [finalizing, setFinalizing] = useState(false);
   const [paying, setPaying] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -180,6 +181,16 @@ export function PdvScreen({
     return () => clearTimeout(id);
   }, [search, searchLocal]);
 
+  // Novos resultados → destaque volta ao topo.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset por mudança de resultados
+  useEffect(() => setHighlight(0), [products]);
+
+  // Fechou o pagamento → o foco volta pro campo de leitura (loop sem mouse).
+  useEffect(() => {
+    if (!paying && caixaSession?.status === "open")
+      searchInputRef.current?.focus();
+  }, [paying, caixaSession]);
+
   const addToCart = (product: LocalProduct) => {
     setCart((prev) => {
       const next = new Map(prev);
@@ -200,6 +211,58 @@ export function PdvScreen({
       else next.set(id, { ...line, qty });
       return next;
     });
+
+  // Quantidade digitável na linha (dígitos; vazio/zero mantém a atual).
+  const setQty = (id: string, raw: string) =>
+    setCart((prev) => {
+      const n = Number.parseInt(raw.replace(/\D/g, ""), 10);
+      const line = prev.get(id);
+      if (!line || Number.isNaN(n) || n < 1) return prev;
+      const next = new Map(prev);
+      next.set(id, { ...line, qty: n });
+      return next;
+    });
+
+  const removeLine = (id: string) =>
+    setCart((prev) => {
+      const next = new Map(prev);
+      next.delete(id);
+      return next;
+    });
+
+  // Leitor de código / Enter: casa o código EXATO (barcode ou SKU) e adiciona
+  // direto — o loop do balcão. Sem código exato, adiciona o resultado destacado.
+  // Consulta o catálogo na hora (o scanner digita rápido, o `products` debounced
+  // pode estar defasado).
+  const addByEnter = async () => {
+    const term = search.trim();
+    if (!term) return;
+    const catalog = await getCatalog();
+    const results = await catalog.searchProducts(term);
+    if (results.length === 0) return;
+    const low = term.toLowerCase();
+    const exact = results.find(
+      (p) => p.barcode.toLowerCase() === low || p.sku.toLowerCase() === low,
+    );
+    const chosen = exact ?? results[Math.min(highlight, results.length - 1)];
+    if (chosen) {
+      addToCart(chosen);
+      setSearch("");
+    }
+  };
+
+  const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void addByEnter();
+    } else if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlight((h) => Math.min(h + 1, products.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlight((h) => Math.max(h - 1, 0));
+    }
+  };
 
   const lines = [...cart.values()];
   const cartTotal = lines.reduce((s, l) => s + l.product.salePrice * l.qty, 0);
@@ -336,6 +399,7 @@ export function PdvScreen({
               // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
               autoFocus
               onChange={(e) => setSearch(e.target.value)}
+              onKeyDown={onSearchKeyDown}
               placeholder="Escaneie o código de barras ou busque…"
             />
           </div>
@@ -380,12 +444,16 @@ export function PdvScreen({
                     Nada encontrado para “{search}”.
                   </p>
                 ) : (
-                  products.map((product) => (
+                  products.map((product, i) => (
                     <button
                       key={product.id}
                       type="button"
-                      className="result-row"
-                      onClick={() => addToCart(product)}
+                      className={`result-row ${i === highlight ? "active" : ""}`}
+                      onMouseEnter={() => setHighlight(i)}
+                      onClick={() => {
+                        addToCart(product);
+                        setSearch("");
+                      }}
                     >
                       <div>
                         <div className="result-name">{product.name}</div>
@@ -428,7 +496,17 @@ export function PdvScreen({
                       >
                         −
                       </button>
-                      <span>{line.qty}</span>
+                      <input
+                        className="qty-input tnum"
+                        type="text"
+                        inputMode="numeric"
+                        value={line.qty}
+                        aria-label="Quantidade"
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) =>
+                          setQty(line.product.id, e.target.value)
+                        }
+                      />
                       <button
                         type="button"
                         onClick={() => changeQty(line.product.id, 1)}
@@ -440,6 +518,14 @@ export function PdvScreen({
                     <div className="sale-total tnum">
                       {brl(line.product.salePrice * line.qty)}
                     </div>
+                    <button
+                      type="button"
+                      className="sale-remove"
+                      onClick={() => removeLine(line.product.id)}
+                      aria-label="Remover item"
+                    >
+                      ×
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -467,6 +553,12 @@ export function PdvScreen({
           </div>
           {notice && <p className="checkout-notice">{notice}</p>}
           <div className="hotkeys">
+            <span>
+              <kbd>↑↓</kbd> Navegar
+            </span>
+            <span>
+              <kbd>Enter</kbd> Adicionar
+            </span>
             <span>
               <kbd>F2</kbd> Finalizar
             </span>

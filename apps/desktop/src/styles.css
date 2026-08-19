@@ -402,8 +402,10 @@ kbd {
   font: inherit;
   cursor: pointer;
 }
-.result-row:hover {
+.result-row:hover,
+.result-row.active {
   border-color: var(--primary);
+  background: var(--primary-soft);
 }
 .result-name {
   font-weight: 600;
@@ -434,7 +436,7 @@ kbd {
 }
 .sale-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   align-items: center;
   gap: 14px;
   padding: 12px 4px;
@@ -468,15 +470,40 @@ kbd {
 .qty button:hover {
   border-color: var(--muted-2);
 }
-.qty span {
-  min-width: 20px;
+.qty-input {
+  width: 44px;
+  height: 28px;
   text-align: center;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 15px;
+}
+.qty-input:focus {
+  outline: 2px solid var(--primary);
+  border-color: transparent;
 }
 .sale-total {
   font-size: 16px;
   font-weight: 600;
   min-width: 76px;
   text-align: right;
+}
+.sale-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+.sale-remove:hover {
+  color: var(--danger);
+  border-color: var(--danger);
 }
 
 /* ── Falhas (discreto, recolhível) ──────────────────────────────────── */
