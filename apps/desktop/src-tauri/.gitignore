@@ -1,0 +1,5 @@
+# Gerado pelo Cargo — binários e artefatos de compilação.
+/target/
+
+# Gerado pelo Tauri — schemas das capabilities (autocomplete).
+/gen/schemas

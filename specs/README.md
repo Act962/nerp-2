@@ -22,6 +22,7 @@ feature depois de trabalhar em outra coisa.
 - [`desktop-fase-2.md`](./desktop-fase-2.md) — Desktop Fase 2: banco local (SQLite/IndexedDB) + leitura offline · ✅ implementado
 - [`desktop-fase-3.md`](./desktop-fase-3.md) — Desktop Fase 3: escrita de venda offline (outbox + replay idempotente) · ✅ implementado
 - [`desktop-fase-4.md`](./desktop-fase-4.md) — Desktop Fase 4: endurecimento (conectividade real, dead-letter, token seguro) · ✅ implementado
+- [`desktop-fase-5.md`](./desktop-fase-5.md) — Desktop Fase 5: app nativo Tauri real (SQLite/store, instalador Windows) + guard de conformidade do contrato · ✅ implementado
 
 ## Specs por feature
 

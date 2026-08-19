@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Permissões base da janela principal do NERP Caixa.",
   "windows": ["main"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "store:default",
+    "sql:default",
+    "sql:allow-execute"
+  ]
 }

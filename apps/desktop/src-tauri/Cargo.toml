@@ -15,3 +15,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# Catálogo/outbox locais em SQLite (sync offline). Feature "sqlite" só — nada de
+# postgres/mysql no device.
+tauri-plugin-sql = { version = "2", features = ["sqlite"] }
+# Sessão do device (token + org) num arquivo do app-data.
+tauri-plugin-store = "2"

@@ -1,15 +1,31 @@
 /**
- * Contrato tipado das chamadas que o desktop usa.
+ * Contrato tipado das chamadas oRPC que o desktop usa.
  *
- * Por quê não inferir o `AppRouter` inteiro: importar o tipo do router do FONTE
- * faria o tsc do desktop compilar toda a árvore do servidor (Prisma, `@/…`,
- * server-only). Enquanto o router não é extraído para um package que emite
- * `.d.ts` (Fase 5), consumidores cross-project declaram só a fatia que usam.
- * Drift em relação à API real é coberto por testes de integração no `apps/web`.
+ * Por quê hand-authored e não `RouterClient<AppRouter>` inferido: o tipo do
+ * `router` (55 entidades) é grande demais para o TS SERIALIZAR num `.d.ts`
+ * (TS7056), então um consumidor cross-project não consegue inferi-lo a partir de
+ * um pacote — declara só a fatia que usa.
  *
- * As formas abaixo espelham `router/device/pair-with-credentials.ts` e
- * `router/products/list.ts`.
+ * O risco (drift em relação à API real) é neutralizado por um GUARD de
+ * conformidade em `apps/web` (`src/app/router/_desktop-conformance.ts`): ele
+ * afirma, em tempo de compilação, que o client real do router satisfaz este
+ * contrato. Se uma procedure mudar de forma sem atualizar aqui, o `check-types`
+ * do WEB quebra — o mesmo padrão de "paridade que quebra o CI" dos enums do
+ * `@nerp/types`. Fica no `@nerp/api` (não no desktop) justamente para o web
+ * poder importá-lo e checar a conformidade.
+ *
+ * As formas espelham `router/device/pair-with-credentials.ts`,
+ * `router/products/{list,pull}.ts` e `router/sales/create-from-device.ts`.
  */
+export type DesktopPaymentMethod =
+  | "DINHEIRO"
+  | "PIX"
+  | "DEBITO"
+  | "CREDITO"
+  | "BOLETO"
+  | "TRANSFERENCIA"
+  | "OUTROS";
+
 export type DesktopApi = {
   device: {
     pairWithCredentials: (input: {
@@ -73,7 +89,7 @@ export type DesktopApi = {
       total: number;
       status: "COMPLETED";
       soldAt?: string;
-      payments: Array<{ method: PaymentMethod; amount: number }>;
+      payments: Array<{ method: DesktopPaymentMethod; amount: number }>;
       items: Array<{
         productId: string;
         productName: string;
@@ -83,12 +99,3 @@ export type DesktopApi = {
     }) => Promise<{ saleId: string; saleNumber: number; duplicate: boolean }>;
   };
 };
-
-type PaymentMethod =
-  | "DINHEIRO"
-  | "PIX"
-  | "DEBITO"
-  | "CREDITO"
-  | "BOLETO"
-  | "TRANSFERENCIA"
-  | "OUTROS";

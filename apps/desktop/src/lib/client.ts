@@ -1,5 +1,4 @@
-import { createNerpClient } from "@nerp/api";
-import type { DesktopApi } from "./api-contract";
+import { createNerpClient, type DesktopApi } from "@nerp/api";
 import { API_URL } from "./config";
 import { getCurrentToken } from "./token-store";
 

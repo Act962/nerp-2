@@ -5,23 +5,20 @@ import {
   type SyncResult,
 } from "@nerp/core";
 import { client } from "./client";
+import { isNative } from "./platform";
 
 /**
  * Catálogo local do device.
  *
- * No Tauri usa SQLite (`@nerp/core/sqlite`), carregado por import dinâmico só
- * quando `window.__TAURI__` existe — assim o `@tauri-apps/plugin-sql` NÃO entra
- * no bundle web. No navegador/dev usa IndexedDB.
+ * No Tauri usa SQLite (`@nerp/core/sqlite`), carregado por import dinâmico só no
+ * app nativo (`isNative()`) — assim o `@tauri-apps/plugin-sql` NÃO entra no
+ * bundle web. No navegador/dev usa IndexedDB.
  */
 let catalogPromise: Promise<LocalCatalog> | null = null;
 
-function isTauri(): boolean {
-  return typeof window !== "undefined" && "__TAURI__" in window;
-}
-
 export function getCatalog(): Promise<LocalCatalog> {
   catalogPromise ??= (async () => {
-    if (isTauri()) {
+    if (isNative()) {
       const { createSqliteCatalog } = await import("@nerp/core/sqlite");
       return createSqliteCatalog();
     }
