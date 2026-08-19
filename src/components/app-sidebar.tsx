@@ -31,6 +31,7 @@ import {
   ChevronsUpDown,
   CreditCard,
   GalleryVerticalEnd,
+  FileText,
   Inbox,
   LayoutDashboard,
   Library,
@@ -131,7 +132,12 @@ const navigation: NavItem[] = [
     children: [
       { name: "Produtos", href: "/produtos", icon: Package },
       { name: "Categorias", href: "/produtos/categorias", icon: Tag },
-      { name: "Tabelas de preço", href: "/precos", icon: Tags, permission: "precos" },
+      {
+        name: "Tabelas de preço",
+        href: "/precos",
+        icon: Tags,
+        permission: "precos",
+      },
     ],
   },
   {
@@ -271,6 +277,12 @@ const navigation: NavItem[] = [
         href: "/trade/interesses",
         icon: Inbox,
         permission: "trade-interesses",
+      },
+      {
+        name: "Contratos",
+        href: "/trade/contratos",
+        icon: FileText,
+        permission: "contratos",
       },
       // Os dois apps de campo ficam juntos no fim da lista: é o par que o
       // gestor abre no celular, não algo que ele configura.

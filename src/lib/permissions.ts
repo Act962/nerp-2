@@ -137,6 +137,11 @@ export const PAGE_PERMISSIONS = [
     href: "/trade/tradegram",
   },
   {
+    key: "contratos",
+    label: "Contratos",
+    href: "/trade/contratos",
+  },
+  {
     key: "distribuidores",
     label: "Distribuidores",
     href: "/trade/distribuidores",
