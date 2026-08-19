@@ -1,6 +1,7 @@
 "use client";
 
 import { orpc } from "@/lib/orpc";
+import { uploadToR2 } from "@/lib/upload-to-r2";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -94,8 +95,13 @@ export function useDuplicateCatalog() {
   );
 
   const duplicate = async (id: string, name: string, config: CatalogConfig) => {
-    const created = await createMutation.mutateAsync({ name: `Cópia de ${name}` });
-    await updateMutation.mutateAsync({ id: created.id, config: config as Record<string, unknown> });
+    const created = await createMutation.mutateAsync({
+      name: `Cópia de ${name}`,
+    });
+    await updateMutation.mutateAsync({
+      id: created.id,
+      config: config as Record<string, unknown>,
+    });
   };
 
   return {
@@ -120,6 +126,37 @@ export function useUpdateProductPrice() {
   );
 }
 
+// Troca a foto do produto NO BANCO: sobe o arquivo pro R2 e grava a nova
+// thumbnail. Altera o produto de verdade (reflete no catálogo e em todo lugar
+// que usa o produto). Invalida a lista pro card atualizar na hora.
+export function useSetProductThumbnail() {
+  const queryClient = useQueryClient();
+  const mutation = useMutation(
+    orpc.products.setThumbnail.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.listProducts.key(),
+        });
+        toast.success("Foto do produto atualizada");
+      },
+      onError: () => {
+        toast.error("Erro ao atualizar a foto do produto");
+      },
+    }),
+  );
+
+  const upload = async (productId: string, file: File) => {
+    try {
+      const key = await uploadToR2(file);
+      await mutation.mutateAsync({ productId, key });
+    } catch {
+      toast.error("Falha ao enviar a imagem");
+    }
+  };
+
+  return { upload, isPending: mutation.isPending };
+}
+
 // excludedIds e sortBy são intencionalmente omitidos do input da query:
 // o filtro/ordenação fica no cliente via useMemo para evitar refetch a cada
 // mudança e garantir UI otimista sem reset.
@@ -128,7 +165,5 @@ export function usePromotionalProducts(input: {
   categoryFilter?: string[];
   name?: string;
 }) {
-  return useQuery(
-    orpc.promotionalCatalog.listProducts.queryOptions({ input }),
-  );
+  return useQuery(orpc.promotionalCatalog.listProducts.queryOptions({ input }));
 }

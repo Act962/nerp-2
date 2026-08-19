@@ -32,7 +32,10 @@ const gridClass: Record<string, string> = {
 function renderCard(product: CatalogProduct, config: CatalogConfig) {
   const cardStyle = { backgroundColor: config.cardColor };
   const cardColor = config.cardColor;
-  const textConfig = { textSize: config.textSize, fontWeight: config.fontWeight };
+  const textConfig = {
+    textSize: config.textSize,
+    fontWeight: config.fontWeight,
+  };
   switch (config.cardStyle) {
     case "compact":
       return (
@@ -51,7 +54,11 @@ function renderCard(product: CatalogProduct, config: CatalogConfig) {
           product={product}
           cardStyle={cardStyle}
           cardColor={cardColor}
-          config={{ showCategory: config.showCategory, showStock: config.showStock, ...textConfig }}
+          config={{
+            showCategory: config.showCategory,
+            showStock: config.showStock,
+            ...textConfig,
+          }}
         />
       );
     case "minimal":
@@ -87,6 +94,7 @@ const PAGE_W = 1080;
 const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
   square: 1080,
   story: 1920,
+  portrait: 1440,
 };
 
 export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
@@ -115,7 +123,9 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
       }
       let cancelled = false;
       fetch(`/api/s3/image?key=${encodeURIComponent(key)}`)
-        .then((res) => (res.ok ? res.blob() : Promise.reject(new Error(`${res.status}`))))
+        .then((res) =>
+          res.ok ? res.blob() : Promise.reject(new Error(`${res.status}`)),
+        )
         .then(
           (blob) =>
             new Promise<string>((resolve, reject) => {
@@ -196,7 +206,10 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                 {config.title || "Promoções"}
               </h2>
               {config.subtitle && (
-                <p className="text-sm mt-1" style={{ color: titleColor, opacity: 0.7 }}>
+                <p
+                  className="text-sm mt-1"
+                  style={{ color: titleColor, opacity: 0.7 }}
+                >
                   {config.subtitle}
                 </p>
               )}
@@ -231,7 +244,9 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                 </div>
               </div>
             ) : (
-              <div className={gridClass[config.layout] ?? "grid grid-cols-3 gap-4"}>
+              <div
+                className={gridClass[config.layout] ?? "grid grid-cols-3 gap-4"}
+              >
                 {products.map((p) => renderCard(p, config))}
               </div>
             )}
@@ -239,7 +254,11 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
             {config.footerText && (
               <div
                 className="mt-4 text-center shrink-0"
-                style={{ color: titleColor, opacity: 0.6, fontSize: TEXT_SIZE_CSS[config.footerTextSize ?? "xs"] }}
+                style={{
+                  color: titleColor,
+                  opacity: 0.6,
+                  fontSize: TEXT_SIZE_CSS[config.footerTextSize ?? "xs"],
+                }}
               >
                 {config.footerText}
               </div>
@@ -258,7 +277,12 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               >
                 {logosLeft.map((s) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={s.id} src={constructUrl(s.logo)} alt={s.name} style={{ height: 56, maxWidth: 140, objectFit: "contain" }} />
+                  <img
+                    key={s.id}
+                    src={constructUrl(s.logo)}
+                    alt={s.name}
+                    style={{ height: 56, maxWidth: 140, objectFit: "contain" }}
+                  />
                 ))}
               </div>
             )}
@@ -276,7 +300,12 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               >
                 {logosRight.map((s) => (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img key={s.id} src={constructUrl(s.logo)} alt={s.name} style={{ height: 56, maxWidth: 140, objectFit: "contain" }} />
+                  <img
+                    key={s.id}
+                    src={constructUrl(s.logo)}
+                    alt={s.name}
+                    style={{ height: 56, maxWidth: 140, objectFit: "contain" }}
+                  />
                 ))}
               </div>
             )}
