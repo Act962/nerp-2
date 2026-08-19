@@ -1,4 +1,5 @@
 import { base } from "@/app/middlewares/base";
+import { readFixtureProps } from "@/features/store-map/engine/fixture-catalog";
 import type {
   BackgroundTransform,
   FloorPlanScene,
@@ -62,37 +63,55 @@ export const getPublicStoreMap = base
       if (!floorPlan)
         throw errors.NOT_FOUND({ message: "Mapa não encontrado" });
 
-      const objects: SceneObject[] = floorPlan.objects.map((object) => ({
-        id: object.id,
-        type: object.type,
-        layerId: object.layerId,
-        geometry: object.geometry as unknown as Geometry,
-        z: object.z,
-        heightM: object.heightM,
-        style: (object.style as MapObjectStyle | null) ?? {},
-        name: object.name,
-        spaceState: object.spaceState,
-        spaceCode: object.spaceCode,
-        spaceSeq: object.spaceSeq,
-        // Classificação visual pública (colore o mapa), sem valor comercial:
-        mediaTypeId: object.mediaTypeId,
-        sectorId: object.sectorId,
-        tier: object.tier,
-        flowLevel: object.flowLevel,
-        visibility: object.visibility,
-        isExclusive: object.isExclusive,
-        // ── Nulados de propósito (comercial/pessoal): não vazam no público ──
-        status: null,
-        category: null,
-        responsibleName: null,
-        lastVisitAt: null,
-        supplierId: null,
-        brandId: null,
-        revenuePotential: null,
-        avgSalesAmount: null,
-        activeNegotiation: null,
-        properties: {},
-      }));
+      const objects: SceneObject[] = floorPlan.objects.map((object) => {
+        // Só os campos FÍSICOS do mobiliário (dimensões + prateleiras
+        // negociadas) — colore a célula e desenha o badge "X/Y" no público.
+        // Nada comercial (a negociação em `properties.negotiation` fica fora).
+        const fixture = readFixtureProps(
+          object.properties as Record<string, unknown> | null,
+        );
+        return {
+          id: object.id,
+          type: object.type,
+          layerId: object.layerId,
+          geometry: object.geometry as unknown as Geometry,
+          z: object.z,
+          heightM: object.heightM,
+          style: (object.style as MapObjectStyle | null) ?? {},
+          name: object.name,
+          spaceState: object.spaceState,
+          spaceCode: object.spaceCode,
+          spaceSeq: object.spaceSeq,
+          // Classificação visual pública (colore o mapa), sem valor comercial:
+          mediaTypeId: object.mediaTypeId,
+          sectorId: object.sectorId,
+          tier: object.tier,
+          flowLevel: object.flowLevel,
+          visibility: object.visibility,
+          isExclusive: object.isExclusive,
+          // ── Nulados de propósito (comercial/pessoal): não vazam no público ──
+          status: null,
+          category: null,
+          responsibleName: null,
+          lastVisitAt: null,
+          supplierId: null,
+          brandId: null,
+          revenuePotential: null,
+          avgSalesAmount: null,
+          activeNegotiation: null,
+          properties: fixture
+            ? {
+                fixture: {
+                  presetId: fixture.presetId,
+                  kind: fixture.kind,
+                  shelfCount: fixture.shelfCount,
+                  negotiatedShelves: fixture.negotiatedShelves,
+                  negotiatedShelfIndexes: fixture.negotiatedShelfIndexes,
+                },
+              }
+            : {},
+        };
+      });
 
       const mediaTypeIds = [
         ...new Set(

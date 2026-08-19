@@ -76,12 +76,12 @@ export function TradeGramStore({ orgSlug, storeId }: Props) {
         stats={[
           {
             value: data.stats.negociados,
-            label: "negociados",
+            label: "prateleiras negociadas",
             tone: "positive",
           },
           {
             value: data.stats.naoNegociados,
-            label: "não negociados",
+            label: "disponíveis",
             tone: "negative",
           },
           { value: data.stats.industrias, label: "Indústrias" },

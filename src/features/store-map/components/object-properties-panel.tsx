@@ -3,6 +3,12 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,9 +30,25 @@ import {
   useMediaTypes,
   useStoreSectors,
 } from "@/features/trade-catalog/hooks/use-trade-catalog";
-import { Boxes, Layers, Move, RefreshCw, RotateCw, Trash2 } from "lucide-react";
+import {
+  Boxes,
+  CheckCircle2,
+  CircleDashed,
+  Handshake,
+  Layers,
+  Maximize2,
+  Move,
+  RefreshCw,
+  RotateCw,
+  Trash2,
+} from "lucide-react";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { areaOf } from "../engine/geometry";
-import { readFixtureProps, withFixtureProps } from "../engine/fixture-catalog";
+import {
+  readFixtureProps,
+  toggleShelfIndex,
+  withFixtureProps,
+} from "../engine/fixture-catalog";
 import {
   type NegotiationField,
   readNegotiation,
@@ -72,6 +94,198 @@ const TYPE_LABELS: Record<MapObjectType, string> = {
   TEXT: "Texto",
 };
 
+// Porta-palete no padrão do editor de planograma (mesmas medidas/cores em mm):
+// montante azul perfurado, longarina laranja e sapata amarela.
+const UPRIGHT_MM = 90;
+const BEAM_MM = 120;
+const FOOT_H_MM = 110;
+const FOOT_W_MM = 150;
+const SLOT_STEP_MM = 75;
+const SLOT_W_MM = 22;
+const SLOT_H_MM = 26;
+const CONN_W_MM = 78;
+const CONN_OVERHANG_MM = 45;
+const UPRIGHT_HEX = "#20409a";
+const UPRIGHT_SHADE = "#16306f";
+const BEAM_HEX = "#e8621d";
+const BEAM_SHADE = "#b44a15";
+const FOOT_HEX = "#f2b705";
+const FOOT_SHADE = "#c99400";
+
+/**
+ * Vista frontal da gôndola desenhada IGUAL ao editor de planograma (montantes
+ * azuis perfurados + longarinas laranja + sapatas amarelas), com as `shelfCount`
+ * prateleiras e os vãos vazios, prontos pra inserir produtos. Trabalha em mm
+ * (como o engine) e escala pro tamanho pedido preservando a proporção real.
+ */
+function GondolaPreview({
+  frontWidthM,
+  heightM,
+  shelfCount,
+  negotiatedIndexes,
+  maxW,
+  maxH,
+  onToggleShelf,
+}: {
+  frontWidthM: number;
+  heightM: number;
+  shelfCount: number;
+  negotiatedIndexes: number[];
+  maxW: number;
+  maxH: number;
+  onToggleShelf?: (shelfIndex: number) => void;
+}) {
+  const bayMm = Math.max(200, frontWidthM * 1000);
+  const hMm = Math.max(400, heightM * 1000);
+  const totalW = bayMm + UPRIGHT_MM * 2;
+  const totalH = hMm + FOOT_H_MM;
+  const aspect = totalW / totalH;
+  let dW = maxW;
+  let dH = maxW / aspect;
+  if (dH > maxH) {
+    dH = maxH;
+    dW = maxH * aspect;
+  }
+
+  const shelves = Math.max(1, Math.round(shelfCount));
+  const negSet = new Set(negotiatedIndexes);
+  const interactive = Boolean(onToggleShelf);
+  const rightX = totalW - UPRIGHT_MM;
+  const bayX = UPRIGHT_MM;
+  const slotX = (UPRIGHT_MM - SLOT_W_MM) / 2;
+  const slotCount = Math.max(0, Math.floor(hMm / SLOT_STEP_MM) - 1);
+  const beamTops = Array.from(
+    { length: shelves },
+    (_, i) => (hMm * (i + 1)) / (shelves + 1),
+  );
+  const dotR = Math.min(60, BEAM_MM * 0.42);
+
+  const upright = (x: number) => (
+    <g key={`up-${x}`}>
+      <rect x={x} y={0} width={UPRIGHT_MM} height={hMm} fill={UPRIGHT_HEX} />
+      <rect
+        x={x + UPRIGHT_MM - 18}
+        y={0}
+        width={18}
+        height={hMm}
+        fill={UPRIGHT_SHADE}
+      />
+      {Array.from({ length: slotCount }, (_, i) => (
+        <rect
+          key={i}
+          x={x + slotX}
+          y={(i + 1) * SLOT_STEP_MM}
+          width={SLOT_W_MM}
+          height={SLOT_H_MM}
+          rx={4}
+          fill={UPRIGHT_SHADE}
+        />
+      ))}
+      {/* Sapata amarela */}
+      <rect
+        x={x + (UPRIGHT_MM - FOOT_W_MM) / 2}
+        y={hMm}
+        width={FOOT_W_MM}
+        height={FOOT_H_MM}
+        rx={6}
+        fill={FOOT_HEX}
+      />
+      <rect
+        x={x + (UPRIGHT_MM - FOOT_W_MM) / 2}
+        y={hMm}
+        width={FOOT_W_MM}
+        height={22}
+        fill={FOOT_SHADE}
+      />
+    </g>
+  );
+
+  const beam = (topY: number, i: number) => {
+    const y = topY - BEAM_MM;
+    // i = índice da prateleira (0 = topo). Negociação é POR prateleira.
+    const isNeg = negSet.has(i);
+    return (
+      // biome-ignore lint/a11y/noStaticElementInteractions: <g> SVG com role/tabIndex/teclado
+      <g
+        key={`beam-${i}`}
+        role={interactive ? "button" : undefined}
+        tabIndex={interactive ? 0 : undefined}
+        aria-label={
+          interactive
+            ? `Prateleira ${i + 1}${isNeg ? " (negociada)" : ""}`
+            : undefined
+        }
+        onClick={interactive ? () => onToggleShelf?.(i) : undefined}
+        onKeyDown={
+          interactive
+            ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  onToggleShelf?.(i);
+                }
+              }
+            : undefined
+        }
+        style={interactive ? { cursor: "pointer" } : undefined}
+      >
+        {/* Área de clique cobrindo toda a longarina */}
+        {interactive && (
+          <rect
+            x={bayX}
+            y={y - CONN_OVERHANG_MM}
+            width={bayMm}
+            height={BEAM_MM + CONN_OVERHANG_MM * 2}
+            fill="transparent"
+          />
+        )}
+        {/* Cantoneiras encavalando os montantes */}
+        <rect
+          x={bayX - CONN_W_MM}
+          y={y - CONN_OVERHANG_MM}
+          width={CONN_W_MM}
+          height={BEAM_MM + CONN_OVERHANG_MM * 2}
+          rx={5}
+          fill={BEAM_HEX}
+        />
+        <rect
+          x={bayX + bayMm}
+          y={y - CONN_OVERHANG_MM}
+          width={CONN_W_MM}
+          height={BEAM_MM + CONN_OVERHANG_MM * 2}
+          rx={5}
+          fill={BEAM_HEX}
+        />
+        {/* Longarina */}
+        <rect x={bayX} y={y} width={bayMm} height={BEAM_MM} fill={BEAM_HEX} />
+        <rect x={bayX} y={y} width={bayMm} height={26} fill={BEAM_SHADE} />
+        {/* Marcador de prateleira negociada (verde) ou não (cinza) */}
+        <circle
+          cx={bayX + dotR + 40}
+          cy={y + BEAM_MM / 2}
+          r={dotR}
+          fill={isNeg ? "#16a34a" : "#e2e8f0"}
+          stroke="#ffffff"
+          strokeWidth={10}
+        />
+      </g>
+    );
+  };
+
+  return (
+    <svg
+      width={Math.round(dW)}
+      height={Math.round(dH)}
+      viewBox={`0 0 ${totalW} ${totalH}`}
+      role="img"
+      aria-label="Vista frontal da gôndola"
+    >
+      {upright(0)}
+      {upright(rightX)}
+      {beamTops.map((t, i) => beam(t, i))}
+    </svg>
+  );
+}
+
 export function ObjectPropertiesPanel() {
   const selectedIds = useSceneStore((state) => state.selectedIds);
   const objects = useSceneStore((state) => state.objects);
@@ -86,6 +300,7 @@ export function ObjectPropertiesPanel() {
   const storeId = useSceneStore((state) => state.floorPlan?.storeId);
   const { create: createLayer } = useMapLayerMutations();
   const [sectorName, setSectorName] = useState("");
+  const [gondolaFull, setGondolaFull] = useState(false);
 
   // Cria um setor (camada) com o nome dado e move as gôndolas selecionadas pra
   // ele — cada uma mantém a própria config; só ficam agrupadas.
@@ -108,7 +323,7 @@ export function ObjectPropertiesPanel() {
   };
 
   const object = selectedIds.length === 1 ? objects[selectedIds[0]] : undefined;
-  const { suppliers } = useSupplier();
+  const { suppliers } = useSupplier({ pageSize: 100 });
   const { brands } = useBrands(object?.supplierId ?? undefined);
   const { storeSectors } = useStoreSectors();
   const { mediaTypes } = useMediaTypes();
@@ -273,6 +488,47 @@ export function ObjectPropertiesPanel() {
   const areaM2 = areaOf(object.geometry);
   const fixture = readFixtureProps(object.properties);
 
+  // Vista frontal: largura da frente = lado do footprint no mapa; altura =
+  // "Altura" do móvel (ou a elevação do preset); base do preset.
+  const fixtureFrontM =
+    object.geometry.kind === "RECT" ? object.geometry.width : 0;
+  const fixtureElevationM =
+    object.heightM && object.heightM > 0
+      ? object.heightM
+      : fixture
+        ? fixture.heightMm / 1000
+        : 0;
+
+  // Indústria (logo + nome) e status de negociação da gôndola.
+  const fixtureSupplier = object.supplierId
+    ? suppliers.find((s) => s.id === object.supplierId)
+    : undefined;
+  const fixtureLogoUrl = fixtureSupplier?.logo
+    ? constructUrl(fixtureSupplier.logo)
+    : null;
+  const negTotal = fixture ? Math.max(0, Math.round(fixture.shelfCount)) : 0;
+  const negDone = fixture
+    ? Math.min(Math.max(0, Math.round(fixture.negotiatedShelves)), negTotal)
+    : 0;
+  const negLevel =
+    negTotal > 0 && negDone >= negTotal
+      ? "full"
+      : negDone > 0
+        ? "partial"
+        : "none";
+
+  // Alterna a prateleira (índice, 0 = topo) no conjunto de negociadas. O
+  // contador do badge no mapa segue `negotiatedShelves` = quantidade de índices.
+  const toggleShelf = (shelfIndex: number) =>
+    updateObject(object.id, {
+      properties: withFixtureProps(object, {
+        negotiatedShelfIndexes: toggleShelfIndex(
+          fixture?.negotiatedShelfIndexes ?? [],
+          shelfIndex,
+        ),
+      }),
+    });
+
   // Peças do mesmo móvel (mesmo fixtureGroupId): permite selecionar o móvel
   // inteiro e movê-lo junto com o "mover estrutura".
   const groupId = fixture?.fixtureGroupId;
@@ -347,6 +603,109 @@ export function ObjectPropertiesPanel() {
         </Button>
       </div>
 
+      {fixture && (
+        <div className="relative flex flex-col gap-2 rounded-md border bg-muted/30 p-3">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="absolute right-1.5 top-1.5 size-7"
+            title="Ver em tela cheia"
+            onClick={() => setGondolaFull(true)}
+          >
+            <Maximize2 className="size-4" />
+          </Button>
+
+          {/* Indústria (logo + nome) + status de negociação */}
+          <div className="flex items-center justify-between gap-2 pr-7">
+            <div className="flex min-w-0 items-center gap-2">
+              {fixtureLogoUrl ? (
+                // biome-ignore lint/performance/noImgElement: logo simples do painel, sem otimização
+                <img
+                  src={fixtureLogoUrl}
+                  alt=""
+                  className="size-6 shrink-0 rounded object-contain"
+                />
+              ) : (
+                <div className="flex size-6 shrink-0 items-center justify-center rounded bg-muted text-[10px] text-muted-foreground">
+                  —
+                </div>
+              )}
+              <span className="truncate text-xs font-medium">
+                {fixtureSupplier?.name ?? "Sem indústria"}
+              </span>
+            </div>
+            {negLevel === "full" ? (
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                <CheckCircle2 className="size-3.5" />
+                Negociado
+              </span>
+            ) : negLevel === "partial" ? (
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                <Handshake className="size-3.5" />
+                {negDone}/{negTotal}
+              </span>
+            ) : (
+              <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <CircleDashed className="size-3.5" />
+                Disponível
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col items-center gap-1.5">
+            <GondolaPreview
+              frontWidthM={fixtureFrontM}
+              heightM={fixtureElevationM}
+              shelfCount={fixture.shelfCount}
+              negotiatedIndexes={fixture.negotiatedShelfIndexes}
+              onToggleShelf={toggleShelf}
+              maxW={232}
+              maxH={188}
+            />
+            <span className="text-center text-xs text-muted-foreground">
+              Frente {fixtureFrontM.toFixed(2)} m · Altura{" "}
+              {fixtureElevationM.toFixed(2)} m · {fixture.shelfCount}{" "}
+              prateleiras
+              <br />
+              Clique numa prateleira para negociá-la.
+            </span>
+          </div>
+
+          <Dialog open={gondolaFull} onOpenChange={setGondolaFull}>
+            <DialogContent className="max-w-4xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {fixtureLogoUrl && (
+                    // biome-ignore lint/performance/noImgElement: logo simples do diálogo
+                    <img
+                      src={fixtureLogoUrl}
+                      alt=""
+                      className="size-6 rounded object-contain"
+                    />
+                  )}
+                  {object.name ?? "Gôndola"}
+                  {fixtureSupplier?.name ? ` · ${fixtureSupplier.name}` : ""} —{" "}
+                  {fixture.shelfCount} prateleiras ({negDone}/{negTotal}{" "}
+                  negociadas)
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex max-h-[75vh] justify-center overflow-auto p-2">
+                <GondolaPreview
+                  frontWidthM={fixtureFrontM}
+                  heightM={fixtureElevationM}
+                  shelfCount={fixture.shelfCount}
+                  negotiatedIndexes={fixture.negotiatedShelfIndexes}
+                  onToggleShelf={toggleShelf}
+                  maxW={760}
+                  maxH={640}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      )}
+
       <div className="space-y-4" key={object.id}>
         <Field>
           <FieldLabel htmlFor="object-name">Nome</FieldLabel>
@@ -410,7 +769,7 @@ export function ObjectPropertiesPanel() {
               <RotateCw className="size-4" />
               Girar móvel 90°
             </Button>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel htmlFor="fixture-shelves">Prateleiras</FieldLabel>
                 <Input
@@ -423,34 +782,9 @@ export function ObjectPropertiesPanel() {
                   onBlur={(event) => {
                     const total = Math.round(Number(event.target.value));
                     if (!Number.isFinite(total) || total < 1) return;
-                    const clamped = Math.min(20, total);
                     updateObject(object.id, {
                       properties: withFixtureProps(object, {
-                        shelfCount: clamped,
-                        negotiatedShelves: Math.min(
-                          fixture.negotiatedShelves,
-                          clamped,
-                        ),
-                      }),
-                    });
-                  }}
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="fixture-negotiated">Negociadas</FieldLabel>
-                <Input
-                  id="fixture-negotiated"
-                  type="number"
-                  min={0}
-                  max={fixture.shelfCount}
-                  step={1}
-                  defaultValue={fixture.negotiatedShelves}
-                  onBlur={(event) => {
-                    const next = Math.round(Number(event.target.value));
-                    if (!Number.isFinite(next) || next < 0) return;
-                    updateObject(object.id, {
-                      properties: withFixtureProps(object, {
-                        negotiatedShelves: Math.min(next, fixture.shelfCount),
+                        shelfCount: Math.min(20, total),
                       }),
                     });
                   }}
@@ -475,7 +809,9 @@ export function ObjectPropertiesPanel() {
             </div>
             <p className="text-xs text-muted-foreground">
               {fixture.negotiatedShelves}/{fixture.shelfCount} prateleiras
-              negociadas — a cor e o badge da gôndola no mapa seguem isso.
+              negociadas — clique numa prateleira no desenho para negociá-la. A
+              cor e o badge da gôndola no mapa (e no TradeGram público) seguem
+              isso.
             </p>
           </div>
         )}
