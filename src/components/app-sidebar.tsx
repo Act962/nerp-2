@@ -31,6 +31,7 @@ import {
   ChevronsUpDown,
   CreditCard,
   GalleryVerticalEnd,
+  FileText,
   Inbox,
   LayoutDashboard,
   Library,
@@ -277,6 +278,28 @@ const navigation: NavItem[] = [
         href: "/trade/interesses",
         icon: Inbox,
         permission: "trade-interesses",
+      },
+      {
+        name: "Contratos",
+        href: "/trade/contratos",
+        icon: FileText,
+        permission: "contratos",
+      },
+      // Os dois apps de campo ficam juntos no fim da lista: é o par que o
+      // gestor abre no celular, não algo que ele configura.
+      {
+        name: "App Promotor",
+        href: "/promotor",
+        icon: Camera,
+        permission: "promotor",
+      },
+      {
+        // Mesmo motor do App Promotor + aba "Estou aqui" para registrar
+        // presença ao vivo — reusa `/vendedor` com `mode='vendedor'`.
+        name: "App Vendedor",
+        href: "/vendedor",
+        icon: MapPinned,
+        permission: "vendedor",
       },
       {
         name: "App QR Preço",

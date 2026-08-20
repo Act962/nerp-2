@@ -1,4 +1,5 @@
 import { base } from "@/app/middlewares/base";
+import { readFixtureProps } from "@/features/store-map/engine/fixture-catalog";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
@@ -38,15 +39,18 @@ export const getPublicStore = base
         ],
       },
       select: {
-        spaceState: true,
         supplierId: true,
         mediaTypeId: true,
         updatedAt: true,
+        properties: true,
       },
     });
 
-    let negociados = 0;
-    let naoNegociados = 0;
+    // Contagem POR PRATELEIRA (em sintonia com o "3/6" do mapa): cada gôndola
+    // soma suas prateleiras negociadas/total (de `properties.fixture`). Espaços
+    // sem mobiliário (checkout/pin) não têm prateleira e somam zero.
+    let negociados = 0; // prateleiras negociadas na loja
+    let naoNegociados = 0; // prateleiras disponíveis (total - negociadas)
     const supplierIds = new Set<string>();
     const byMedia = new Map<
       string,
@@ -54,8 +58,13 @@ export const getPublicStore = base
     >();
 
     for (const object of objects) {
-      if (object.spaceState === "EXECUTADO") negociados += 1;
-      if (object.spaceState === "LIVRE") naoNegociados += 1;
+      const fixture = readFixtureProps(
+        object.properties as Record<string, unknown> | null,
+      );
+      const shelfTotal = fixture?.shelfCount ?? 0;
+      const shelfNegotiated = fixture?.negotiatedShelves ?? 0;
+      negociados += shelfNegotiated;
+      naoNegociados += Math.max(0, shelfTotal - shelfNegotiated);
       if (object.supplierId) supplierIds.add(object.supplierId);
       if (object.mediaTypeId) {
         const bucket = byMedia.get(object.mediaTypeId) ?? {
@@ -63,8 +72,8 @@ export const getPublicStore = base
           negociados: 0,
           lastModified: null,
         };
-        bucket.total += 1;
-        if (object.spaceState === "EXECUTADO") bucket.negociados += 1;
+        bucket.total += shelfTotal;
+        bucket.negociados += shelfNegotiated;
         if (!bucket.lastModified || object.updatedAt > bucket.lastModified) {
           bucket.lastModified = object.updatedAt;
         }
@@ -103,7 +112,7 @@ export const getPublicStore = base
         code: mediaType.code,
         name: mediaType.name,
         photoKey: mediaType.defaultPhotos[0] ?? null,
-        // countA = negociados; countB = total de espaços daquela mídia.
+        // countA = prateleiras negociadas; countB = total de prateleiras.
         countA: counts.negociados,
         countB: counts.total,
         active: counts.negociados > 0,

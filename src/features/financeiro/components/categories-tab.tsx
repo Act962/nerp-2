@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -57,6 +58,7 @@ const schema = z.object({
   name: z.string().min(1, "Informe o nome"),
   type: z.enum(["REVENUE", "EXPENSE", "COST"]),
   color: z.string(),
+  isOperational: z.boolean(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -76,7 +78,12 @@ function CategoryDialog({
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { name: "", type: "EXPENSE", color: "#6366f1" },
+    defaultValues: {
+      name: "",
+      type: "EXPENSE",
+      color: "#6366f1",
+      isOperational: true,
+    },
   });
 
   useEffect(() => {
@@ -85,6 +92,7 @@ function CategoryDialog({
       name: category?.name ?? "",
       type: category?.type ?? "EXPENSE",
       color: category?.color ?? "#6366f1",
+      isOperational: category?.isOperational ?? true,
     });
   }, [open, category, form]);
 
@@ -97,12 +105,22 @@ function CategoryDialog({
     };
     if (category) {
       updateCategory.mutate(
-        { id: category.id, name: data.name, color: data.color || null },
+        {
+          id: category.id,
+          name: data.name,
+          color: data.color || null,
+          isOperational: data.isOperational,
+        },
         { onSuccess },
       );
     } else {
       createCategory.mutate(
-        { name: data.name, type: data.type, color: data.color || undefined },
+        {
+          name: data.name,
+          type: data.type,
+          color: data.color || undefined,
+          isOperational: data.isOperational,
+        },
         { onSuccess },
       );
     }
@@ -183,6 +201,29 @@ function CategoryDialog({
                 )}
               />
             </div>
+            <Controller
+              name="isOperational"
+              control={form.control}
+              render={({ field }) => (
+                <Field>
+                  <div className="flex items-center justify-between gap-4 rounded-md border p-3">
+                    <div className="flex flex-col">
+                      <FieldLabel htmlFor={field.name}>Operacional</FieldLabel>
+                      <span className="text-xs text-muted-foreground">
+                        Desligue para não-operacional/financeiro (juros, multas,
+                        receitas financeiras) — separa no DRO.
+                      </span>
+                    </div>
+                    <Switch
+                      id={field.name}
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={isLoading}
+                    />
+                  </div>
+                </Field>
+              )}
+            />
           </FieldGroup>
           <DialogFooter className="mt-4">
             <DialogClose asChild>
@@ -228,6 +269,7 @@ export function CategoriesTab() {
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Tipo</TableHead>
+              <TableHead>Classificação</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-24" />
             </TableRow>
@@ -236,7 +278,7 @@ export function CategoriesTab() {
             {isPending ? (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="py-8 text-center text-muted-foreground"
                 >
                   Carregando...
@@ -245,7 +287,7 @@ export function CategoriesTab() {
             ) : categories.length === 0 ? (
               <TableRow>
                 <TableCell
-                  colSpan={4}
+                  colSpan={5}
                   className="py-8 text-center text-muted-foreground"
                 >
                   Nenhuma categoria cadastrada.
@@ -266,6 +308,13 @@ export function CategoriesTab() {
                     </span>
                   </TableCell>
                   <TableCell>{CATEGORY_TYPE_LABEL[category.type]}</TableCell>
+                  <TableCell>
+                    {category.isOperational ? (
+                      <Badge variant="secondary">Operacional</Badge>
+                    ) : (
+                      <Badge variant="outline">Não-operacional</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {category.isActive ? (
                       <Badge variant="secondary">Ativa</Badge>

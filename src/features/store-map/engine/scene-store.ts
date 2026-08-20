@@ -36,7 +36,8 @@ function computeContentBounds(
 
   if (backgroundImageSize && floorPlan.backgroundImageKey) {
     const transform = floorPlan.backgroundTransform;
-    const scale = transform?.scale ?? floorPlan.widthM / backgroundImageSize.width;
+    const scale =
+      transform?.scale ?? floorPlan.widthM / backgroundImageSize.width;
     const x = transform?.x ?? 0;
     const y = transform?.y ?? 0;
     bounds = {
@@ -54,7 +55,12 @@ function computeContentBounds(
 
   // Planta nova, sem imagem nem objetos: cai no tamanho nominal.
   if (!bounds) {
-    return { minX: 0, minY: 0, maxX: floorPlan.widthM, maxY: floorPlan.heightM };
+    return {
+      minX: 0,
+      minY: 0,
+      maxX: floorPlan.widthM,
+      maxY: floorPlan.heightM,
+    };
   }
 
   // Não deixa o enquadramento colapsar num único ponto/objeto minúsculo.
@@ -93,6 +99,9 @@ export interface AddObjectInput {
   // Sugestão de mídia por tipo de ferramenta (DEFAULT_MEDIA_TYPE_BY_OBJECT_TYPE)
   // — o admin troca livremente no painel, nunca é obrigatório.
   mediaTypeId?: string | null;
+  // Metadados livres (ex.: preset de mobiliário: prateleiras, kind, dimensões).
+  // Persistidos pelo autosave via `mapObject.bulkUpsert`.
+  properties?: Record<string, unknown>;
 }
 
 export interface SceneState {
@@ -113,6 +122,13 @@ export interface SceneState {
   // Modo de anotação: próximo clique cria uma anotação do tipo escolhido
   annotating: boolean;
   annotationType: MapAnnotationType;
+  // Móvel escolhido na paleta (modelo + grade divisões×faces): o próximo clique
+  // solta as células reais. null = sem colocação pendente.
+  pendingFixture: {
+    modelId: string;
+    divisions: number;
+    lanes: number;
+  } | null;
   gridEnabled: boolean;
   snapEnabled: boolean;
   gridSizeM: number;
@@ -132,6 +148,9 @@ export interface SceneState {
   pushCalibrationPoint: (point: Vec2) => void;
   endCalibration: () => void;
   setAnnotating: (on: boolean, type?: MapAnnotationType) => void;
+  setPendingFixture: (
+    fixture: { modelId: string; divisions: number; lanes: number } | null,
+  ) => void;
   setViewport: (viewport: Viewport) => void;
   setStageSize: (size: { width: number; height: number }) => void;
   setBackgroundImageSize: (size: ImageSize | null) => void;
@@ -149,6 +168,9 @@ export interface SceneState {
   updateObject: (id: ObjectId, patch: Partial<SceneObject>) => void;
   updateObjectGeometry: (id: ObjectId, geometry: Geometry) => void;
   moveSelectedBy: (dx: number, dy: number) => void;
+  // Gira os objetos como corpo rígido em torno do centro do conjunto — usado
+  // pra virar um móvel (grupo de gôndolas) 90°.
+  rotateObjectsBy: (ids: ObjectId[], degrees: number) => void;
   removeObjects: (ids: ObjectId[]) => void;
   removeSelected: () => void;
   addLayer: (name: string) => SceneLayer;
@@ -187,6 +209,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   calibrationPoints: [],
   annotating: false,
   annotationType: "PIN",
+  pendingFixture: null,
   gridEnabled: true,
   snapEnabled: true,
   gridSizeM: 0.5,
@@ -243,7 +266,18 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       annotationType: type ?? state.annotationType,
       tool: on ? "SELECT" : state.tool,
       calibrating: on ? false : state.calibrating,
+      pendingFixture: on ? null : state.pendingFixture,
     })),
+
+  // Escolher um móvel na paleta cancela desenho/anotação/calibração: o próximo
+  // clique deve soltar as células, não iniciar outra ferramenta.
+  setPendingFixture: (fixture) =>
+    set({
+      pendingFixture: fixture,
+      tool: "SELECT",
+      annotating: false,
+      calibrating: false,
+    }),
 
   setViewport: (viewport) => set({ viewport }),
   setStageSize: (stageSize) => set({ stageSize }),
@@ -287,14 +321,20 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       if (!floorPlan || stageSize.width === 0 || stageSize.height === 0) {
         return {};
       }
-      const content = computeContentBounds(floorPlan, objects, backgroundImageSize);
+      const content = computeContentBounds(
+        floorPlan,
+        objects,
+        backgroundImageSize,
+      );
       const contentWidthM = content.maxX - content.minX;
       const contentHeightM = content.maxY - content.minY;
       const padding = 40;
       const scaleX =
-        (stageSize.width - padding * 2) / (contentWidthM * floorPlan.pixelsPerMeter);
+        (stageSize.width - padding * 2) /
+        (contentWidthM * floorPlan.pixelsPerMeter);
       const scaleY =
-        (stageSize.height - padding * 2) / (contentHeightM * floorPlan.pixelsPerMeter);
+        (stageSize.height - padding * 2) /
+        (contentHeightM * floorPlan.pixelsPerMeter);
       const zoom = clamp(Math.min(scaleX, scaleY), MIN_ZOOM, MAX_ZOOM);
       const scale = zoom * floorPlan.pixelsPerMeter;
       const centerX = (content.minX + content.maxX) / 2;
@@ -345,7 +385,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
       };
     }),
 
-  setTool: (tool) => set({ tool, annotating: false }),
+  setTool: (tool) => set({ tool, annotating: false, pendingFixture: null }),
   setActiveLayer: (activeLayerId) => set({ activeLayerId }),
   setSelection: (selectedIds) => set({ selectedIds }),
   toggleSelection: (id) =>
@@ -390,7 +430,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
         revenuePotential: null,
         avgSalesAmount: null,
         activeNegotiation: null,
-        properties: {},
+        properties: input.properties ?? {},
       };
       const dirtyIds = new Set(state.dirtyIds).add(id);
       const newIds = new Set(state.newIds).add(id);
@@ -442,6 +482,67 @@ export const useSceneStore = create<SceneState>((set, get) => ({
           ...object,
           geometry: translateGeometry(object.geometry, dx, dy),
         };
+        dirtyIds.add(id);
+      }
+      return { past: pushHistory(state), future: [], objects, dirtyIds };
+    }),
+
+  rotateObjectsBy: (ids, degrees) =>
+    set((state) => {
+      if (ids.length === 0) return {};
+      // Centro do conjunto = centro da união dos bounds (em metros).
+      let bounds: Bounds | null = null;
+      for (const id of ids) {
+        const object = state.objects[id];
+        if (!object) continue;
+        const objectBounds = boundsOf(object.geometry);
+        bounds = bounds ? unionBounds(bounds, objectBounds) : objectBounds;
+      }
+      if (!bounds) return {};
+      const gx = (bounds.minX + bounds.maxX) / 2;
+      const gy = (bounds.minY + bounds.maxY) / 2;
+      const rad = (degrees * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const rot = (px: number, py: number) => ({
+        x: gx + (px - gx) * cos - (py - gy) * sin,
+        y: gy + (px - gx) * sin + (py - gy) * cos,
+      });
+
+      const objects = { ...state.objects };
+      const dirtyIds = new Set(state.dirtyIds);
+      for (const id of ids) {
+        const object = objects[id];
+        if (!object) continue;
+        const geometry = object.geometry;
+        if (geometry.kind === "RECT") {
+          // Konva rotaciona o RECT em torno do próprio (x,y): giramos o canto e
+          // somamos o ângulo — resulta em rotação rígida em torno de `g`.
+          const point = rot(geometry.x, geometry.y);
+          objects[id] = {
+            ...object,
+            geometry: {
+              ...geometry,
+              x: point.x,
+              y: point.y,
+              rotation: geometry.rotation + degrees,
+            },
+          };
+        } else if (geometry.kind === "POINT") {
+          const point = rot(geometry.x, geometry.y);
+          objects[id] = {
+            ...object,
+            geometry: { ...geometry, x: point.x, y: point.y },
+          };
+        } else {
+          objects[id] = {
+            ...object,
+            geometry: {
+              ...geometry,
+              points: geometry.points.map((pt) => rot(pt.x, pt.y)),
+            },
+          };
+        }
         dirtyIds.add(id);
       }
       return { past: pushHistory(state), future: [], objects, dirtyIds };

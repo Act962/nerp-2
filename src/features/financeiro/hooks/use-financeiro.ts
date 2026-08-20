@@ -22,6 +22,26 @@ export function useCashflow(from: string, to: string) {
   );
 }
 
+// DRE por competência (Receita − Custo − Despesa = Resultado).
+export function useDre(from: string, to: string) {
+  return useQuery(
+    orpc.financeiro.reports.dre.queryOptions({
+      input: { from, to },
+      enabled: Boolean(from && to),
+    }),
+  );
+}
+
+// DRO: resultado operacional × não-operacional (pela flag da categoria).
+export function useDro(from: string, to: string) {
+  return useQuery(
+    orpc.financeiro.reports.dro.queryOptions({
+      input: { from, to },
+      enabled: Boolean(from && to),
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Lançamentos
 // ---------------------------------------------------------------------------

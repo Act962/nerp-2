@@ -1918,6 +1918,21 @@ enum NegotiationStatus {
   CANCELADA
 }
 
+// Ciclo de vida do CONTRATO (quando uma negociação FECHADA vira contrato ativo).
+enum ContractStatus {
+  ATIVO
+  EXPIRADO
+  CANCELADO
+  RENOVADO
+  SUSPENSO
+}
+
+// Periodicidade da cobrança do contrato (gera os recebíveis no Financeiro).
+enum ContractBilling {
+  MENSAL
+  UNICO
+}
+
 // Biblioteca Nacional de Espaços Comerciais — classificação do espaço p/
 // comparar e precificar entre lojas/redes. Nullable e sem default: espaço não
 // classificado precisa continuar "não classificado", não virar BRONZE/BAIXO
@@ -2781,6 +2796,11 @@ model SpaceNegotiation {
   amount            Decimal?          @db.Decimal(12, 2)
   status            NegotiationStatus @default(RASCUNHO)
   notes             String?           @db.Text
+  // Contrato: null = só negociação; setado quando vira contrato de 1a classe.
+  contractStatus      ContractStatus?
+  contractBilling     ContractBilling?
+  contractActivatedAt DateTime?
+  contractDocumentUrl String?
   createdById       String
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -2791,11 +2811,13 @@ model SpaceNegotiation {
   brand           Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
   negotiationType NegotiationType? @relation(fields: [negotiationTypeId], references: [id], onDelete: SetNull)
   createdBy       User             @relation("CreatedSpaceNegotiations", fields: [createdById], references: [id])
+  financeiroEntries PaymentEntry[] @relation("SpaceContractEntries")
 
   @@index([organizationId])
   @@index([mapObjectId, createdAt(sort: Desc)])
   @@index([organizationId, endDate])
   @@index([organizationId, negotiationTypeId])
+  @@index([mapObjectId, contractStatus])
   @@map("space_negotiations")
 }
 
@@ -4294,6 +4316,8 @@ model PaymentCategory {
   icon           String?
   parentId       String?               @map("parent_id")
   isActive       Boolean               @default(true) @map("is_active")
+  // DRO: operacional (padrão) x não-operacional/financeiro (juros, multas, etc.)
+  isOperational  Boolean               @default(true) @map("is_operational")
   createdAt      DateTime              @default(now()) @map("created_at")
   updatedAt      DateTime              @updatedAt @map("updated_at")
 
@@ -4362,6 +4386,8 @@ model PaymentEntry {
   costCenterId String? @map("cost_center_id")
   contactId    String? @map("contact_id")
   accountId    String? @map("account_id")
+  // Recebível gerado por um contrato de espaço (TradeGram).
+  spaceNegotiationId String? @map("space_negotiation_id")
 
   // Parcelamento
   installmentTotal   Int?    @map("installment_total")
@@ -4381,6 +4407,7 @@ model PaymentEntry {
   costCenter   PaymentCostCenter?  @relation(fields: [costCenterId], references: [id])
   contact      PaymentContact?     @relation(fields: [contactId], references: [id])
   account      PaymentBankAccount? @relation(fields: [accountId], references: [id])
+  spaceNegotiation SpaceNegotiation? @relation("SpaceContractEntries", fields: [spaceNegotiationId], references: [id], onDelete: SetNull)
   createdBy    User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
@@ -4390,6 +4417,7 @@ model PaymentEntry {
   @@index([contactId])
   @@index([categoryId])
   @@index([installmentGroupId])
+  @@index([spaceNegotiationId])
   @@map("payment_entries")
 }
 
