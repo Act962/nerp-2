@@ -1764,6 +1764,12 @@ export function ConfigPanel({
                               ...config.excludedProductIds,
                               p.id,
                             ],
+                            // Também sai de manuallyAddedIds: senão vira
+                            // "fantasma" (some da lista mas o diálogo de
+                            // adicionar ainda o mostra como "Adicionado").
+                            manuallyAddedIds: config.manuallyAddedIds.filter(
+                              (id) => id !== p.id,
+                            ),
                           })
                         }
                       >

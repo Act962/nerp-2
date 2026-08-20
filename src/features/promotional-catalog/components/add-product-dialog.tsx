@@ -129,7 +129,11 @@ export function AddProductDialog({
     ? Math.max(1, Math.ceil(data.totalCount / PAGE_SIZE))
     : 1;
 
+  // "Adicionado" = está em manuallyAddedIds E não foi excluído. Sem o `!excluded`
+  // um produto adicionado e depois removido (fantasma) apareceria como já
+  // adicionado, sem estar no catálogo — impedindo re-adicioná-lo.
   const alreadyAdded = new Set(config.manuallyAddedIds);
+  const excludedSet = new Set(config.excludedProductIds);
 
   const handleAdd = (
     id: string,
@@ -137,7 +141,8 @@ export function AddProductDialog({
     prices: { de: number; por: number | null },
   ) => {
     const changes: Partial<CatalogConfig> = {
-      manuallyAddedIds: [...config.manuallyAddedIds, id],
+      // Set evita id duplicado ao re-adicionar um produto que era fantasma.
+      manuallyAddedIds: Array.from(new Set([...config.manuallyAddedIds, id])),
       excludedProductIds: config.excludedProductIds.filter((eid) => eid !== id),
     };
 
@@ -197,7 +202,7 @@ export function AddProductDialog({
             <AddProductRow
               key={p.id}
               product={p}
-              added={alreadyAdded.has(p.id)}
+              added={alreadyAdded.has(p.id) && !excludedSet.has(p.id)}
               saving={priceMutation.isPending}
               onAdd={(id, prices) => handleAdd(id, p.salePrice, prices)}
             />
