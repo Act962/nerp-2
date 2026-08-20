@@ -52,7 +52,7 @@ export function CatalogList() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="aspect-[3/4] rounded-lg" />
           ))}
@@ -74,7 +74,7 @@ export function CatalogList() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {catalogs.map((catalog) => (
             <CatalogCard
               key={catalog.id}
@@ -82,6 +82,8 @@ export function CatalogList() {
               name={catalog.name}
               thumbnail={catalog.thumbnail}
               updatedAt={catalog.updatedAt}
+              createdAt={catalog.createdAt}
+              createdBy={catalog.createdBy}
               duplicating={duplicateMutation.isPending}
               onDuplicate={() => duplicateMutation.mutate({ id: catalog.id })}
             />

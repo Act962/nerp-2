@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   MoreHorizontal,
   Pencil,
@@ -41,6 +42,8 @@ interface CatalogCardProps {
   name: string;
   thumbnail: string | null;
   updatedAt: Date;
+  createdAt: Date;
+  createdBy: { name: string; image: string | null } | null;
   onDuplicate?: () => void;
   duplicating?: boolean;
 }
@@ -49,7 +52,8 @@ export function CatalogCard({
   id,
   name,
   thumbnail,
-  updatedAt,
+  createdAt,
+  createdBy,
   onDuplicate,
   duplicating,
 }: CatalogCardProps) {
@@ -105,14 +109,28 @@ export function CatalogCard({
         </Link>
 
         <div className="flex items-start justify-between gap-2 p-3 pb-1">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium">{name}</p>
-            <p className="text-xs text-muted-foreground">
-              {formatDistanceToNow(new Date(updatedAt), {
-                addSuffix: true,
-                locale: ptBR,
-              })}
-            </p>
+          <div className="min-w-0 flex-1">
+            <p className="break-words text-sm font-medium">{name}</p>
+            <div
+              className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground"
+              title={
+                createdBy?.name ? `Criado por ${createdBy.name}` : undefined
+              }
+            >
+              <Avatar className="size-5 shrink-0">
+                {createdBy?.image ? (
+                  <AvatarImage src={createdBy.image} alt={createdBy.name} />
+                ) : null}
+                <AvatarFallback className="text-[9px]">
+                  {(createdBy?.name ?? "?").trim().slice(0, 1).toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">
+                {format(new Date(createdAt), "dd/MM/yyyy 'às' HH:mm", {
+                  locale: ptBR,
+                })}
+              </span>
+            </div>
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
