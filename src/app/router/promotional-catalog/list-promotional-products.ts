@@ -43,6 +43,7 @@ export const listPromotionalProducts = base
         categoryName: z.string().nullable(),
         currentStock: z.number(),
         description: z.string().nullable(),
+        unit: z.string(),
       }),
     ),
   )
@@ -100,6 +101,7 @@ export const listPromotionalProducts = base
         categoryName: p.category?.name ?? null,
         currentStock: p.currentStock.toNumber(),
         description: p.description,
+        unit: p.unit,
       };
     });
 

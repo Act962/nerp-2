@@ -1659,6 +1659,8 @@ model PromotionalCatalog {
   organizationId String
   name           String
   config         Json
+  // Miniatura (data URL JPEG) capturada no autosave — mostrada na lista.
+  thumbnail      String?  @db.Text
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1668,6 +1670,54 @@ model PromotionalCatalog {
 
   @@index([organizationId])
   @@map("promotional_catalogs")
+}
+
+// Etiqueta: PNG (logo, figura, adesivo) da biblioteca da organização, para
+// arrastar sobre o catálogo. `key` é a chave no R2. Escopo por org manual.
+model CatalogAsset {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  key            String
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@map("catalog_assets")
+}
+
+// Marca quando um usuário (ex.: vendedor) abriu um catálogo promocional. Usado
+// pelo badge "catálogos não vistos" no App Vendedor. Sem FK para evitar migração
+// pesada; linhas órfãs (catálogo apagado) são inofensivas para a contagem.
+model CatalogView {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  catalogId      String
+  viewedAt       DateTime @default(now())
+
+  @@unique([userId, catalogId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("catalog_views")
+}
+
+// Padrão de catálogo: preset de ESTILO (config sem os campos de produto),
+// reutilizável entre catálogos da organização. `thumbnail` guarda a miniatura
+// (data URL JPEG ~240px) capturada no momento de salvar. Sem relations
+// explícitas — o escopo por organizationId é manual, como no resto do app.
+model PromotionalCatalogTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  config         Json
+  thumbnail      String?  @db.Text
+  createdById    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("promotional_catalog_templates")
 }
 
 // ============================================

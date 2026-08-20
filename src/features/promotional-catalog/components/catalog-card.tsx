@@ -4,14 +4,17 @@ import { useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { MoreHorizontal, Pencil, Copy, Trash2 } from "lucide-react";
 import {
-  Card,
-  CardContent,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  MoreHorizontal,
+  Pencil,
+  Copy,
+  Trash2,
+  Instagram,
+  MessageCircle,
+  Image as ImageIcon,
+} from "lucide-react";
+import { toast } from "sonner";
+import { Card, CardFooter } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -31,17 +34,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDeleteCatalog, useUpdateCatalog } from "../hooks/use-catalog";
-import type { CatalogConfig } from "../types";
+import { shareImageFile, openWhatsAppText } from "../lib/share";
 
 interface CatalogCardProps {
   id: string;
   name: string;
+  thumbnail: string | null;
   updatedAt: Date;
-  config?: CatalogConfig;
-  onDuplicate?: (id: string, name: string, config: CatalogConfig) => void;
+  onDuplicate?: () => void;
+  duplicating?: boolean;
 }
 
-export function CatalogCard({ id, name, updatedAt, config, onDuplicate }: CatalogCardProps) {
+export function CatalogCard({
+  id,
+  name,
+  thumbnail,
+  updatedAt,
+  onDuplicate,
+  duplicating,
+}: CatalogCardProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [renameOpen, setRenameOpen] = useState(false);
   const [newName, setNewName] = useState(name);
@@ -55,58 +66,110 @@ export function CatalogCard({ id, name, updatedAt, config, onDuplicate }: Catalo
     setRenameOpen(false);
   };
 
+  const share = async (channel: "wa" | "ig") => {
+    if (!thumbnail) {
+      toast.info("Abra e edite o catálogo uma vez para gerar a miniatura.");
+      return;
+    }
+    const res = await shareImageFile({
+      dataUrl: thumbnail,
+      filename: `${name}.jpg`,
+      text: name,
+    });
+    if (res === "downloaded") {
+      if (channel === "wa") openWhatsAppText(name);
+      else toast.info("Imagem baixada — poste no app do Instagram.");
+    }
+  };
+
   return (
     <>
-      <Card className="flex flex-col">
-        <CardHeader className="pb-2">
-          <div className="flex items-start justify-between gap-2">
-            <CardTitle className="text-base line-clamp-2">{name}</CardTitle>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
-                  <MoreHorizontal className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem asChild>
-                  <Link href={`/catalogo-promocional/${id}`}>
-                    <Pencil className="h-4 w-4 mr-2" />
-                    Editar
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setRenameOpen(true)}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Renomear
-                </DropdownMenuItem>
-                {onDuplicate && config && (
-                  <DropdownMenuItem onClick={() => onDuplicate(id, name, config)}>
-                    <Copy className="h-4 w-4 mr-2" />
-                    Duplicar
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  variant="destructive"
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Excluir
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+      <Card className="flex flex-col overflow-hidden">
+        <Link
+          href={`/catalogo-promocional/${id}`}
+          className="block aspect-[3/4] bg-muted"
+        >
+          {thumbnail ? (
+            // biome-ignore lint/performance/noImgElement: miniatura em data URL
+            <img
+              src={thumbnail}
+              alt={name}
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground">
+              <ImageIcon className="h-5 w-5" />
+              sem prévia
+            </div>
+          )}
+        </Link>
+
+        <div className="flex items-start justify-between gap-2 p-3 pb-1">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium">{name}</p>
+            <p className="text-xs text-muted-foreground">
+              {formatDistanceToNow(new Date(updatedAt), {
+                addSuffix: true,
+                locale: ptBR,
+              })}
+            </p>
           </div>
-        </CardHeader>
-        <CardContent className="flex-1" />
-        <CardFooter className="flex flex-col items-start gap-3 pt-0">
-          <p className="text-xs text-muted-foreground">
-            Atualizado{" "}
-            {formatDistanceToNow(new Date(updatedAt), {
-              addSuffix: true,
-              locale: ptBR,
-            })}
-          </p>
-          <Button asChild className="w-full" size="sm">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/catalogo-promocional/${id}`}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Editar
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setRenameOpen(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Renomear
+              </DropdownMenuItem>
+              {onDuplicate && (
+                <DropdownMenuItem disabled={duplicating} onClick={onDuplicate}>
+                  <Copy className="mr-2 h-4 w-4" />
+                  Duplicar
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => setDeleteOpen(true)}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Excluir
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <CardFooter className="flex items-center gap-1 p-3 pt-1">
+          <Button asChild size="sm" className="flex-1">
             <Link href={`/catalogo-promocional/${id}`}>Editar</Link>
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            title="Compartilhar no WhatsApp"
+            onClick={() => share("wa")}
+          >
+            <MessageCircle className="h-4 w-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            title="Compartilhar no Instagram"
+            onClick={() => share("ig")}
+          >
+            <Instagram className="h-4 w-4" />
           </Button>
         </CardFooter>
       </Card>
@@ -116,8 +179,8 @@ export function CatalogCard({ id, name, updatedAt, config, onDuplicate }: Catalo
           <DialogHeader>
             <DialogTitle>Excluir catálogo?</DialogTitle>
             <DialogDescription>
-              Esta ação não pode ser desfeita. O catálogo &quot;{name}&quot; será
-              permanentemente excluído.
+              Esta ação não pode ser desfeita. O catálogo &quot;{name}&quot;
+              será permanentemente excluído.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

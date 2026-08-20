@@ -14,10 +14,16 @@ import {
 
 // Rotas de tela cheia (PDV) onde o breadcrumb só polui.
 const HIDE_BREADCRUMB_ON = ["/vendas/novo"];
+// Editores em tela cheia (têm cabeçalho próprio): esconde o breadcrumb.
+const HIDE_BREADCRUMB_PREFIXES = ["/catalogo-promocional/"];
 
 export function BreadcrumbNav() {
   const pathname = usePathname();
-  if (HIDE_BREADCRUMB_ON.includes(pathname)) return null;
+  if (
+    HIDE_BREADCRUMB_ON.includes(pathname) ||
+    HIDE_BREADCRUMB_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  )
+    return null;
   const segments = pathname.split("/").filter(Boolean);
 
   const breadcrumbs = [

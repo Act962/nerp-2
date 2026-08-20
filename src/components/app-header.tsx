@@ -14,10 +14,15 @@ import { FullscreenToggle } from "./fullscreen-toggle";
 // No PDV (tela cheia) a busca global do topo só distrai — a busca de produto
 // fica dentro da própria tela de venda; e os botões Balança/Atalhos vêm pra cá.
 const PDV_ROUTE = "/vendas/novo";
+// Editores em tela cheia (cabeçalho próprio): o header global só rouba altura.
+const HIDE_HEADER_PREFIXES = ["/catalogo-promocional/"];
 
 export function AppHeader() {
   const pathname = usePathname();
   const isPdv = pathname === PDV_ROUTE;
+  const hideHeader = HIDE_HEADER_PREFIXES.some((prefix) =>
+    pathname.startsWith(prefix),
+  );
   const showSearch = !isPdv;
   const { setOpen } = useSidebar();
 
@@ -51,6 +56,8 @@ export function AppHeader() {
       window.removeEventListener("keydown", onFirst);
     };
   }, [isPdv]);
+
+  if (hideHeader) return null;
 
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">

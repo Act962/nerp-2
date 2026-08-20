@@ -20,15 +20,13 @@ import {
   useDuplicateCatalog,
 } from "./hooks/use-catalog";
 
-import type { CatalogConfig } from "./types";
-
 export function CatalogList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newCatalogName, setNewCatalogName] = useState("");
 
   const { data: catalogs, isLoading } = usePromotionalCatalogs();
   const createMutation = useCreateCatalog();
-  const { duplicate, isPending: isDuplicating } = useDuplicateCatalog();
+  const duplicateMutation = useDuplicateCatalog();
 
   const handleCreate = () => {
     if (!newCatalogName.trim()) return;
@@ -43,7 +41,8 @@ export function CatalogList() {
         <div>
           <h1 className="text-2xl font-bold">Catálogo Promocional</h1>
           <p className="text-muted-foreground text-sm">
-            Crie catálogos visuais de produtos em promoção para divulgar em redes sociais.
+            Crie catálogos visuais de produtos em promoção para divulgar em
+            redes sociais.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -53,9 +52,9 @@ export function CatalogList() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-40 rounded-lg" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="aspect-[3/4] rounded-lg" />
           ))}
         </div>
       ) : !catalogs || catalogs.length === 0 ? (
@@ -75,18 +74,16 @@ export function CatalogList() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
           {catalogs.map((catalog) => (
             <CatalogCard
               key={catalog.id}
               id={catalog.id}
               name={catalog.name}
+              thumbnail={catalog.thumbnail}
               updatedAt={catalog.updatedAt}
-              onDuplicate={(id, name, config) => {
-                if (!isDuplicating) {
-                  duplicate(id, name, config as CatalogConfig);
-                }
-              }}
+              duplicating={duplicateMutation.isPending}
+              onDuplicate={() => duplicateMutation.mutate({ id: catalog.id })}
             />
           ))}
         </div>

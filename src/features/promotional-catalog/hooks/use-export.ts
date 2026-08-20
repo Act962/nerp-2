@@ -11,9 +11,11 @@ type ExportOptions = {
   pageSize: "square" | "story" | "portrait";
 };
 
-// 1×1 transparent PNG — fallback para imagens que retornam 404 ou têm erro de CORS
+// 1×1 PNG REALMENTE transparente — fallback para imagens que falham (404/CORS).
+// (O valor antigo era um pixel verde rgba(0,255,0,.5): imagem que não embutia
+// virava um quadrado verde no export.)
 const TRANSPARENT_PIXEL =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=";
 
 const CAPTURE_OPTIONS = {
   pixelRatio: 1,
@@ -27,6 +29,21 @@ async function captureEl(el: HTMLDivElement): Promise<string> {
   return toPng(el, CAPTURE_OPTIONS);
 }
 
+function triggerDownload(href: string, filename: string) {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = href;
+  link.click();
+}
+
+// Converte o base64 de um data URL em bytes para empacotar no zip.
+function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 export function useExport({
   previewRef,
   allPageRefs,
@@ -36,15 +53,37 @@ export function useExport({
 }: ExportOptions) {
   const [isExporting, setIsExporting] = useState(false);
 
+  // 1 página → baixa .png; várias páginas → baixa um .zip com um .png por página.
   async function exportAsPng() {
-    if (!previewRef.current) return;
     setIsExporting(true);
     try {
-      const dataUrl = await captureEl(previewRef.current);
-      const link = document.createElement("a");
-      link.download = `${catalogName}.png`;
-      link.href = dataUrl;
-      link.click();
+      if (totalPages <= 1) {
+        if (!previewRef.current) return;
+        const dataUrl = await captureEl(previewRef.current);
+        triggerDownload(dataUrl, `${catalogName}.png`);
+        return;
+      }
+
+      const { zipSync } = await import("fflate");
+      const files: Record<string, Uint8Array> = {};
+      const pad = String(totalPages).length;
+
+      for (let i = 0; i < totalPages; i++) {
+        const el = allPageRefs.current[i];
+        if (!el) continue;
+        const dataUrl = await captureEl(el);
+        const base64 = dataUrl.split(",")[1] ?? "";
+        files[`${catalogName}-pagina-${String(i + 1).padStart(pad, "0")}.png`] =
+          base64ToBytes(base64);
+      }
+
+      const zipped = zipSync(files, { level: 0 });
+      const blob = new Blob([zipped as BlobPart], {
+        type: "application/zip",
+      });
+      const url = URL.createObjectURL(blob);
+      triggerDownload(url, `${catalogName}.zip`);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Erro ao exportar PNG:", err);
       toast.error("Erro ao gerar PNG. Tente novamente.");

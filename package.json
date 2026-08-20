@@ -65,6 +65,7 @@
     "embla-carousel": "^8.6.0",
     "embla-carousel-autoplay": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
+    "fflate": "^0.8.3",
     "html-react-parser": "^5.2.11",
     "html-to-image": "^1.11.13",
     "immer": "^11.1.15",

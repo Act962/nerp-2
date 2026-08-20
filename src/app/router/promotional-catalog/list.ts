@@ -18,6 +18,7 @@ export const listCatalogs = base
       z.object({
         id: z.string(),
         name: z.string(),
+        thumbnail: z.string().nullable(),
         updatedAt: z.date(),
       }),
     ),
@@ -25,7 +26,7 @@ export const listCatalogs = base
   .handler(async ({ context }) => {
     const catalogs = await prisma.promotionalCatalog.findMany({
       where: { organizationId: context.org.id },
-      select: { id: true, name: true, updatedAt: true },
+      select: { id: true, name: true, thumbnail: true, updatedAt: true },
       orderBy: { updatedAt: "desc" },
     });
     return catalogs;
