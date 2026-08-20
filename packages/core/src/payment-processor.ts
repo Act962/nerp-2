@@ -21,7 +21,10 @@ export interface PaymentProcessor {
   cancel(paymentId: string): Promise<PaymentSnapshot>;
   /**
    * Reconcilia um pagamento em `timeout`: descobre o desfecho real (aprovado ou
-   * recusado) que o PDV não chegou a receber. Nunca assumir "não pagou".
+   * recusado) que o PDV não chegou a receber. Nunca assumir "não pagou". O
+   * resultado PODE permanecer desconhecido — seguir `timeout` (ainda
+   * reconciliável) ou virar `error` se a própria reconciliação falhar; nesse
+   * caso a venda continua sem poder ser finalizada.
    */
   reconcile(paymentId: string): Promise<PaymentSnapshot>;
 }

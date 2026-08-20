@@ -14,11 +14,14 @@ describe("MockPaymentProcessor", () => {
     const p = createMockPaymentProcessor({ outcome: "approve" });
     const started = await p.start(req);
     expect(started.state).toBe("in_progress");
+    expect(started.provider).toBe("mock");
 
     const resolved = await p.status(started.id);
     expect(resolved.state).toBe("approved");
     expect(resolved.authorization).toBeTruthy();
     expect(resolved.nsu).toBeTruthy();
+    // Evidência externa preenchida quando o processador fornece (na aprovação).
+    expect(resolved.externalTransactionId).toBeTruthy();
   });
 
   it("simula erro do processador", async () => {

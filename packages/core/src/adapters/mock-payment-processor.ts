@@ -83,6 +83,10 @@ export function createMockPaymentProcessor(
       ...entry.snapshot,
       state: to,
       updatedAt: nowIso(),
+      // Evidências preenchidas SÓ na aprovação — como um adquirente real faria.
+      externalTransactionId: approving
+        ? `MOCK-TX-${entry.snapshot.id}`
+        : entry.snapshot.externalTransactionId,
       authorization: approving
         ? `AUTH-${entry.snapshot.id}`
         : entry.snapshot.authorization,
@@ -105,6 +109,7 @@ export function createMockPaymentProcessor(
         id,
         state: "in_progress",
         request,
+        provider: "mock",
         createdAt: iso,
         updatedAt: iso,
       };

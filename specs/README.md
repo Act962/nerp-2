@@ -23,6 +23,7 @@ feature depois de trabalhar em outra coisa.
 - [`desktop-fase-3.md`](./desktop-fase-3.md) — Desktop Fase 3: escrita de venda offline (outbox + replay idempotente) · ✅ implementado
 - [`desktop-fase-4.md`](./desktop-fase-4.md) — Desktop Fase 4: endurecimento (conectividade real, dead-letter, token seguro) · ✅ implementado
 - [`desktop-fase-5.md`](./desktop-fase-5.md) — Desktop Fase 5: app nativo Tauri real (SQLite/store, instalador Windows) + guard de conformidade do contrato · ✅ implementado
+- [`desktop-pagamento-eletronico.md`](./desktop-pagamento-eletronico.md) — Pagamento eletrônico (PaymentProcessor/TEF) do PDV desktop: arquitetura ports & adapters revisada; Mock como contrato · 🟡 domínio pronto, adapter real futuro
 
 ## Specs por feature
 

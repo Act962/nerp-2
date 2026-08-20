@@ -60,18 +60,34 @@ export type PaymentRequest = {
   reference?: string;
 };
 
-/** Retrato imutável de um pagamento num instante. */
+/**
+ * Retrato imutável de um pagamento num instante.
+ *
+ * As EVIDÊNCIAS externas (`externalTransactionId`, `authorization`, `nsu`, …) são
+ * OPCIONAIS e AGNÓSTICAS ao protocolo: o domínio conhece o CONCEITO de evidência
+ * externa, mas não obriga nenhum processador a preencher os mesmos campos. Cada
+ * adapter traduz o que o TEF/adquirente fornecer; o que não couber nos campos
+ * bem-conhecidos vai em `metadata`. Regra central: a AUSÊNCIA de um identificador
+ * NÃO invalida um `approved` — o que define aprovação é o processador ter
+ * confirmado, não a presença de NSU/autorização.
+ */
 export type PaymentSnapshot = {
   /** Id do pagamento no processador/adapter. */
   id: string;
   state: PaymentState;
   request: PaymentRequest;
-  /** Código de autorização (adquirente real; o mock preenche fake ao aprovar). */
+  /** Id da transação no processador/adquirente — correlação e idempotência. */
+  externalTransactionId?: string;
+  /** Código de autorização, quando o processador fornece (evidência opcional). */
   authorization?: string;
-  /** NSU (adquirente real; o mock preenche fake). */
+  /** NSU, quando o processador fornece (evidência opcional). */
   nsu?: string;
+  /** Qual adapter/tecnologia produziu o snapshot (ex.: "mock", "tef-<x>"). */
+  provider?: string;
   /** Mensagem legível (motivo de recusa/erro). */
   message?: string;
+  /** Dados específicos do processador sem campo de primeira classe. */
+  metadata?: Record<string, unknown>;
   createdAt: string; // ISO
   updatedAt: string; // ISO
 };
