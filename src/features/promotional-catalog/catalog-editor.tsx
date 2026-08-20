@@ -2,7 +2,14 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Save } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Save,
+  Share2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,20 +17,17 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfigPanel } from "./components/config-panel";
 import { CatalogPreview } from "./components/catalog-preview";
+import { OverlayEditor } from "./components/overlay-editor";
+import { ShareDialog } from "./components/share-dialog";
 import {
   usePromotionalCatalog,
-  useUpdateCatalog,
+  useAutosaveCatalog,
   usePromotionalProducts,
 } from "./hooks/use-catalog";
+import { toast } from "sonner";
 import { useExport } from "./hooks/use-export";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import type { CatalogConfig } from "./types";
@@ -160,19 +164,27 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const allPageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const { data: catalogData, isLoading } = usePromotionalCatalog(catalogId);
-  const updateMutation = useUpdateCatalog();
+  const autosave = useAutosaveCatalog();
 
   const [config, setConfig] = useState<CatalogConfig>(DEFAULT_CONFIG);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
     "idle",
   );
 
+  // Hidrata a config do servidor UMA vez (no load). Depois disso o cliente é
+  // dono da config — um refetch nunca sobrescreve edições em andamento.
+  const hydratedRef = useRef(false);
+  const savedConfigRef = useRef<CatalogConfig | null>(null);
   useEffect(() => {
+    if (hydratedRef.current) return;
     if (catalogData?.config) {
-      setConfig({
+      const loaded = {
         ...DEFAULT_CONFIG,
         ...(catalogData.config as Partial<CatalogConfig>),
-      });
+      };
+      setConfig(loaded);
+      savedConfigRef.current = loaded;
+      hydratedRef.current = true;
     }
   }, [catalogData?.config]);
 
@@ -235,12 +247,25 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         break;
     }
 
+    // Ordem manual (arrastar ↑/↓ na lista) tem prioridade sobre `sortBy`:
+    // os ids listados vêm primeiro, o resto segue a ordenação automática.
+    const order = config.productOrder ?? [];
+    if (order.length > 0) {
+      const pos = new Map(order.map((id, i) => [id, i]));
+      list = [...list].sort(
+        (a, b) =>
+          (pos.get(a.id) ?? Number.POSITIVE_INFINITY) -
+          (pos.get(b.id) ?? Number.POSITIVE_INFINITY),
+      );
+    }
+
     return list;
   }, [
     rawProducts,
     config.excludedProductIds,
     config.sortBy,
     config.priceOverrides,
+    config.productOrder,
   ]);
 
   // Paginação — quantos itens cabem por página (calculado proporcionalmente)
@@ -272,6 +297,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   const [currentPage, setCurrentPage] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [selectedOverlayId, setSelectedOverlayId] = useState<string | null>(
+    null,
+  );
 
   const totalPages = Math.max(1, Math.ceil(products.length / itemsPerPage));
 
@@ -298,19 +327,74 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     [products, totalPages, itemsPerPage],
   );
 
-  // Auto-save with debounce
+  // Miniatura JPEG (~380px) da página atual do preview — usada na lista de
+  // catálogos e ao salvar um padrão. As fotos já são data URL no DOM, então o
+  // html-to-image captura sem CORS.
+  const captureThumbnail = async (): Promise<string> => {
+    const el = previewRef.current;
+    if (!el) return "";
+    try {
+      const { toJpeg } = await import("html-to-image");
+      return await toJpeg(el, {
+        pixelRatio: 0.35,
+        quality: 0.7,
+        skipFonts: true,
+        cacheBust: false,
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  // PNG da página atual em resolução cheia (1080px) — para copiar/compartilhar.
+  const capturePng = async (): Promise<string> => {
+    const el = previewRef.current;
+    if (!el) return "";
+    try {
+      const { toPng } = await import("html-to-image");
+      return await toPng(el, {
+        pixelRatio: 1,
+        skipFonts: true,
+        cacheBust: false,
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  // Autosave da config — leve e ágil (estilo Canva): payload só da config, sem
+  // miniatura no caminho crítico e sem invalidar nada. Debounce curto coalesce
+  // várias mudanças seguidas num único save em background.
   useEffect(() => {
-    if (!catalogData) return;
+    if (!hydratedRef.current) return;
+    if (config === savedConfigRef.current) return; // nada mudou desde o load/save
     setSaveStatus("saving");
+    const snapshot = config;
     const timer = setTimeout(() => {
-      updateMutation.mutate(
-        { id: catalogId, config: config as Record<string, unknown> },
+      autosave.mutate(
+        { id: catalogId, config: snapshot as Record<string, unknown> },
         {
-          onSuccess: () => setSaveStatus("saved"),
+          onSuccess: () => {
+            savedConfigRef.current = snapshot;
+            setSaveStatus("saved");
+          },
           onError: () => setSaveStatus("idle"),
         },
       );
-    }, 800);
+    }, 500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config]);
+
+  // Miniatura para a lista de catálogos — cara (html-to-image), então roda num
+  // debounce longo e separado, só quando a edição estabiliza. Nunca trava o
+  // layout: o autosave da config já persistiu tudo antes disso.
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const timer = setTimeout(async () => {
+      const thumbnail = await captureThumbnail();
+      if (thumbnail) autosave.mutate({ id: catalogId, thumbnail });
+    }, 2500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config]);
@@ -352,21 +436,23 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   return (
     <div className="flex flex-col gap-0 h-full">
-      {/* Header */}
-      <div className="flex items-center gap-4 pb-4">
-        <div className="flex items-center gap-1 flex-1 min-w-0">
-          <Button asChild variant="ghost" size="sm" className="shrink-0">
+      {/* Header — no mobile os botões viram ícones e "Salvar" some (autosave) */}
+      <div className="flex items-center gap-2 pb-3 sm:gap-3 lg:gap-4 lg:pb-4">
+        <div className="flex min-w-0 flex-1 items-center gap-1">
+          <Button asChild variant="ghost" size="sm" className="shrink-0 px-2">
             <Link href="/catalogo-promocional">
-              <ArrowLeft className="h-4 w-4 mr-1" />
-              Catálogos
+              <ArrowLeft className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">Catálogos</span>
             </Link>
           </Button>
-          <span className="text-muted-foreground text-sm">/</span>
-          <span className="font-semibold text-sm truncate px-1">
+          <span className="hidden text-sm text-muted-foreground sm:inline">
+            /
+          </span>
+          <span className="truncate px-1 text-sm font-semibold">
             {catalogData.name}
           </span>
         </div>
-        <span className="text-xs text-muted-foreground">
+        <span className="hidden shrink-0 text-xs text-muted-foreground sm:inline">
           {saveStatus === "saving"
             ? "Salvando..."
             : saveStatus === "saved"
@@ -376,39 +462,53 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => setPreviewOpen(true)}
-        >
-          <Eye className="h-4 w-4 mr-1" />
-          Visualizar
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            updateMutation.mutate({
-              id: catalogId,
-              config: config as Record<string, unknown>,
-            })
-          }
+          className="hidden shrink-0 lg:inline-flex"
+          onClick={async () => {
+            setSaveStatus("saving");
+            const snapshot = config;
+            const thumbnail = await captureThumbnail();
+            autosave.mutate(
+              {
+                id: catalogId,
+                config: snapshot as Record<string, unknown>,
+                ...(thumbnail && { thumbnail }),
+              },
+              {
+                onSuccess: () => {
+                  savedConfigRef.current = snapshot;
+                  setSaveStatus("saved");
+                  toast.success("Catálogo salvo");
+                },
+                onError: () => setSaveStatus("idle"),
+              },
+            );
+          }}
         >
           <Save className="h-4 w-4 mr-1" />
           Salvar
         </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={isExporting}>
-              {isExporting ? "Gerando..." : "↓ Exportar"}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={exportAsPng}>
-              Baixar página atual (PNG)
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={exportAsPdf}>
-              Baixar todas as páginas (PDF)
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 px-2 sm:px-3"
+          title="Visualizar em tela cheia"
+          onClick={() => setPreviewOpen(true)}
+        >
+          <Eye className="h-4 w-4 sm:mr-1" />
+          <span className="hidden sm:inline">Visualizar</span>
+        </Button>
+        <Button
+          size="sm"
+          className="shrink-0 px-2.5 sm:px-3"
+          disabled={isExporting}
+          title="Compartilhar"
+          onClick={() => setShareOpen(true)}
+        >
+          <Share2 className="h-4 w-4 sm:mr-1" />
+          <span className="hidden sm:inline">
+            {isExporting ? "Gerando..." : "Compartilhar"}
+          </span>
+        </Button>
       </div>
 
       {/*
@@ -439,22 +539,25 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         ))}
       </div>
 
-      {/* Editor layout */}
-      <div
-        className="flex gap-0 border rounded-lg overflow-hidden"
-        style={{ height: "calc(100vh - 220px)" }}
-      >
-        {/* Config panel */}
-        <div className="w-72 shrink-0 border-r bg-background overflow-hidden flex flex-col">
+      {/* Editor layout: preenche a altura restante do container (h-full do
+          editor) em vez de altura fixa em 100vh — assim não sobra espaço abaixo
+          quando o header/breadcrumb globais estão ocultos nesta rota. */}
+      <div className="flex flex-1 min-h-0 flex-col-reverse gap-0 overflow-hidden rounded-lg border lg:flex-row">
+        {/* Config panel — desktop: coluna fixa à esquerda; mobile: embaixo,
+            ocupando o resto da altura com rolagem própria. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t bg-background lg:w-[432px] lg:flex-none lg:border-t-0 lg:border-r">
           <ConfigPanel
             config={config}
             products={products}
+            itemsPerPage={itemsPerPage}
             onConfigChange={handleConfigChange}
+            captureThumbnail={captureThumbnail}
           />
         </div>
 
-        {/* Preview */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Preview — desktop: preenche à direita; mobile: no topo, altura fixa
+            (~42vh) e sempre visível pra ver as mudanças ao vivo. */}
+        <div className="flex h-[42vh] shrink-0 flex-col overflow-hidden lg:h-auto lg:flex-1">
           {totalPages > 1 && (
             <div className="flex items-center justify-between gap-3 px-4 py-2 border-b bg-background shrink-0">
               <Button
@@ -483,16 +586,34 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               </Button>
             </div>
           )}
-          <div className="flex-1 overflow-auto bg-muted/30 p-6">
-            <CatalogPreview
-              ref={previewRef}
-              config={config}
-              products={pageProducts}
-              supplierLogos={selectedSupplierLogos}
-            />
+          <div className="flex-1 overflow-auto bg-neutral-300 dark:bg-neutral-800 p-3 sm:p-6">
+            <div className="relative">
+              <CatalogPreview
+                ref={previewRef}
+                config={config}
+                products={pageProducts}
+                supplierLogos={selectedSupplierLogos}
+              />
+              <OverlayEditor
+                overlays={config.overlays ?? []}
+                selectedId={selectedOverlayId}
+                onSelect={setSelectedOverlayId}
+                onChange={(overlays) => handleConfigChange({ overlays })}
+              />
+            </div>
           </div>
         </div>
       </div>
+
+      <ShareDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        catalogName={catalogData.name}
+        totalPages={totalPages}
+        onExportPng={exportAsPng}
+        onExportPdf={exportAsPdf}
+        capturePng={capturePng}
+      />
 
       {/* Visualizar: preview em tela cheia, tamanho real, sem painéis. */}
       <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
@@ -525,7 +646,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               )}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded bg-muted/30 p-4">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded bg-neutral-300 dark:bg-neutral-800 p-4">
             <div
               style={{
                 width: `min(88vw, calc((95vh - 140px) * ${PAGE_W / PAGE_H_VALUES[config.pageSize]}))`,

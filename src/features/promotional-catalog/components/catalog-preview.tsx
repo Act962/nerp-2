@@ -2,7 +2,7 @@
 
 import { forwardRef, useRef, useState, useEffect } from "react";
 import type { CatalogConfig, CatalogProduct } from "../types";
-import { TEXT_SIZE_CSS } from "../types";
+import { DEFAULT_PRICE_STYLE, TEXT_SIZE_CSS } from "../types";
 import { CardStandard } from "./cards/card-standard";
 import { CardCompact } from "./cards/card-compact";
 import { CardList } from "./cards/card-list";
@@ -29,13 +29,47 @@ const gridClass: Record<string, string> = {
   table: "flex flex-col gap-0",
 };
 
-function renderCard(product: CatalogProduct, config: CatalogConfig) {
-  const cardStyle = { backgroundColor: config.cardColor };
+function renderCard(
+  product: CatalogProduct,
+  config: CatalogConfig,
+  thumbSrcs: Record<string, string>,
+) {
+  const cardStyle = {
+    backgroundColor: config.hideImageBackground
+      ? "transparent"
+      : config.cardColor,
+  };
   const cardColor = config.cardColor;
   const textConfig = {
     textSize: config.textSize,
     fontWeight: config.fontWeight,
   };
+  const priceStyle = {
+    ...(config.priceStyleOverrides?.[product.id] ??
+      config.priceStyle ??
+      DEFAULT_PRICE_STYLE),
+    hideBorder: config.hidePriceBorder ?? false,
+  };
+  const imageBox = {
+    margin: config.imageMargin ?? 0,
+    padding: {
+      top: config.imagePaddingTop ?? 0,
+      right: config.imagePaddingRight ?? 0,
+      bottom: config.imagePaddingBottom ?? 0,
+      left: config.imagePaddingLeft ?? 0,
+    },
+    hideBorder: config.hideImageBorder ?? false,
+    hideShadow: config.hideImageShadow ?? false,
+    hideBackground: config.hideImageBackground ?? false,
+  };
+  const imageAdjust = config.imageAdjustments?.[product.id];
+  // Foto embutida como data URL (via proxy same-origin) quando disponível — o
+  // export com html-to-image não consegue buscar do R2 (CORS), então cai no
+  // placeholder. Fallback pra URL direta enquanto o data URL não resolveu.
+  const imageSrc = product.thumbnail
+    ? (thumbSrcs[product.thumbnail] ?? constructUrl(product.thumbnail))
+    : "";
+  const showUnit = config.showUnit ?? true;
   switch (config.cardStyle) {
     case "compact":
       return (
@@ -44,6 +78,11 @@ function renderCard(product: CatalogProduct, config: CatalogConfig) {
           product={product}
           cardStyle={cardStyle}
           cardColor={cardColor}
+          priceStyle={priceStyle}
+          imageBox={imageBox}
+          imageAdjust={imageAdjust}
+          imageSrc={imageSrc}
+          showUnit={showUnit}
           config={textConfig}
         />
       );
@@ -54,6 +93,11 @@ function renderCard(product: CatalogProduct, config: CatalogConfig) {
           product={product}
           cardStyle={cardStyle}
           cardColor={cardColor}
+          priceStyle={priceStyle}
+          imageBox={imageBox}
+          imageAdjust={imageAdjust}
+          imageSrc={imageSrc}
+          showUnit={showUnit}
           config={{
             showCategory: config.showCategory,
             showStock: config.showStock,
@@ -68,6 +112,11 @@ function renderCard(product: CatalogProduct, config: CatalogConfig) {
           product={product}
           cardStyle={cardStyle}
           cardColor={cardColor}
+          priceStyle={priceStyle}
+          imageBox={imageBox}
+          imageAdjust={imageAdjust}
+          imageSrc={imageSrc}
+          showUnit={showUnit}
           config={textConfig}
         />
       );
@@ -78,6 +127,11 @@ function renderCard(product: CatalogProduct, config: CatalogConfig) {
           product={product}
           cardStyle={cardStyle}
           cardColor={cardColor}
+          priceStyle={priceStyle}
+          imageBox={imageBox}
+          imageAdjust={imageAdjust}
+          imageSrc={imageSrc}
+          showUnit={showUnit}
           config={{
             showDescription: config.showDescription,
             showCategory: config.showCategory,
@@ -146,14 +200,68 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
       };
     }, [config.backgroundImage]);
 
+    // Fotos dos produtos como data URL (via proxy same-origin). Sem isso o
+    // html-to-image não embute a imagem do R2 no export (CORS) e ela vira o
+    // placeholder. Enquanto resolve, o card usa a URL direta (constructUrl).
+    const [thumbSrcs, setThumbSrcs] = useState<Record<string, string>>({});
+    const thumbKeysSig = [
+      ...new Set(
+        [
+          ...products.map((p) => p.thumbnail),
+          ...(config.overlays ?? []).map((o) => o.assetKey),
+        ].filter(Boolean),
+      ),
+    ]
+      .sort()
+      .join("|");
+
+    useEffect(() => {
+      const keys = thumbKeysSig ? thumbKeysSig.split("|") : [];
+      if (keys.length === 0) {
+        setThumbSrcs({});
+        return;
+      }
+      let cancelled = false;
+      Promise.all(
+        keys.map(async (key) => {
+          try {
+            const res = await fetch(
+              `/api/s3/image?key=${encodeURIComponent(key)}`,
+            );
+            if (!res.ok) throw new Error(`${res.status}`);
+            const blob = await res.blob();
+            const dataUrl = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result as string);
+              reader.onerror = () => reject(new Error("FileReader error"));
+              reader.readAsDataURL(blob);
+            });
+            return [key, dataUrl] as const;
+          } catch {
+            return [key, constructUrl(key)] as const;
+          }
+        }),
+      ).then((entries) => {
+        if (!cancelled) setThumbSrcs(Object.fromEntries(entries));
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [thumbKeysSig]);
+
     const isFeatured = config.layout === "featured";
     const titleColor = getContrastColor(config.backgroundColor);
-    const cardStyle = { backgroundColor: config.cardColor };
+    const cardStyle = {
+      backgroundColor: config.hideImageBackground
+        ? "transparent"
+        : config.cardColor,
+    };
     const cardColor = config.cardColor;
 
-    const mid = Math.ceil(supplierLogos.length / 2);
-    const logosLeft = supplierLogos.slice(0, mid);
-    const logosRight = supplierLogos.slice(mid);
+    const logos = config.showFooterSuppliers === false ? [] : supplierLogos;
+    const mid = Math.ceil(logos.length / 2);
+    const logosLeft = logos.slice(0, mid);
+    const logosRight = logos.slice(mid);
 
     // O transform fica no wrapper intermediário, nunca no ref exportado.
     // html-to-image usa getBoundingClientRect() no ref — se ele tivesse
@@ -201,19 +309,27 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               paddingLeft: config.paddingLeft,
             }}
           >
-            <div className="mb-6 text-center shrink-0">
-              <h2 className="text-2xl font-bold" style={{ color: titleColor }}>
-                {config.title || "Promoções"}
-              </h2>
-              {config.subtitle && (
-                <p
-                  className="text-sm mt-1"
-                  style={{ color: titleColor, opacity: 0.7 }}
-                >
-                  {config.subtitle}
-                </p>
-              )}
-            </div>
+            {(config.showTitle !== false ||
+              (config.showSubtitle !== false && !!config.subtitle)) && (
+              <div className="mb-6 text-center shrink-0">
+                {config.showTitle !== false && (
+                  <h2
+                    className="text-2xl font-bold"
+                    style={{ color: titleColor }}
+                  >
+                    {config.title || "Promoções"}
+                  </h2>
+                )}
+                {config.showSubtitle !== false && config.subtitle && (
+                  <p
+                    className="text-sm mt-1"
+                    style={{ color: titleColor, opacity: 0.7 }}
+                  >
+                    {config.subtitle}
+                  </p>
+                )}
+              </div>
+            )}
 
             {products.length === 0 ? (
               <div
@@ -229,6 +345,32 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                     product={products[0]}
                     cardStyle={cardStyle}
                     cardColor={cardColor}
+                    priceStyle={{
+                      ...(config.priceStyleOverrides?.[products[0].id] ??
+                        config.priceStyle ??
+                        DEFAULT_PRICE_STYLE),
+                      hideBorder: config.hidePriceBorder ?? false,
+                    }}
+                    imageBox={{
+                      margin: config.imageMargin ?? 0,
+                      padding: {
+                        top: config.imagePaddingTop ?? 0,
+                        right: config.imagePaddingRight ?? 0,
+                        bottom: config.imagePaddingBottom ?? 0,
+                        left: config.imagePaddingLeft ?? 0,
+                      },
+                      hideBorder: config.hideImageBorder ?? false,
+                      hideShadow: config.hideImageShadow ?? false,
+                      hideBackground: config.hideImageBackground ?? false,
+                    }}
+                    imageAdjust={config.imageAdjustments?.[products[0].id]}
+                    imageSrc={
+                      products[0].thumbnail
+                        ? (thumbSrcs[products[0].thumbnail] ??
+                          constructUrl(products[0].thumbnail))
+                        : ""
+                    }
+                    showUnit={config.showUnit ?? true}
                     config={{
                       showDescription: config.showDescription,
                       showCategory: config.showCategory,
@@ -240,18 +382,20 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                   />
                 </div>
                 <div className={gridClass["grid-3"]}>
-                  {products.slice(1).map((p) => renderCard(p, config))}
+                  {products
+                    .slice(1)
+                    .map((p) => renderCard(p, config, thumbSrcs))}
                 </div>
               </div>
             ) : (
               <div
                 className={gridClass[config.layout] ?? "grid grid-cols-3 gap-4"}
               >
-                {products.map((p) => renderCard(p, config))}
+                {products.map((p) => renderCard(p, config, thumbSrcs))}
               </div>
             )}
 
-            {config.footerText && (
+            {config.showFooter !== false && config.footerText && (
               <div
                 className="mt-4 text-center shrink-0"
                 style={{
@@ -309,6 +453,30 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                 ))}
               </div>
             )}
+
+            {/* Etiquetas (overlays) — px no canvas 1080×pageH, capturadas no
+                export. As alças de mover/redimensionar ficam num layer à parte,
+                fora deste ref, então não entram na imagem. */}
+            {(config.overlays ?? []).map((ov) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={ov.id}
+                src={thumbSrcs[ov.assetKey] ?? constructUrl(ov.assetKey)}
+                alt=""
+                style={{
+                  position: "absolute",
+                  left: ov.x,
+                  top: ov.y,
+                  width: ov.w,
+                  height: ov.h,
+                  transform: ov.rotation
+                    ? `rotate(${ov.rotation}deg)`
+                    : undefined,
+                  objectFit: "contain",
+                  pointerEvents: "none",
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>
