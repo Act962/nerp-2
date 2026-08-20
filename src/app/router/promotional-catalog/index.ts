@@ -8,6 +8,7 @@ import { listPromotionalProducts } from "./list-promotional-products";
 import { updateProductPrice } from "./update-product-price";
 import { listCatalogTemplates } from "./template-list";
 import { createCatalogTemplate } from "./template-create";
+import { updateCatalogTemplate } from "./template-update";
 import { deleteCatalogTemplate } from "./template-delete";
 import { listCatalogAssets } from "./asset-list";
 import { createCatalogAsset } from "./asset-create";
@@ -27,6 +28,7 @@ export const promotionalCatalogRouter = {
   updateProductPrice,
   listTemplates: listCatalogTemplates,
   createTemplate: createCatalogTemplate,
+  updateTemplate: updateCatalogTemplate,
   deleteTemplate: deleteCatalogTemplate,
   listAssets: listCatalogAssets,
   createAsset: createCatalogAsset,

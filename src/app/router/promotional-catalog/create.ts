@@ -13,7 +13,14 @@ export const createCatalog = base
     summary: "Criar catálogo promocional",
     tags: ["promotional-catalog"],
   })
-  .input(z.object({ name: z.string().min(1) }))
+  .input(
+    z.object({
+      name: z.string().min(1),
+      // Aparência inicial (ex.: "criar a partir de um padrão"). Mesclada sobre o
+      // DEFAULT_CONFIG — o padrão só traz estilo, produtos ficam vazios.
+      config: z.record(z.string(), z.unknown()).optional(),
+    }),
+  )
   .output(
     z.object({
       id: z.string(),
@@ -25,7 +32,7 @@ export const createCatalog = base
     const catalog = await prisma.promotionalCatalog.create({
       data: {
         name: input.name,
-        config: DEFAULT_CONFIG,
+        config: { ...DEFAULT_CONFIG, ...(input.config ?? {}) } as object,
         organizationId: context.org.id,
         createdById: context.user.id,
       },

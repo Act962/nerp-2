@@ -117,7 +117,8 @@ export function AddProductDialog({
     orpc.products.list.queryOptions({
       input: {
         limit: PAGE_SIZE,
-        name: deferredSearch || undefined,
+        // `search` casa nome OU SKU OU código de barras (EAN).
+        search: deferredSearch || undefined,
         cursor,
       },
       enabled: open,
@@ -181,7 +182,7 @@ export function AddProductDialog({
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             className="pl-8"
-            placeholder="Buscar por nome..."
+            placeholder="Buscar por nome, SKU ou código de barras..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             autoFocus
