@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -13,8 +13,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, X, CaseSensitive, Bold, Tag, Building2 } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  ChevronDown,
+  X,
+  CaseSensitive,
+  Bold,
+  Tag,
+  Building2,
+  Image as ImageIcon,
+  Loader2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,17 +39,89 @@ import { ColorPickerField } from "./color-picker-field";
 import { AddProductDialog } from "./add-product-dialog";
 import { BackgroundImageUploader } from "./background-image-uploader";
 import { formatPrice } from "./cards/price-badge";
-import { useUpdateProductPrice } from "../hooks/use-catalog";
+import {
+  useSetProductThumbnail,
+  useUpdateProductPrice,
+} from "../hooks/use-catalog";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { constructUrl } from "@/hooks/use-construct-url";
 import type { CatalogConfig, CatalogProduct } from "../types";
 
-function ProductPricePopover({ product }: { product: CatalogProduct }) {
+// Botão de trocar a foto do produto — sobe o arquivo e grava a nova thumbnail
+// NO CADASTRO (produto real). Reflete no catálogo e onde mais usar o produto.
+function ProductPhotoButton({ product }: { product: CatalogProduct }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { upload, isPending } = useSetProductThumbnail();
+
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) upload(product.id, file);
+          e.target.value = "";
+        }}
+      />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-6 w-6 shrink-0"
+        title="Trocar foto do produto (salva no cadastro)"
+        disabled={isPending}
+        onClick={() => inputRef.current?.click()}
+      >
+        {isPending ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          <ImageIcon className="h-3 w-3" />
+        )}
+      </Button>
+    </>
+  );
+}
+
+function ProductPricePopover({
+  product,
+  config,
+  onConfigChange,
+}: {
+  product: CatalogProduct;
+  config: CatalogConfig;
+  onConfigChange: (changes: Partial<CatalogConfig>) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState<string>(
     product.promotionalPrice != null ? String(product.promotionalPrice) : "",
   );
   const mutation = useUpdateProductPrice();
+
+  // Preço normal: override SÓ deste catálogo (na config, não no produto).
+  const overrides = config.priceOverrides ?? {};
+  const hasOverride = typeof overrides[product.id] === "number";
+  const basePrice = product.basePrice ?? product.salePrice;
+  const [normal, setNormal] = useState<string>(
+    hasOverride ? String(overrides[product.id]) : "",
+  );
+
+  const applyNormal = () => {
+    const next = { ...(config.priceOverrides ?? {}) };
+    const num = normal !== "" ? Number(normal) : Number.NaN;
+    if (Number.isFinite(num) && num > 0) next[product.id] = num;
+    else delete next[product.id];
+    onConfigChange({ priceOverrides: next });
+  };
+
+  const resetNormal = () => {
+    const next = { ...(config.priceOverrides ?? {}) };
+    delete next[product.id];
+    onConfigChange({ priceOverrides: next });
+    setNormal("");
+  };
 
   const handleSave = () => {
     const price = value !== "" ? Number(value) : null;
@@ -49,20 +134,29 @@ function ProductPricePopover({ product }: { product: CatalogProduct }) {
   const handleClear = () => {
     mutation.mutate(
       { productId: product.id, promotionalPrice: null },
-      { onSuccess: () => { setValue(""); setOpen(false); } },
+      {
+        onSuccess: () => {
+          setValue("");
+          setOpen(false);
+        },
+      },
     );
   };
 
-  const discount = value !== "" && Number(value) < product.salePrice
-    ? Math.round(((product.salePrice - Number(value)) / product.salePrice) * 100)
-    : null;
+  const discount =
+    value !== "" && Number(value) < product.salePrice
+      ? Math.round(
+          ((product.salePrice - Number(value)) / product.salePrice) * 100,
+        )
+      : null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          type="button"
           className="flex items-center gap-1 text-xs hover:opacity-80 transition-opacity"
-          title="Editar preço promocional"
+          title="Editar preços"
         >
           {product.promotionalPrice != null ? (
             <span className="text-green-600 font-medium flex items-center gap-0.5">
@@ -77,13 +171,51 @@ function ProductPricePopover({ product }: { product: CatalogProduct }) {
           )}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-64 p-3" align="end" side="left" sideOffset={8}>
+      <PopoverContent
+        className="w-64 p-3"
+        align="end"
+        side="left"
+        sideOffset={8}
+      >
         <div className="flex flex-col gap-3">
-          <p className="text-xs font-semibold">Preço promocional</p>
+          {/* Preço normal — só para exibição neste catálogo */}
           <div className="flex flex-col gap-1.5">
-            <Label className="text-xs text-muted-foreground">
-              Venda normal: {formatPrice(product.salePrice)}
-            </Label>
+            <p className="text-xs font-semibold">
+              Preço normal (só neste catálogo)
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground shrink-0">R$</span>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                className="h-8 text-sm"
+                placeholder="0,00"
+                value={normal}
+                onChange={(e) => setNormal(e.target.value)}
+                onBlur={applyNormal}
+                onKeyDown={(e) => e.key === "Enter" && applyNormal()}
+              />
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Cadastro: {formatPrice(basePrice)}
+              {hasOverride && (
+                <button
+                  type="button"
+                  className="ml-2 text-primary hover:underline"
+                  onClick={resetNormal}
+                >
+                  usar cadastro
+                </button>
+              )}
+            </p>
+          </div>
+
+          <div className="h-px bg-border" />
+
+          {/* Preço promocional — grava no cadastro (produto) */}
+          <div className="flex flex-col gap-1.5">
+            <p className="text-xs font-semibold">Preço promocional</p>
             <div className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground shrink-0">R$</span>
               <Input
@@ -95,7 +227,6 @@ function ProductPricePopover({ product }: { product: CatalogProduct }) {
                 value={value}
                 onChange={(e) => setValue(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSave()}
-                autoFocus
               />
               {discount != null && (
                 <span className="text-xs text-green-600 font-medium shrink-0">
@@ -112,7 +243,7 @@ function ProductPricePopover({ product }: { product: CatalogProduct }) {
               disabled={mutation.isPending}
               onClick={handleClear}
             >
-              Limpar
+              Limpar promo
             </Button>
             <Button
               size="sm"
@@ -120,7 +251,7 @@ function ProductPricePopover({ product }: { product: CatalogProduct }) {
               disabled={mutation.isPending || value === ""}
               onClick={handleSave}
             >
-              {mutation.isPending ? "Salvando..." : "Salvar"}
+              {mutation.isPending ? "Salvando..." : "Salvar promo"}
             </Button>
           </div>
         </div>
@@ -136,17 +267,20 @@ interface ConfigPanelProps {
 }
 
 const TEXT_SIZES: Array<{ value: CatalogConfig["textSize"]; label: string }> = [
-  { value: "xs",   label: "Mínimo (12px)" },
-  { value: "sm",   label: "Pequeno (16px)" },
+  { value: "xs", label: "Mínimo (12px)" },
+  { value: "sm", label: "Pequeno (16px)" },
   { value: "base", label: "Médio (22px)" },
-  { value: "lg",   label: "Grande (30px)" },
-  { value: "xl",   label: "Muito grande (40px)" },
-  { value: "2xl",  label: "Enorme (52px)" },
-  { value: "3xl",  label: "Gigante (64px)" },
-  { value: "4xl",  label: "Máximo (80px)" },
+  { value: "lg", label: "Grande (30px)" },
+  { value: "xl", label: "Muito grande (40px)" },
+  { value: "2xl", label: "Enorme (52px)" },
+  { value: "3xl", label: "Gigante (64px)" },
+  { value: "4xl", label: "Máximo (80px)" },
 ];
 
-const FONT_WEIGHTS: Array<{ value: CatalogConfig["fontWeight"]; label: string }> = [
+const FONT_WEIGHTS: Array<{
+  value: CatalogConfig["fontWeight"];
+  label: string;
+}> = [
   { value: "normal", label: "Normal" },
   { value: "medium", label: "Médio" },
   { value: "semibold", label: "Semi-negrito" },
@@ -164,16 +298,26 @@ const LAYOUTS: Array<{ value: CatalogConfig["layout"]; label: string }> = [
   { value: "table", label: "Tabela" },
 ];
 
-export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelProps) {
+export function ConfigPanel({
+  config,
+  products,
+  onConfigChange,
+}: ConfigPanelProps) {
   const { suppliers } = useSupplier();
   const suppliersWithLogo = suppliers.filter((s) => s.logo);
 
   return (
     <Tabs defaultValue="geral" className="flex flex-col h-full overflow-hidden">
       <TabsList className="w-full rounded-none border-b shrink-0 h-10 bg-transparent justify-start px-2 gap-1">
-        <TabsTrigger value="geral" className="text-xs h-8">Geral</TabsTrigger>
-        <TabsTrigger value="card" className="text-xs h-8">Card</TabsTrigger>
-        <TabsTrigger value="fundo" className="text-xs h-8">Fundo</TabsTrigger>
+        <TabsTrigger value="geral" className="text-xs h-8">
+          Geral
+        </TabsTrigger>
+        <TabsTrigger value="card" className="text-xs h-8">
+          Card
+        </TabsTrigger>
+        <TabsTrigger value="fundo" className="text-xs h-8">
+          Fundo
+        </TabsTrigger>
       </TabsList>
 
       {/* ── Geral ── */}
@@ -211,8 +355,13 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
               />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="w-full justify-between font-normal">
-                    {TEXT_SIZES.find((s) => s.value === config.footerTextSize)?.label ?? "Mínimo (12px)"}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-between font-normal"
+                  >
+                    {TEXT_SIZES.find((s) => s.value === config.footerTextSize)
+                      ?.label ?? "Mínimo (12px)"}
                     <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -220,7 +369,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                   <DropdownMenuRadioGroup
                     value={config.footerTextSize}
                     onValueChange={(v) =>
-                      onConfigChange({ footerTextSize: v as CatalogConfig["textSize"] })
+                      onConfigChange({
+                        footerTextSize: v as CatalogConfig["textSize"],
+                      })
                     }
                   >
                     {TEXT_SIZES.map((s) => (
@@ -249,7 +400,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                         onClick={() =>
                           onConfigChange({
                             footerSupplierIds: selected
-                              ? config.footerSupplierIds.filter((id) => id !== s.id)
+                              ? config.footerSupplierIds.filter(
+                                  (id) => id !== s.id,
+                                )
                               : [...config.footerSupplierIds, s.id],
                           })
                         }
@@ -265,8 +418,12 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                           alt={s.name}
                           className="h-6 w-6 object-contain rounded"
                         />
-                        <span className="truncate flex-1 text-left">{s.tradeName || s.name}</span>
-                        {selected && <X className="h-3 w-3 shrink-0 text-primary" />}
+                        <span className="truncate flex-1 text-left">
+                          {s.tradeName || s.name}
+                        </span>
+                        {selected && (
+                          <X className="h-3 w-3 shrink-0 text-primary" />
+                        )}
                       </button>
                     );
                   })}
@@ -291,6 +448,16 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                   1:1 Quadrado
                 </Button>
                 <Button
+                  variant={
+                    config.pageSize === "portrait" ? "default" : "outline"
+                  }
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => onConfigChange({ pageSize: "portrait" })}
+                >
+                  3:4 Retrato
+                </Button>
+                <Button
                   variant={config.pageSize === "story" ? "default" : "outline"}
                   size="sm"
                   className="flex-1"
@@ -304,7 +471,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
               <Label>Disposição</Label>
               <Select
                 value={config.layout}
-                onValueChange={(v) => onConfigChange({ layout: v as CatalogConfig["layout"] })}
+                onValueChange={(v) =>
+                  onConfigChange({ layout: v as CatalogConfig["layout"] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
@@ -322,14 +491,20 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
               <Label>Ordenação</Label>
               <Select
                 value={config.sortBy}
-                onValueChange={(v) => onConfigChange({ sortBy: v as CatalogConfig["sortBy"] })}
+                onValueChange={(v) =>
+                  onConfigChange({ sortBy: v as CatalogConfig["sortBy"] })
+                }
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="discount-desc">Maior desconto %</SelectItem>
-                  <SelectItem value="savings-desc">Maior economia R$</SelectItem>
+                  <SelectItem value="discount-desc">
+                    Maior desconto %
+                  </SelectItem>
+                  <SelectItem value="savings-desc">
+                    Maior economia R$
+                  </SelectItem>
                   <SelectItem value="price-asc">Menor preço</SelectItem>
                   <SelectItem value="price-desc">Maior preço</SelectItem>
                   <SelectItem value="name-asc">Nome A-Z</SelectItem>
@@ -374,6 +549,7 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                 >
                   <div className="flex items-center justify-between gap-1">
                     <span className="truncate flex-1 text-sm">{p.name}</span>
+                    <ProductPhotoButton product={p} />
                     <Button
                       variant="ghost"
                       size="icon"
@@ -381,7 +557,10 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                       title="Remover do catálogo"
                       onClick={() =>
                         onConfigChange({
-                          excludedProductIds: [...config.excludedProductIds, p.id],
+                          excludedProductIds: [
+                            ...config.excludedProductIds,
+                            p.id,
+                          ],
                         })
                       }
                     >
@@ -392,7 +571,11 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                     <span className="text-xs text-muted-foreground line-through">
                       {formatPrice(p.salePrice)}
                     </span>
-                    <ProductPricePopover product={p} />
+                    <ProductPricePopover
+                      product={p}
+                      config={config}
+                      onConfigChange={onConfigChange}
+                    />
                   </div>
                 </div>
               ))}
@@ -445,8 +628,12 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
               </Label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between font-normal">
-                    {TEXT_SIZES.find((s) => s.value === config.textSize)?.label ?? "Pequeno"}
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                  >
+                    {TEXT_SIZES.find((s) => s.value === config.textSize)
+                      ?.label ?? "Pequeno"}
                     <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -454,7 +641,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                   <DropdownMenuRadioGroup
                     value={config.textSize}
                     onValueChange={(v) =>
-                      onConfigChange({ textSize: v as CatalogConfig["textSize"] })
+                      onConfigChange({
+                        textSize: v as CatalogConfig["textSize"],
+                      })
                     }
                   >
                     {TEXT_SIZES.map((s) => (
@@ -474,8 +663,12 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
               </Label>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="w-full justify-between font-normal">
-                    {FONT_WEIGHTS.find((w) => w.value === config.fontWeight)?.label ?? "Médio"}
+                  <Button
+                    variant="outline"
+                    className="w-full justify-between font-normal"
+                  >
+                    {FONT_WEIGHTS.find((w) => w.value === config.fontWeight)
+                      ?.label ?? "Médio"}
                     <ChevronDown className="h-4 w-4 opacity-50" />
                   </Button>
                 </DropdownMenuTrigger>
@@ -483,7 +676,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                   <DropdownMenuRadioGroup
                     value={config.fontWeight}
                     onValueChange={(v) =>
-                      onConfigChange({ fontWeight: v as CatalogConfig["fontWeight"] })
+                      onConfigChange({
+                        fontWeight: v as CatalogConfig["fontWeight"],
+                      })
                     }
                   >
                     {FONT_WEIGHTS.map((w) => (
@@ -520,7 +715,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
               {config.backgroundImage && (
                 <div className="flex gap-2">
                   <Button
-                    variant={config.backgroundFit === "cover" ? "default" : "outline"}
+                    variant={
+                      config.backgroundFit === "cover" ? "default" : "outline"
+                    }
                     size="sm"
                     className="flex-1"
                     onClick={() => onConfigChange({ backgroundFit: "cover" })}
@@ -528,7 +725,9 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
                     Cobrir tudo
                   </Button>
                   <Button
-                    variant={config.backgroundFit === "contain" ? "default" : "outline"}
+                    variant={
+                      config.backgroundFit === "contain" ? "default" : "outline"
+                    }
                     size="sm"
                     className="flex-1"
                     onClick={() => onConfigChange({ backgroundFit: "contain" })}
@@ -546,47 +745,63 @@ export function ConfigPanel({ config, products, onConfigChange }: ConfigPanelPro
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pad-top" className="text-xs">Cima</Label>
+                <Label htmlFor="pad-top" className="text-xs">
+                  Cima
+                </Label>
                 <Input
                   id="pad-top"
                   type="number"
                   min={0}
                   max={200}
                   value={config.paddingTop}
-                  onChange={(e) => onConfigChange({ paddingTop: Number(e.target.value) })}
+                  onChange={(e) =>
+                    onConfigChange({ paddingTop: Number(e.target.value) })
+                  }
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pad-bottom" className="text-xs">Baixo</Label>
+                <Label htmlFor="pad-bottom" className="text-xs">
+                  Baixo
+                </Label>
                 <Input
                   id="pad-bottom"
                   type="number"
                   min={0}
                   max={200}
                   value={config.paddingBottom}
-                  onChange={(e) => onConfigChange({ paddingBottom: Number(e.target.value) })}
+                  onChange={(e) =>
+                    onConfigChange({ paddingBottom: Number(e.target.value) })
+                  }
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pad-left" className="text-xs">Esquerda</Label>
+                <Label htmlFor="pad-left" className="text-xs">
+                  Esquerda
+                </Label>
                 <Input
                   id="pad-left"
                   type="number"
                   min={0}
                   max={200}
                   value={config.paddingLeft}
-                  onChange={(e) => onConfigChange({ paddingLeft: Number(e.target.value) })}
+                  onChange={(e) =>
+                    onConfigChange({ paddingLeft: Number(e.target.value) })
+                  }
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pad-right" className="text-xs">Direita</Label>
+                <Label htmlFor="pad-right" className="text-xs">
+                  Direita
+                </Label>
                 <Input
                   id="pad-right"
                   type="number"
                   min={0}
                   max={200}
                   value={config.paddingRight}
-                  onChange={(e) => onConfigChange({ paddingRight: Number(e.target.value) })}
+                  onChange={(e) =>
+                    onConfigChange({ paddingRight: Number(e.target.value) })
+                  }
                 />
               </div>
             </div>

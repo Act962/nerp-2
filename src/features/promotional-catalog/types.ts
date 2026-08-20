@@ -1,10 +1,29 @@
 export type CatalogConfig = {
   title: string;
   subtitle: string;
-  pageSize: "square" | "story";
-  layout: "grid-2" | "grid-3" | "grid-4" | "list" | "featured" | "carousel" | "masonry" | "table";
-  cardStyle: "compact" | "standard" | "list" | "countdown" | "badge-hot" | "minimal";
-  sortBy: "discount-desc" | "price-asc" | "price-desc" | "name-asc" | "savings-desc";
+  pageSize: "square" | "story" | "portrait";
+  layout:
+    | "grid-2"
+    | "grid-3"
+    | "grid-4"
+    | "list"
+    | "featured"
+    | "carousel"
+    | "masonry"
+    | "table";
+  cardStyle:
+    | "compact"
+    | "standard"
+    | "list"
+    | "countdown"
+    | "badge-hot"
+    | "minimal";
+  sortBy:
+    | "discount-desc"
+    | "price-asc"
+    | "price-desc"
+    | "name-asc"
+    | "savings-desc";
   backgroundColor: string;
   cardColor: string;
   textSize: "xs" | "sm" | "base" | "lg" | "xl" | "2xl" | "3xl" | "4xl";
@@ -22,20 +41,23 @@ export type CatalogConfig = {
   excludedProductIds: string[];
   manuallyAddedIds: string[];
   categoryFilter: string[];
+  // Preço normal sobrescrito SÓ para exibição neste catálogo (productId → valor).
+  // Não altera o produto no banco — o card e o desconto seguem este valor.
+  priceOverrides: Record<string, number>;
   footerText: string;
   footerTextSize: CatalogConfig["textSize"];
   footerSupplierIds: string[];
 };
 
 export const TEXT_SIZE_CSS: Record<CatalogConfig["textSize"], string> = {
-  xs:   "0.75rem",   // 12px
-  sm:   "1rem",      // 16px
-  base: "1.375rem",  // 22px
-  lg:   "1.875rem",  // 30px
-  xl:   "2.5rem",    // 40px
-  "2xl": "3.25rem",  // 52px
-  "3xl": "4rem",     // 64px
-  "4xl": "5rem",     // 80px
+  xs: "0.75rem", // 12px
+  sm: "1rem", // 16px
+  base: "1.375rem", // 22px
+  lg: "1.875rem", // 30px
+  xl: "2.5rem", // 40px
+  "2xl": "3.25rem", // 52px
+  "3xl": "4rem", // 64px
+  "4xl": "5rem", // 80px
 };
 
 export const FONT_WEIGHT_CSS: Record<CatalogConfig["fontWeight"], string> = {
@@ -51,6 +73,9 @@ export type CatalogProduct = {
   sku: string;
   thumbnail: string;
   salePrice: number;
+  // Preço do cadastro (antes de qualquer override do catálogo). Preenchido no
+  // cliente ao aplicar `priceOverrides`; ausente = igual a salePrice.
+  basePrice?: number;
   promotionalPrice: number | null;
   discount: number | null;
   savings: number | null;
@@ -83,6 +108,7 @@ export const DEFAULT_CONFIG: CatalogConfig = {
   excludedProductIds: [],
   manuallyAddedIds: [],
   categoryFilter: [],
+  priceOverrides: {},
   footerText: "",
   footerTextSize: "xs",
   footerSupplierIds: [],

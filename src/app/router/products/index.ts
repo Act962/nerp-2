@@ -7,6 +7,7 @@ import { getProduct } from "./get";
 import { listProducts } from "./list";
 import { matchProductsBySku } from "./match-by-sku";
 import { setProductImages } from "./set-images";
+import { setProductThumbnail } from "./set-thumbnail";
 import { updateProduct } from "./update";
 import { createImport } from "./import/create";
 import { getImport } from "./import/get";
@@ -21,6 +22,7 @@ export const productsRoutes = {
   duplicate: duplicateProduct,
   matchBySku: matchProductsBySku,
   setImages: setProductImages,
+  setThumbnail: setProductThumbnail,
   bulkUpdate: bulkUpdateProducts,
   import: {
     create: createImport,

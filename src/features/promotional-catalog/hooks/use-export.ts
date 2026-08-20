@@ -8,7 +8,7 @@ type ExportOptions = {
   allPageRefs: RefObject<(HTMLDivElement | null)[]>;
   totalPages: number;
   catalogName: string;
-  pageSize: "square" | "story";
+  pageSize: "square" | "story" | "portrait";
 };
 
 // 1×1 transparent PNG — fallback para imagens que retornam 404 ou têm erro de CORS
@@ -71,7 +71,8 @@ export function useExport({
         img.src = dataUrl;
         await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
-          img.onerror = () => reject(new Error(`Falha ao carregar página ${i + 1}`));
+          img.onerror = () =>
+            reject(new Error(`Falha ao carregar página ${i + 1}`));
         });
 
         const wMm = pxToMm(img.naturalWidth || img.width);

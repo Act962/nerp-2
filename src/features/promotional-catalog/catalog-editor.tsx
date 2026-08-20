@@ -2,8 +2,14 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Save } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Eye, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +30,11 @@ import type { CatalogConfig } from "./types";
 import { DEFAULT_CONFIG } from "./types";
 
 const PAGE_W = 1080;
-const PAGE_H_VALUES: Record<CatalogConfig["pageSize"], number> = { square: 1080, story: 1920 };
+const PAGE_H_VALUES: Record<CatalogConfig["pageSize"], number> = {
+  square: 1080,
+  story: 1920,
+  portrait: 1440,
+};
 // Espaço fixo do cabeçalho: h2 text-2xl (~36px) + mb-6 (24px) + subtitle (~20px)
 const HEADER_H = 80;
 // Margem de segurança: impede que a última linha corte o rodapé do canvas.
@@ -34,7 +44,14 @@ const GAP3 = 12; // gap-3
 
 // Altura em px de cada opção de textSize (base para estimativa de line-height).
 const TEXT_SIZE_PX: Record<CatalogConfig["textSize"], number> = {
-  xs: 12, sm: 16, base: 22, lg: 30, xl: 40, "2xl": 52, "3xl": 64, "4xl": 80,
+  xs: 12,
+  sm: 16,
+  base: 22,
+  lg: 30,
+  xl: 40,
+  "2xl": 52,
+  "3xl": 64,
+  "4xl": 80,
 };
 
 // Retorna a altura estimada de um card em pixels, considerando o cardStyle,
@@ -55,19 +72,20 @@ function estimateCardHeight(
       // h-20(80) + p-3*2(24) + border; nome + campos opcionais
       let h = Math.max(116, 80 + 24 + lineH);
       if (config.showCategory) h += lineH;
-      if (config.showStock)    h += lineH;
+      if (config.showStock) h += lineH;
       return h;
     }
     case "minimal":
       // aspect-square + p-2*2(16) + nome(1 linha) + preço(1 linha)
       return cardWidth + 16 + lineH * 2 + 8;
-    default: { // standard, countdown, badge-hot
+    default: {
+      // standard, countdown, badge-hot
       // p-3*2(24) + nome(2 linhas) + preço(1 linha)
       let contentH = 24 + lineH * 2 + lineH;
-      if (config.showCategory)    contentH += lineH;
-      if (config.showSku)         contentH += lineH;
+      if (config.showCategory) contentH += lineH;
+      if (config.showSku) contentH += lineH;
       if (config.showDescription) contentH += lineH * 2; // line-clamp-2
-      if (config.showStock)       contentH += lineH;
+      if (config.showStock) contentH += lineH;
       contentH += lineH * 2; // preço original riscado + economia (promo)
       return cardWidth + contentH;
     }
@@ -82,7 +100,10 @@ function getItemsPerPage(
   config: CatalogConfig,
 ): number {
   const pageH = PAGE_H_VALUES[pageSize];
-  const availH = Math.max(0, pageH - config.paddingTop - config.paddingBottom - HEADER_H - BOTTOM_BUFFER);
+  const availH = Math.max(
+    0,
+    pageH - config.paddingTop - config.paddingBottom - HEADER_H - BOTTOM_BUFFER,
+  );
   const availW = Math.max(1, PAGE_W - config.paddingLeft - config.paddingRight);
 
   const gridItems = (cols: number, gap: number) => {
@@ -93,10 +114,14 @@ function getItemsPerPage(
   };
 
   switch (layout) {
-    case "grid-2":  return gridItems(2, GAP4);
-    case "grid-3":  return gridItems(3, GAP4);
-    case "grid-4":  return gridItems(4, GAP3);
-    case "masonry": return gridItems(3, GAP4);
+    case "grid-2":
+      return gridItems(2, GAP4);
+    case "grid-3":
+      return gridItems(3, GAP4);
+    case "grid-4":
+      return gridItems(4, GAP3);
+    case "masonry":
+      return gridItems(3, GAP4);
     case "list": {
       const cardH = estimateCardHeight(config.cardStyle, availW, config);
       const rows = Math.floor(availH / (cardH + GAP3));
@@ -138,11 +163,16 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const updateMutation = useUpdateCatalog();
 
   const [config, setConfig] = useState<CatalogConfig>(DEFAULT_CONFIG);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
+    "idle",
+  );
 
   useEffect(() => {
     if (catalogData?.config) {
-      setConfig({ ...DEFAULT_CONFIG, ...(catalogData.config as Partial<CatalogConfig>) });
+      setConfig({
+        ...DEFAULT_CONFIG,
+        ...(catalogData.config as Partial<CatalogConfig>),
+      });
     }
   }, [catalogData?.config]);
 
@@ -158,7 +188,26 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   const products = useMemo(() => {
     const excluded = new Set(config.excludedProductIds);
-    let list = rawProducts.filter((p) => !excluded.has(p.id));
+    const overrides = config.priceOverrides ?? {};
+    let list = rawProducts
+      .filter((p) => !excluded.has(p.id))
+      .map((p) => {
+        // Preço normal sobrescrito SÓ para este catálogo — recalcula
+        // desconto/economia a partir dele. `basePrice` guarda o do cadastro.
+        const override = overrides[p.id];
+        if (typeof override !== "number" || override <= 0) {
+          return { ...p, basePrice: p.salePrice };
+        }
+        const salePrice = override;
+        const promotionalPrice = p.promotionalPrice;
+        const discount =
+          promotionalPrice != null && salePrice > 0
+            ? ((salePrice - promotionalPrice) / salePrice) * 100
+            : null;
+        const savings =
+          promotionalPrice != null ? salePrice - promotionalPrice : null;
+        return { ...p, salePrice, discount, savings, basePrice: p.salePrice };
+      });
 
     switch (config.sortBy) {
       case "discount-desc":
@@ -187,16 +236,30 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     }
 
     return list;
-  }, [rawProducts, config.excludedProductIds, config.sortBy]);
+  }, [
+    rawProducts,
+    config.excludedProductIds,
+    config.sortBy,
+    config.priceOverrides,
+  ]);
 
   // Paginação — quantos itens cabem por página (calculado proporcionalmente)
   const itemsPerPage = useMemo(
     () => getItemsPerPage(config.layout, config.pageSize, config),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
-      config.layout, config.pageSize, config.cardStyle, config.textSize,
-      config.paddingTop, config.paddingRight, config.paddingBottom, config.paddingLeft,
-      config.showDescription, config.showCategory, config.showStock, config.showSku,
+      config.layout,
+      config.pageSize,
+      config.cardStyle,
+      config.textSize,
+      config.paddingTop,
+      config.paddingRight,
+      config.paddingBottom,
+      config.paddingLeft,
+      config.showDescription,
+      config.showCategory,
+      config.showStock,
+      config.showSku,
     ],
   );
 
@@ -208,11 +271,16 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   }, [suppliers, config.footerSupplierIds]);
 
   const [currentPage, setCurrentPage] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   const totalPages = Math.max(1, Math.ceil(products.length / itemsPerPage));
 
   const pageProducts = useMemo(
-    () => products.slice(currentPage * itemsPerPage, (currentPage + 1) * itemsPerPage),
+    () =>
+      products.slice(
+        currentPage * itemsPerPage,
+        (currentPage + 1) * itemsPerPage,
+      ),
     [products, currentPage, itemsPerPage],
   );
 
@@ -294,16 +362,33 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             </Link>
           </Button>
           <span className="text-muted-foreground text-sm">/</span>
-          <span className="font-semibold text-sm truncate px-1">{catalogData.name}</span>
+          <span className="font-semibold text-sm truncate px-1">
+            {catalogData.name}
+          </span>
         </div>
         <span className="text-xs text-muted-foreground">
-          {saveStatus === "saving" ? "Salvando..." : saveStatus === "saved" ? "Salvo" : ""}
+          {saveStatus === "saving"
+            ? "Salvando..."
+            : saveStatus === "saved"
+              ? "Salvo"
+              : ""}
         </span>
         <Button
           variant="outline"
           size="sm"
+          onClick={() => setPreviewOpen(true)}
+        >
+          <Eye className="h-4 w-4 mr-1" />
+          Visualizar
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() =>
-            updateMutation.mutate({ id: catalogId, config: config as Record<string, unknown> })
+            updateMutation.mutate({
+              id: catalogId,
+              config: config as Record<string, unknown>,
+            })
           }
         >
           <Save className="h-4 w-4 mr-1" />
@@ -332,13 +417,21 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         html-to-image capture o canvas no tamanho correto (1080×pageH).
       */}
       <div
-        style={{ position: "fixed", left: -9999, top: 0, width: 1080, pointerEvents: "none" }}
+        style={{
+          position: "fixed",
+          left: -9999,
+          top: 0,
+          width: 1080,
+          pointerEvents: "none",
+        }}
         aria-hidden
       >
         {pageChunks.map((prods, i) => (
           <CatalogPreview
             key={i}
-            ref={(el) => { allPageRefs.current[i] = el; }}
+            ref={(el) => {
+              allPageRefs.current[i] = el;
+            }}
             config={config}
             products={prods}
             supplierLogos={selectedSupplierLogos}
@@ -347,7 +440,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       </div>
 
       {/* Editor layout */}
-      <div className="flex gap-0 border rounded-lg overflow-hidden" style={{ height: "calc(100vh - 220px)" }}>
+      <div
+        className="flex gap-0 border rounded-lg overflow-hidden"
+        style={{ height: "calc(100vh - 220px)" }}
+      >
         {/* Config panel */}
         <div className="w-72 shrink-0 border-r bg-background overflow-hidden flex flex-col">
           <ConfigPanel
@@ -388,10 +484,62 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             </div>
           )}
           <div className="flex-1 overflow-auto bg-muted/30 p-6">
-            <CatalogPreview ref={previewRef} config={config} products={pageProducts} supplierLogos={selectedSupplierLogos} />
+            <CatalogPreview
+              ref={previewRef}
+              config={config}
+              products={pageProducts}
+              supplierLogos={selectedSupplierLogos}
+            />
           </div>
         </div>
       </div>
+
+      {/* Visualizar: preview em tela cheia, tamanho real, sem painéis. */}
+      <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <DialogContent className="flex h-[95vh] w-[95vw] max-w-[95vw] flex-col gap-3 p-4">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center justify-between gap-3 pr-8">
+              <span className="truncate">{catalogData.name}</span>
+              {totalPages > 1 && (
+                <span className="flex items-center gap-1 text-sm font-normal text-muted-foreground">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={currentPage === 0}
+                    onClick={() => setCurrentPage((p) => p - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Anterior
+                  </Button>
+                  Página {currentPage + 1} de {totalPages}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={currentPage >= totalPages - 1}
+                    onClick={() => setCurrentPage((p) => p + 1)}
+                  >
+                    Próxima
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded bg-muted/30 p-4">
+            <div
+              style={{
+                width: `min(88vw, calc((95vh - 140px) * ${PAGE_W / PAGE_H_VALUES[config.pageSize]}))`,
+              }}
+            >
+              <CatalogPreview
+                config={config}
+                products={pageProducts}
+                supplierLogos={selectedSupplierLogos}
+              />
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
