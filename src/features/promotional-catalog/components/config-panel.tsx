@@ -47,6 +47,8 @@ import {
   Save,
   Upload,
   Sticker,
+  RefreshCw,
+  CopyPlus,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -61,8 +63,10 @@ import { BackgroundImageUploader } from "./background-image-uploader";
 import {
   useCatalogAssets,
   useCatalogTemplates,
+  useCreateCatalog,
   useCreateCatalogAsset,
   useCreateCatalogTemplate,
+  useUpdateCatalogTemplate,
   useDeleteCatalogAsset,
   useDeleteCatalogTemplate,
   useRemoveProductBackground,
@@ -1009,8 +1013,20 @@ export function ConfigPanel({
   // Padrões (presets de estilo).
   const { data: templates = [] } = useCatalogTemplates();
   const createTemplate = useCreateCatalogTemplate();
+  const updateTemplate = useUpdateCatalogTemplate();
   const deleteTemplate = useDeleteCatalogTemplate();
+  const createCatalog = useCreateCatalog();
   const [templateName, setTemplateName] = useState("");
+  // Padrão "atual" (último salvo/aplicado) — alvo do "Atualizar padrão atual".
+  const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(
+    null,
+  );
+  type SavedTemplate = (typeof templates)[number];
+  const [confirmApply, setConfirmApply] = useState<SavedTemplate | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<SavedTemplate | null>(
+    null,
+  );
+  const currentTemplate = templates.find((t) => t.id === currentTemplateId);
 
   const handleSaveTemplate = async () => {
     const name = templateName.trim();
@@ -1022,12 +1038,38 @@ export function ConfigPanel({
         config: toTemplateConfig(config),
         thumbnail: thumbnail || undefined,
       },
-      { onSuccess: () => setTemplateName("") },
+      {
+        onSuccess: (data) => {
+          setTemplateName("");
+          setCurrentTemplateId(data.id);
+        },
+      },
     );
   };
 
-  const applyTemplate = (templateConfig: unknown) => {
-    onConfigChange(templateConfig as Partial<CatalogConfig>);
+  // Atualiza o padrão "atual" com a aparência atual do catálogo.
+  const handleUpdateTemplate = async () => {
+    if (!currentTemplateId) return;
+    const thumbnail = captureThumbnail ? await captureThumbnail() : "";
+    updateTemplate.mutate({
+      id: currentTemplateId,
+      config: toTemplateConfig(config),
+      thumbnail: thumbnail || undefined,
+    });
+  };
+
+  const applyTemplate = (t: SavedTemplate) => {
+    onConfigChange(t.config as Partial<CatalogConfig>);
+    setCurrentTemplateId(t.id);
+    setConfirmApply(null);
+  };
+
+  // Cria um NOVO catálogo já com a aparência do padrão (e navega até ele).
+  const createFromTemplate = (t: SavedTemplate) => {
+    createCatalog.mutate({
+      name: t.name,
+      config: t.config as Record<string, unknown>,
+    });
   };
 
   // Etiquetas (biblioteca de PNGs arrastáveis para o canvas).
@@ -1822,6 +1864,26 @@ export function ConfigPanel({
               )}
               Salvar padrão atual
             </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full gap-1"
+              disabled={!currentTemplateId || updateTemplate.isPending}
+              title={
+                currentTemplate
+                  ? `Atualiza "${currentTemplate.name}" com a aparência atual`
+                  : "Salve ou aplique um padrão para poder atualizá-lo"
+              }
+              onClick={handleUpdateTemplate}
+            >
+              {updateTemplate.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5" />
+              )}
+              Atualizar padrão atual
+              {currentTemplate ? ` (${currentTemplate.name})` : ""}
+            </Button>
             <p className="text-[11px] text-muted-foreground">
               Salva a aparência (layout, cores, fontes, imagem, estilos…) — sem
               os produtos. Aplicar troca só o visual do catálogo.
@@ -1841,13 +1903,16 @@ export function ConfigPanel({
                 {templates.map((t) => (
                   <div
                     key={t.id}
-                    className="group relative flex flex-col overflow-hidden rounded-md border"
+                    className={cn(
+                      "group relative flex flex-col overflow-hidden rounded-md border",
+                      currentTemplateId === t.id && "ring-2 ring-primary",
+                    )}
                   >
                     <button
                       type="button"
                       className="flex flex-col text-left transition-opacity hover:opacity-90"
                       title="Aplicar este padrão"
-                      onClick={() => applyTemplate(t.config)}
+                      onClick={() => setConfirmApply(t)}
                     >
                       <div className="aspect-square w-full bg-muted">
                         {t.thumbnail ? (
@@ -1867,13 +1932,25 @@ export function ConfigPanel({
                         {t.name}
                       </span>
                     </button>
+                    {/* Criar a partir deste padrão — aparece ao passar o mouse. */}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="absolute inset-x-1 top-1/3 h-7 gap-1 text-[11px] opacity-0 shadow transition-opacity group-hover:opacity-100"
+                      title="Criar um novo catálogo com este padrão"
+                      disabled={createCatalog.isPending}
+                      onClick={() => createFromTemplate(t)}
+                    >
+                      <CopyPlus className="h-3 w-3" />
+                      Criar a partir deste
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="absolute right-1 top-1 h-6 w-6 bg-background/80 opacity-0 transition-opacity group-hover:opacity-100"
                       title="Excluir padrão"
                       disabled={deleteTemplate.isPending}
-                      onClick={() => deleteTemplate.mutate({ id: t.id })}
+                      onClick={() => setConfirmDelete(t)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
@@ -1883,6 +1960,73 @@ export function ConfigPanel({
             )}
           </div>
         </div>
+
+        {/* Confirmação: substituir o padrão atual pelo escolhido */}
+        <Dialog
+          open={!!confirmApply}
+          onOpenChange={(o) => !o && setConfirmApply(null)}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Substituir o padrão atual?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Você deseja substituir o padrão atual por{" "}
+              <span className="font-medium text-foreground">
+                “{confirmApply?.name}”
+              </span>
+              ? Só a aparência do catálogo muda — os produtos permanecem.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmApply(null)}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={() => confirmApply && applyTemplate(confirmApply)}
+              >
+                Substituir
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Confirmação: excluir padrão */}
+        <Dialog
+          open={!!confirmDelete}
+          onOpenChange={(o) => !o && setConfirmDelete(null)}
+        >
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Excluir padrão?</DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              Excluir o padrão{" "}
+              <span className="font-medium text-foreground">
+                “{confirmDelete?.name}”
+              </span>
+              ? Esta ação não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmDelete(null)}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={deleteTemplate.isPending}
+                onClick={() => {
+                  if (confirmDelete) {
+                    deleteTemplate.mutate({ id: confirmDelete.id });
+                    if (currentTemplateId === confirmDelete.id)
+                      setCurrentTemplateId(null);
+                    setConfirmDelete(null);
+                  }
+                }}
+              >
+                Excluir
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </TabsContent>
 
       {/* ── Etiqueta: biblioteca de PNGs para arrastar sobre o catálogo ── */}

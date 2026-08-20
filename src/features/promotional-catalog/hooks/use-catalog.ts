@@ -34,6 +34,21 @@ export function useCreateCatalogTemplate() {
   );
 }
 
+export function useUpdateCatalogTemplate() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotionalCatalog.updateTemplate.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.listTemplates.key(),
+        });
+        toast.success("Padrão atualizado");
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useDeleteCatalogTemplate() {
   const queryClient = useQueryClient();
   return useMutation(
