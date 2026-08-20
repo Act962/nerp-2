@@ -55,19 +55,23 @@ export const listPromotionalProducts = base
     const products = await prisma.product.findMany({
       where: {
         organizationId: context.org.id,
-        isActive: true,
         OR: [
+          // Automáticos: produtos com promoção ativa, respeitando isActive, o
+          // filtro de categoria e a lista de excluídos.
           {
+            isActive: true,
             promotionalPrice: { not: null },
             NOT: { id: { in: excludedIds } },
+            ...(categoryFilter.length > 0 && {
+              category: { slug: { in: categoryFilter } },
+            }),
           },
+          // Manuais: escolha explícita do usuário — SEMPRE aparecem, mesmo que
+          // inativos ou de outra categoria. O "excluído" é aplicado no cliente.
           ...(manuallyAddedIds.length > 0
             ? [{ id: { in: manuallyAddedIds } }]
             : []),
         ],
-        ...(categoryFilter.length > 0 && {
-          category: { slug: { in: categoryFilter } },
-        }),
         ...(input.name && {
           name: { contains: input.name, mode: "insensitive" as const },
         }),
