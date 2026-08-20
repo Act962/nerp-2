@@ -886,6 +886,32 @@ kbd {
   border-color: transparent;
 }
 
+/* Contêiner da escolha: recebe o foco (teclado), sem anel — o destaque vive no
+   método selecionado. */
+.pay-choose {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  outline: none;
+}
+.pay-cash {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+/* Destaque de teclado do método (↑↓ / atalho): anel forte, além do hover. */
+.pay-method.active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.pay-change.muted {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+.pay-change.muted strong {
+  color: var(--text);
+}
+
 /* ── Confirmação de venda concluída ─────────────────────────────────── */
 .sale-done {
   position: fixed;

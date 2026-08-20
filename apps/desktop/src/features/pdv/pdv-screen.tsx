@@ -132,6 +132,9 @@ export function PdvScreen({
   const searchRef = useRef(search);
   searchRef.current = search;
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Ref do campo de quantidade da ÚLTIMA linha — para o atalho `*` (editar qtd
+  // do item recém-adicionado sem mouse).
+  const lastQtyRef = useRef<HTMLInputElement>(null);
 
   const searchLocal = useCallback(async (term: string) => {
     const catalog = await getCatalog();
@@ -194,11 +197,45 @@ export function PdvScreen({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset por mudança de resultados
   useEffect(() => setHighlight(0), [products]);
 
-  // Fechou o pagamento → o foco volta pro campo de leitura (loop sem mouse).
+  // Foco "grudento" no leitor: o scanner digita no input FOCADO, então sempre
+  // que não há operação em curso (nenhum modal/overlay aberto) o foco tem de
+  // estar no campo de leitura. `focusScan` é um no-op quando há um overlay
+  // (pagamento, diálogo de caixa `.pay-overlay`, ou confirmação `.sale-done`) —
+  // aí quem manda é o overlay.
+  const focusScan = useCallback(() => {
+    if (document.querySelector(".pay-overlay, .sale-done")) return;
+    searchInputRef.current?.focus();
+  }, []);
+
+  // Reafirma o foco a cada transição que costuma perdê-lo (fim de pagamento,
+  // confirmação, abertura/fechamento de caixa, boot).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: deps são gatilhos de re-execução, não referências do corpo
   useEffect(() => {
-    if (!paying && caixaSession?.status === "open")
-      searchInputRef.current?.focus();
-  }, [paying, caixaSession]);
+    focusScan();
+  }, [focusScan, paying, saleResult, caixaSession, booted]);
+
+  // E também nos eventos fora do ciclo do React: o app reganhar o foco do SO, e
+  // cliques que caem fora de um campo (espaço vazio, botões do header/faixa).
+  useEffect(() => {
+    const onWinFocus = () => focusScan();
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t?.closest(
+          "input, textarea, select, [contenteditable], .pay-overlay, .sale-done",
+        )
+      )
+        return;
+      // Próximo tick: deixa um clique que abre diálogo montar o overlay antes.
+      setTimeout(focusScan, 0);
+    };
+    window.addEventListener("focus", onWinFocus);
+    document.addEventListener("click", onDocClick);
+    return () => {
+      window.removeEventListener("focus", onWinFocus);
+      document.removeEventListener("click", onDocClick);
+    };
+  }, [focusScan]);
 
   // Confirmação de venda: some sozinha em ~3,5s, ou com Enter/Esc; devolve o foco.
   useEffect(() => {
@@ -218,11 +255,11 @@ export function PdvScreen({
     };
   }, [saleResult]);
 
-  const addToCart = (product: LocalProduct) => {
+  const addToCart = (product: LocalProduct, qty = 1) => {
     setCart((prev) => {
       const next = new Map(prev);
       const line = next.get(product.id);
-      next.set(product.id, { product, qty: (line?.qty ?? 0) + 1 });
+      next.set(product.id, { product, qty: (line?.qty ?? 0) + qty });
       return next;
     });
     searchInputRef.current?.focus();
@@ -262,7 +299,14 @@ export function PdvScreen({
   // Consulta o catálogo na hora (o scanner digita rápido, o `products` debounced
   // pode estar defasado).
   const addByEnter = async () => {
-    const term = search.trim();
+    const raw = search.trim();
+    if (!raw) return;
+    // Multiplicador opcional: "5*código" / "5x nome" adiciona 5 de uma vez.
+    // O separador `*`/`x` não aparece em código de barras, então bipar puro
+    // continua sendo 1 unidade. O operador digita `5*` e DEPOIS bipa.
+    const mult = raw.match(/^(\d{1,4})\s*[*xX]\s*(.+)$/);
+    const qty = mult ? Math.max(1, Number.parseInt(mult[1], 10)) : 1;
+    const term = mult ? mult[2].trim() : raw;
     if (!term) return;
     const catalog = await getCatalog();
     const results = await catalog.searchProducts(term);
@@ -273,12 +317,19 @@ export function PdvScreen({
     );
     const chosen = exact ?? results[Math.min(highlight, results.length - 1)];
     if (chosen) {
-      addToCart(chosen);
+      addToCart(chosen, qty);
       setSearch("");
     }
   };
 
   const onSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // `*` com o campo VAZIO = editar a quantidade do último item (sem mouse).
+    // Com o campo preenchido, `*` é o separador do multiplicador (deixa digitar).
+    if (e.key === "*" && search.trim() === "") {
+      e.preventDefault();
+      lastQtyRef.current?.focus();
+      return;
+    }
     if (e.key === "Enter") {
       e.preventDefault();
       void addByEnter();
@@ -353,17 +404,20 @@ export function PdvScreen({
     await refreshQueue();
   };
 
-  // Atalho F2 = finalizar venda (a ação primária do balcão).
+  // Atalhos globais: F2 finaliza a venda; F4 devolve o foco ao leitor (resgate).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "F2" && canFinalize) {
         e.preventDefault();
         setPaying(true);
+      } else if (e.key === "F4") {
+        e.preventDefault();
+        focusScan();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [canFinalize]);
+  }, [canFinalize, focusScan]);
 
   return (
     <div className="screen">
@@ -537,7 +591,7 @@ export function PdvScreen({
               </div>
             ) : (
               <ul className="sale-list">
-                {lines.map((line) => (
+                {lines.map((line, i) => (
                   <li key={line.product.id} className="sale-row">
                     <div className="sale-info">
                       <div className="sale-name">{line.product.name}</div>
@@ -554,6 +608,7 @@ export function PdvScreen({
                         −
                       </button>
                       <input
+                        ref={i === lines.length - 1 ? lastQtyRef : null}
                         className="qty-input tnum"
                         type="text"
                         inputMode="numeric"
@@ -563,6 +618,14 @@ export function PdvScreen({
                         onChange={(e) =>
                           setQty(line.product.id, e.target.value)
                         }
+                        onKeyDown={(e) => {
+                          // Enter/Esc confirmam a quantidade e devolvem o foco ao
+                          // leitor — o loop do balcão sem mouse.
+                          if (e.key === "Enter" || e.key === "Escape") {
+                            e.preventDefault();
+                            searchInputRef.current?.focus();
+                          }
+                        }}
                       />
                       <button
                         type="button"
@@ -617,7 +680,16 @@ export function PdvScreen({
               <kbd>Enter</kbd> Adicionar
             </span>
             <span>
+              <kbd>N*</kbd> Quantidade
+            </span>
+            <span>
+              <kbd>*</kbd> Editar qtd
+            </span>
+            <span>
               <kbd>F2</kbd> Finalizar
+            </span>
+            <span>
+              <kbd>F4</kbd> Focar busca
             </span>
             <span>
               <kbd>Esc</kbd> Cancelar pagamento
