@@ -959,6 +959,10 @@ interface ConfigPanelProps {
   onConfigChange: (changes: Partial<CatalogConfig>) => void;
   // Captura a miniatura (JPEG data URL) da página atual — para salvar o padrão.
   captureThumbnail?: () => Promise<string>;
+  // Aba ativa controlada de fora (rail de ícones no editor, estilo Canva). No
+  // mobile o TabsList horizontal continua visível.
+  activeTab?: string;
+  onActiveTabChange?: (value: string) => void;
 }
 
 const TEXT_SIZES: Array<{ value: CatalogConfig["textSize"]; label: string }> = [
@@ -999,6 +1003,8 @@ export function ConfigPanel({
   itemsPerPage,
   onConfigChange,
   captureThumbnail,
+  activeTab = "produtos",
+  onActiveTabChange,
 }: ConfigPanelProps) {
   const { suppliers } = useSupplier();
   const suppliersWithLogo = suppliers.filter((s) => s.logo);
@@ -1108,10 +1114,13 @@ export function ConfigPanel({
 
   return (
     <Tabs
-      defaultValue="produtos"
+      value={activeTab}
+      onValueChange={onActiveTabChange}
       className="flex flex-col h-full overflow-hidden"
     >
-      <TabsList className="w-full rounded-none border-b shrink-0 h-10 bg-transparent justify-start px-2 gap-1">
+      {/* No desktop as abas viram o rail de ícones do editor (lg:hidden aqui);
+          no mobile continuam como abas horizontais. */}
+      <TabsList className="w-full rounded-none border-b shrink-0 h-10 bg-transparent justify-start px-2 gap-1 lg:hidden">
         <TabsTrigger value="produtos" className="text-xs h-8">
           Produtos
         </TabsTrigger>

@@ -1,11 +1,12 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Maximize, Minimize } from "lucide-react";
 import { useEffect, useState } from "react";
 
 // Alterna a tela cheia do navegador (Fullscreen API). Fica ao lado do tema.
-export function FullscreenToggle() {
+export function FullscreenToggle({ className }: { className?: string }) {
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   useEffect(() => {
@@ -27,6 +28,7 @@ export function FullscreenToggle() {
       variant="outline"
       size="icon"
       onClick={toggle}
+      className={cn(className)}
       title={isFullscreen ? "Sair da tela cheia" : "Tela cheia"}
     >
       {isFullscreen ? (

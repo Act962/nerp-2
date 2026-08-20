@@ -20,14 +20,34 @@ export const listCatalogs = base
         name: z.string(),
         thumbnail: z.string().nullable(),
         updatedAt: z.date(),
+        createdAt: z.date(),
+        createdBy: z
+          .object({ name: z.string(), image: z.string().nullable() })
+          .nullable(),
       }),
     ),
   )
   .handler(async ({ context }) => {
     const catalogs = await prisma.promotionalCatalog.findMany({
       where: { organizationId: context.org.id },
-      select: { id: true, name: true, thumbnail: true, updatedAt: true },
+      select: {
+        id: true,
+        name: true,
+        thumbnail: true,
+        updatedAt: true,
+        createdAt: true,
+        createdBy: { select: { name: true, image: true } },
+      },
       orderBy: { updatedAt: "desc" },
     });
-    return catalogs;
+    return catalogs.map((c) => ({
+      id: c.id,
+      name: c.name,
+      thumbnail: c.thumbnail,
+      updatedAt: c.updatedAt,
+      createdAt: c.createdAt,
+      createdBy: c.createdBy
+        ? { name: c.createdBy.name ?? "", image: c.createdBy.image ?? null }
+        : null,
+    }));
   });
