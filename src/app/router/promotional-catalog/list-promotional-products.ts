@@ -86,8 +86,11 @@ export const listPromotionalProducts = base
       const promotionalPrice = p.promotionalPrice
         ? p.promotionalPrice.toNumber()
         : null;
+      // salePrice > 0 é obrigatório: com salePrice 0 o cálculo vira Infinity/NaN,
+      // que reprova a validação de saída (z.number()) e derruba a query INTEIRA
+      // com 500 — some o catálogo todo por causa de um único produto ruim.
       const discount =
-        promotionalPrice !== null
+        promotionalPrice !== null && salePrice > 0
           ? ((salePrice - promotionalPrice) / salePrice) * 100
           : null;
       const savings =
