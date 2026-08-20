@@ -8,11 +8,10 @@ import {
   sangria,
   suprimento,
 } from "../../lib/caixa";
+import { MoneyInput } from "./money-input";
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const parseAmount = (str: string) =>
-  Math.round((Number(str.replace(",", ".")) || 0) * 100) / 100;
 const msg = (e: unknown) =>
   e instanceof Error ? e.message : "Falha na operação";
 
@@ -66,7 +65,8 @@ export function CaixaBar({
   onChange: (session: LocalCashSession | null) => void;
 }) {
   const [dialog, setDialog] = useState<Dialog | null>(null);
-  const [amount, setAmount] = useState("");
+  // Valor do diálogo em CENTAVOS (inteiro) — máscara de moeda no `MoneyInput`.
+  const [cents, setCents] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [closeResult, setCloseResult] = useState<CloseResult | null>(null);
@@ -75,7 +75,7 @@ export function CaixaBar({
 
   const start = (which: Dialog) => {
     setDialog(which);
-    setAmount("");
+    setCents(0);
     setError(null);
     setCloseResult(null);
   };
@@ -87,7 +87,7 @@ export function CaixaBar({
     setError(null);
     try {
       const s = await openCaixa({
-        openingBalance: parseAmount(amount),
+        openingBalance: cents / 100,
         registerName,
         operator: { name: operatorName },
       });
@@ -104,7 +104,7 @@ export function CaixaBar({
     setBusy(true);
     setError(null);
     try {
-      await fn(parseAmount(amount));
+      await fn(cents / 100);
       await refresh();
       setDialog(null);
     } catch (e) {
@@ -118,7 +118,7 @@ export function CaixaBar({
     setBusy(true);
     setError(null);
     try {
-      const result = await closeCaixa(parseAmount(amount));
+      const result = await closeCaixa(cents / 100);
       setCloseResult(result);
       await refresh();
     } catch (e) {
@@ -144,18 +144,15 @@ export function CaixaBar({
               <span>Abrir caixa</span>
               <span className="muted small">{registerName}</span>
             </div>
-            <label className="pay-amount">
+            <div className="pay-amount">
               <span className="muted small">Saldo inicial (troco)</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+              <MoneyInput
+                cents={cents}
+                onCents={setCents}
                 autoFocus
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0,00"
+                ariaLabel="Saldo inicial"
               />
-            </label>
+            </div>
             {error && <p className="error">{error}</p>}
             <div className="pay-actions">
               <button
@@ -182,18 +179,15 @@ export function CaixaBar({
             <div className="pay-head">
               <span>{dialog === "sangria" ? "Sangria" : "Suprimento"}</span>
             </div>
-            <label className="pay-amount">
+            <div className="pay-amount">
               <span className="muted small">Valor</span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+              <MoneyInput
+                cents={cents}
+                onCents={setCents}
                 autoFocus
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0,00"
+                ariaLabel="Valor"
               />
-            </label>
+            </div>
             {error && <p className="error">{error}</p>}
             <div className="pay-actions">
               <button
@@ -222,20 +216,17 @@ export function CaixaBar({
             <div className="pay-head">
               <span>Fechar caixa</span>
             </div>
-            <label className="pay-amount">
+            <div className="pay-amount">
               <span className="muted small">
                 Valor contado na gaveta (contagem cega)
               </span>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={amount}
-                // biome-ignore lint/a11y/noAutofocus: caixa é teclado-first
+              <MoneyInput
+                cents={cents}
+                onCents={setCents}
                 autoFocus
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0,00"
+                ariaLabel="Valor contado na gaveta"
               />
-            </label>
+            </div>
             {error && <p className="error">{error}</p>}
             <div className="pay-actions">
               <button
