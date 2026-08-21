@@ -25,6 +25,7 @@ feature depois de trabalhar em outra coisa.
 - [`desktop-fase-5.md`](./desktop-fase-5.md) — Desktop Fase 5: app nativo Tauri real (SQLite/store, instalador Windows) + guard de conformidade do contrato · ✅ implementado
 - [`desktop-pagamento-eletronico.md`](./desktop-pagamento-eletronico.md) — Pagamento eletrônico (PaymentProcessor/TEF) do PDV desktop: arquitetura ports & adapters revisada; Mock como contrato · 🟡 domínio pronto, adapter real futuro
 - [`desktop-release.md`](./desktop-release.md) — Distribuição do instalador Windows: assinatura de código, URL de produção, CORS prod, pt-BR, auto-update · 📋 planejado
+- [`migracao-monorepo-main.md`](./migracao-monorepo-main.md) — Levar o monorepo (`feat/desktop`) para a `main`: alinhamento de layout, colisão de migrations, deploy · 📋 planejado (não executar sem decisão do dev)
 
 ## Specs por feature
 
