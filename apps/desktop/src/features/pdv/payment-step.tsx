@@ -5,7 +5,14 @@ import {
   type PaymentSnapshot,
 } from "@nerp/core";
 import type { PaymentMethod } from "@nerp/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   capturePayment,
   getMockOutcome,
@@ -13,31 +20,145 @@ import {
   reconcilePayment,
   setMockOutcome,
 } from "../../lib/payment";
-import { MoneyInput } from "./money-input";
 import { toCents } from "./money";
+import { MoneyInput } from "./money-input";
 
 const brl = (value: number) =>
   value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-/** Um pagamento já liquidado nesta venda (dinheiro manual ou cartão aprovado). */
+/** Um pagamento já liquidado nesta venda. */
 type AddedTender = { method: PaymentMethod; amount: number; label: string };
 type Payment = { method: PaymentMethod; amount: number };
 
-/** As formas na ordem dos atalhos (1..4). Dinheiro abre o passo de valor (troco). */
+// ── Ícones (inline, aria-hidden) ─────────────────────────────────────────
+const CashIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect
+      x="2"
+      y="6"
+      width="20"
+      height="12"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth="1.6"
+    />
+    <circle cx="12" cy="12" r="2.5" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const CardIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <rect
+      x="2"
+      y="5"
+      width="20"
+      height="14"
+      rx="2"
+      stroke="currentColor"
+      strokeWidth="1.6"
+    />
+    <path d="M2 9h20" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const PixIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <path
+      d="M12 3l9 9-9 9-9-9 9-9z"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+const OthersIcon = () => (
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <circle cx="6" cy="12" r="1.4" fill="currentColor" />
+    <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+    <circle cx="18" cy="12" r="1.4" fill="currentColor" />
+  </svg>
+);
+
+/**
+ * As formas na ordem dos atalhos (1..5). Manuais (dinheiro/outros) só registram
+ * o valor; eletrônicas (crédito/débito/PIX) passam pelo `PaymentProcessor`
+ * (captura na maquininha). Boleto/transferência não são de PDV (pagamento
+ * diferido/remoto) — ficaram de fora.
+ */
 type Method =
-  | { key: "1"; label: "Dinheiro"; kind: "cash" }
-  | { key: "2"; label: "Crédito"; kind: "card"; instrument: PaymentInstrument }
-  | { key: "3"; label: "Débito"; kind: "card"; instrument: PaymentInstrument }
-  | { key: "4"; label: "PIX"; kind: "card"; instrument: PaymentInstrument };
+  | {
+      key: string;
+      label: string;
+      kind: "manual";
+      method: PaymentMethod;
+      Icon: () => ReactElement;
+    }
+  | {
+      key: string;
+      label: string;
+      kind: "card";
+      instrument: PaymentInstrument;
+      Icon: () => ReactElement;
+    };
 
 const METHODS: Method[] = [
-  { key: "1", label: "Dinheiro", kind: "cash" },
-  { key: "2", label: "Crédito", kind: "card", instrument: "credit" },
-  { key: "3", label: "Débito", kind: "card", instrument: "debit" },
-  { key: "4", label: "PIX", kind: "card", instrument: "pix" },
+  {
+    key: "1",
+    label: "Dinheiro",
+    kind: "manual",
+    method: "DINHEIRO",
+    Icon: CashIcon,
+  },
+  {
+    key: "2",
+    label: "Crédito",
+    kind: "card",
+    instrument: "credit",
+    Icon: CardIcon,
+  },
+  {
+    key: "3",
+    label: "Débito",
+    kind: "card",
+    instrument: "debit",
+    Icon: CardIcon,
+  },
+  { key: "4", label: "PIX", kind: "card", instrument: "pix", Icon: PixIcon },
+  {
+    key: "5",
+    label: "Outros",
+    kind: "manual",
+    method: "OUTROS",
+    Icon: OthersIcon,
+  },
 ];
+
+const isCashMethod = (m: Method | null) =>
+  m?.kind === "manual" && m.method === "DINHEIRO";
 
 const OUTCOMES: { value: MockOutcome; label: string }[] = [
   { value: "approve", label: "Aprovar" },
@@ -46,16 +167,14 @@ const OUTCOMES: { value: MockOutcome; label: string }[] = [
 ];
 
 /**
- * Passo de pagamento do PDV — teclado-first, SEM ambiguidade.
+ * Passo de pagamento do PDV — teclado-first e MISTO (split-as-you-go).
  *
- * O foco fica PRESO no modal (nada vaza pro campo de leitura atrás). O fluxo é
- * "método primeiro, valor depois": `1..4` (ou ↑↓ + Enter) escolhem a forma;
- * Dinheiro abre o campo "Valor recebido" (onde dígito = valor, sem colidir com
- * os atalhos) e Enter confirma com troco; cartão/PIX processam na hora. `Esc`
- * sobe um nível (do valor → métodos; dos métodos → cancela a venda).
- *
- * Pagamento MISTO: acumula tenders; a venda só finaliza (`onPaid`) quando os
- * aprovados cobrem o total. `timeout` NÃO finaliza às cegas — oferece Reconciliar.
+ * O foco fica PRESO no modal. Fluxo "forma → valor": `1..5` (ou ↑↓ + Enter)
+ * escolhem a forma; abre o valor (default = o que falta, editável para dividir);
+ * manuais registram na hora, eletrônicas capturam na maquininha. Os tenders
+ * acumulam e a venda só finaliza (`onPaid`) quando cobrem o total — é isso que
+ * dá o pagamento misto. `timeout` NÃO finaliza às cegas — oferece Reconciliar.
+ * `Esc` sobe um nível; `Backspace` na escolha remove o último tender.
  */
 export function PaymentStep({
   total,
@@ -72,11 +191,11 @@ export function PaymentStep({
     [total, tenders],
   );
 
-  // Passo do fluxo: escolher forma × informar o valor recebido (dinheiro).
-  const [step, setStep] = useState<"choose" | "cash">("choose");
+  // Passo do fluxo: escolher a forma × informar o valor.
+  const [step, setStep] = useState<"choose" | "amount">("choose");
   const [highlight, setHighlight] = useState(0);
-  // Valor recebido em CENTAVOS (inteiro) — máscara de moeda estilo calculadora:
-  // cada dígito entra pela direita, nada além de dígito é aceito.
+  const [active, setActive] = useState<Method | null>(null);
+  // Valor em CENTAVOS (inteiro) — máscara de moeda estilo calculadora.
   const [cents, setCents] = useState(() => toCents(total));
 
   // Estado da captura de cartão em andamento.
@@ -97,12 +216,14 @@ export function PaymentStep({
   const processing = busy && (state === "in_progress" || state === "pending");
   const timedOut = state === "timeout";
   const choosing = !processing && !timedOut && !error && step === "choose";
-  const inCash = !processing && !timedOut && !error && step === "cash";
+  const inAmount = !processing && !timedOut && !error && step === "amount";
 
-  // O digitado no passo dinheiro. Cartão/PIX cobram o que falta (sem troco).
+  // O digitado no passo de valor. Só o Dinheiro dá troco; as demais formas
+  // cobram no máximo o que falta.
+  const cash = isCashMethod(active);
   const typed = cents / 100;
   const charge = Math.min(typed, remaining);
-  const cashChange = typed > remaining ? round2(typed - remaining) : 0;
+  const cashChange = cash && typed > remaining ? round2(typed - remaining) : 0;
 
   // Adiciona um tender liquidado; se cobrir o total, finaliza a venda (com troco).
   const settle = useCallback(
@@ -122,6 +243,7 @@ export function PaymentStep({
       const left = round2(total - next.reduce((s, t) => s + t.amount, 0));
       setTenders(next);
       setCents(toCents(left));
+      setActive(null);
       setSnapshot(null);
       setPending(null);
       setError(null);
@@ -131,15 +253,8 @@ export function PaymentStep({
     [tenders, total, onPaid],
   );
 
-  const payCash = useCallback(() => {
-    if (charge <= 0) return;
-    // O tender registrado é o que falta (o que entra na venda); o excedente é troco.
-    settle("DINHEIRO", charge, "Dinheiro", cashChange);
-  }, [charge, cashChange, settle]);
-
   const payWith = useCallback(
-    async (instrument: PaymentInstrument, label: string) => {
-      const amount = remaining;
+    async (instrument: PaymentInstrument, amount: number, label: string) => {
       if (amount <= 0) return;
       setPending({ instrument, amount, label });
       setError(null);
@@ -160,21 +275,32 @@ export function PaymentStep({
         setBusy(false);
       }
     },
-    [remaining, settle],
+    [settle],
   );
 
-  // Escolhe uma forma pelo objeto (clique ou atalho): dinheiro abre o valor.
+  // Confirma o valor do passo atual: manual registra; eletrônica captura.
+  const confirmAmount = useCallback(() => {
+    if (!active || charge <= 0) return;
+    if (active.kind === "manual") {
+      settle(active.method, charge, active.label, cashChange);
+    } else {
+      void payWith(active.instrument, charge, active.label);
+    }
+  }, [active, charge, cashChange, settle, payWith]);
+
+  // Escolhe uma forma (clique ou atalho): abre o passo de valor com o que falta.
   const pick = useCallback(
     (m: Method) => {
-      if (m.kind === "cash") {
-        setCents(toCents(remaining));
-        setStep("cash");
-        return;
-      }
-      void payWith(m.instrument, m.label);
+      setActive(m);
+      setCents(toCents(remaining));
+      setStep("amount");
     },
-    [remaining, payWith],
+    [remaining],
   );
+
+  const removeTender = useCallback((index: number) => {
+    setTenders((prev) => prev.filter((_, i) => i !== index));
+  }, []);
 
   const reconcile = useCallback(async () => {
     if (!snapshot || !pending) return;
@@ -200,6 +326,7 @@ export function PaymentStep({
     setSnapshot(null);
     setPending(null);
     setError(null);
+    setActive(null);
     setStep("choose");
   }, []);
 
@@ -208,21 +335,26 @@ export function PaymentStep({
     setOutcome(value);
   };
 
-  // Foco preso no modal: escolha foca a lista; dinheiro foca o valor. Isso é o
-  // que impede os dígitos de vazarem pro campo de leitura atrás.
+  // Foco preso no modal: escolha foca a lista; valor foca o campo.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reposiciona o foco a cada troca de passo/estado
   useEffect(() => {
     if (choosing) chooseRef.current?.focus();
-    else if (inCash) amountRef.current?.select();
-  }, [choosing, inCash, processing, timedOut, error]);
+    else if (inAmount) amountRef.current?.select();
+  }, [choosing, inAmount, processing, timedOut, error]);
 
-  // Atalhos da ESCOLHA: 1..4 selecionam; ↑↓ navegam; Enter confirma; Esc cancela.
+  // Atalhos da ESCOLHA: 1..5 selecionam; ↑↓ navegam; Enter confirma; Esc cancela;
+  // Backspace remove o último tender.
   useEffect(() => {
     if (!choosing) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onCancel();
+        return;
+      }
+      if (e.key === "Backspace") {
+        e.preventDefault();
+        setTenders((prev) => prev.slice(0, -1));
         return;
       }
       if (e.key === "ArrowDown") {
@@ -264,7 +396,17 @@ export function PaymentStep({
             {tenders.map((t, i) => (
               <li key={`${t.label}-${i}`}>
                 <span>{t.label}</span>
-                <span>{brl(t.amount)}</span>
+                <span className="pay-tender-right">
+                  <span className="tnum">{brl(t.amount)}</span>
+                  <button
+                    type="button"
+                    className="pay-tender-remove"
+                    aria-label={`Remover ${t.label}`}
+                    onClick={() => removeTender(i)}
+                  >
+                    ×
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
@@ -272,7 +414,7 @@ export function PaymentStep({
 
         <div className="pay-remaining">
           <span>Falta receber</span>
-          <strong>{brl(remaining)}</strong>
+          <strong className="tnum">{brl(remaining)}</strong>
         </div>
 
         {choosing && (
@@ -282,11 +424,13 @@ export function PaymentStep({
                 <button
                   key={m.key}
                   type="button"
-                  className={`btn pay-method ${m.kind === "cash" ? "primary" : ""} ${i === highlight ? "active" : ""}`}
+                  className={`btn pay-method ${isCashMethod(m) ? "primary" : ""} ${i === highlight ? "active" : ""}`}
                   onMouseEnter={() => setHighlight(i)}
                   onClick={() => pick(m)}
                 >
-                  <span className="pay-key">{m.key}</span> {m.label}
+                  <span className="pay-key">{m.key}</span>
+                  <m.Icon />
+                  <span className="pay-method-label">{m.label}</span>
                 </button>
               ))}
             </div>
@@ -311,20 +455,22 @@ export function PaymentStep({
           </div>
         )}
 
-        {inCash && (
+        {inAmount && active && (
           <div className="pay-cash">
             <div className="pay-amount">
-              <span className="muted small">Valor recebido</span>
+              <span className="muted small">
+                {cash ? "Valor recebido" : `Valor · ${active.label}`}
+              </span>
               <MoneyInput
                 ref={amountRef}
                 cents={cents}
                 onCents={setCents}
                 autoFocus
-                ariaLabel="Valor recebido"
+                ariaLabel={cash ? "Valor recebido" : `Valor ${active.label}`}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
-                    payCash();
+                    confirmAmount();
                   } else if (e.key === "Escape") {
                     e.preventDefault();
                     backToChoice();
@@ -333,17 +479,19 @@ export function PaymentStep({
               />
             </div>
 
-            <div className={`pay-change ${cashChange > 0 ? "" : "muted"}`}>
-              <span>Troco</span>
-              <strong className="tnum">{brl(cashChange)}</strong>
-            </div>
+            {cash && (
+              <div className={`pay-change ${cashChange > 0 ? "" : "muted"}`}>
+                <span>Troco</span>
+                <strong className="tnum">{brl(cashChange)}</strong>
+              </div>
+            )}
 
             <div className="pay-actions">
               <button
                 type="button"
                 className="btn primary"
                 disabled={charge <= 0}
-                onClick={payCash}
+                onClick={confirmAmount}
               >
                 Confirmar · Enter
               </button>

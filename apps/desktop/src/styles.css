@@ -709,8 +709,10 @@ kbd {
   z-index: 50;
 }
 .pay-modal {
-  width: 400px;
+  width: 440px;
   max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
@@ -731,9 +733,9 @@ kbd {
   font-variant-numeric: tabular-nums;
 }
 .pay-methods {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 .pay-method {
   background: var(--panel-2);
@@ -742,10 +744,21 @@ kbd {
   border-radius: var(--r);
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 17px;
-  padding: 16px;
+  gap: 10px;
+  font-size: 15px;
+  padding: 12px 14px;
   cursor: pointer;
+}
+.pay-method-label {
+  flex: 1;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pay-method svg {
+  flex-shrink: 0;
+  opacity: 0.85;
 }
 .pay-method:hover {
   border-color: var(--primary);
@@ -832,11 +845,35 @@ kbd {
 .pay-tenders li {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   font-size: 14px;
   padding: 8px 12px;
   background: var(--panel-2);
   border-radius: 8px;
   font-variant-numeric: tabular-nums;
+}
+.pay-tender-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pay-tender-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.pay-tender-remove:hover {
+  background: var(--danger-soft, rgba(239, 68, 68, 0.14));
+  color: var(--danger);
 }
 .pay-remaining {
   display: flex;
