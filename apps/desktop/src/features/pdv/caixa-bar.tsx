@@ -1,5 +1,5 @@
 import type { CashSummary, LocalCashSession } from "@nerp/core";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   clearSession,
   closeCaixa,
@@ -134,6 +134,33 @@ export function CaixaBar({
     setDialog(null);
     setCloseResult(null);
   };
+
+  // Teclado-first nos diálogos: Enter confirma a ação primária; Esc cancela (ou
+  // conclui a revelação do fechamento). Nunca dispara durante uma operação.
+  // Ref com o handler SEMPRE atual (fecha sobre cents/busy correntes) mantém o
+  // listener estável — sem re-inscrever a cada render.
+  const dialogKeyRef = useRef<(e: KeyboardEvent) => void>(() => {});
+  dialogKeyRef.current = (e: KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      if (dialog === "close" && closeResult) void finishClose();
+      else if (!busy) setDialog(null);
+      return;
+    }
+    if (e.key !== "Enter" || busy) return;
+    e.preventDefault();
+    if (dialog === "close" && closeResult) void finishClose();
+    else if (dialog === "open") void doOpen();
+    else if (dialog === "sangria") void doMovement(sangria);
+    else if (dialog === "suprimento") void doMovement(suprimento);
+    else if (dialog === "close") void doClose();
+  };
+  useEffect(() => {
+    if (!dialog) return;
+    const onKey = (e: KeyboardEvent) => dialogKeyRef.current(e);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialog]);
 
   const overlay = dialog && (
     <div className="pay-overlay">
