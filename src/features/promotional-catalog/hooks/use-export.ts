@@ -9,6 +9,10 @@ type ExportOptions = {
   totalPages: number;
   catalogName: string;
   pageSize: "square" | "story" | "portrait";
+  // Monta o layer de exportação (todas as páginas) e espera as imagens; e o
+  // desmonta ao terminar — para não manter os previews na memória.
+  prepareExport?: () => Promise<void>;
+  finishExport?: () => void;
 };
 
 // 1×1 PNG REALMENTE transparente — fallback para imagens que falham (404/CORS).
@@ -50,6 +54,8 @@ export function useExport({
   totalPages,
   catalogName,
   pageSize: _pageSize,
+  prepareExport,
+  finishExport,
 }: ExportOptions) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -64,6 +70,7 @@ export function useExport({
         return;
       }
 
+      await prepareExport?.();
       const { zipSync } = await import("fflate");
       const files: Record<string, Uint8Array> = {};
       const pad = String(totalPages).length;
@@ -88,6 +95,7 @@ export function useExport({
       console.error("Erro ao exportar PNG:", err);
       toast.error("Erro ao gerar PNG. Tente novamente.");
     } finally {
+      finishExport?.();
       setIsExporting(false);
     }
   }
@@ -95,6 +103,7 @@ export function useExport({
   async function exportAsPdf() {
     setIsExporting(true);
     try {
+      await prepareExport?.();
       const { jsPDF } = await import("jspdf");
 
       const pxToMm = (px: number) => px * 0.264583;
@@ -134,6 +143,7 @@ export function useExport({
       console.error("Erro ao exportar PDF:", err);
       toast.error("Erro ao gerar PDF. Tente novamente.");
     } finally {
+      finishExport?.();
       setIsExporting(false);
     }
   }

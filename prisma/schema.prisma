@@ -1720,6 +1720,25 @@ model PromotionalCatalogTemplate {
   @@map("promotional_catalog_templates")
 }
 
+// Estilo de preço salvo (preset do "Padrão de estilos de preços"). `scope`
+// "USER" = "Meus estilos" da organização (organizationId preenchido); "SYSTEM"
+// = "Estilos do sistema" globais (organizationId NULL), que só o super usuário
+// pode criar. `style` é o objeto PriceStyle. Escopo por organizationId manual.
+model PromotionalPriceStyle {
+  id             String   @id @default(cuid())
+  organizationId String?
+  scope          String
+  name           String
+  style          Json
+  createdById    String
+  createdByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("promotional_price_styles")
+}
+
 // ============================================
 // RANKING DE EQUIPES — METAS DE VENDA
 // Metas importadas de planilha (Winthor/Totvs); vendido calculado

@@ -5,6 +5,9 @@ const s3BucketHostname =
 
 const nextConfig: NextConfig = {
   /* config options here */
+  // pdfjs-dist é carregado só no servidor (parse do texto de encartes PDF na
+  // aba Lista). Mantido fora do bundle p/ evitar o resolver do worker e o peso.
+  serverExternalPackages: ["pdfjs-dist"],
   // O konva puxa um build Node (`index-node.js`) que faz `require('canvas')`
   // (canvas nativo, só usado em render server-side, que não fazemos — o editor
   // é `ssr: false`). Sem o pacote instalado, o build de produção falha ao

@@ -6,7 +6,6 @@ import { uploadToR2 } from "@/lib/upload-to-r2";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import type { CatalogConfig } from "../types";
 
 export function usePromotionalCatalogs() {
   return useQuery(orpc.promotionalCatalog.list.queryOptions({ input: {} }));
@@ -43,6 +42,58 @@ export function useUpdateCatalogTemplate() {
           queryKey: orpc.promotionalCatalog.listTemplates.key(),
         });
         toast.success("Padrão atualizado");
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// ── Estilos de preço (biblioteca "Estilos": meus + do sistema) ────────────
+export function usePriceStyles() {
+  return useQuery(
+    orpc.promotionalCatalog.listPriceStyles.queryOptions({ input: {} }),
+  );
+}
+
+export function useCreatePriceStyle() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotionalCatalog.createPriceStyle.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.listPriceStyles.key(),
+        });
+        toast.success("Estilo salvo");
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useUpdatePriceStyle() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotionalCatalog.updatePriceStyle.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.listPriceStyles.key(),
+        });
+        toast.success("Estilo atualizado");
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeletePriceStyle() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotionalCatalog.deletePriceStyle.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.listPriceStyles.key(),
+        });
+        toast.success("Estilo excluído");
       },
       onError: (error) => toast.error(error.message),
     }),
@@ -274,13 +325,15 @@ export function useSetProductThumbnail() {
     productId: string,
     file: File,
     opts?: { onSuccess?: () => void },
-  ) => {
+  ): Promise<string | undefined> => {
     try {
       const key = await uploadToR2(file);
       await mutation.mutateAsync({ productId, key });
       opts?.onSuccess?.();
+      return key;
     } catch {
       toast.error("Falha ao enviar a imagem");
+      return undefined;
     }
   };
 
@@ -360,7 +413,68 @@ export function useSetProductUnit() {
 export function usePromotionalProducts(input: {
   manuallyAddedIds?: string[];
   categoryFilter?: string[];
+  autoPromotions?: boolean;
   name?: string;
 }) {
   return useQuery(orpc.promotionalCatalog.listProducts.queryOptions({ input }));
+}
+
+// Ativa o link público do catálogo (gera/retorna o token do link).
+export function useEnableCatalogShare() {
+  return useMutation(orpc.promotionalCatalog.enableShare.mutationOptions());
+}
+
+// Desativa o link público (o link vira 404).
+export function useDisableCatalogShare() {
+  return useMutation(orpc.promotionalCatalog.disableShare.mutationOptions());
+}
+
+// Casa nomes de produtos (aba "Lista") com o cadastro, para trazer imagens.
+export function useMatchProductsByName() {
+  return useMutation(
+    orpc.promotionalCatalog.matchProductsByName.mutationOptions(),
+  );
+}
+
+// Extrai ofertas de um PDF/imagem via IA (Gemini) — aba "Lista".
+export function useExtractOffersFromFile() {
+  return useMutation(
+    orpc.promotionalCatalog.extractOffersFromFile.mutationOptions(),
+  );
+}
+
+// Busca de produtos para o typeahead da aba "Lista".
+export function useSearchCatalogProducts(q: string, enabled: boolean) {
+  return useQuery(
+    orpc.promotionalCatalog.searchProducts.queryOptions({
+      input: { q },
+      enabled: enabled && q.trim().length >= 2,
+    }),
+  );
+}
+
+// Cria em lote os produtos novos escolhidos no wizard da aba "Lista".
+export function useCreateOfferProducts() {
+  return useMutation(
+    orpc.promotionalCatalog.createOfferProducts.mutationOptions(),
+  );
+}
+
+// Casa nomes de clientes com lojas (Store) — wizard da aba "Lista".
+export function useMatchStoresByName() {
+  return useMutation(
+    orpc.promotionalCatalog.matchStoresByName.mutationOptions(),
+  );
+}
+
+// Fotos atuais (thumbnail) do cadastro por id — a aba "Lista" usa para
+// reconciliar a foto das linhas casadas com o banco.
+export function useProductThumbnails(ids: string[]) {
+  return useQuery({
+    ...orpc.promotionalCatalog.productThumbnails.queryOptions({
+      input: { ids },
+    }),
+    enabled: ids.length > 0,
+    staleTime: 30_000,
+  });
 }

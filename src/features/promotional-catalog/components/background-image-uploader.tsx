@@ -10,7 +10,10 @@ interface BackgroundImageUploaderProps {
   onChange: (key: string) => void;
 }
 
-export function BackgroundImageUploader({ value, onChange }: BackgroundImageUploaderProps) {
+export function BackgroundImageUploader({
+  value,
+  onChange,
+}: BackgroundImageUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -65,7 +68,11 @@ export function BackgroundImageUploader({ value, onChange }: BackgroundImageUplo
       {previewUrl ? (
         <div className="relative rounded overflow-hidden border aspect-video bg-muted">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewUrl} alt="Fundo" className="w-full h-full object-cover" />
+          <img
+            src={previewUrl}
+            alt="Fundo"
+            className="w-full h-full object-cover"
+          />
           <Button
             variant="destructive"
             size="icon"
