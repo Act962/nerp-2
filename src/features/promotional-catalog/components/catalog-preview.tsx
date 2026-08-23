@@ -590,6 +590,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                         top: g.rect.y,
                         width: g.rect.w,
                         minHeight: g.rect.h,
+                        background: g.bgColor || undefined,
                         gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                         gridAutoRows: "minmax(min-content, 1fr)",
                       }}

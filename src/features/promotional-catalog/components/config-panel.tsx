@@ -18,10 +18,16 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   ArrowLeft,
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  LayoutGrid,
   X,
   Pencil,
   Image as ImageIcon,
@@ -1489,6 +1495,17 @@ export function ConfigPanel({
     (g) => g.productIds !== undefined,
   );
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
+  // Grupo selecionado → a lista de produtos da "Página" mostra só os dele.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const updateGroup = (
+    groupId: string,
+    patch: Partial<{ bgColor: string; gridCols: number; gridRows: number }>,
+  ) =>
+    onConfigChange({
+      productGroups: (config.productGroups ?? []).map((g) =>
+        g.id === groupId ? { ...g, ...patch } : g,
+      ),
+    });
   // Adiciona um produto a um grupo específico (a partir do "Adicionar em qual
   // grupo?"). Se já estava noutro grupo, migra.
   const addProductToGroup = (productId: string, groupId: string) =>
@@ -1937,24 +1954,32 @@ export function ConfigPanel({
       {/* ── Página (produtos + entidade dinâmica da página) ── */}
       <TabsContent value="produtos" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-3">
-          {/* Nome da página + vínculo dinâmico (loja/cliente) desta página. É
-              aqui que se escolhe a loja de cada página (dinâmica). */}
+          {/* Nome da página. O vínculo dinâmico (loja/cliente) fica no FIM. */}
           {pageName && (
             <p className="truncate text-sm font-semibold" title={pageName}>
               {pageName}
             </p>
           )}
-          <DynamicPageSection
-            config={config}
-            onConfigChange={onConfigChange}
-            pageName={pageName}
-            allPagesDynamic={allPagesDynamic}
-            onAllPagesDynamic={onAllPagesDynamic}
-          />
-          {/* Título + Ordenação (movida do cabeçalho da página) */}
+          {/* Título + Ordenação (movida do cabeçalho da página). Com grupo
+              selecionado, mostra só os produtos dele + "Ver todos". */}
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Produtos na página ({pageProducts.length})
+            <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {selectedGroupId ? (
+                <>
+                  {namedGroups.find((g) => g.id === selectedGroupId)?.name ||
+                    "Grupo"}{" "}
+                  ·{" "}
+                  <button
+                    type="button"
+                    className="lowercase underline hover:text-foreground"
+                    onClick={() => setSelectedGroupId(null)}
+                  >
+                    ver todos
+                  </button>
+                </>
+              ) : (
+                `Produtos na página (${pageProducts.length})`
+              )}
             </p>
             <div className="flex shrink-0 items-center gap-1">
               <ArrowDownUp className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2036,30 +2061,123 @@ export function ConfigPanel({
                 Grupos da página ({namedGroups.length})
               </button>
               {!groupsCollapsed &&
-                namedGroups.map((g) => (
-                <div key={g.id} className="flex items-center gap-1.5">
-                  <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <Input
-                    value={g.name ?? ""}
-                    onChange={(e) => renameGroup(g.id, e.target.value)}
-                    placeholder="Nome do grupo"
-                    className="h-7 flex-1 text-xs"
-                  />
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
-                    {g.productIds?.length ?? 0}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0 text-destructive"
-                    title="Excluir grupo"
-                    onClick={() => removeGroup(g.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ))}
+                namedGroups.map((g) => {
+                  const sel = selectedGroupId === g.id;
+                  return (
+                    <div
+                      key={g.id}
+                      className={cn(
+                        "flex items-center gap-1 rounded-md p-1",
+                        sel
+                          ? "bg-primary/10 ring-1 ring-inset ring-primary/50"
+                          : "hover:bg-muted/50",
+                      )}
+                    >
+                      {/* Clicar no grupo → ver só os produtos dele na "Página" */}
+                      <button
+                        type="button"
+                        title="Ver produtos deste grupo"
+                        onClick={() => setSelectedGroupId(sel ? null : g.id)}
+                      >
+                        <Layers
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0",
+                            sel ? "text-primary" : "text-muted-foreground",
+                          )}
+                        />
+                      </button>
+                      <Input
+                        value={g.name ?? ""}
+                        onChange={(e) => renameGroup(g.id, e.target.value)}
+                        placeholder="Nome do grupo"
+                        className="h-7 min-w-0 flex-1 text-xs"
+                      />
+                      {/* Cor de fundo da região do grupo */}
+                      <input
+                        type="color"
+                        value={g.bgColor ?? "#ffffff"}
+                        onChange={(e) =>
+                          updateGroup(g.id, { bgColor: e.target.value })
+                        }
+                        title="Cor de fundo do grupo"
+                        className="h-6 w-6 shrink-0 cursor-pointer rounded border p-0"
+                      />
+                      {/* Disposição (colunas × linhas) */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            title="Disposição (colunas × linhas)"
+                          >
+                            <LayoutGrid className="h-3.5 w-3.5" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-48 p-2">
+                          <p className="mb-2 text-[11px] font-medium text-muted-foreground">
+                            Disposição
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+                              Colunas
+                              <Input
+                                type="number"
+                                min={1}
+                                max={6}
+                                value={g.gridCols}
+                                onChange={(e) =>
+                                  updateGroup(g.id, {
+                                    gridCols: Math.max(
+                                      1,
+                                      Number(e.target.value) || 1,
+                                    ),
+                                  })
+                                }
+                                className="h-7"
+                              />
+                            </div>
+                            <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+                              Linhas
+                              <Input
+                                type="number"
+                                min={1}
+                                max={20}
+                                value={g.gridRows}
+                                onChange={(e) =>
+                                  updateGroup(g.id, {
+                                    gridRows: Math.max(
+                                      1,
+                                      Number(e.target.value) || 1,
+                                    ),
+                                  })
+                                }
+                                className="h-7"
+                              />
+                            </div>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                      <span className="w-5 shrink-0 text-center text-[11px] tabular-nums text-muted-foreground">
+                        {g.productIds?.length ?? 0}
+                      </span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-destructive"
+                        title="Excluir grupo"
+                        onClick={() => {
+                          if (sel) setSelectedGroupId(null);
+                          removeGroup(g.id);
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  );
+                })}
             </div>
           )}
           <div className="flex items-center justify-between rounded-md border px-2 py-1.5">
@@ -2078,7 +2196,14 @@ export function ConfigPanel({
             </p>
           )}
           <div className="flex flex-col gap-1 max-h-[calc(100vh-160px)] overflow-y-auto">
-            {pageProducts.map((p, index) => (
+            {pageProducts.map((p, index) => {
+              // Com um grupo selecionado, mostra só os produtos dele (mantém o
+              // `index` do pageProducts para mover/selecionar funcionar).
+              if (selectedGroupId) {
+                const sg = namedGroups.find((g) => g.id === selectedGroupId);
+                if (sg && !sg.productIds?.includes(p.id)) return null;
+              }
+              return (
               <Fragment key={p.id}>
                 <div
                   ref={
@@ -2220,8 +2345,18 @@ export function ConfigPanel({
                   </div>
                 </div>
               </Fragment>
-            ))}
+              );
+            })}
           </div>
+
+          {/* Página dinâmica (loja/cliente desta página) — no FIM da aba. */}
+          <DynamicPageSection
+            config={config}
+            onConfigChange={onConfigChange}
+            pageName={pageName}
+            allPagesDynamic={allPagesDynamic}
+            onAllPagesDynamic={onAllPagesDynamic}
+          />
         </div>
       </TabsContent>
 

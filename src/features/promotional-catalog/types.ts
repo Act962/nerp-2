@@ -110,6 +110,9 @@ export type ProductGroup = {
   // região de capacidade que os produtos "fluem" (comportamento antigo).
   name?: string;
   productIds?: string[];
+  // Cor de fundo da região do grupo (undefined = transparente). `gridCols`/
+  // `gridRows` são a "Disposição" (colunas × linhas) do grupo.
+  bgColor?: string;
 };
 
 // Bloco de estilo individual: um card livre (desenho de `cardLayout`) colocado
