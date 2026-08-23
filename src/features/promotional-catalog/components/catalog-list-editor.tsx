@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   type ReactNode,
   useCallback,
   useEffect,
@@ -547,8 +548,37 @@ export function CatalogListEditor({
     return ordered.filter((it) => ids.has(it.id));
   }, [ordered, activeFolder, folders]);
 
+  // Grupos NOMEADOS da PÁGINA da pasta ativa — para dividir a lista por grupo
+  // (divisor com o nome do grupo + os produtos dele abaixo).
+  const activeGroups = useMemo(() => {
+    if (!activeFolder) return [];
+    const folderIds = new Set(
+      folders.find((f) => f.key === activeFolder)?.itemIds ?? [],
+    );
+    const page = (config.pages ?? []).find((pg) =>
+      (pg.productIds ?? []).some((id) => folderIds.has(id)),
+    );
+    return (page?.productGroups ?? []).filter(
+      (g) => g.productIds !== undefined,
+    );
+  }, [activeFolder, folders, config.pages]);
+  // Itens visíveis ordenados por grupo (grupos na ordem; "Sem grupo" no fim).
+  const groupedVisible = useMemo(() => {
+    if (activeGroups.length === 0) return visibleItems;
+    const rankOf = (id: string) => {
+      const i = activeGroups.findIndex((g) => g.productIds?.includes(id));
+      return i < 0 ? Number.POSITIVE_INFINITY : i;
+    };
+    return [...visibleItems].sort((a, b) => rankOf(a.id) - rankOf(b.id));
+  }, [visibleItems, activeGroups]);
+  const groupNameOf = (id: string) =>
+    activeGroups.find((g) => g.productIds?.includes(id))?.name;
+
   // ── Render: SEMPRE a tabela (vazia ou não) + modal de mapeamento ──
   let lastClient = "";
+  let lastGroupId: string | undefined;
+  const dividerColSpan =
+    2 + TOGGLE_COLUMNS.filter((c) => showCol(c.key)).length;
   const mappingPreview = pending?.rows.slice(0, PREVIEW_ROWS) ?? [];
 
   // Wizard ocupa a área toda quando há linhas recém-importadas.
@@ -864,175 +894,194 @@ export function CatalogListEditor({
                   </TableCell>
                 </TableRow>
               )}
-              {visibleItems.map((it) => {
+              {groupedVisible.map((it) => {
                 const showClientDivider = it.client !== lastClient;
                 lastClient = it.client;
+                // Divisor por GRUPO (nome do grupo + os produtos dele abaixo).
+                const gId =
+                  activeGroups.find((g) => g.productIds?.includes(it.id))?.id ??
+                  "__none__";
+                const showGroupDivider =
+                  activeGroups.length > 0 && gId !== lastGroupId;
+                lastGroupId = gId;
                 // Foto: o snapshot da linha ou, se vazio, a foto atual do cadastro.
                 const thumbKey =
                   it.thumbnail ||
                   (it.productId ? (dbThumbMap.get(it.productId) ?? "") : "");
                 const img = thumbKey ? constructUrl(thumbKey) : "";
                 return (
-                  <TableRow key={it.id}>
-                    {showCol("image") && (
-                      <TableCell className="p-1">
-                        <button
-                          type="button"
-                          title="Editar produto"
-                          onClick={() => setEditRowId(it.id)}
-                          className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80"
+                  <Fragment key={it.id}>
+                    {showGroupDivider && (
+                      <TableRow className="bg-muted/40 hover:bg-muted/40">
+                        <TableCell
+                          colSpan={dividerColSpan}
+                          className="py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
                         >
-                          {img ? (
-                            // biome-ignore lint/performance/noImgElement: prévia local
-                            <img
-                              src={img}
-                              alt=""
-                              className="h-full w-full object-contain"
-                            />
-                          ) : (
-                            <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
-                          )}
-                        </button>
-                      </TableCell>
+                          {groupNameOf(it.id) || "Sem grupo"}
+                        </TableCell>
+                      </TableRow>
                     )}
-                    <TableCell className="p-1">
-                      <div className="flex items-center gap-2">
-                        <ProductNameSearch
-                          value={it.productName}
-                          onChange={(name) =>
-                            updateItem(it.id, { productName: name })
-                          }
-                          onPick={(p) =>
-                            updateItem(it.id, {
-                              productName: p.name,
-                              productId: p.id,
-                              thumbnail: p.thumbnail,
-                              ...(it.normalPrice == null
-                                ? { normalPrice: p.salePrice }
-                                : {}),
-                              ...(!it.department && p.categoryName
-                                ? { department: p.categoryName }
-                                : {}),
-                            })
-                          }
-                          className="h-8 flex-1"
-                        />
-                        <span
-                          title={
-                            it.productId
-                              ? "Vinculado a um produto do cadastro"
-                              : "Produto avulso (não está no cadastro)"
-                          }
-                          className={cn(
-                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                            it.productId
-                              ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                              : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                          )}
-                        >
-                          {it.productId ? "cadastrado" : "novo"}
-                        </span>
-                      </div>
-                    </TableCell>
-                    {showCol("normalPrice") && (
-                      <TableCell className="p-1">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={it.normalPrice ?? ""}
-                          onChange={(e) =>
-                            updateItem(it.id, {
-                              normalPrice:
-                                e.target.value === ""
-                                  ? undefined
-                                  : Number(e.target.value),
-                            })
-                          }
-                          className="h-8"
-                        />
-                      </TableCell>
-                    )}
-                    {showCol("offerPrice") && (
-                      <TableCell className="p-1">
-                        <Input
-                          type="number"
-                          step="0.01"
-                          value={it.offerPrice ?? ""}
-                          onChange={(e) =>
-                            updateItem(it.id, {
-                              offerPrice:
-                                e.target.value === ""
-                                  ? undefined
-                                  : Number(e.target.value),
-                            })
-                          }
-                          className="h-8"
-                        />
-                      </TableCell>
-                    )}
-                    {showCol("department") && (
-                      <TableCell className="p-1">
-                        <Input
-                          value={it.department ?? ""}
-                          onChange={(e) =>
-                            updateItem(it.id, {
-                              department: e.target.value || undefined,
-                            })
-                          }
-                          className="h-8"
-                        />
-                      </TableCell>
-                    )}
-                    {showCol("client") && (
-                      <TableCell className="p-1">
-                        <Input
-                          value={it.client}
-                          onChange={(e) =>
-                            updateItem(it.id, {
-                              client: e.target.value || "Sem cliente",
-                            })
-                          }
-                          className={cn(
-                            "h-8",
-                            showClientDivider &&
-                              "border-primary/40 font-medium",
-                          )}
-                        />
-                      </TableCell>
-                    )}
-                    <TableCell className="p-1">
-                      <div className="flex items-center">
-                        <div className="flex flex-col">
+                    <TableRow>
+                      {showCol("image") && (
+                        <TableCell className="p-1">
                           <button
                             type="button"
-                            className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                            title="Mover para cima"
-                            disabled={!canMoveItem(it.id, -1)}
-                            onClick={() => moveListItem(it.id, -1)}
+                            title="Editar produto"
+                            onClick={() => setEditRowId(it.id)}
+                            className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80"
                           >
-                            <ChevronUp className="h-3.5 w-3.5" />
+                            {img ? (
+                              // biome-ignore lint/performance/noImgElement: prévia local
+                              <img
+                                src={img}
+                                alt=""
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                            )}
                           </button>
-                          <button
-                            type="button"
-                            className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                            title="Mover para baixo"
-                            disabled={!canMoveItem(it.id, 1)}
-                            onClick={() => moveListItem(it.id, 1)}
+                        </TableCell>
+                      )}
+                      <TableCell className="p-1">
+                        <div className="flex items-center gap-2">
+                          <ProductNameSearch
+                            value={it.productName}
+                            onChange={(name) =>
+                              updateItem(it.id, { productName: name })
+                            }
+                            onPick={(p) =>
+                              updateItem(it.id, {
+                                productName: p.name,
+                                productId: p.id,
+                                thumbnail: p.thumbnail,
+                                ...(it.normalPrice == null
+                                  ? { normalPrice: p.salePrice }
+                                  : {}),
+                                ...(!it.department && p.categoryName
+                                  ? { department: p.categoryName }
+                                  : {}),
+                              })
+                            }
+                            className="h-8 flex-1"
+                          />
+                          <span
+                            title={
+                              it.productId
+                                ? "Vinculado a um produto do cadastro"
+                                : "Produto avulso (não está no cadastro)"
+                            }
+                            className={cn(
+                              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                              it.productId
+                                ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                            )}
                           >
-                            <ChevronDown className="h-3.5 w-3.5" />
-                          </button>
+                            {it.productId ? "cadastrado" : "novo"}
+                          </span>
                         </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 text-destructive"
-                          onClick={() => removeItem(it.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                      </TableCell>
+                      {showCol("normalPrice") && (
+                        <TableCell className="p-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={it.normalPrice ?? ""}
+                            onChange={(e) =>
+                              updateItem(it.id, {
+                                normalPrice:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                            className="h-8"
+                          />
+                        </TableCell>
+                      )}
+                      {showCol("offerPrice") && (
+                        <TableCell className="p-1">
+                          <Input
+                            type="number"
+                            step="0.01"
+                            value={it.offerPrice ?? ""}
+                            onChange={(e) =>
+                              updateItem(it.id, {
+                                offerPrice:
+                                  e.target.value === ""
+                                    ? undefined
+                                    : Number(e.target.value),
+                              })
+                            }
+                            className="h-8"
+                          />
+                        </TableCell>
+                      )}
+                      {showCol("department") && (
+                        <TableCell className="p-1">
+                          <Input
+                            value={it.department ?? ""}
+                            onChange={(e) =>
+                              updateItem(it.id, {
+                                department: e.target.value || undefined,
+                              })
+                            }
+                            className="h-8"
+                          />
+                        </TableCell>
+                      )}
+                      {showCol("client") && (
+                        <TableCell className="p-1">
+                          <Input
+                            value={it.client}
+                            onChange={(e) =>
+                              updateItem(it.id, {
+                                client: e.target.value || "Sem cliente",
+                              })
+                            }
+                            className={cn(
+                              "h-8",
+                              showClientDivider &&
+                                "border-primary/40 font-medium",
+                            )}
+                          />
+                        </TableCell>
+                      )}
+                      <TableCell className="p-1">
+                        <div className="flex items-center">
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                              title="Mover para cima"
+                              disabled={!canMoveItem(it.id, -1)}
+                              onClick={() => moveListItem(it.id, -1)}
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                              title="Mover para baixo"
+                              disabled={!canMoveItem(it.id, 1)}
+                              onClick={() => moveListItem(it.id, 1)}
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            className="h-8 w-8 text-destructive"
+                            onClick={() => removeItem(it.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  </Fragment>
                 );
               })}
             </TableBody>

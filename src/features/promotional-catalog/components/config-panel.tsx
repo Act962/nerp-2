@@ -1499,7 +1499,15 @@ export function ConfigPanel({
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const updateGroup = (
     groupId: string,
-    patch: Partial<{ bgColor: string; gridCols: number; gridRows: number }>,
+    patch: Partial<{
+      bgColor: string;
+      bgOpacity: number;
+      radius: number;
+      borderColor: string;
+      borderWidth: number;
+      gridCols: number;
+      gridRows: number;
+    }>,
   ) =>
     onConfigChange({
       productGroups: (config.productGroups ?? []).map((g) =>
@@ -2073,11 +2081,14 @@ export function ConfigPanel({
                           : "hover:bg-muted/50",
                       )}
                     >
-                      {/* Clicar no grupo → ver só os produtos dele na "Página" */}
+                      {/* Clicar no grupo → abre esse grupo na aba "Página" */}
                       <button
                         type="button"
                         title="Ver produtos deste grupo"
-                        onClick={() => setSelectedGroupId(sel ? null : g.id)}
+                        onClick={() => {
+                          setSelectedGroupId(sel ? null : g.id);
+                          onActiveTabChange?.("produtos");
+                        }}
                       >
                         <Layers
                           className={cn(
@@ -2092,16 +2103,88 @@ export function ConfigPanel({
                         placeholder="Nome do grupo"
                         className="h-7 min-w-0 flex-1 text-xs"
                       />
-                      {/* Cor de fundo da região do grupo */}
-                      <input
-                        type="color"
-                        value={g.bgColor ?? "#ffffff"}
-                        onChange={(e) =>
-                          updateGroup(g.id, { bgColor: e.target.value })
-                        }
-                        title="Cor de fundo do grupo"
-                        className="h-6 w-6 shrink-0 cursor-pointer rounded border p-0"
-                      />
+                      {/* Fundo do grupo: cor + transparência + arredondamento +
+                          contorno */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            title="Fundo do grupo (cor, transparência, cantos, contorno)"
+                            className="h-6 w-6 shrink-0 rounded border"
+                            style={{ background: g.bgColor ?? "transparent" }}
+                          />
+                        </PopoverTrigger>
+                        <PopoverContent className="flex w-56 flex-col gap-2 p-3">
+                          <label className="flex items-center justify-between text-[11px] text-muted-foreground">
+                            Cor de fundo
+                            <input
+                              type="color"
+                              value={g.bgColor ?? "#ffffff"}
+                              onChange={(e) =>
+                                updateGroup(g.id, { bgColor: e.target.value })
+                              }
+                              className="h-6 w-8 cursor-pointer rounded border p-0"
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                            Transparência ({g.bgOpacity ?? 100}%)
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              value={g.bgOpacity ?? 100}
+                              onChange={(e) =>
+                                updateGroup(g.id, {
+                                  bgOpacity: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                            Arredondamento ({g.radius ?? 0}px)
+                            <input
+                              type="range"
+                              min={0}
+                              max={80}
+                              value={g.radius ?? 0}
+                              onChange={(e) =>
+                                updateGroup(g.id, {
+                                  radius: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
+                            Contorno ({g.borderWidth ?? 0}px)
+                            <input
+                              type="range"
+                              min={0}
+                              max={20}
+                              value={g.borderWidth ?? 0}
+                              onChange={(e) =>
+                                updateGroup(g.id, {
+                                  borderWidth: Number(e.target.value),
+                                })
+                              }
+                            />
+                          </label>
+                          {(g.borderWidth ?? 0) > 0 && (
+                            <label className="flex items-center justify-between text-[11px] text-muted-foreground">
+                              Cor do contorno
+                              <input
+                                type="color"
+                                value={g.borderColor ?? "#000000"}
+                                onChange={(e) =>
+                                  updateGroup(g.id, {
+                                    borderColor: e.target.value,
+                                  })
+                                }
+                                className="h-6 w-8 cursor-pointer rounded border p-0"
+                              />
+                            </label>
+                          )}
+                        </PopoverContent>
+                      </Popover>
                       {/* Disposição (colunas × linhas) */}
                       <Popover>
                         <PopoverTrigger asChild>
@@ -2204,147 +2287,149 @@ export function ConfigPanel({
                 if (sg && !sg.productIds?.includes(p.id)) return null;
               }
               return (
-              <Fragment key={p.id}>
-                <div
-                  ref={
-                    selection?.kind === "card" && selection.id === p.id
-                      ? selectedRowRef
-                      : undefined
-                  }
-                  className={
-                    selection?.kind === "card" && selection.id === p.id
-                      ? "flex gap-2 py-1.5 px-2 rounded bg-primary/5 ring-2 ring-inset ring-primary/70"
-                      : "flex gap-2 py-1.5 px-2 rounded hover:bg-muted"
-                  }
-                >
-                  {/* Seleção p/ agrupar (Shift+clique = range) */}
-                  <input
-                    type="checkbox"
-                    aria-label="Selecionar para agrupar"
-                    checked={selectedForGroup.has(p.id)}
-                    onChange={() => {}}
-                    onClick={(e) =>
-                      toggleProductSelect(index, p.id, e.shiftKey)
+                <Fragment key={p.id}>
+                  <div
+                    ref={
+                      selection?.kind === "card" && selection.id === p.id
+                        ? selectedRowRef
+                        : undefined
                     }
-                    className="mt-1 h-4 w-4 shrink-0 cursor-pointer self-start accent-primary"
-                  />
-                  <ProductPhotoButton
-                    product={p}
-                    config={config}
-                    onConfigChange={onConfigChange}
-                    onSaveCardLayout={onSaveCardLayout}
-                    open={editingId === p.id}
-                    onOpenChange={(o) => setEditingId(o ? p.id : null)}
-                    productIndex={index}
-                    pageProductCount={pageProducts.length}
-                    entry={editingId === p.id ? editEntry : "photo"}
-                    initialElementId={
-                      editingId === p.id ? editElementId : undefined
+                    className={
+                      selection?.kind === "card" && selection.id === p.id
+                        ? "flex gap-2 py-1.5 px-2 rounded bg-primary/5 ring-2 ring-inset ring-primary/70"
+                        : "flex gap-2 py-1.5 px-2 rounded hover:bg-muted"
                     }
-                    onPhotoClick={() => {
-                      setEditEntry("photo");
-                      setEditElementId(undefined);
-                      setEditingId(p.id);
-                    }}
-                  />
-                  <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <div className="flex items-center justify-between gap-1">
-                      <span className="truncate flex-1 text-sm">{p.name}</span>
-                      {/* Reordenar (↑/↓) — define a ordem manual dos produtos */}
-                      <div className="flex shrink-0 flex-col">
-                        <button
-                          type="button"
-                          className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                          title="Mover para cima"
-                          disabled={index === 0}
-                          onClick={() => moveProduct(index, -1)}
-                        >
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                          title="Mover para baixo"
-                          disabled={index === pageProducts.length - 1}
-                          onClick={() => moveProduct(index, 1)}
-                        >
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        title="Remover do catálogo"
-                        onClick={() =>
-                          onConfigChange({
-                            excludedProductIds: [
-                              ...config.excludedProductIds,
-                              p.id,
-                            ],
-                            // Também sai de manuallyAddedIds: senão vira
-                            // "fantasma" (some da lista mas o diálogo de
-                            // adicionar ainda o mostra como "Adicionado").
-                            manuallyAddedIds: config.manuallyAddedIds.filter(
-                              (id) => id !== p.id,
-                            ),
-                          })
-                        }
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <ProductInlinePrices
-                        product={p}
-                        config={config}
-                        onConfigChange={onConfigChange}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        title="Montar etiqueta (editor livre)"
-                        onClick={() => {
-                          setEditEntry("label");
-                          setEditElementId(undefined);
-                          setEditingId(p.id);
-                        }}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    {/* Adicionar em qual grupo? (só quando a página tem grupos) */}
-                    {namedGroups.length > 0 && (
-                      <div className="flex items-center gap-1.5">
-                        <Layers className="h-3 w-3 shrink-0 text-muted-foreground" />
-                        <select
-                          value={
-                            namedGroups.find((g) =>
-                              g.productIds?.includes(p.id),
-                            )?.id ?? ""
+                  >
+                    {/* Seleção p/ agrupar (Shift+clique = range) */}
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar para agrupar"
+                      checked={selectedForGroup.has(p.id)}
+                      onChange={() => {}}
+                      onClick={(e) =>
+                        toggleProductSelect(index, p.id, e.shiftKey)
+                      }
+                      className="mt-1 h-4 w-4 shrink-0 cursor-pointer self-start accent-primary"
+                    />
+                    <ProductPhotoButton
+                      product={p}
+                      config={config}
+                      onConfigChange={onConfigChange}
+                      onSaveCardLayout={onSaveCardLayout}
+                      open={editingId === p.id}
+                      onOpenChange={(o) => setEditingId(o ? p.id : null)}
+                      productIndex={index}
+                      pageProductCount={pageProducts.length}
+                      entry={editingId === p.id ? editEntry : "photo"}
+                      initialElementId={
+                        editingId === p.id ? editElementId : undefined
+                      }
+                      onPhotoClick={() => {
+                        setEditEntry("photo");
+                        setEditElementId(undefined);
+                        setEditingId(p.id);
+                      }}
+                    />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="truncate flex-1 text-sm">
+                          {p.name}
+                        </span>
+                        {/* Reordenar (↑/↓) — define a ordem manual dos produtos */}
+                        <div className="flex shrink-0 flex-col">
+                          <button
+                            type="button"
+                            className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                            title="Mover para cima"
+                            disabled={index === 0}
+                            onClick={() => moveProduct(index, -1)}
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                            title="Mover para baixo"
+                            disabled={index === pageProducts.length - 1}
+                            onClick={() => moveProduct(index, 1)}
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0"
+                          title="Remover do catálogo"
+                          onClick={() =>
+                            onConfigChange({
+                              excludedProductIds: [
+                                ...config.excludedProductIds,
+                                p.id,
+                              ],
+                              // Também sai de manuallyAddedIds: senão vira
+                              // "fantasma" (some da lista mas o diálogo de
+                              // adicionar ainda o mostra como "Adicionado").
+                              manuallyAddedIds: config.manuallyAddedIds.filter(
+                                (id) => id !== p.id,
+                              ),
+                            })
                           }
-                          onChange={(e) => {
-                            const gid = e.target.value;
-                            if (gid) addProductToGroup(p.id, gid);
-                            else removeProductFromGroups(p.id);
-                          }}
-                          title="Adicionar em qual grupo?"
-                          className="h-6 min-w-0 flex-1 rounded border bg-background px-1 text-[11px]"
                         >
-                          <option value="">Sem grupo</option>
-                          {namedGroups.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.name || "Grupo"}
-                            </option>
-                          ))}
-                        </select>
+                          <X className="h-3 w-3" />
+                        </Button>
                       </div>
-                    )}
+                      <div className="flex items-center justify-between gap-2">
+                        <ProductInlinePrices
+                          product={p}
+                          config={config}
+                          onConfigChange={onConfigChange}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 shrink-0"
+                          title="Montar etiqueta (editor livre)"
+                          onClick={() => {
+                            setEditEntry("label");
+                            setEditElementId(undefined);
+                            setEditingId(p.id);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                      {/* Adicionar em qual grupo? (só quando a página tem grupos) */}
+                      {namedGroups.length > 0 && (
+                        <div className="flex items-center gap-1.5">
+                          <Layers className="h-3 w-3 shrink-0 text-muted-foreground" />
+                          <select
+                            value={
+                              namedGroups.find((g) =>
+                                g.productIds?.includes(p.id),
+                              )?.id ?? ""
+                            }
+                            onChange={(e) => {
+                              const gid = e.target.value;
+                              if (gid) addProductToGroup(p.id, gid);
+                              else removeProductFromGroups(p.id);
+                            }}
+                            title="Adicionar em qual grupo?"
+                            className="h-6 min-w-0 flex-1 rounded border bg-background px-1 text-[11px]"
+                          >
+                            <option value="">Sem grupo</option>
+                            {namedGroups.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name || "Grupo"}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Fragment>
+                </Fragment>
               );
             })}
           </div>

@@ -13,7 +13,7 @@ import {
   LayoutTemplate,
   Sticker,
   Type,
-  Sparkles,
+  Tag,
   Plus,
   Image as ImageIcon,
   Wallpaper,
@@ -216,7 +216,7 @@ const EDITOR_TABS = [
   { value: "fundo", label: "Fundo", icon: Wallpaper },
   { value: "texto", label: "Texto", icon: Type },
   { value: "etiqueta", label: "Figurinhas", icon: Sticker },
-  { value: "estilos", label: "Etiqueta", icon: Sparkles },
+  { value: "estilos", label: "Etiqueta", icon: Tag },
 ] as const;
 
 export function CatalogEditor({ catalogId }: CatalogEditorProps) {
@@ -320,9 +320,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     // Produtos VIRTUAIS da aba "Lista": o preço vive no próprio item (fonte
     // única). Overrides NUNCA se aplicam a eles — senão um override defasado
     // sombrearia o preço da lista (De/Por da lista e da página divergiriam).
-    const listItemIds = new Set(
-      (config.list?.items ?? []).map((it) => it.id),
-    );
+    const listItemIds = new Set((config.list?.items ?? []).map((it) => it.id));
     const pool = [...rawProducts, ...virtualProductsFromList(config.list)];
     let list = pool
       .filter((p) => !excluded.has(p.id))
@@ -670,8 +668,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       .sort((a, b) => a.r - b.r || a.i - b.i)
       .map((x) => x.pg);
     const reordered = sorted.some((p, i) => p.id !== pgs[i].id);
-    if (mutated || reordered)
-      setConfig((prev) => ({ ...prev, pages: sorted }));
+    if (mutated || reordered) setConfig((prev) => ({ ...prev, pages: sorted }));
   }, [config.list, config.pages]);
 
   // Higiene: produtos da LISTA não devem ter override de preço (o preço vive no
@@ -1699,9 +1696,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                         className="h-6 w-6 shrink-0"
                         disabled={safePreview >= totalPages - 1}
                         onClick={() =>
-                          setPreviewPage((p) =>
-                            Math.min(totalPages - 1, p + 1),
-                          )
+                          setPreviewPage((p) => Math.min(totalPages - 1, p + 1))
                         }
                       >
                         <ChevronRight className="h-4 w-4" />

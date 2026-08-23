@@ -113,6 +113,10 @@ export type ProductGroup = {
   // Cor de fundo da região do grupo (undefined = transparente). `gridCols`/
   // `gridRows` são a "Disposição" (colunas × linhas) do grupo.
   bgColor?: string;
+  bgOpacity?: number; // 0..100 (%) — transparência do fundo (default 100).
+  radius?: number; // px — arredondamento dos cantos da região.
+  borderColor?: string;
+  borderWidth?: number; // px — contorno da região (0 = sem contorno).
 };
 
 // Bloco de estilo individual: um card livre (desenho de `cardLayout`) colocado

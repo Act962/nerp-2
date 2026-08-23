@@ -269,6 +269,24 @@ export function renderCard(
   }
 }
 
+// Cor hex + transparência (0..100%) → rgba. Aplica opacidade só no FUNDO da
+// região do grupo (os produtos por cima ficam opacos).
+function hexToRgba(hex: string, opacityPct: number): string {
+  const h = hex.replace("#", "");
+  const full =
+    h.length === 3
+      ? h
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : h;
+  const r = Number.parseInt(full.slice(0, 2), 16) || 0;
+  const g = Number.parseInt(full.slice(2, 4), 16) || 0;
+  const b = Number.parseInt(full.slice(4, 6), 16) || 0;
+  const a = Math.max(0, Math.min(100, opacityPct)) / 100;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
 const PAGE_W = 1080;
 const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
   square: 1080,
@@ -590,7 +608,14 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                         top: g.rect.y,
                         width: g.rect.w,
                         minHeight: g.rect.h,
-                        background: g.bgColor || undefined,
+                        background: g.bgColor
+                          ? hexToRgba(g.bgColor, g.bgOpacity ?? 100)
+                          : undefined,
+                        borderRadius: g.radius ? `${g.radius}px` : undefined,
+                        border:
+                          (g.borderWidth ?? 0) > 0
+                            ? `${g.borderWidth}px solid ${g.borderColor ?? "#000000"}`
+                            : undefined,
                         gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                         gridAutoRows: "minmax(min-content, 1fr)",
                       }}
