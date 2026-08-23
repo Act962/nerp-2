@@ -1565,12 +1565,28 @@ export function ConfigPanel({
         g.id === groupId ? { ...g, name } : g,
       ),
     });
-  const removeGroup = (groupId: string) =>
+  // Excluir o grupo TAMBÉM remove os produtos dele da página (exclui + tira de
+  // manuallyAddedIds), igual ao X de cada produto — senão ficam "fantasmas"
+  // (some o grupo mas o "Adicionar produto" ainda os mostra como adicionados).
+  const removeGroup = (groupId: string) => {
+    const ids = (config.productGroups ?? []).find((g) => g.id === groupId)
+      ?.productIds;
     onConfigChange({
       productGroups: (config.productGroups ?? []).filter(
         (g) => g.id !== groupId,
       ),
+      ...(ids && ids.length > 0
+        ? {
+            excludedProductIds: [
+              ...new Set([...(config.excludedProductIds ?? []), ...ids]),
+            ],
+            manuallyAddedIds: (config.manuallyAddedIds ?? []).filter(
+              (id) => !ids.includes(id),
+            ),
+          }
+        : {}),
     });
+  };
 
   // Ao selecionar um produto no canvas, rola a lista lateral até ele (o contorno
   // já vem do `ring` na linha).
