@@ -9,10 +9,21 @@ import { CardCompact } from "./cards/card-compact";
 import { CardList } from "./cards/card-list";
 import { CardMinimal } from "./cards/card-minimal";
 import { CardFreeLayout } from "./cards/card-free-layout";
+import { imageStyleFromAdjust } from "./cards/image-style";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { constructUrl } from "@/hooks/use-construct-url";
+import {
+  type DynamicContext,
+  resolveEntityImageKey,
+  resolveEntityText,
+} from "../lib/resolve-entity";
 
 export type SupplierLogo = { id: string; name: string; logo: string };
+
+// 1×1 transparente — placeholder de etiqueta dinâmica sem imagem resolvida
+// (evita img quebrada / re-fetch da página com src vazio).
+const TRANSPARENT_PX =
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=";
 
 // Produto placeholder para um bloco de estilo ainda sem produto escolhido —
 // mantém o bloco visível/posicionável no canvas até o usuário adicionar um real.
@@ -39,6 +50,9 @@ interface CatalogPreviewProps {
   // desta página. Ausente = cai em `products` (a fatia da página).
   allProducts?: CatalogProduct[];
   supplierLogos?: SupplierLogo[];
+  // Entidades resolvidas da PÁGINA DINÂMICA (loja/org/produto/usuário). Textos e
+  // etiquetas com `binding` resolvem daqui no render. Ausente = sem dinâmicos.
+  dynamicContext?: DynamicContext;
 }
 
 // Escolhe o canto inferior (esquerda/direita) com MENOS conteúdo por baixo para
@@ -263,7 +277,11 @@ const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
 };
 
 export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
-  ({ config, products, allProducts, supplierLogos = [] }, ref) => {
+  (
+    { config, products, allProducts, supplierLogos = [], dynamicContext },
+    ref,
+  ) => {
+    const dynCtx = dynamicContext ?? {};
     const outerRef = useRef<HTMLDivElement>(null);
     const [scale, setScale] = useState(1);
     const [bgDataUrl, setBgDataUrl] = useState<string>("");
@@ -323,6 +341,14 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
         [
           ...products.map((p) => p.thumbnail),
           ...(config.overlays ?? []).map((o) => o.assetKey),
+          // Chaves R2 resolvidas de etiquetas dinâmicas (foto da loja / logo da
+          // org / foto do produto) — precisam do proxy p/ export CORS-safe. URLs
+          // absolutas (user.image) usam src direto e ficam de fora.
+          ...(config.overlays ?? [])
+            .map((o) =>
+              o.binding ? resolveEntityImageKey(o.binding, dynCtx) : null,
+            )
+            .filter((k): k is string => !!k && !k.startsWith("http")),
         ].filter(Boolean),
       ),
     ]
@@ -529,15 +555,29 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               // próprio) com sua fatia de produtos (auto-split sequencial).
               (() => {
                 const groups = config.productGroups ?? [];
-                let idx = 0;
+                // Grupos NOMEADOS mostram os SEUS produtos (por pertencimento);
+                // grupos de capacidade (sem productIds) recebem a fatia dos NÃO
+                // agrupados. O último grupo recolhe qualquer sobra pra nada sumir.
+                const namedIds = new Set(
+                  groups.flatMap((g) => g.productIds ?? []),
+                );
+                const ungrouped = products.filter((p) => !namedIds.has(p.id));
+                let capIdx = 0;
                 return groups.map((g, gi) => {
                   const cols = Math.max(1, g.gridCols);
                   const cap = cols * Math.max(1, g.gridRows);
                   const isLast = gi === groups.length - 1;
-                  const slice = isLast
-                    ? products.slice(idx)
-                    : products.slice(idx, idx + cap);
-                  idx += cap;
+                  let slice: typeof products;
+                  if (g.productIds && g.productIds.length > 0) {
+                    const set = new Set(g.productIds);
+                    slice = products.filter((p) => set.has(p.id));
+                    if (isLast) slice = [...slice, ...ungrouped];
+                  } else {
+                    slice = isLast
+                      ? ungrouped.slice(capIdx)
+                      : ungrouped.slice(capIdx, capIdx + cap);
+                    capIdx += cap;
+                  }
                   return (
                     <div
                       key={g.id}
@@ -777,12 +817,26 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               ]
                 .filter(Boolean)
                 .join(" ");
+              // Etiqueta dinâmica: resolve a chave/URL da entidade; senão usa o
+              // asset estático. URLs absolutas (user.image) vão direto.
+              const boundKey = ov.binding
+                ? resolveEntityImageKey(ov.binding, dynCtx)
+                : null;
+              const imgKey = boundKey ?? ov.assetKey;
+              const src = !imgKey
+                ? TRANSPARENT_PX
+                : imgKey.startsWith("http")
+                  ? imgKey
+                  : (thumbSrcs[imgKey] ?? constructUrl(imgKey));
+              // Enquadramento (redimensionador): usa o ajuste quando houver;
+              // senão "Caber" (contain). O box recorta (overflow-hidden) para o
+              // zoom/Cobrir funcionarem sem vazar.
+              const imgStyle = ov.adjust
+                ? imageStyleFromAdjust(ov.adjust)
+                : ({ objectFit: "contain" } as const);
               return (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <div
                   key={ov.id}
-                  src={thumbSrcs[ov.assetKey] ?? constructUrl(ov.assetKey)}
-                  alt=""
                   style={{
                     position: "absolute",
                     left: ov.x,
@@ -796,79 +850,92 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                       ov.borderWidth && ov.borderWidth > 0
                         ? `${ov.borderWidth}px solid ${ov.borderColor ?? "#000000"}`
                         : undefined,
-                    objectFit: "contain",
+                    overflow: "hidden",
                     pointerEvents: "none",
                   }}
-                />
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={src}
+                    alt=""
+                    style={{ width: "100%", height: "100%", ...imgStyle }}
+                  />
+                </div>
               );
             })}
 
-            {/* Blocos de texto (ferramenta "Texto") — px no canvas 1080×pageH. */}
-            {(config.texts ?? []).map((t) => (
-              <div
-                key={t.id}
-                style={{
-                  position: "absolute",
-                  left: t.x,
-                  top: t.y,
-                  width: t.w,
-                  height: t.h,
-                  transform: t.rotation
-                    ? `rotate(${t.rotation}deg)`
-                    : undefined,
-                  opacity: t.opacity != null ? t.opacity / 100 : undefined,
-                  color: t.color,
-                  fontFamily: t.fontFamily,
-                  fontSize: t.fontSize,
-                  lineHeight: t.lineHeight ?? 1.15,
-                  letterSpacing: t.letterSpacing
-                    ? `${t.letterSpacing}px`
-                    : undefined,
-                  fontWeight: t.bold ? 700 : 400,
-                  fontStyle: t.italic ? "italic" : undefined,
-                  textDecoration:
-                    [
-                      t.underline ? "underline" : "",
-                      t.strikethrough ? "line-through" : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ") || undefined,
-                  textTransform: t.uppercase ? "uppercase" : undefined,
-                  textAlign: t.align ?? "left",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent:
-                    t.anchor === "top"
-                      ? "flex-start"
-                      : t.anchor === "bottom"
-                        ? "flex-end"
-                        : "center",
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  overflow: "hidden",
-                  pointerEvents: "none",
-                  // Caixa (borda/fundo) — igual ao "Texto" do Montar card.
-                  ...(t.boxed
-                    ? {
-                        backgroundColor: t.boxFill ?? "#ffffff",
-                        border:
-                          t.boxBorderWidth && t.boxBorderWidth > 0
-                            ? `${t.boxBorderWidth}px solid ${t.boxBorderColor ?? "#111111"}`
-                            : undefined,
-                        borderRadius: t.boxRadius ?? 0,
-                        padding: 8,
-                      }
-                    : {}),
-                }}
-              >
-                {t.list
-                  ? t.text
-                      .split("\n")
-                      .map((line) => `•  ${line}`)
-                      .join("\n")
-                  : t.text}
-              </div>
-            ))}
+            {/* Blocos de texto (ferramenta "Texto") — px no canvas 1080×pageH.
+                Texto dinâmico: resolve da entidade; senão usa o texto estático. */}
+            {(config.texts ?? []).map((t) => {
+              const content = t.binding
+                ? (resolveEntityText(t.binding, dynCtx) ?? t.text)
+                : t.text;
+              return (
+                <div
+                  key={t.id}
+                  style={{
+                    position: "absolute",
+                    left: t.x,
+                    top: t.y,
+                    width: t.w,
+                    height: t.h,
+                    transform: t.rotation
+                      ? `rotate(${t.rotation}deg)`
+                      : undefined,
+                    opacity: t.opacity != null ? t.opacity / 100 : undefined,
+                    color: t.color,
+                    fontFamily: t.fontFamily,
+                    fontSize: t.fontSize,
+                    lineHeight: t.lineHeight ?? 1.15,
+                    letterSpacing: t.letterSpacing
+                      ? `${t.letterSpacing}px`
+                      : undefined,
+                    fontWeight: t.bold ? 700 : 400,
+                    fontStyle: t.italic ? "italic" : undefined,
+                    textDecoration:
+                      [
+                        t.underline ? "underline" : "",
+                        t.strikethrough ? "line-through" : "",
+                      ]
+                        .filter(Boolean)
+                        .join(" ") || undefined,
+                    textTransform: t.uppercase ? "uppercase" : undefined,
+                    textAlign: t.align ?? "left",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent:
+                      t.anchor === "top"
+                        ? "flex-start"
+                        : t.anchor === "bottom"
+                          ? "flex-end"
+                          : "center",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    overflow: "hidden",
+                    pointerEvents: "none",
+                    // Caixa (borda/fundo) — igual ao "Texto" do Montar card.
+                    ...(t.boxed
+                      ? {
+                          backgroundColor: t.boxFill ?? "#ffffff",
+                          border:
+                            t.boxBorderWidth && t.boxBorderWidth > 0
+                              ? `${t.boxBorderWidth}px solid ${t.boxBorderColor ?? "#111111"}`
+                              : undefined,
+                          borderRadius: t.boxRadius ?? 0,
+                          padding: 8,
+                        }
+                      : {}),
+                  }}
+                >
+                  {t.list
+                    ? content
+                        .split("\n")
+                        .map((line) => `•  ${line}`)
+                        .join("\n")
+                    : content}
+                </div>
+              );
+            })}
 
             {/* Blocos de estilo individuais — cards livres posicionáveis ligados
                 a um produto. px no canvas 1080×pageH, capturados no export. As

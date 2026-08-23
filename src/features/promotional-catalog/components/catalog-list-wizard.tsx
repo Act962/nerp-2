@@ -470,7 +470,7 @@ export function CatalogListWizard({
             </div>
             <p className="text-xs text-muted-foreground">
               Marque os produtos NOVOS que quer criar no cadastro (nome +
-              preço). Os não marcados aparecem como card avulso.
+              preço). Os não marcados aparecem como Etiqueta avulsa.
             </p>
             <div className="flex flex-col divide-y rounded-md border">
               {uniqueProducts.map((name) => {

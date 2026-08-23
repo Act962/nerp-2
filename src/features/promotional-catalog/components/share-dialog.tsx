@@ -50,6 +50,9 @@ interface ShareDialogProps {
   initialPage: number;
   onExportPng: () => void;
   onExportPdf: () => void;
+  // Baixa APENAS a página selecionada (.png / .pdf).
+  onExportPagePng: (index: number) => void;
+  onExportPagePdf: (index: number) => void;
   // Captura UMA página em PNG (data URL, resolução cheia) p/ copiar/compartilhar.
   capturePage: (index: number) => Promise<string>;
 }
@@ -64,6 +67,8 @@ export function ShareDialog({
   initialPage,
   onExportPng,
   onExportPdf,
+  onExportPagePng,
+  onExportPagePdf,
   capturePage,
 }: ShareDialogProps) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -329,6 +334,27 @@ export function ShareDialog({
             <FileText className="h-4 w-4" />
             Baixar PDF{totalPages > 1 ? " (todas as páginas)" : ""}
           </Button>
+          {totalPages > 1 && (
+            <>
+              <div className="h-px bg-border/60" />
+              <Button
+                variant="outline"
+                className="justify-start gap-2"
+                onClick={() => onExportPagePng(safeIndex)}
+              >
+                <Download className="h-4 w-4" />
+                Baixar apenas a página selecionada (.PNG)
+              </Button>
+              <Button
+                variant="outline"
+                className="justify-start gap-2"
+                onClick={() => onExportPagePdf(safeIndex)}
+              >
+                <FileText className="h-4 w-4" />
+                Baixar .pdf da página selecionada
+              </Button>
+            </>
+          )}
         </div>
 
         <p className="text-[11px] text-muted-foreground">

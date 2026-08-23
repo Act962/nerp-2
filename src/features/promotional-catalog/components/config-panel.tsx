@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadToR2 } from "@/lib/upload-to-r2";
@@ -18,11 +18,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
+  ArrowLeft,
   ChevronDown,
+  ChevronRight,
   ChevronUp,
   X,
-  CaseSensitive,
-  Bold,
   Pencil,
   Image as ImageIcon,
   Loader2,
@@ -37,15 +37,8 @@ import {
   Sticker,
   RefreshCw,
   Layers,
+  ArrowDownUp,
 } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ColorPickerField } from "./color-picker-field";
 import { AddProductDialog } from "./add-product-dialog";
 import { BackgroundProperties } from "./background-properties";
 import {
@@ -64,11 +57,18 @@ import {
   useSetProductThumbnail,
   useSetProductThumbnailFromUrl,
   useSetProductUnit,
-  useUpdateProductPrice,
 } from "../hooks/use-catalog";
 import { imageStyleFromAdjust } from "./cards/image-style";
 import { CardFreeLayout } from "./cards/card-free-layout";
 import { CardFreeEditor } from "./card-free-editor";
+import { SystemTemplatesPanel } from "./system-templates-panel";
+import { DynamicPageSection } from "./dynamic-page-section";
+import { ImageResizer } from "./image-resizer";
+import {
+  type DynamicContext,
+  resolveEntityImageKey,
+} from "../lib/resolve-entity";
+import { cardPreviewBg, productCropRect } from "../lib/background-presets";
 import { renderCard } from "./catalog-preview";
 import { TextProperties } from "./text-properties";
 import { constructUrl } from "@/hooks/use-construct-url";
@@ -77,10 +77,17 @@ import {
   type CardLayoutElement,
   type CatalogConfig,
   type CatalogProduct,
+  cardShowsSinglePrice,
   DEFAULT_IMAGE_ADJUSTMENT,
+  effectiveCardLayout,
+  ENTITY_IMAGE_VARS,
+  type EntityImageVar,
+  type EntitySource,
+  entityVarLabel,
   type ImageAdjustment,
   isOfferExpired,
   type LayerSelection,
+  makeDynamicOverlay,
   type Overlay,
   type StyleBlock,
   toTemplateConfig,
@@ -102,47 +109,6 @@ const UNIT_OPTIONS: { value: ProductUnit; label: string }[] = [
   { value: "DZ", label: "Dúzia (dz)" },
 ];
 
-// Seção retrátil (accordion) usada na aba "Layout". Controlada: abrir uma
-// fecha as outras (o estado de qual está aberta vive no ConfigPanel).
-function CollapsibleSection({
-  title,
-  open,
-  onToggle,
-  children,
-}: {
-  title: string;
-  open: boolean;
-  onToggle: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="rounded-md border">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
-      >
-        {title}
-        <ChevronDown
-          className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
-        />
-      </button>
-      {open && (
-        <div className="flex flex-col gap-3 border-t p-3">{children}</div>
-      )}
-    </div>
-  );
-}
-
-// Divisor/título de um subgrupo dentro de uma seção retrátil.
-function SubGroupLabel({ children }: { children: ReactNode }) {
-  return (
-    <p className="-mx-3 mt-1 border-t px-3 pt-3 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-      {children}
-    </p>
-  );
-}
-
 // Editor do produto (popup ao clicar no card): prévia do card ao vivo + foto
 // interativa (menu no hover + nós de redimensionar/cortar) + preços + cores.
 // Produto de exemplo para as miniaturas dos estilos salvos.
@@ -162,16 +128,56 @@ const SAMPLE_PRODUCT: CatalogProduct = {
   description: null,
 };
 
+// Grava um preço De/Por no lugar CERTO, mantendo LISTA e PÁGINA em sincronia:
+// - produto da LISTA (aba "Lista") → grava no próprio item (normalPrice/
+//   offerPrice) e limpa qualquer override, para a lista e a página lerem a mesma
+//   fonte;
+// - produto do CADASTRO → override por-catálogo (priceOverrides = "De";
+//   offerOverrides = "Por"), sem tocar no cadastro/ERP.
+function applyProductPrice(
+  config: CatalogConfig,
+  onConfigChange: (changes: Partial<CatalogConfig>) => void,
+  productId: string,
+  which: "normal" | "offer",
+  value: number | null,
+) {
+  const v = value != null && value > 0 ? value : undefined;
+  const items = config.list?.items;
+  const idx = items ? items.findIndex((it) => it.id === productId) : -1;
+  if (items && idx >= 0 && config.list) {
+    const field = which === "normal" ? "normalPrice" : "offerPrice";
+    const nextItems = items.map((it, i) =>
+      i === idx ? { ...it, [field]: v } : it,
+    );
+    const priceO = { ...(config.priceOverrides ?? {}) };
+    const offerO = { ...(config.offerOverrides ?? {}) };
+    delete priceO[productId];
+    delete offerO[productId];
+    onConfigChange({
+      list: { ...config.list, items: nextItems },
+      priceOverrides: priceO,
+      offerOverrides: offerO,
+    });
+    return;
+  }
+  const key = which === "normal" ? "priceOverrides" : "offerOverrides";
+  const next = { ...(config[key] ?? {}) };
+  if (v != null) next[productId] = v;
+  else delete next[productId];
+  onConfigChange({ [key]: next });
+}
+
 // O estilo salvo guarda `{ cardLayout: CardLayoutElement[] }`.
 function styleToLayout(style: unknown): CardLayoutElement[] {
   const layout = (style as { cardLayout?: CardLayoutElement[] })?.cardLayout;
   return Array.isArray(layout) ? layout : [];
 }
 
-// Miniatura de um estilo (card montado com o produto exemplo, 1:1, destacada).
+// Miniatura de um estilo (etiqueta montada com o produto exemplo, 1:1). Fundo
+// CINZA para as etiquetas com áreas claras/transparentes ficarem visíveis.
 function PriceStyleThumb({ style }: { style: unknown }) {
   return (
-    <div className="aspect-square w-full overflow-hidden rounded-md bg-white shadow-sm ring-1 ring-border">
+    <div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-sm ring-1 ring-border">
       <CardFreeLayout
         product={SAMPLE_PRODUCT}
         elements={styleToLayout(style)}
@@ -275,8 +281,8 @@ function PriceStylesLibrary({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-[11px] text-muted-foreground">
-        Cards montados no editor e salvos aparecem aqui. Clique numa miniatura
-        para pré-visualizar e escolher aplicar ou adicionar.
+        Etiquetas montadas no editor e salvas aparecem aqui. Clique numa
+        miniatura para pré-visualizar e escolher aplicar ou adicionar.
       </p>
 
       <div className="flex flex-col gap-2">
@@ -318,7 +324,7 @@ function PriceStylesLibrary({
           <DialogTitle className="text-base">
             {preview?.name ?? "Estilo"}
           </DialogTitle>
-          <div className="mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-lg border bg-white shadow-sm">
+          <div className="mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-lg border bg-muted shadow-sm">
             {preview && (
               <CardFreeLayout
                 product={SAMPLE_PRODUCT}
@@ -347,7 +353,7 @@ function PriceStylesLibrary({
               Adicionar estilo à página
             </Button>
             <p className="text-[11px] text-muted-foreground">
-              “Alterar” substitui o card de todos os produtos da página.
+              “Alterar” substitui a Etiqueta de todos os produtos da página.
               “Adicionar” coloca este estilo como um bloco posicionável na
               página (mova/redimensione como uma etiqueta).
             </p>
@@ -367,7 +373,6 @@ function PriceStylesLibrary({
                   onElementsChange={(els) =>
                     setEdit((s) => (s ? { ...s, layout: els } : s))
                   }
-                  cardColor="#ffffff"
                   product={SAMPLE_PRODUCT}
                   canManageSystem={canManageSystem}
                   hideSave
@@ -411,6 +416,11 @@ export function ProductPhotoButton({
   onSaveCardLayout,
   open: openProp,
   onOpenChange,
+  productIndex,
+  pageProductCount,
+  entry = "photo",
+  initialElementId,
+  onPhotoClick,
 }: {
   product: CatalogProduct;
   config: CatalogConfig;
@@ -423,8 +433,31 @@ export function ProductPhotoButton({
   // Modo controlado (Fase 5): abrir o popup da foto ao clicar no card no canvas.
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // Posição do produto na página (índice na fatia + total) — para o preview
+  // mostrar o recorte do fundo na célula real do produto.
+  productIndex?: number;
+  pageProductCount?: number;
+  // Como o popup foi aberto, define o que ele mostra:
+  // - "label": abre direto no Editor livre ("Montar Etiqueta");
+  // - "photo" (padrão): abre a gestão de foto ("Editar produto").
+  // (O antigo modo "completo" com "Prévia da Etiqueta" foi removido.)
+  entry?: "photo" | "label";
+  // Elemento pré-selecionado no Editor livre (duplo-clique numa variável).
+  initialElementId?: string;
+  // Clique no thumbnail da foto (aba Produtos): delega ao pai a abertura como
+  // "photo" — se ausente, cai no comportamento antigo (abrir o próprio popup).
+  onPhotoClick?: () => void;
 }) {
   const [openState, setOpenState] = useState(false);
+  // Retângulo EXATO do card na página (frações do fundo) — recorta o fundo dos
+  // previews na posição/tamanho reais do card. A caixa da "Prévia" recebe a
+  // proporção da célula (`previewCrop.aspect`) p/ o recorte não distorcer.
+  const previewCrop = productCropRect(
+    config,
+    productIndex ?? -1,
+    pageProductCount ?? 0,
+  );
+  const previewBg = cardPreviewBg(config, previewCrop);
   const [extUploading, setExtUploading] = useState(false);
   // Este produto é uma LINHA da aba "Lista"? (id da linha, não do cadastro).
   const listIndex =
@@ -486,16 +519,15 @@ export function ProductPhotoButton({
   const saveCardScope = (scope: "product" | "page" | "all") => {
     onSaveCardLayout?.(scope, cardDraft, product.id);
     savedCardRef.current = JSON.stringify(cardDraft);
-    setMode("product");
+    setOpen(false);
   };
   const discardCard = () => {
     setCardDraft(effectiveCardLayout);
     savedCardRef.current = JSON.stringify(effectiveCardLayout);
   };
-  const handleCardClose = () => {
-    if (cardDirty) setConfirmLeave("editor");
-    else setMode("product");
-  };
+  // Voltar do "Montar Etiqueta": fecha o popup (o guard de alterações não salvas
+  // fica no onOpenChange do Dialog).
+  const handleCardClose = () => setOpen(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { upload, isPending: uploading } = useSetProductThumbnail();
   // Biblioteca de estilos de preço (salvar padrão + saber se é super usuário).
@@ -553,29 +585,46 @@ export function ProductPhotoButton({
 
   const visible = results.filter((u) => !broken.has(u));
 
-  // Preços (De/Por) — De = override neste catálogo; Por = promo no cadastro.
-  const priceMut = useUpdateProductPrice();
+  // Preços (De/Por), ambos por-catálogo — De = priceOverrides; Por (oferta) =
+  // offerOverrides. Não alteram o cadastro/ERP.
   const basePrice = product.basePrice ?? product.salePrice;
+  // Etiqueta de UM preço só (sem "De" riscado) → o preço é a OFERTA ("Por").
+  // `effectiveCardLayout` (const local acima) já é a etiqueta efetiva do produto.
+  const priceHasTwo =
+    product.promotionalPrice != null &&
+    product.promotionalPrice < product.salePrice;
+  const singlePrice = cardShowsSinglePrice(effectiveCardLayout, priceHasTwo);
   const [de, setDe] = useState<string>(
-    String(config.priceOverrides?.[product.id] ?? basePrice),
+    singlePrice
+      ? String(config.priceOverrides?.[product.id] ?? "")
+      : String(config.priceOverrides?.[product.id] ?? basePrice),
   );
   const [por, setPor] = useState<string>(
-    product.promotionalPrice != null ? String(product.promotionalPrice) : "",
+    product.promotionalPrice != null
+      ? String(product.promotionalPrice)
+      : singlePrice
+        ? String(product.salePrice)
+        : "",
   );
   const applyDe = () => {
     const num = de !== "" ? Number(de) : Number.NaN;
-    const next = { ...(config.priceOverrides ?? {}) };
-    if (Number.isFinite(num) && num > 0 && num !== basePrice)
-      next[product.id] = num;
-    else delete next[product.id];
-    onConfigChange({ priceOverrides: next });
+    applyProductPrice(
+      config,
+      onConfigChange,
+      product.id,
+      "normal",
+      Number.isFinite(num) && num > 0 && num !== basePrice ? num : null,
+    );
   };
   const applyPor = () => {
     const num = por !== "" ? Number(por) : Number.NaN;
-    priceMut.mutate({
-      productId: product.id,
-      promotionalPrice: Number.isFinite(num) && num > 0 ? num : null,
-    });
+    applyProductPrice(
+      config,
+      onConfigChange,
+      product.id,
+      "offer",
+      Number.isFinite(num) && num > 0 ? num : null,
+    );
   };
 
   // Unidade (kg/un/cx…) — grava no cadastro do produto.
@@ -586,6 +635,28 @@ export function ProductPhotoButton({
   const [searchQuery, setSearchQuery] = useState("");
   // Coluna direita: edição do produto ↔ construtor "Padrão de estilos de preços".
   const [mode, setMode] = useState<"product" | "priceStyle">("product");
+  // O modo "product" agora é SEMPRE a gestão de foto ("Editar produto"): o
+  // antigo popup com "Prévia da Etiqueta" + "Preços" foi removido.
+  const photoOnly = true;
+  // Ao ABRIR, escolhe a tela conforme a origem do clique: lápis → Editor livre;
+  // foto/duplo-clique → editar produto. Só na transição fechado→aberto, para não
+  // sobrescrever a navegação interna (voltar do editor livre p/ o produto).
+  const prevOpenRef = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: effectiveCardLayout muda a cada render; o guard `!prevOpenRef` garante que só sacode na transição de abertura.
+  useEffect(() => {
+    if (open && !prevOpenRef.current) {
+      if (entry === "label") {
+        // Semeia o rascunho do card a partir do layout efetivo (igual ao lápis
+        // interno) e abre direto no Editor livre.
+        setCardDraft(effectiveCardLayout);
+        savedCardRef.current = JSON.stringify(effectiveCardLayout);
+        setMode("priceStyle");
+      } else {
+        setMode("product");
+      }
+    }
+    prevOpenRef.current = open;
+  }, [open, entry]);
 
   // Nó de redimensionar (canto): arrastar p/ cima = zoom in; p/ baixo = zoom out.
   const scaleDrag = useRef<{ sy: number; base: number } | null>(null);
@@ -619,7 +690,7 @@ export function ProductPhotoButton({
         className="relative aspect-square w-16 shrink-0 self-start overflow-hidden rounded border bg-muted flex items-center justify-center transition-opacity hover:opacity-80"
         title="Foto do produto (enviar ou buscar na web)"
         disabled={uploading}
-        onClick={() => setOpen(true)}
+        onClick={() => (onPhotoClick ? onPhotoClick() : setOpen(true))}
       >
         {uploading ? (
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -655,7 +726,7 @@ export function ProductPhotoButton({
           {/* Título acessível sempre presente (Radix exige um DialogTitle). */}
           <DialogTitle className="sr-only">
             {mode === "priceStyle"
-              ? "Editor de card"
+              ? "Editor de Etiqueta"
               : `Editar produto — ${product.name}`}
           </DialogTitle>
           {mode === "priceStyle" ? (
@@ -664,12 +735,17 @@ export function ProductPhotoButton({
                 <CardFreeEditor
                   elements={cardDraft}
                   onElementsChange={setCardDraft}
-                  cardColor={config.cardColor}
                   product={product}
                   cardAspectRatio={config.cardAspectRatio}
                   onCardAspectChange={(ratio) =>
                     onConfigChange({ cardAspectRatio: ratio })
                   }
+                  pageCrop={previewCrop}
+                  pageBgConfig={config}
+                  pageBackground={previewBg}
+                  hideCardBackground={config.hideCardBackground}
+                  cardColor={config.cardColor}
+                  onCardBgChange={(changes) => onConfigChange(changes)}
                   canManageSystem={priceStyles?.canManageSystem ?? false}
                   onSaveStyle={(name, scope) => {
                     createPriceStyle.mutate({
@@ -679,6 +755,17 @@ export function ProductPhotoButton({
                     });
                   }}
                   onClose={handleCardClose}
+                  initialSelectedId={initialElementId}
+                  onEditPhoto={() => setMode("product")}
+                  onSetPrice={(which, value) =>
+                    applyProductPrice(
+                      config,
+                      onConfigChange,
+                      product.id,
+                      which,
+                      value,
+                    )
+                  }
                 />
               </div>
               {/* Salvar com escopo (sem auto-save) */}
@@ -717,41 +804,71 @@ export function ProductPhotoButton({
               </div>
             </div>
           ) : (
-            <div className="grid max-h-[92vh] grid-cols-1 overflow-y-auto md:grid-cols-[250px_1fr]">
-              {/* Coluna esquerda — prévia do card + Alinhamento */}
-              <div className="relative flex flex-col items-center gap-3 border-b bg-muted/40 p-6 md:border-b-0 md:border-r">
-                {/* Abre o editor de card livre (largura cheia) */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-2 h-7 w-7"
-                  title="Editar card (editor livre)"
-                  onClick={() => {
-                    setCardDraft(effectiveCardLayout);
-                    savedCardRef.current = JSON.stringify(effectiveCardLayout);
-                    setMode("priceStyle");
-                  }}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Prévia do card
-                </p>
-                <div
-                  className="w-[205px] rounded-xl p-2 shadow-sm"
-                  style={{ backgroundColor: config.backgroundColor }}
-                >
-                  {renderCard(product, config, {})}
+            <div
+              className={cn(
+                "grid max-h-[92vh] grid-cols-1 overflow-y-auto",
+                !photoOnly && "md:grid-cols-[250px_1fr]",
+              )}
+            >
+              {/* Coluna esquerda — prévia do card + Alinhamento. Escondida no
+                  modo "foto" (clique no thumbnail): só gestão de imagem. */}
+              {!photoOnly && (
+                <div className="relative flex flex-col items-center gap-3 border-b bg-muted/40 p-6 md:border-b-0 md:border-r">
+                  {/* Abre o editor de card livre (largura cheia) */}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-2 h-7 w-7"
+                    title="Editar Etiqueta (editor livre)"
+                    onClick={() => {
+                      setCardDraft(effectiveCardLayout);
+                      savedCardRef.current =
+                        JSON.stringify(effectiveCardLayout);
+                      setMode("priceStyle");
+                    }}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Prévia da Etiqueta
+                  </p>
+                  {/* Card sobre o recorte EXATO do fundo. A caixa tem a proporção
+                    da célula (largura fixa → altura da célula), então o card
+                    ocupa a caixa e a etiqueta de preço aparece inteira. */}
+                  <div
+                    className={cn(
+                      "w-[205px] overflow-hidden rounded-xl shadow-sm [&>*]:h-full",
+                      !previewBg && "bg-muted/30",
+                    )}
+                    style={{
+                      ...(previewBg ?? {}),
+                      aspectRatio: previewCrop
+                        ? String(previewCrop.aspect)
+                        : undefined,
+                    }}
+                  >
+                    {renderCard(product, config, {})}
+                  </div>
+                  <p className="max-w-[205px] text-center text-[11px] text-muted-foreground">
+                    Desenhe a Etiqueta (variáveis, formas, preço) no editor
+                    livre — ícone de lápis acima.
+                  </p>
                 </div>
-                <p className="max-w-[205px] text-center text-[11px] text-muted-foreground">
-                  Desenhe o card (variáveis, formas, preço) no editor livre —
-                  ícone de lápis acima.
-                </p>
-              </div>
+              )}
 
               {/* Coluna direita — Editar produto */}
               <div className="flex min-w-0 flex-col gap-4 p-5">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="-ml-1 mr-auto h-8 gap-1 text-xs"
+                  onClick={() => setOpen(false)}
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  Voltar
+                </Button>
                 {/* Header: busca de foto na web (só quando há produto do banco). */}
                 {!rowOnly && (
                   <div className="relative">
@@ -1018,70 +1135,76 @@ export function ProductPhotoButton({
                   )}
                 </div>
 
-                {/* Preços + Unidade na mesma linha (inputs maiores) */}
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-sm font-semibold">Preços</h3>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[11px] text-muted-foreground">
-                        De (normal)
-                      </span>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        className="h-11 text-lg font-semibold"
-                        value={de}
-                        onChange={(e) => setDe(e.target.value)}
-                        onBlur={applyDe}
-                        onKeyDown={(e) => e.key === "Enter" && applyDe()}
-                        aria-label="Preço De (R$)"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[11px] text-muted-foreground">
-                        Por (promo)
-                      </span>
-                      <Input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        className="h-11 text-lg font-semibold"
-                        placeholder="promo"
-                        value={por}
-                        onChange={(e) => setPor(e.target.value)}
-                        onBlur={applyPor}
-                        onKeyDown={(e) => e.key === "Enter" && applyPor()}
-                        aria-label="Preço Por (R$)"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[11px] text-muted-foreground">
-                        Unidade
-                      </span>
-                      <Select
-                        value={product.unit}
-                        onValueChange={(v) =>
-                          unitMutation.mutate({
-                            productId: product.id,
-                            unit: v as ProductUnit,
-                          })
-                        }
-                      >
-                        <SelectTrigger className="h-11 text-base">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {UNIT_OPTIONS.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                {/* Preços + Unidade na mesma linha (inputs maiores). Escondido
+                    no modo "foto" (clique no thumbnail). */}
+                {!photoOnly && (
+                  <div className="flex flex-col gap-2">
+                    <h3 className="text-sm font-semibold">Preços</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          {singlePrice
+                            ? "De (normal, opcional)"
+                            : "De (normal)"}
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className="h-11 text-lg font-semibold"
+                          placeholder={singlePrice ? "normal" : undefined}
+                          value={de}
+                          onChange={(e) => setDe(e.target.value)}
+                          onBlur={applyDe}
+                          onKeyDown={(e) => e.key === "Enter" && applyDe()}
+                          aria-label="Preço De (R$)"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          {singlePrice ? "Por (oferta)" : "Por (promo)"}
+                        </span>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          className="h-11 text-lg font-semibold"
+                          placeholder={singlePrice ? "oferta" : "promo"}
+                          value={por}
+                          onChange={(e) => setPor(e.target.value)}
+                          onBlur={applyPor}
+                          onKeyDown={(e) => e.key === "Enter" && applyPor()}
+                          aria-label="Preço Por (R$)"
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-[11px] text-muted-foreground">
+                          Unidade
+                        </span>
+                        <Select
+                          value={product.unit}
+                          onValueChange={(v) =>
+                            unitMutation.mutate({
+                              productId: product.id,
+                              unit: v as ProductUnit,
+                            })
+                          }
+                        >
+                          <SelectTrigger className="h-11 text-base">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {UNIT_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}
@@ -1096,7 +1219,7 @@ export function ProductPhotoButton({
         <DialogContent className="sm:max-w-sm">
           <DialogTitle className="text-base">Sair sem salvar?</DialogTitle>
           <p className="text-sm text-muted-foreground">
-            Você tem alterações no card que ainda não foram salvas. Se sair
+            Você tem alterações na Etiqueta que ainda não foram salvas. Se sair
             agora, elas serão descartadas.
           </p>
           <div className="mt-2 flex justify-end gap-2">
@@ -1127,9 +1250,9 @@ export function ProductPhotoButton({
   );
 }
 
-// Edição rápida De/Por direto na lista — mesmos campos do "Adicionar produto".
-// De = preço normal só deste catálogo (override na config). Por = preço
-// promocional, gravado no cadastro do produto.
+// Edição rápida De/Por direto na lista. Ambos por-catálogo (não tocam o
+// cadastro): De = priceOverrides (normal); Por = offerOverrides (oferta). Numa
+// etiqueta de preço único, o preço aparece em "Por".
 function ProductInlinePrices({
   product,
   config,
@@ -1139,30 +1262,49 @@ function ProductInlinePrices({
   config: CatalogConfig;
   onConfigChange: (changes: Partial<CatalogConfig>) => void;
 }) {
-  const mutation = useUpdateProductPrice();
   const basePrice = product.basePrice ?? product.salePrice;
   const override = config.priceOverrides?.[product.id];
+  // Etiqueta de UM preço só (sem "De" riscado) → o preço é a OFERTA ("Por").
+  const layout = effectiveCardLayout(config, product.id);
+  const hasTwoPrices =
+    product.promotionalPrice != null &&
+    product.promotionalPrice < product.salePrice;
+  const singlePrice = cardShowsSinglePrice(layout, hasTwoPrices);
 
-  const [de, setDe] = useState<string>(String(override ?? basePrice));
+  // No modo preço-único, "Por" recebe o preço do produto (default) e "De" é o
+  // normal opcional. `product.promotionalPrice` já reflete o offerOverride.
+  const [de, setDe] = useState<string>(
+    singlePrice ? String(override ?? "") : String(override ?? basePrice),
+  );
   const [por, setPor] = useState<string>(
-    product.promotionalPrice != null ? String(product.promotionalPrice) : "",
+    product.promotionalPrice != null
+      ? String(product.promotionalPrice)
+      : singlePrice
+        ? String(product.salePrice)
+        : "",
   );
 
+  // De/Por gravam na fonte certa (item da lista OU override do catálogo), então
+  // lista e página ficam sempre em sincronia.
   const applyDe = () => {
     const num = de !== "" ? Number(de) : Number.NaN;
-    const next = { ...(config.priceOverrides ?? {}) };
-    if (Number.isFinite(num) && num > 0 && num !== basePrice)
-      next[product.id] = num;
-    else delete next[product.id];
-    onConfigChange({ priceOverrides: next });
+    applyProductPrice(
+      config,
+      onConfigChange,
+      product.id,
+      "normal",
+      Number.isFinite(num) && num > 0 && num !== basePrice ? num : null,
+    );
   };
-
   const applyPor = () => {
     const num = por !== "" ? Number(por) : Number.NaN;
-    mutation.mutate({
-      productId: product.id,
-      promotionalPrice: Number.isFinite(num) && num > 0 ? num : null,
-    });
+    applyProductPrice(
+      config,
+      onConfigChange,
+      product.id,
+      "offer",
+      Number.isFinite(num) && num > 0 ? num : null,
+    );
   };
 
   return (
@@ -1174,6 +1316,7 @@ function ProductInlinePrices({
           min={0}
           step={0.01}
           className="h-7 min-w-0 flex-1 px-1.5 text-xs"
+          placeholder={singlePrice ? "normal" : undefined}
           value={de}
           onChange={(e) => setDe(e.target.value)}
           onBlur={applyDe}
@@ -1187,7 +1330,7 @@ function ProductInlinePrices({
           min={0}
           step={0.01}
           className="h-7 min-w-0 flex-1 px-1.5 text-xs"
-          placeholder="promo"
+          placeholder={singlePrice ? "oferta" : "promo"}
           value={por}
           onChange={(e) => setPor(e.target.value)}
           onBlur={applyPor}
@@ -1219,6 +1362,14 @@ interface ConfigPanelProps {
   // Altera a seleção (Fase 5): abrir/fechar o popup da foto ao clicar no card
   // sincroniza com a seleção do canvas.
   onSelectionChange?: (selection: LayerSelection) => void;
+  // Pedido para abrir "Editar produto" de fora (duplo clique no card da página).
+  // O `nonce` reabre mesmo o mesmo produto.
+  editProductRequest?: {
+    id: string;
+    nonce: number;
+    entry?: "photo" | "label";
+    elementId?: string;
+  } | null;
   // Sinal (contador) para abrir o diálogo "Adicionar produto" de fora — ex.: o
   // botão do estado de página vazia. Cada incremento abre o diálogo.
   addProductSignal?: number;
@@ -1232,27 +1383,33 @@ interface ConfigPanelProps {
   onApplyStyleToAllPages?: () => void;
   // Quantidade de páginas (habilita o botão "aplicar a todas").
   pageCount?: number;
+  // Nome da página atual (para casar a loja da "Página dinâmica" pelo nome).
+  pageName?: string;
+  // "Todas as páginas dinâmicas": estado + ação (aplica/remove em todas).
+  allPagesDynamic?: boolean;
+  onAllPagesDynamic?: (dynamic: CatalogConfig["dynamic"]) => void;
+  // Entidades resolvidas da página atual — para pré-visualizar a imagem da
+  // etiqueta dinâmica no redimensionador.
+  dynamicContext?: DynamicContext;
 }
 
-const TEXT_SIZES: Array<{ value: CatalogConfig["textSize"]; label: string }> = [
-  { value: "xs", label: "Mínimo (12px)" },
-  { value: "sm", label: "Pequeno (16px)" },
-  { value: "base", label: "Médio (22px)" },
-  { value: "lg", label: "Grande (30px)" },
-  { value: "xl", label: "Muito grande (40px)" },
-  { value: "2xl", label: "Enorme (52px)" },
-  { value: "3xl", label: "Gigante (64px)" },
-  { value: "4xl", label: "Máximo (80px)" },
-];
+// Ordenação dos produtos na página (movida do cabeçalho da página p/ a aba
+// Produtos, ao lado do título).
+// Enquadramento "neutro" da etiqueta (imagem): "Caber" (contain) — logos cabem
+// inteiras sem cortar. Difere do produto, cujo default é "Cobrir".
+const OVERLAY_ADJUST_BASELINE: ImageAdjustment = {
+  scale: 1,
+  posX: 50,
+  posY: 50,
+  fit: "contain",
+};
 
-const FONT_WEIGHTS: Array<{
-  value: CatalogConfig["fontWeight"];
-  label: string;
-}> = [
-  { value: "normal", label: "Normal" },
-  { value: "medium", label: "Médio" },
-  { value: "semibold", label: "Semi-negrito" },
-  { value: "bold", label: "Negrito" },
+const SORT_OPTS: { value: CatalogConfig["sortBy"]; label: string }[] = [
+  { value: "discount-desc", label: "Maior desconto" },
+  { value: "savings-desc", label: "Maior economia" },
+  { value: "price-asc", label: "Menor preço" },
+  { value: "price-desc", label: "Maior preço" },
+  { value: "name-asc", label: "Nome A-Z" },
 ];
 
 export function ConfigPanel({
@@ -1265,20 +1422,130 @@ export function ConfigPanel({
   onActiveTabChange,
   selection,
   onSelectionChange,
+  editProductRequest,
   addProductSignal,
   onSaveCardLayout,
   onApplyStyleToAllPages,
   pageCount = 1,
+  pageName = "",
+  allPagesDynamic,
+  onAllPagesDynamic,
+  dynamicContext,
 }: ConfigPanelProps) {
   // Produto cujo modal de edição está aberto (abre pelo lápis "editar").
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Como o popup foi aberto (define o que ele mostra): lápis/duplo-clique no card
+  // → "Montar Etiqueta" (label); foto → "Editar produto" (photo).
+  const [editEntry, setEditEntry] = useState<"photo" | "label">("photo");
+  // Elemento pré-selecionado no Editor livre (duplo-clique numa variável).
+  const [editElementId, setEditElementId] = useState<string | undefined>();
+  // Abre o popup quando o canvas pede (duplo clique no card). Cada pedido é um
+  // objeto novo (nonce), então reabre mesmo o mesmo produto.
+  useEffect(() => {
+    if (editProductRequest?.id) {
+      setEditEntry(editProductRequest.entry ?? "label");
+      setEditElementId(editProductRequest.elementId);
+      setEditingId(editProductRequest.id);
+    }
+  }, [editProductRequest]);
   // Diálogo "Adicionar produto" (aba Produtos) — controlado, para o botão do
   // estado de página vazia poder abri-lo via `addProductSignal`.
   const [addProductOpen, setAddProductOpen] = useState(false);
-  // biome-ignore lint/correctness/useExhaustiveDependencies: abre a cada incremento do sinal
   useEffect(() => {
     if (addProductSignal && addProductSignal > 0) setAddProductOpen(true);
   }, [addProductSignal]);
+
+  // Seleção múltipla de produtos (checkbox + Shift+clique = range) para agrupar.
+  const [selectedForGroup, setSelectedForGroup] = useState<Set<string>>(
+    new Set(),
+  );
+  const lastPickedIndex = useRef<number | null>(null);
+  const toggleProductSelect = (
+    index: number,
+    id: string,
+    shiftKey: boolean,
+  ) => {
+    setSelectedForGroup((prev) => {
+      const next = new Set(prev);
+      if (shiftKey && lastPickedIndex.current != null) {
+        // Range do último clicado até este (inclusive) → seleciona todos.
+        const [a, b] = [lastPickedIndex.current, index].sort((x, y) => x - y);
+        for (let i = a; i <= b; i++) {
+          const pid = pageProducts[i]?.id;
+          if (pid) next.add(pid);
+        }
+      } else if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    lastPickedIndex.current = index;
+  };
+
+  // Grupos NOMEADOS de produtos da página (config.productGroups com productIds).
+  const namedGroups = (config.productGroups ?? []).filter(
+    (g) => g.productIds !== undefined,
+  );
+  const [groupsCollapsed, setGroupsCollapsed] = useState(false);
+  // Adiciona um produto a um grupo específico (a partir do "Adicionar em qual
+  // grupo?"). Se já estava noutro grupo, migra.
+  const addProductToGroup = (productId: string, groupId: string) =>
+    onConfigChange({
+      productGroups: (config.productGroups ?? []).map((g) =>
+        g.productIds
+          ? {
+              ...g,
+              productIds:
+                g.id === groupId
+                  ? [...new Set([...g.productIds, productId])]
+                  : g.productIds.filter((id) => id !== productId),
+            }
+          : g,
+      ),
+    });
+  const removeProductFromGroups = (productId: string) =>
+    onConfigChange({
+      productGroups: (config.productGroups ?? []).map((g) =>
+        g.productIds
+          ? { ...g, productIds: g.productIds.filter((id) => id !== productId) }
+          : g,
+      ),
+    });
+  const addGroupFromSelection = () => {
+    const ids = pageProducts
+      .map((p) => p.id)
+      .filter((id) => selectedForGroup.has(id));
+    if (ids.length === 0) return;
+    const existing = config.productGroups ?? [];
+    const rows = Math.max(1, Math.ceil(ids.length / 3));
+    // Região empilhada abaixo das existentes (px no canvas 1080×pageH).
+    const top = 120 + existing.length * 380;
+    const group = {
+      id: crypto.randomUUID(),
+      name: `Grupo ${namedGroups.length + 1}`,
+      productIds: ids,
+      rect: { x: 40, y: top, w: 1000, h: rows * 300 },
+      gridCols: 3,
+      gridRows: rows,
+    };
+    onConfigChange({ productGroups: [...existing, group] });
+    setSelectedForGroup(new Set());
+    lastPickedIndex.current = null;
+  };
+  const renameGroup = (groupId: string, name: string) =>
+    onConfigChange({
+      productGroups: (config.productGroups ?? []).map((g) =>
+        g.id === groupId ? { ...g, name } : g,
+      ),
+    });
+  const removeGroup = (groupId: string) =>
+    onConfigChange({
+      productGroups: (config.productGroups ?? []).filter(
+        (g) => g.id !== groupId,
+      ),
+    });
 
   // Ao selecionar um produto no canvas, rola a lista lateral até ele (o contorno
   // já vem do `ring` na linha).
@@ -1307,6 +1574,24 @@ export function ConfigPanel({
       ),
     });
   };
+  // Src da imagem da etiqueta selecionada (resolve o binding dinâmico; senão o
+  // asset) — para o redimensionador pré-visualizar.
+  const selectedOverlaySrc = (() => {
+    if (!selectedOverlay) return "";
+    const key = selectedOverlay.binding
+      ? resolveEntityImageKey(selectedOverlay.binding, dynamicContext ?? {})
+      : null;
+    const k = key ?? selectedOverlay.assetKey;
+    return !k ? "" : k.startsWith("http") ? k : constructUrl(k);
+  })();
+  const setOverlayAdjust = (patch: Partial<ImageAdjustment>) =>
+    updateOverlay({
+      adjust: {
+        ...OVERLAY_ADJUST_BASELINE,
+        ...(selectedOverlay?.adjust ?? {}),
+        ...patch,
+      },
+    });
   // z-order: mais tarde no array = pintado na frente.
   const reorderOverlay = (dir: 1 | -1) => {
     const from = selectedOverlayIndex;
@@ -1324,17 +1609,11 @@ export function ConfigPanel({
     });
   };
 
-  // Accordion da aba Layout: só uma seção aberta por vez (abrir fecha as outras).
-  const [openSection, setOpenSection] = useState("Identidade");
-  const sectionProps = (t: string) => ({
-    open: openSection === t,
-    onToggle: () => setOpenSection((cur) => (cur === t ? "" : t)),
-  });
-
   // Padrões (presets de estilo). O bloco "Salvar como padrão" fica na aba
   // Layout; escolher um padrão para iniciar um catálogo agora vive em
   // "+ Novo catálogo".
-  const { data: templates = [] } = useCatalogTemplates();
+  const { data: templatesData } = useCatalogTemplates();
+  const templates = templatesData?.mine ?? [];
   const createTemplate = useCreateCatalogTemplate();
   const updateTemplate = useUpdateCatalogTemplate();
   const [templateName, setTemplateName] = useState("");
@@ -1386,32 +1665,29 @@ export function ConfigPanel({
   const moveProduct = (index: number, dir: -1 | 1) => {
     const target = index + dir;
     if (target < 0 || target >= pageProducts.length) return;
+    const aId = pageProducts[index].id;
+    const bId = pageProducts[target].id;
+    // Catálogo de LISTA: a ordem vive em `list.items` (fonte única) — reordenar
+    // aqui reflete na aba Lista ao vivo, e vice-versa.
+    const items = config.list?.items;
+    if (items) {
+      const ai = items.findIndex((it) => it.id === aId);
+      const bi = items.findIndex((it) => it.id === bId);
+      if (ai >= 0 && bi >= 0 && config.list) {
+        const next = [...items];
+        [next[ai], next[bi]] = [next[bi], next[ai]];
+        onConfigChange({ list: { ...config.list, items: next } });
+        return;
+      }
+    }
+    // Cadastro: ordem manual em `productOrder`.
     const ids = products.map((p) => p.id);
-    const gi = ids.indexOf(pageProducts[index].id);
-    const gt = ids.indexOf(pageProducts[target].id);
+    const gi = ids.indexOf(aId);
+    const gt = ids.indexOf(bId);
     if (gi < 0 || gt < 0) return;
     [ids[gi], ids[gt]] = [ids[gt], ids[gi]];
     onConfigChange({ productOrder: ids });
   };
-
-  // Padding da imagem por lado + atalho "todos os lados".
-  const imgPad = {
-    top: config.imagePaddingTop ?? 0,
-    right: config.imagePaddingRight ?? 0,
-    bottom: config.imagePaddingBottom ?? 0,
-    left: config.imagePaddingLeft ?? 0,
-  };
-  const imgPadAllSame =
-    imgPad.top === imgPad.right &&
-    imgPad.right === imgPad.bottom &&
-    imgPad.bottom === imgPad.left;
-  const setImgPadAll = (v: number) =>
-    onConfigChange({
-      imagePaddingTop: v,
-      imagePaddingRight: v,
-      imagePaddingBottom: v,
-      imagePaddingLeft: v,
-    });
 
   return (
     <Tabs
@@ -1431,14 +1707,20 @@ export function ConfigPanel({
         <TabsTrigger value="layout" className="text-xs h-8">
           Layout
         </TabsTrigger>
+        <TabsTrigger value="fundo" className="text-xs h-8">
+          Fundo
+        </TabsTrigger>
         <TabsTrigger value="texto" className="text-xs h-8">
           Texto
         </TabsTrigger>
         <TabsTrigger value="etiqueta" className="text-xs h-8">
-          Etiqueta
+          Figurinhas
         </TabsTrigger>
         <TabsTrigger value="estilos" className="text-xs h-8">
-          Estilos
+          Etiqueta
+        </TabsTrigger>
+        <TabsTrigger value="padroes-sistema" className="text-xs h-8">
+          Sistema
         </TabsTrigger>
       </TabsList>
 
@@ -1542,304 +1824,30 @@ export function ConfigPanel({
             />
           </div>
 
-          <CollapsibleSection title="Card" {...sectionProps("Card")}>
-            <p className="rounded-md bg-muted/50 px-2 py-1.5 text-[11px] text-muted-foreground">
-              Ajustes do card padrão. Um card montado no editor livre (“Montar
-              card”) sobrepõe estes ajustes.
-            </p>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hide-card-background">Fundo transparente</Label>
-              <Switch
-                id="hide-card-background"
-                checked={config.hideCardBackground === true}
-                onCheckedChange={(v) =>
-                  onConfigChange({ hideCardBackground: v })
-                }
-              />
-            </div>
-            {config.hideCardBackground !== true && (
-              <ColorPickerField
-                label="Cor do card"
-                value={config.cardColor}
-                onChange={(hex) => onConfigChange({ cardColor: hex })}
-              />
-            )}
-            {/* Contorno do card: espessura + cor */}
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-1 flex-col gap-1.5">
-                <Label htmlFor="card-border-width" className="text-xs">
-                  Contorno do card (px)
-                </Label>
-                <Input
-                  id="card-border-width"
-                  type="number"
-                  min={0}
-                  max={40}
-                  value={config.cardBorderWidth ?? 0}
-                  onChange={(e) =>
-                    onConfigChange({
-                      cardBorderWidth: Number(e.target.value) || 0,
-                    })
-                  }
-                />
-              </div>
-              <label className="flex items-center gap-1.5 self-end text-xs text-muted-foreground">
-                Cor
-                <input
-                  type="color"
-                  value={config.cardBorderColor ?? "#111111"}
-                  onChange={(e) =>
-                    onConfigChange({ cardBorderColor: e.target.value })
-                  }
-                  className="h-9 w-10 cursor-pointer rounded border p-0"
-                />
-              </label>
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hide-price-border">
-                Sem contorno do box de preço
-              </Label>
-              <Switch
-                id="hide-price-border"
-                checked={config.hidePriceBorder === true}
-                onCheckedChange={(v) => onConfigChange({ hidePriceBorder: v })}
-              />
-            </div>
+          <DynamicPageSection
+            config={config}
+            onConfigChange={onConfigChange}
+            pageName={pageName}
+            allPagesDynamic={allPagesDynamic}
+            onAllPagesDynamic={onAllPagesDynamic}
+          />
+        </div>
+      </TabsContent>
 
-            <SubGroupLabel>Exibir nos cards</SubGroupLabel>
-            {(
-              [
-                { key: "showDescription", label: "Descrição" },
-                { key: "showCategory", label: "Categoria" },
-                { key: "showStock", label: "Estoque" },
-                { key: "showSku", label: "SKU" },
-                { key: "showUnit", label: "Unidade (kg/un/cx…)" },
-              ] as const
-            ).map(({ key, label }) => (
-              <div key={key} className="flex items-center justify-between">
-                <Label htmlFor={key}>{label}</Label>
-                <Switch
-                  id={key}
-                  checked={config[key]}
-                  onCheckedChange={(v) => onConfigChange({ [key]: v })}
-                />
-              </div>
-            ))}
+      {/* ── Fundo (propriedades do fundo da página + salvar padrão) ── */}
+      <TabsContent
+        value="padroes-sistema"
+        className="flex-1 overflow-y-auto m-0 p-4"
+      >
+        <SystemTemplatesPanel
+          config={config}
+          onConfigChange={onConfigChange}
+          captureThumbnail={captureThumbnail}
+        />
+      </TabsContent>
 
-            <SubGroupLabel>Imagem</SubGroupLabel>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hide-image-border">Sem contorno da imagem</Label>
-              <Switch
-                id="hide-image-border"
-                checked={config.hideImageBorder === true}
-                onCheckedChange={(v) => onConfigChange({ hideImageBorder: v })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hide-image-shadow">Sem sombra da imagem</Label>
-              <Switch
-                id="hide-image-shadow"
-                checked={config.hideImageShadow === true}
-                onCheckedChange={(v) => onConfigChange({ hideImageShadow: v })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label htmlFor="hide-image-bg">Fundo transparente</Label>
-              <Switch
-                id="hide-image-bg"
-                checked={config.hideImageBackground === true}
-                onCheckedChange={(v) =>
-                  onConfigChange({ hideImageBackground: v })
-                }
-              />
-            </div>
-            {!config.hideImageBackground && (
-              <ColorPickerField
-                label="Cor de fundo da imagem"
-                value={config.imageBackgroundColor ?? config.cardColor}
-                onChange={(hex) =>
-                  onConfigChange({ imageBackgroundColor: hex })
-                }
-              />
-            )}
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="image-margin" className="text-xs">
-                Margem (px)
-              </Label>
-              <Input
-                id="image-margin"
-                type="number"
-                min={0}
-                max={100}
-                value={config.imageMargin ?? 0}
-                onChange={(e) =>
-                  onConfigChange({ imageMargin: Number(e.target.value) })
-                }
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label className="text-xs">Padding da imagem</Label>
-              <div className="flex flex-col gap-1.5">
-                <Label
-                  htmlFor="image-pad-all"
-                  className="text-[11px] text-muted-foreground"
-                >
-                  Pixel em todos os lados
-                </Label>
-                <Input
-                  id="image-pad-all"
-                  type="number"
-                  min={0}
-                  max={100}
-                  placeholder={imgPadAllSame ? undefined : "—"}
-                  value={imgPadAllSame ? imgPad.top : ""}
-                  onChange={(e) => setImgPadAll(Number(e.target.value))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="image-pad-top" className="text-[11px]">
-                    Cima
-                  </Label>
-                  <Input
-                    id="image-pad-top"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={imgPad.top}
-                    onChange={(e) =>
-                      onConfigChange({
-                        imagePaddingTop: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="image-pad-right" className="text-[11px]">
-                    Direita
-                  </Label>
-                  <Input
-                    id="image-pad-right"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={imgPad.right}
-                    onChange={(e) =>
-                      onConfigChange({
-                        imagePaddingRight: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="image-pad-bottom" className="text-[11px]">
-                    Baixo
-                  </Label>
-                  <Input
-                    id="image-pad-bottom"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={imgPad.bottom}
-                    onChange={(e) =>
-                      onConfigChange({
-                        imagePaddingBottom: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="image-pad-left" className="text-[11px]">
-                    Esquerda
-                  </Label>
-                  <Input
-                    id="image-pad-left"
-                    type="number"
-                    min={0}
-                    max={100}
-                    value={imgPad.left}
-                    onChange={(e) =>
-                      onConfigChange({
-                        imagePaddingLeft: Number(e.target.value),
-                      })
-                    }
-                  />
-                </div>
-              </div>
-            </div>
-
-            <SubGroupLabel>Tipografia</SubGroupLabel>
-            <div className="flex flex-col gap-2">
-              <Label className="flex items-center gap-1.5">
-                <CaseSensitive className="h-3.5 w-3.5" />
-                Tamanho do texto
-              </Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between font-normal"
-                  >
-                    {TEXT_SIZES.find((s) => s.value === config.textSize)
-                      ?.label ?? "Pequeno"}
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
-                  <DropdownMenuRadioGroup
-                    value={config.textSize}
-                    onValueChange={(v) =>
-                      onConfigChange({
-                        textSize: v as CatalogConfig["textSize"],
-                      })
-                    }
-                  >
-                    {TEXT_SIZES.map((s) => (
-                      <DropdownMenuRadioItem key={s.value} value={s.value}>
-                        {s.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            <div className="flex flex-col gap-2">
-              <Label className="flex items-center gap-1.5">
-                <Bold className="h-3.5 w-3.5" />
-                Peso da fonte
-              </Label>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full justify-between font-normal"
-                  >
-                    {FONT_WEIGHTS.find((w) => w.value === config.fontWeight)
-                      ?.label ?? "Médio"}
-                    <ChevronDown className="h-4 w-4 opacity-50" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-48">
-                  <DropdownMenuRadioGroup
-                    value={config.fontWeight}
-                    onValueChange={(v) =>
-                      onConfigChange({
-                        fontWeight: v as CatalogConfig["fontWeight"],
-                      })
-                    }
-                  >
-                    {FONT_WEIGHTS.map((w) => (
-                      <DropdownMenuRadioItem key={w.value} value={w.value}>
-                        {w.label}
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CollapsibleSection>
-
+      <TabsContent value="fundo" className="flex-1 overflow-y-auto m-0 p-3">
+        <div className="flex flex-col gap-3">
           <BackgroundProperties
             config={config}
             onConfigChange={onConfigChange}
@@ -1922,7 +1930,7 @@ export function ConfigPanel({
               </Button>
             )}
             <p className="text-[11px] text-muted-foreground">
-              Guarda a aparência (layout, posição da grade, cards, cores,
+              Guarda a aparência (layout, posição da grade, Etiquetas, cores,
               fontes, fundo…) — sem os produtos. Aparece ao criar um novo
               catálogo.
               {pageCount > 1 &&
@@ -1935,15 +1943,117 @@ export function ConfigPanel({
       {/* ── Produtos ── */}
       <TabsContent value="produtos" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Produtos na página ({pageProducts.length})
-          </p>
+          {/* Título + Ordenação (movida do cabeçalho da página) */}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Produtos na página ({pageProducts.length})
+            </p>
+            <div className="flex shrink-0 items-center gap-1">
+              <ArrowDownUp className="h-3.5 w-3.5 text-muted-foreground" />
+              <Select
+                value={config.sortBy}
+                onValueChange={(v) =>
+                  onConfigChange({ sortBy: v as CatalogConfig["sortBy"] })
+                }
+              >
+                <SelectTrigger
+                  className="h-7 w-auto gap-1 px-2 text-xs"
+                  title="Ordenação"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SORT_OPTS.map((o) => (
+                    <SelectItem
+                      key={o.value}
+                      value={o.value}
+                      className="text-xs"
+                    >
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           <AddProductDialog
             config={config}
             onConfigChange={onConfigChange}
             open={addProductOpen}
             onOpenChange={setAddProductOpen}
           />
+
+          {/* + Adicionar Grupo — agrupa os produtos SELECIONADOS (checkbox ou
+              Shift+clique) num grupo nomeado. Uma página pode ter vários. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full gap-1"
+            disabled={selectedForGroup.size === 0}
+            onClick={addGroupFromSelection}
+          >
+            <Layers className="h-4 w-4" />
+            {selectedForGroup.size > 0
+              ? `Adicionar Grupo (${selectedForGroup.size})`
+              : "Adicionar Grupo"}
+          </Button>
+          {selectedForGroup.size > 0 && (
+            <p className="-mt-1 text-center text-[11px] text-muted-foreground">
+              {selectedForGroup.size} selecionado(s) ·{" "}
+              <button
+                type="button"
+                className="underline hover:text-foreground"
+                onClick={() => setSelectedForGroup(new Set())}
+              >
+                limpar
+              </button>
+            </p>
+          )}
+
+          {/* Grupos existentes (nomeados) — renomear / excluir. */}
+          {namedGroups.length > 0 && (
+            <div className="flex flex-col gap-1.5 rounded-md border bg-muted/20 p-2">
+              <button
+                type="button"
+                className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => setGroupsCollapsed((c) => !c)}
+                title={groupsCollapsed ? "Expandir" : "Recolher"}
+              >
+                {groupsCollapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+                Grupos da página ({namedGroups.length})
+              </button>
+              {!groupsCollapsed &&
+                namedGroups.map((g) => (
+                <div key={g.id} className="flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  <Input
+                    value={g.name ?? ""}
+                    onChange={(e) => renameGroup(g.id, e.target.value)}
+                    placeholder="Nome do grupo"
+                    className="h-7 flex-1 text-xs"
+                  />
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                    {g.productIds?.length ?? 0}
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7 shrink-0 text-destructive"
+                    title="Excluir grupo"
+                    onClick={() => removeGroup(g.id)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex items-center justify-between rounded-md border px-2 py-1.5">
             <Label htmlFor="auto-promotions" className="text-xs">
               Incluir promoções automaticamente
@@ -1974,6 +2084,17 @@ export function ConfigPanel({
                       : "flex gap-2 py-1.5 px-2 rounded hover:bg-muted"
                   }
                 >
+                  {/* Seleção p/ agrupar (Shift+clique = range) */}
+                  <input
+                    type="checkbox"
+                    aria-label="Selecionar para agrupar"
+                    checked={selectedForGroup.has(p.id)}
+                    onChange={() => {}}
+                    onClick={(e) =>
+                      toggleProductSelect(index, p.id, e.shiftKey)
+                    }
+                    className="mt-1 h-4 w-4 shrink-0 cursor-pointer self-start accent-primary"
+                  />
                   <ProductPhotoButton
                     product={p}
                     config={config}
@@ -1981,6 +2102,17 @@ export function ConfigPanel({
                     onSaveCardLayout={onSaveCardLayout}
                     open={editingId === p.id}
                     onOpenChange={(o) => setEditingId(o ? p.id : null)}
+                    productIndex={index}
+                    pageProductCount={pageProducts.length}
+                    entry={editingId === p.id ? editEntry : "photo"}
+                    initialElementId={
+                      editingId === p.id ? editElementId : undefined
+                    }
+                    onPhotoClick={() => {
+                      setEditEntry("photo");
+                      setEditElementId(undefined);
+                      setEditingId(p.id);
+                    }}
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-1">
                     <div className="flex items-center justify-between gap-1">
@@ -2040,12 +2172,43 @@ export function ConfigPanel({
                         variant="ghost"
                         size="icon"
                         className="h-6 w-6 shrink-0"
-                        title="Editar produto"
-                        onClick={() => setEditingId(p.id)}
+                        title="Montar etiqueta (editor livre)"
+                        onClick={() => {
+                          setEditEntry("label");
+                          setEditElementId(undefined);
+                          setEditingId(p.id);
+                        }}
                       >
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     </div>
+                    {/* Adicionar em qual grupo? (só quando a página tem grupos) */}
+                    {namedGroups.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Layers className="h-3 w-3 shrink-0 text-muted-foreground" />
+                        <select
+                          value={
+                            namedGroups.find((g) =>
+                              g.productIds?.includes(p.id),
+                            )?.id ?? ""
+                          }
+                          onChange={(e) => {
+                            const gid = e.target.value;
+                            if (gid) addProductToGroup(p.id, gid);
+                            else removeProductFromGroups(p.id);
+                          }}
+                          title="Adicionar em qual grupo?"
+                          className="h-6 min-w-0 flex-1 rounded border bg-background px-1 text-[11px]"
+                        >
+                          <option value="">Sem grupo</option>
+                          {namedGroups.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name || "Grupo"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
               </Fragment>
@@ -2066,6 +2229,46 @@ export function ConfigPanel({
 
       <TabsContent value="etiqueta" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-4">
+          {selectedOverlay?.binding && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5">
+              <span className="truncate text-[11px] text-muted-foreground">
+                Vinculado a: <b>{entityVarLabel(selectedOverlay.binding)}</b>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 shrink-0 text-[11px]"
+                onClick={() => updateOverlay({ binding: undefined })}
+              >
+                Desvincular
+              </Button>
+            </div>
+          )}
+          {selectedOverlay && (
+            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Redimensionar imagem
+              </p>
+              <ImageResizer
+                src={selectedOverlaySrc}
+                adjust={selectedOverlay.adjust}
+                baseline={OVERLAY_ADJUST_BASELINE}
+                onChange={setOverlayAdjust}
+                onReset={() => updateOverlay({ adjust: undefined })}
+                emptyLabel="Sem imagem"
+                box={{
+                  x: selectedOverlay.x,
+                  y: selectedOverlay.y,
+                  w: selectedOverlay.w,
+                  h: selectedOverlay.h,
+                }}
+                onBoxChange={(b) =>
+                  updateOverlay({ x: b.x, y: b.y, w: b.w, h: b.h })
+                }
+              />
+            </div>
+          )}
           {selectedOverlay && (
             <ElementProperties
               overlay={selectedOverlay}
@@ -2159,6 +2362,49 @@ export function ConfigPanel({
 
       {/* ── Estilos: biblioteca de estilos de preço (meus + do sistema) ── */}
       <TabsContent value="estilos" className="flex-1 overflow-y-auto m-0 p-4">
+        {/* Etiquetas dinâmicas — imagem que resolve de uma entidade da página
+            dinâmica (foto da loja / logo da org / foto do produto / usuário). */}
+        <div className="mb-4 flex flex-col gap-1.5 rounded-md border p-2">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Etiquetas dinâmicas
+          </p>
+          {config.dynamic?.type ? (
+            <Select
+              value=""
+              onValueChange={(v) => {
+                const variable = v as EntityImageVar;
+                const source = variable.split(".")[0] as EntitySource;
+                const ov = makeDynamicOverlay({ source, variable });
+                onConfigChange({
+                  overlays: [...(config.overlays ?? []), ov],
+                });
+                onSelectionChange?.({ kind: "element", id: ov.id });
+              }}
+            >
+              <SelectTrigger className="h-8 text-xs">
+                <SelectValue placeholder="Adicionar etiqueta dinâmica…" />
+              </SelectTrigger>
+              <SelectContent>
+                {[
+                  ...ENTITY_IMAGE_VARS[config.dynamic.type],
+                  ...(config.dynamic.type === "org"
+                    ? []
+                    : ENTITY_IMAGE_VARS.org),
+                ].map((v) => (
+                  <SelectItem key={v.value} value={v.value} className="text-xs">
+                    {v.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="text-[11px] text-muted-foreground">
+              Ative a “Página dinâmica” na aba Layout para inserir a foto da
+              loja, logo da organização, etc.
+            </p>
+          )}
+        </div>
+
         <PriceStylesLibrary
           onApply={(layout) => onConfigChange({ cardLayout: layout })}
           onAdd={(layout) => {
@@ -2205,7 +2451,7 @@ export function ConfigPanel({
                 >
                   <button
                     type="button"
-                    className="h-14 w-14 shrink-0 overflow-hidden rounded border bg-white"
+                    className="h-14 w-14 shrink-0 overflow-hidden rounded border bg-muted"
                     title="Selecionar bloco no canvas"
                     onClick={() =>
                       onSelectionChange?.({

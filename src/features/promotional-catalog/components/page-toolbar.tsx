@@ -12,7 +12,6 @@ import {
   Layers,
   Image as ImageIcon,
   LayoutGrid,
-  ArrowDownUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,14 +47,6 @@ const LAYOUT_OPTS: { value: CatalogConfig["layout"]; label: string }[] = [
   { value: "custom", label: "Personalizado" },
 ];
 
-const SORT_OPTS: { value: CatalogConfig["sortBy"]; label: string }[] = [
-  { value: "discount-desc", label: "Maior desconto" },
-  { value: "savings-desc", label: "Maior economia" },
-  { value: "price-asc", label: "Menor preço" },
-  { value: "price-desc", label: "Maior preço" },
-  { value: "name-asc", label: "Nome A-Z" },
-];
-
 interface PageToolbarProps {
   pageName: string;
   pageIndex: number;
@@ -65,11 +56,9 @@ interface PageToolbarProps {
   layout: CatalogConfig["layout"];
   gridCols: number;
   gridRows: number;
-  sortBy: CatalogConfig["sortBy"];
   onLayoutChange: (v: CatalogConfig["layout"]) => void;
   onGridColsChange: (v: number) => void;
   onGridRowsChange: (v: number) => void;
-  onSortChange: (v: CatalogConfig["sortBy"]) => void;
   onRename: (name: string) => void;
   onMovePrev: () => void;
   onMoveNext: () => void;
@@ -91,11 +80,9 @@ export function PageToolbar({
   layout,
   gridCols,
   gridRows,
-  sortBy,
   onLayoutChange,
   onGridColsChange,
   onGridRowsChange,
-  onSortChange,
   onRename,
   onMovePrev,
   onMoveNext,
@@ -126,7 +113,7 @@ export function PageToolbar({
             e.currentTarget.blur();
           }
         }}
-        className="h-7 w-24 shrink-0 border-transparent bg-transparent text-sm font-medium shadow-none"
+        className="h-7 w-auto min-w-16 max-w-72 shrink-0 border-transparent bg-transparent text-sm font-medium shadow-none [field-sizing:content]"
         aria-label="Nome da página"
       />
       <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -192,30 +179,9 @@ export function PageToolbar({
         </div>
       )}
 
-      {/* Ordenação */}
-      <div className="flex shrink-0 items-center gap-1">
-        <ArrowDownUp className="h-3.5 w-3.5 text-muted-foreground" />
-        <Select
-          value={sortBy}
-          onValueChange={(v) => onSortChange(v as CatalogConfig["sortBy"])}
-        >
-          <SelectTrigger
-            className="h-7 w-auto shrink-0 gap-1 px-2 text-xs"
-            title="Ordenação"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SORT_OPTS.map((o) => (
-              <SelectItem key={o.value} value={o.value} className="text-xs">
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />
+      {/* Ações da página empurradas para o canto superior DIREITO (a Ordenação
+          foi movida para a aba "Produtos"). */}
+      <div className="ml-auto h-5 w-px shrink-0 bg-border" />
 
       {/* Ordenar / inserir página */}
       <Tooltip>

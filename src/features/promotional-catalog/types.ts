@@ -71,6 +71,13 @@ export type Overlay = {
   borderColor?: string; // cor do contorno; default #000000
   flipH?: boolean; // inverter horizontal
   flipV?: boolean; // inverter vertical
+  // Etiqueta DINÂMICA: quando presente, a imagem resolve de uma entidade da
+  // página dinâmica (loja/org/produto/usuário) no render; `assetKey` fica como
+  // placeholder/fallback. Ver `lib/resolve-entity.ts`.
+  binding?: ImageBinding;
+  // Redimensionador/enquadramento da imagem (Caber/Cobrir + zoom + posição) —
+  // mesmo padrão do sistema (`ImageAdjustment`). Ausente = "Caber" (contain).
+  adjust?: ImageAdjustment;
 };
 
 // Seleção de camada no editor estilo Canva. Uma camada selecionada por vez:
@@ -98,6 +105,11 @@ export type ProductGroup = {
   rect: LayerRect;
   gridCols: number;
   gridRows: number;
+  // Grupo NOMEADO com produtos próprios (ex.: por categoria). Quando `productIds`
+  // está definido, o grupo mostra ESSES produtos (na sua região); sem ele, é uma
+  // região de capacidade que os produtos "fluem" (comportamento antigo).
+  name?: string;
+  productIds?: string[];
 };
 
 // Bloco de estilo individual: um card livre (desenho de `cardLayout`) colocado
@@ -146,6 +158,9 @@ export type TextElement = {
   boxBorderColor?: string; // cor do contorno
   boxBorderWidth?: number; // espessura do contorno (px); 0 = sem
   boxRadius?: number; // arredondamento dos cantos (px)
+  // Texto DINÂMICO: quando presente, o conteúdo resolve de uma entidade da
+  // página dinâmica no render; `text` fica como placeholder/fallback.
+  binding?: TextBinding;
 };
 
 // Fontes disponíveis no editor (Fase A — fontes web-safe; banco de tipografias
@@ -221,6 +236,116 @@ export const CARD_VARIABLES: { value: CardVariable; label: string }[] = [
   { value: "savings", label: "Economize" },
   { value: "category", label: "Categoria" },
 ];
+
+// ── Página dinâmica (vínculo com entidade) ─────────────────────────────────
+// Uma página pode ser marcada como DINÂMICA e vinculada a UMA entidade. Os
+// textos/etiquetas com `binding` resolvem os dados dessa entidade no render
+// (editor, export e link público). Ver `lib/resolve-entity.ts`.
+export type EntitySource = "store" | "org" | "product" | "user";
+
+// Variáveis de TEXTO por entidade (resolvem uma string).
+export type EntityTextVar =
+  | "store.name"
+  | "store.code"
+  | "store.city"
+  | "store.state"
+  | "org.name"
+  | "org.tradeName"
+  | "org.sigla"
+  | "org.city"
+  | "org.state"
+  | "product.name"
+  | "product.sku"
+  | "product.priceActive"
+  | "product.unit"
+  | "user.name"
+  | "user.email"
+  | "user.whatsapp";
+
+// Variáveis de IMAGEM por entidade (resolvem uma chave R2 ou URL absoluta).
+export type EntityImageVar =
+  | "store.coverImage" // Store.coverImageKey (foto da fachada)
+  | "org.logo" // Organization.logo
+  | "product.thumbnail" // Product.thumbnail
+  | "user.image"; // User.image (URL)
+
+export type TextBinding = { source: EntitySource; variable: EntityTextVar };
+export type ImageBinding = { source: EntitySource; variable: EntityImageVar };
+
+// Rótulos das variáveis de texto, agrupados por entidade (para os pickers da UI).
+export const ENTITY_TEXT_VARS: Record<
+  EntitySource,
+  { value: EntityTextVar; label: string }[]
+> = {
+  store: [
+    { value: "store.name", label: "Nome da loja" },
+    { value: "store.code", label: "Código da loja" },
+    { value: "store.city", label: "Cidade da loja" },
+    { value: "store.state", label: "UF da loja" },
+  ],
+  org: [
+    { value: "org.name", label: "Nome da organização" },
+    { value: "org.tradeName", label: "Nome fantasia" },
+    { value: "org.sigla", label: "Sigla" },
+    { value: "org.city", label: "Cidade da org" },
+    { value: "org.state", label: "UF da org" },
+  ],
+  product: [
+    { value: "product.name", label: "Nome do produto" },
+    { value: "product.sku", label: "SKU" },
+    { value: "product.priceActive", label: "Preço" },
+    { value: "product.unit", label: "Unidade" },
+  ],
+  user: [
+    { value: "user.name", label: "Nome do usuário" },
+    { value: "user.email", label: "E-mail" },
+    { value: "user.whatsapp", label: "WhatsApp" },
+  ],
+};
+
+// Rótulos das variáveis de imagem, agrupados por entidade.
+export const ENTITY_IMAGE_VARS: Record<
+  EntitySource,
+  { value: EntityImageVar; label: string }[]
+> = {
+  store: [{ value: "store.coverImage", label: "Foto da loja" }],
+  org: [{ value: "org.logo", label: "Logo da organização" }],
+  product: [{ value: "product.thumbnail", label: "Foto do produto" }],
+  user: [{ value: "user.image", label: "Foto do usuário" }],
+};
+
+// Rótulo legível de uma variável (para "Vinculado a: …" e placeholders).
+export function entityVarLabel(binding: TextBinding | ImageBinding): string {
+  const textHit = ENTITY_TEXT_VARS[binding.source]?.find(
+    (v) => v.value === binding.variable,
+  );
+  if (textHit) return textHit.label;
+  const imgHit = ENTITY_IMAGE_VARS[binding.source]?.find(
+    (v) => v.value === binding.variable,
+  );
+  return imgHit?.label ?? binding.variable;
+}
+
+// Texto dinâmico: nasce com o rótulo como placeholder (visível antes de
+// resolver) e o `binding` setado.
+export function makeDynamicTextElement(binding: TextBinding): TextElement {
+  return { ...makeTextElement(), text: entityVarLabel(binding), binding };
+}
+
+// Etiqueta dinâmica (imagem): caixa padrão + `binding`. `assetKey` vazio =
+// placeholder resolvido no render.
+export function makeDynamicOverlay(binding: ImageBinding): Overlay {
+  return {
+    id: crypto.randomUUID(),
+    assetKey: "",
+    x: 420,
+    y: 360,
+    w: 240,
+    h: 240,
+    rotation: 0,
+    binding,
+  };
+}
 
 // Elemento do card livre. Geometria em fração 0..1 do card (escala com qualquer
 // tamanho). `fontFrac` = tamanho da fonte como fração da altura do card.
@@ -375,9 +500,16 @@ export type CatalogConfig = {
   overlays: Overlay[];
   // Blocos de texto livres sobre o catálogo (ferramenta "Texto").
   texts?: TextElement[];
+  // Elementos DINÂMICOS (com binding: logo da loja, nome do cliente…) guardados
+  // no PADRÃO — reaplicados em toda página nova ao gerar. Só existe em configs de
+  // padrão/template; catálogos comuns não usam.
+  templateDynamic?: { overlays: Overlay[]; texts: TextElement[] };
   // Blocos de estilo individuais (cards livres posicionáveis ligados a um
   // produto), além do(s) grupo(s) de produtos. Por página.
   styleBlocks?: StyleBlock[];
+  // Vínculo dinâmico da PÁGINA (per-page; ver `CatalogPage.dynamic`). Só existe
+  // no config efetivo de uma página; ausente no global.
+  dynamic?: CatalogPage["dynamic"];
   showDescription: boolean;
   showCategory: boolean;
   showStock: boolean;
@@ -397,6 +529,11 @@ export type CatalogConfig = {
   // Preço normal sobrescrito SÓ para exibição neste catálogo (productId → valor).
   // Não altera o produto no banco — o card e o desconto seguem este valor.
   priceOverrides: Record<string, number>;
+  // Preço de OFERTA ("Por") por-catálogo (productId → valor). Espelha o
+  // `priceOverrides` (que é o "De"), mas para o preço em destaque. Catálogo-
+  // scoped: NÃO altera o `promotionalPrice` do cadastro/ERP. Tem prioridade
+  // sobre o `promotionalPrice` do produto na resolução do preço ativo.
+  offerOverrides?: Record<string, number>;
   // Estilo padrão do preço (aplica a todos) + override por produto.
   priceStyle: PriceStyle;
   priceStyleOverrides: Record<string, PriceStyle>;
@@ -427,6 +564,26 @@ export type CatalogConfig = {
   pages: CatalogPage[];
 };
 
+// Etiqueta EFETIVA de um produto: override por produto → global → vazio.
+export function effectiveCardLayout(
+  config: Pick<CatalogConfig, "cardLayout" | "cardLayoutOverrides">,
+  productId: string,
+): CardLayoutElement[] {
+  return config.cardLayoutOverrides?.[productId] ?? config.cardLayout ?? [];
+}
+
+// A etiqueta mostra um ÚNICO preço (sem a variável "De"/riscada `priceFrom`)?
+// Quando a etiqueta é a padrão (sem elementos desenhados), o card padrão só
+// exibe o "De" riscado quando há promoção — então `hasTwoPrices` decide.
+export function cardShowsSinglePrice(
+  layout: CardLayoutElement[],
+  hasTwoPrices: boolean,
+): boolean {
+  if (layout.length > 0)
+    return !layout.some((e) => e.kind === "var" && e.variable === "priceFrom");
+  return !hasTwoPrices;
+}
+
 // Página independente do catálogo. `layout`/fundo/`overlays` sobrescrevem o
 // global só nesta página. Os produtos ainda fluem automaticamente (Fase 1).
 export type CatalogPage = {
@@ -455,6 +612,15 @@ export type CatalogPage = {
   // uma página tem `productIds`, o catálogo fixa os produtos por página — assim
   // inserir/remover páginas não redistribui os produtos das outras.
   productIds?: string[];
+  // Página DINÂMICA (opt-in): vincula a página a UMA entidade. Os textos/
+  // etiquetas com `binding` resolvem os dados dessa entidade no render.
+  // `org` é implícita (org do catálogo, sem refId); `store` com `auto:true`
+  // casa pelo nome da página; `product`/`user` usam `refId`.
+  dynamic?: {
+    type: EntitySource;
+    refId?: string;
+    auto?: boolean;
+  };
 };
 
 // Campos de aparência que passam a ser POR PÁGINA (sobrescrevem o global na
@@ -474,6 +640,7 @@ export const PER_PAGE_KEYS = [
   "overlays",
   "texts",
   "styleBlocks",
+  "dynamic",
 ] as const;
 
 // Deriva a página 1 a partir dos campos globais (migração de catálogos antigos).
@@ -524,10 +691,12 @@ const TEMPLATE_OMIT_KEYS = [
   "manuallyAddedIds",
   "categoryFilter",
   "priceOverrides",
+  "offerOverrides",
   "priceStyleOverrides",
   "imageAdjustments",
   "productOrder",
   "overlays",
+  "texts",
   "styleBlocks",
   "list",
   "pages",
@@ -538,12 +707,82 @@ const TEMPLATE_OMIT_KEYS = [
 // preço/foto, as etiquetas/textos por página e a própria lista/páginas.
 
 // Extrai só a aparência do catálogo para salvar como padrão.
+// Categorias de "Padrões do Sistema" — cada uma recorta uma fatia da aparência.
+export type TemplateKind = "background" | "group" | "label";
+const TEMPLATE_KIND_KEEP: Record<TemplateKind, string[]> = {
+  background: [
+    "backgroundColor",
+    "backgroundGradient",
+    "backgroundOpacity",
+    "backgroundImage",
+    "backgroundFit",
+    "watermark",
+  ],
+  group: [
+    "layout",
+    "gridCols",
+    "gridRows",
+    "productGroup",
+    "productGroups",
+    "productGroupScale",
+  ],
+  label: [
+    "cardStyle",
+    "cardLayout",
+    "cardLayoutOverrides",
+    "cardAspectRatio",
+    "hideCardBackground",
+    "cardColor",
+    "priceStyle",
+    "templateDynamic",
+  ],
+};
+
 export function toTemplateConfig(
   config: CatalogConfig,
+  kind?: TemplateKind,
 ): Record<string, unknown> {
+  // Elementos DINÂMICOS (com binding: logo da loja, nome do cliente…) da página
+  // atual — guardados para reaplicar. Estáticos ficam de fora (é conteúdo).
+  const dynOverlays = (config.overlays ?? []).filter((o) => o.binding);
+  const dynTexts = (config.texts ?? []).filter((t) => t.binding);
+  const templateDynamic =
+    dynOverlays.length > 0 || dynTexts.length > 0
+      ? { overlays: dynOverlays, texts: dynTexts }
+      : undefined;
+
+  // Padrão POR CATEGORIA (sistema): só as chaves daquela fatia.
+  if (kind) {
+    const src: Record<string, unknown> = { ...config, templateDynamic };
+    const slice: Record<string, unknown> = { templateKind: kind };
+    for (const key of TEMPLATE_KIND_KEEP[kind])
+      if (src[key] !== undefined) slice[key] = src[key];
+    // Grupo = REGIÕES da grade, sem produtos específicos.
+    if (kind === "group" && Array.isArray(slice.productGroups))
+      slice.productGroups = (slice.productGroups as ProductGroup[]).map(
+        ({ productIds, ...g }) => g,
+      );
+    return slice;
+  }
+
+  // Padrão COMPLETO (aparência do catálogo, org).
   const clone: Record<string, unknown> = { ...config };
   for (const key of TEMPLATE_OMIT_KEYS) delete clone[key];
+  if (templateDynamic) clone.templateDynamic = templateDynamic;
+  else delete clone.templateDynamic;
   return clone;
+}
+
+// Aplica uma FATIA de padrão (categoria) sobre o config atual — só as chaves da
+// categoria, sem tocar em produtos/preços/lista.
+export function applyTemplateSlice(
+  slice: Record<string, unknown>,
+): Partial<CatalogConfig> {
+  const kind = slice.templateKind as TemplateKind | undefined;
+  const keys = kind ? TEMPLATE_KIND_KEEP[kind] : [];
+  const patch: Record<string, unknown> = {};
+  for (const key of keys) if (slice[key] !== undefined) patch[key] = slice[key];
+  return patch as Partial<CatalogConfig>;
 }
 
 export const TEXT_SIZE_CSS: Record<CatalogConfig["textSize"], string> = {

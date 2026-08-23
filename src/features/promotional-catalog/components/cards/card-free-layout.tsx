@@ -24,7 +24,8 @@ function variableText(el: CardLayoutElement, product: CatalogProduct): string {
     case "priceCents":
       return `,${String(Math.round((active - Math.floor(active)) * 100)).padStart(2, "0")}`;
     case "priceFrom":
-      return formatPrice(product.basePrice ?? product.salePrice);
+      // Preço normal EFETIVO ("De" riscado) — reflete o priceOverride do catálogo.
+      return formatPrice(product.salePrice);
     case "unit":
       return unitLabel(product.unit);
     case "sku":
@@ -103,6 +104,11 @@ export function CardFreeLayout({
               style={{
                 ...base,
                 background: el.fill,
+                // Borda (contorno) opcional — mesma convenção do box de texto.
+                border:
+                  (el.outlineWidth ?? 0) > 0
+                    ? `${(el.outlineWidth ?? 0) * h}px solid ${el.outlineColor ?? "#111111"}`
+                    : undefined,
                 // Raio uniforme em px (fração da altura do card) — não distorce
                 // quando o retângulo cresce para os lados.
                 borderRadius:

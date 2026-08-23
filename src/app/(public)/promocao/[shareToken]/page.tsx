@@ -6,6 +6,7 @@ import type {
   CatalogConfig,
   CatalogProduct,
 } from "@/features/promotional-catalog/types";
+import type { DynamicContext } from "@/features/promotional-catalog/lib/resolve-entity";
 
 interface Props {
   params: Promise<{ shareToken: string }>;
@@ -20,7 +21,12 @@ export const metadata: Metadata = {
 export default async function PromoCatalogPublicPage({ params }: Props) {
   const { shareToken } = await params;
 
-  let data: { name: string; config: unknown; products: CatalogProduct[] };
+  let data: {
+    name: string;
+    config: unknown;
+    products: CatalogProduct[];
+    dynamicEntities: Record<string, unknown>;
+  };
   try {
     data = await client.promotionalCatalog.publicGet({ shareToken });
   } catch {
@@ -32,6 +38,7 @@ export default async function PromoCatalogPublicPage({ params }: Props) {
       name={data.name}
       config={data.config as CatalogConfig}
       products={data.products}
+      dynamicEntities={data.dynamicEntities as Record<string, DynamicContext>}
     />
   );
 }

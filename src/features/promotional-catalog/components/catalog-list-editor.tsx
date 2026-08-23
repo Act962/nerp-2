@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useDropzone } from "react-dropzone";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
@@ -8,6 +14,8 @@ import {
   UploadCloud,
   Loader2,
   Trash2,
+  ChevronUp,
+  ChevronDown,
   Plus,
   Columns3,
   ImageIcon,
@@ -91,6 +99,13 @@ interface CatalogListEditorProps {
     layout: CardLayoutElement[],
     productId: string,
   ) => void;
+  // Preview do catálogo (25% à direita, entre a barra "Gerar catálogo" e as
+  // pastas). Montado pelo editor pai, que tem as páginas/produtos resolvidos.
+  preview?: ReactNode;
+  // Pasta (key) da página atual na prévia — o rodapé acompanha a paginação.
+  activeFolderFromPreview?: string | null;
+  // Clique numa pasta do rodapé → a prévia navega até a página daquela pasta.
+  onSelectFolder?: (key: string) => void;
 }
 
 type ParsedSheet = { columns: string[]; rows: Record<string, string>[] };
@@ -149,6 +164,9 @@ export function CatalogListEditor({
   onConfigChange,
   onGenerate,
   onSaveCardLayout,
+  preview,
+  activeFolderFromPreview,
+  onSelectFolder,
 }: CatalogListEditorProps) {
   const list = config.list;
   const items = list?.items ?? [];
@@ -165,6 +183,13 @@ export function CatalogListEditor({
   const showCol = (key: ColumnKey) => !hiddenCols.has(key);
   // Confirmação do "Cadastrar novos".
   const [confirmRegister, setConfirmRegister] = useState(false);
+
+  // Rodapé acompanha o scroll da prévia: a pasta da página mais visível na
+  // prévia vira a pasta ativa (e filtra a tabela por ela).
+  useEffect(() => {
+    if (activeFolderFromPreview != null)
+      setActiveFolder(activeFolderFromPreview);
+  }, [activeFolderFromPreview]);
 
   const extract = useExtractOffersFromFile();
   const matchProducts = useMatchProductsByName();
@@ -454,18 +479,47 @@ export function CatalogListEditor({
       items.filter((it) => it.id !== id),
       true,
     );
-  const addRow = () =>
-    setItems(
-      [
-        ...items,
-        {
-          id: uid(),
-          client: items[items.length - 1]?.client ?? "Sem cliente",
-          productName: "",
-        },
-      ],
-      true,
-    );
+  // Reordena um item DENTRO do seu cliente/pasta (troca com o vizinho na ordem
+  // exibida). Como a ordem vive em `list.items`, a PÁGINA acompanha ao vivo.
+  const canMoveItem = (id: string, dir: -1 | 1): boolean => {
+    const it = items.find((i) => i.id === id);
+    if (!it) return false;
+    const group = ordered.filter((x) => x.client === it.client);
+    const pos = group.findIndex((x) => x.id === id);
+    return pos + dir >= 0 && pos + dir < group.length;
+  };
+  const moveListItem = (id: string, dir: -1 | 1) => {
+    const it = items.find((i) => i.id === id);
+    if (!it) return;
+    const group = ordered.filter((x) => x.client === it.client);
+    const pos = group.findIndex((x) => x.id === id);
+    const target = pos + dir;
+    if (target < 0 || target >= group.length) return;
+    const bId = group[target].id;
+    const next = [...items];
+    const ai = next.findIndex((x) => x.id === id);
+    const bi = next.findIndex((x) => x.id === bId);
+    [next[ai], next[bi]] = [next[bi], next[ai]];
+    setItems(next, true);
+  };
+  const addRow = () => {
+    const last = items[items.length - 1];
+    const row: CatalogListItem = {
+      id: uid(),
+      client: last?.client ?? "Sem cliente",
+      productName: "",
+    };
+    // A tabela pode estar filtrada por uma pasta (aba ativa / prévia). Preenche
+    // o campo de agrupamento para a nova linha CAIR nessa pasta — senão o filtro
+    // a esconde e parece que "não adicionou".
+    const gb = list?.groupBy ?? "client";
+    if (activeFolder) {
+      if (gb === "department") row.department = activeFolder;
+      else if (gb === "custom") row.folder = activeFolder;
+      else row.client = activeFolder;
+    }
+    setItems([...items, row], true);
+  };
 
   const clientCount = useMemo(
     () => new Set(items.map((i) => i.client)).size,
@@ -771,193 +825,224 @@ export function CatalogListEditor({
         </Button>
       </div>
 
-      {/* Tabela */}
-      <div className="min-h-0 flex-1 overflow-auto p-3">
-        <Table>
-          <TableHeader className="sticky top-0 bg-background">
-            <TableRow>
-              {showCol("image") && <TableHead className="w-16" />}
-              <TableHead className="min-w-[220px]">Produto</TableHead>
-              {showCol("normalPrice") && (
-                <TableHead className="w-28">Preço normal</TableHead>
-              )}
-              {showCol("offerPrice") && (
-                <TableHead className="w-28">Preço oferta</TableHead>
-              )}
-              {showCol("department") && (
-                <TableHead className="w-32">Departamento</TableHead>
-              )}
-              {showCol("client") && (
-                <TableHead className="w-40">Cliente</TableHead>
-              )}
-              <TableHead className="w-10" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {items.length === 0 && (
+      {/* Tabela (à esquerda) + Preview 25% (à direita) — entre a barra de ações
+          "Gerar catálogo" e o rodapé de pastas. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-auto p-3">
+          <Table>
+            <TableHeader className="sticky top-0 bg-background">
               <TableRow>
-                <TableCell
-                  colSpan={
-                    2 + TOGGLE_COLUMNS.filter((c) => showCol(c.key)).length
-                  }
-                  className="py-10 text-center text-sm text-muted-foreground"
-                >
-                  Lista vazia. Clique em{" "}
-                  <strong>"Adicionar nova planilha"</strong> (planilha, PDF ou
-                  imagem) ou <strong>"Adicionar linha"</strong> para começar.
-                </TableCell>
+                {showCol("image") && <TableHead className="w-16" />}
+                <TableHead className="min-w-[220px]">Produto</TableHead>
+                {showCol("normalPrice") && (
+                  <TableHead className="w-28">Preço normal</TableHead>
+                )}
+                {showCol("offerPrice") && (
+                  <TableHead className="w-28">Preço oferta</TableHead>
+                )}
+                {showCol("department") && (
+                  <TableHead className="w-32">Departamento</TableHead>
+                )}
+                {showCol("client") && (
+                  <TableHead className="w-40">Cliente</TableHead>
+                )}
+                <TableHead className="w-10" />
               </TableRow>
-            )}
-            {visibleItems.map((it) => {
-              const showClientDivider = it.client !== lastClient;
-              lastClient = it.client;
-              // Foto: o snapshot da linha ou, se vazio, a foto atual do cadastro.
-              const thumbKey =
-                it.thumbnail ||
-                (it.productId ? (dbThumbMap.get(it.productId) ?? "") : "");
-              const img = thumbKey ? constructUrl(thumbKey) : "";
-              return (
-                <TableRow key={it.id}>
-                  {showCol("image") && (
-                    <TableCell className="p-1">
-                      <button
-                        type="button"
-                        title="Editar produto"
-                        onClick={() => setEditRowId(it.id)}
-                        className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80"
-                      >
-                        {img ? (
-                          // biome-ignore lint/performance/noImgElement: prévia local
-                          <img
-                            src={img}
-                            alt=""
-                            className="h-full w-full object-contain"
-                          />
-                        ) : (
-                          <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
-                        )}
-                      </button>
-                    </TableCell>
-                  )}
-                  <TableCell className="p-1">
-                    <div className="flex items-center gap-2">
-                      <ProductNameSearch
-                        value={it.productName}
-                        onChange={(name) =>
-                          updateItem(it.id, { productName: name })
-                        }
-                        onPick={(p) =>
-                          updateItem(it.id, {
-                            productName: p.name,
-                            productId: p.id,
-                            thumbnail: p.thumbnail,
-                            ...(it.normalPrice == null
-                              ? { normalPrice: p.salePrice }
-                              : {}),
-                            ...(!it.department && p.categoryName
-                              ? { department: p.categoryName }
-                              : {}),
-                          })
-                        }
-                        className="h-8 flex-1"
-                      />
-                      <span
-                        title={
-                          it.productId
-                            ? "Vinculado a um produto do cadastro"
-                            : "Produto avulso (não está no cadastro)"
-                        }
-                        className={cn(
-                          "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                          it.productId
-                            ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                            : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                        )}
-                      >
-                        {it.productId ? "cadastrado" : "novo"}
-                      </span>
-                    </div>
-                  </TableCell>
-                  {showCol("normalPrice") && (
-                    <TableCell className="p-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={it.normalPrice ?? ""}
-                        onChange={(e) =>
-                          updateItem(it.id, {
-                            normalPrice:
-                              e.target.value === ""
-                                ? undefined
-                                : Number(e.target.value),
-                          })
-                        }
-                        className="h-8"
-                      />
-                    </TableCell>
-                  )}
-                  {showCol("offerPrice") && (
-                    <TableCell className="p-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={it.offerPrice ?? ""}
-                        onChange={(e) =>
-                          updateItem(it.id, {
-                            offerPrice:
-                              e.target.value === ""
-                                ? undefined
-                                : Number(e.target.value),
-                          })
-                        }
-                        className="h-8"
-                      />
-                    </TableCell>
-                  )}
-                  {showCol("department") && (
-                    <TableCell className="p-1">
-                      <Input
-                        value={it.department ?? ""}
-                        onChange={(e) =>
-                          updateItem(it.id, {
-                            department: e.target.value || undefined,
-                          })
-                        }
-                        className="h-8"
-                      />
-                    </TableCell>
-                  )}
-                  {showCol("client") && (
-                    <TableCell className="p-1">
-                      <Input
-                        value={it.client}
-                        onChange={(e) =>
-                          updateItem(it.id, {
-                            client: e.target.value || "Sem cliente",
-                          })
-                        }
-                        className={cn(
-                          "h-8",
-                          showClientDivider && "border-primary/40 font-medium",
-                        )}
-                      />
-                    </TableCell>
-                  )}
-                  <TableCell className="p-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => removeItem(it.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+            </TableHeader>
+            <TableBody>
+              {items.length === 0 && (
+                <TableRow>
+                  <TableCell
+                    colSpan={
+                      2 + TOGGLE_COLUMNS.filter((c) => showCol(c.key)).length
+                    }
+                    className="py-10 text-center text-sm text-muted-foreground"
+                  >
+                    Lista vazia. Clique em{" "}
+                    <strong>"Adicionar nova planilha"</strong> (planilha, PDF ou
+                    imagem) ou <strong>"Adicionar linha"</strong> para começar.
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              )}
+              {visibleItems.map((it) => {
+                const showClientDivider = it.client !== lastClient;
+                lastClient = it.client;
+                // Foto: o snapshot da linha ou, se vazio, a foto atual do cadastro.
+                const thumbKey =
+                  it.thumbnail ||
+                  (it.productId ? (dbThumbMap.get(it.productId) ?? "") : "");
+                const img = thumbKey ? constructUrl(thumbKey) : "";
+                return (
+                  <TableRow key={it.id}>
+                    {showCol("image") && (
+                      <TableCell className="p-1">
+                        <button
+                          type="button"
+                          title="Editar produto"
+                          onClick={() => setEditRowId(it.id)}
+                          className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80"
+                        >
+                          {img ? (
+                            // biome-ignore lint/performance/noImgElement: prévia local
+                            <img
+                              src={img}
+                              alt=""
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                          )}
+                        </button>
+                      </TableCell>
+                    )}
+                    <TableCell className="p-1">
+                      <div className="flex items-center gap-2">
+                        <ProductNameSearch
+                          value={it.productName}
+                          onChange={(name) =>
+                            updateItem(it.id, { productName: name })
+                          }
+                          onPick={(p) =>
+                            updateItem(it.id, {
+                              productName: p.name,
+                              productId: p.id,
+                              thumbnail: p.thumbnail,
+                              ...(it.normalPrice == null
+                                ? { normalPrice: p.salePrice }
+                                : {}),
+                              ...(!it.department && p.categoryName
+                                ? { department: p.categoryName }
+                                : {}),
+                            })
+                          }
+                          className="h-8 flex-1"
+                        />
+                        <span
+                          title={
+                            it.productId
+                              ? "Vinculado a um produto do cadastro"
+                              : "Produto avulso (não está no cadastro)"
+                          }
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                            it.productId
+                              ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                              : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                          )}
+                        >
+                          {it.productId ? "cadastrado" : "novo"}
+                        </span>
+                      </div>
+                    </TableCell>
+                    {showCol("normalPrice") && (
+                      <TableCell className="p-1">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={it.normalPrice ?? ""}
+                          onChange={(e) =>
+                            updateItem(it.id, {
+                              normalPrice:
+                                e.target.value === ""
+                                  ? undefined
+                                  : Number(e.target.value),
+                            })
+                          }
+                          className="h-8"
+                        />
+                      </TableCell>
+                    )}
+                    {showCol("offerPrice") && (
+                      <TableCell className="p-1">
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={it.offerPrice ?? ""}
+                          onChange={(e) =>
+                            updateItem(it.id, {
+                              offerPrice:
+                                e.target.value === ""
+                                  ? undefined
+                                  : Number(e.target.value),
+                            })
+                          }
+                          className="h-8"
+                        />
+                      </TableCell>
+                    )}
+                    {showCol("department") && (
+                      <TableCell className="p-1">
+                        <Input
+                          value={it.department ?? ""}
+                          onChange={(e) =>
+                            updateItem(it.id, {
+                              department: e.target.value || undefined,
+                            })
+                          }
+                          className="h-8"
+                        />
+                      </TableCell>
+                    )}
+                    {showCol("client") && (
+                      <TableCell className="p-1">
+                        <Input
+                          value={it.client}
+                          onChange={(e) =>
+                            updateItem(it.id, {
+                              client: e.target.value || "Sem cliente",
+                            })
+                          }
+                          className={cn(
+                            "h-8",
+                            showClientDivider &&
+                              "border-primary/40 font-medium",
+                          )}
+                        />
+                      </TableCell>
+                    )}
+                    <TableCell className="p-1">
+                      <div className="flex items-center">
+                        <div className="flex flex-col">
+                          <button
+                            type="button"
+                            className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                            title="Mover para cima"
+                            disabled={!canMoveItem(it.id, -1)}
+                            onClick={() => moveListItem(it.id, -1)}
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                            title="Mover para baixo"
+                            disabled={!canMoveItem(it.id, 1)}
+                            onClick={() => moveListItem(it.id, 1)}
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => removeItem(it.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        {preview && (
+          <div className="hidden w-1/4 min-w-0 shrink-0 flex-col border-l bg-neutral-200 dark:bg-neutral-800 lg:flex">
+            {preview}
+          </div>
+        )}
       </div>
 
       {/* Rodapé de abas (pastas = páginas), estilo Excel */}
@@ -1000,7 +1085,10 @@ export function CatalogListEditor({
               ) : (
                 <button
                   type="button"
-                  onClick={() => setActiveFolder(f.key)}
+                  onClick={() => {
+                    setActiveFolder(f.key);
+                    onSelectFolder?.(f.key);
+                  }}
                   onDoubleClick={() => setRenamingKey(f.key)}
                   title="Duplo-clique para renomear"
                   className={cn(

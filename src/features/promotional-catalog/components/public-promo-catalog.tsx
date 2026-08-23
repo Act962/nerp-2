@@ -4,12 +4,15 @@ import { useMemo } from "react";
 import { CatalogPreview } from "./catalog-preview";
 import { distributePages, finalizeProducts } from "../lib/layout";
 import type { CatalogConfig, CatalogProduct } from "../types";
-import { isOfferExpired, virtualProductsFromList } from "../types";
+import { ensurePages, isOfferExpired, virtualProductsFromList } from "../types";
+import type { DynamicContext } from "../lib/resolve-entity";
 
 interface PublicPromoCatalogProps {
   name: string;
   config: CatalogConfig;
   products: CatalogProduct[];
+  // Entidades resolvidas por página (pageId → contexto) — páginas dinâmicas.
+  dynamicEntities?: Record<string, DynamicContext>;
 }
 
 // Render PÚBLICO (read-only) do Catálogo Promocional — sem editor/painéis.
@@ -18,7 +21,11 @@ export function PublicPromoCatalog({
   name,
   config,
   products,
+  dynamicEntities,
 }: PublicPromoCatalogProps) {
+  // Páginas na ORDEM (mesma do distributePages) — para casar o pageId com o
+  // contexto dinâmico resolvido no servidor.
+  const srcPages = ensurePages(config);
   const finalized = useMemo(
     () =>
       finalizeProducts(config, [
@@ -47,14 +54,16 @@ export function PublicPromoCatalog({
 
         {pages.map((pg, i) => (
           <div
-            // biome-ignore lint/suspicious/noArrayIndexKey: páginas são estáveis por ordem
-            key={i}
+            key={srcPages[i]?.id ?? i}
             className="overflow-hidden rounded-lg shadow-lg"
           >
             <CatalogPreview
               config={pg.cfg}
               products={pg.products}
               allProducts={finalized}
+              dynamicContext={
+                srcPages[i] ? dynamicEntities?.[srcPages[i].id] : undefined
+              }
             />
           </div>
         ))}

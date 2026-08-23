@@ -119,22 +119,42 @@ export function finalizeProducts(
 ): CatalogProduct[] {
   const excluded = new Set(config.excludedProductIds ?? []);
   const overrides = config.priceOverrides ?? {};
+  const offers = config.offerOverrides ?? {};
+  // Produtos da LISTA: o preço vive no item (fonte única) — overrides não se
+  // aplicam a eles (evita override defasado divergir da lista).
+  const listItemIds = new Set((config.list?.items ?? []).map((it) => it.id));
   let list = rawProducts
     .filter((p) => !excluded.has(p.id))
     .map((p) => {
-      const override = overrides[p.id];
-      if (typeof override !== "number" || override <= 0) {
+      const isListItem = listItemIds.has(p.id);
+      const override = isListItem ? undefined : overrides[p.id];
+      const offer = isListItem ? undefined : offers[p.id];
+      // "De" (normal) e "Por" (oferta) por-catálogo têm prioridade; `basePrice`
+      // guarda o preço do cadastro para o riscado ("De" padrão).
+      const salePrice =
+        typeof override === "number" && override > 0 ? override : p.salePrice;
+      const promotionalPrice =
+        typeof offer === "number" && offer > 0 ? offer : p.promotionalPrice;
+      if (
+        salePrice === p.salePrice &&
+        promotionalPrice === p.promotionalPrice
+      ) {
         return { ...p, basePrice: p.salePrice };
       }
-      const salePrice = override;
-      const promotionalPrice = p.promotionalPrice;
       const discount =
         promotionalPrice != null && salePrice > 0
           ? ((salePrice - promotionalPrice) / salePrice) * 100
           : null;
       const savings =
         promotionalPrice != null ? salePrice - promotionalPrice : null;
-      return { ...p, salePrice, discount, savings, basePrice: p.salePrice };
+      return {
+        ...p,
+        salePrice,
+        promotionalPrice,
+        discount,
+        savings,
+        basePrice: p.salePrice,
+      };
     });
 
   switch (config.sortBy) {
@@ -198,6 +218,7 @@ export function effectivePageConfig(
     overlays: pg.overlays ?? [],
     texts: pg.texts ?? [],
     styleBlocks: pg.styleBlocks ?? [],
+    dynamic: pg.dynamic,
     cardLayout: pg.cardLayout ?? config.cardLayout,
   };
 }

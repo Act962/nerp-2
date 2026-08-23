@@ -32,7 +32,12 @@ import {
 import { cn } from "@/lib/utils";
 import {
   type CatalogConfig,
+  ENTITY_TEXT_VARS,
+  type EntitySource,
+  type EntityTextVar,
+  entityVarLabel,
   type LayerSelection,
+  makeDynamicTextElement,
   makeTextElement,
   type TextElement,
   TEXT_FONTS,
@@ -66,6 +71,23 @@ export function TextProperties({
     onSelectionChange?.({ kind: "text", id: el.id });
   };
 
+  // Variáveis de texto dinâmico disponíveis: as da entidade da página + org
+  // (sempre disponível quando a página é dinâmica).
+  const dynType = config.dynamic?.type;
+  const dynTextVars: { value: EntityTextVar; label: string }[] = dynType
+    ? [
+        ...ENTITY_TEXT_VARS[dynType],
+        ...(dynType === "org" ? [] : ENTITY_TEXT_VARS.org),
+      ]
+    : [];
+
+  const addDynamicText = (variable: EntityTextVar) => {
+    const source = variable.split(".")[0] as EntitySource;
+    const el = makeDynamicTextElement({ source, variable });
+    onConfigChange({ texts: [...texts, el] });
+    onSelectionChange?.({ kind: "text", id: el.id });
+  };
+
   const update = (patch: Partial<TextElement>) => {
     if (!selected) return;
     onConfigChange({
@@ -85,6 +107,35 @@ export function TextProperties({
         <Plus className="h-4 w-4" />
         Adicionar texto
       </Button>
+
+      {/* Textos dinâmicos — resolvem um dado da entidade da página dinâmica. */}
+      <div className="flex flex-col gap-1.5 rounded-md border p-2">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Texto dinâmico
+        </p>
+        {dynType ? (
+          <Select
+            value=""
+            onValueChange={(v) => addDynamicText(v as EntityTextVar)}
+          >
+            <SelectTrigger className="h-8 text-xs">
+              <SelectValue placeholder="Adicionar texto dinâmico…" />
+            </SelectTrigger>
+            <SelectContent>
+              {dynTextVars.map((v) => (
+                <SelectItem key={v.value} value={v.value} className="text-xs">
+                  {v.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <p className="text-[11px] text-muted-foreground">
+            Ative a “Página dinâmica” na aba Layout para inserir textos que
+            resolvem os dados da loja/org/produto/usuário.
+          </p>
+        )}
+      </div>
 
       {!selected ? (
         <p className="text-xs text-muted-foreground">
@@ -108,7 +159,25 @@ export function TextProperties({
             </Button>
           </div>
 
-          {/* Conteúdo */}
+          {/* Vínculo dinâmico do texto (quando houver). */}
+          {selected.binding && (
+            <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5">
+              <span className="truncate text-[11px] text-muted-foreground">
+                Vinculado a: <b>{entityVarLabel(selected.binding)}</b>
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-6 shrink-0 text-[11px]"
+                onClick={() => update({ binding: undefined })}
+              >
+                Desvincular
+              </Button>
+            </div>
+          )}
+
+          {/* Conteúdo (quando dinâmico, serve de placeholder/fallback). */}
           <Textarea
             value={selected.text}
             onChange={(e) => update({ text: e.target.value })}

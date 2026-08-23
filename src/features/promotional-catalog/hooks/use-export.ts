@@ -148,5 +148,66 @@ export function useExport({
     }
   }
 
-  return { exportAsPng, exportAsPdf, isExporting };
+  // Baixa APENAS a página `pageIndex` (a selecionada) como .png.
+  async function exportPageAsPng(pageIndex: number) {
+    setIsExporting(true);
+    try {
+      await prepareExport?.();
+      const el = allPageRefs.current[pageIndex];
+      if (!el) {
+        toast.error("Página não encontrada.");
+        return;
+      }
+      const dataUrl = await captureEl(el);
+      triggerDownload(dataUrl, `${catalogName}-pagina-${pageIndex + 1}.png`);
+    } catch (err) {
+      console.error("Erro ao exportar PNG da página:", err);
+      toast.error("Erro ao gerar PNG. Tente novamente.");
+    } finally {
+      finishExport?.();
+      setIsExporting(false);
+    }
+  }
+
+  // Baixa APENAS a página `pageIndex` (a selecionada) como .pdf.
+  async function exportPageAsPdf(pageIndex: number) {
+    setIsExporting(true);
+    try {
+      await prepareExport?.();
+      const el = allPageRefs.current[pageIndex];
+      if (!el) {
+        toast.error("Página não encontrada.");
+        return;
+      }
+      const { jsPDF } = await import("jspdf");
+      const pxToMm = (px: number) => px * 0.264583;
+      const dataUrl = await captureEl(el);
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Falha ao carregar a página"));
+      });
+      const wMm = pxToMm(img.naturalWidth || img.width);
+      const hMm = pxToMm(img.naturalHeight || img.height);
+      const orientation = wMm > hMm ? "landscape" : "portrait";
+      const pdf = new jsPDF({ orientation, unit: "mm", format: [wMm, hMm] });
+      pdf.addImage(dataUrl, "PNG", 0, 0, wMm, hMm);
+      pdf.save(`${catalogName}-pagina-${pageIndex + 1}.pdf`);
+    } catch (err) {
+      console.error("Erro ao exportar PDF da página:", err);
+      toast.error("Erro ao gerar PDF. Tente novamente.");
+    } finally {
+      finishExport?.();
+      setIsExporting(false);
+    }
+  }
+
+  return {
+    exportAsPng,
+    exportAsPdf,
+    exportPageAsPng,
+    exportPageAsPdf,
+    isExporting,
+  };
 }

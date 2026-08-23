@@ -28,7 +28,11 @@ export function CatalogList() {
   const [templateId, setTemplateId] = useState<string | null>(null);
 
   const { data: catalogs, isLoading } = usePromotionalCatalogs();
-  const { data: templates } = useCatalogTemplates();
+  const { data: templatesData } = useCatalogTemplates();
+  // "+ Novo catálogo" pode partir de qualquer padrão: da organização + do sistema.
+  const templates = templatesData
+    ? [...templatesData.mine, ...templatesData.system]
+    : undefined;
   const createMutation = useCreateCatalog();
   const duplicateMutation = useDuplicateCatalog();
 

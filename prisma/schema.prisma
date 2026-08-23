@@ -1707,12 +1707,16 @@ model CatalogView {
 // (data URL JPEG ~240px) capturada no momento de salvar. Sem relations
 // explícitas — o escopo por organizationId é manual, como no resto do app.
 model PromotionalCatalogTemplate {
+  // scope "USER" = padrão da organização (organizationId setado); "SYSTEM" =
+  // padrão universal do sistema (organizationId null; só super-usuário gerencia).
   id             String   @id @default(cuid())
-  organizationId String
+  organizationId String?
+  scope          String   @default("USER")
   name           String
   config         Json
   thumbnail      String?  @db.Text
   createdById    String
+  createdByEmail String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

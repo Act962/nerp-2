@@ -16,6 +16,7 @@ import {
   Sparkles,
   Plus,
   Image as ImageIcon,
+  Wallpaper,
   Undo2,
   Redo2,
   PanelLeftClose,
@@ -39,6 +40,7 @@ import { ConfigPanel } from "./components/config-panel";
 import { CatalogPreview } from "./components/catalog-preview";
 import { SelectionLayer } from "./components/selection-layer";
 import { PageToolbar } from "./components/page-toolbar";
+import { PageSearch } from "./components/page-search";
 import { ShareDialog } from "./components/share-dialog";
 import { CatalogListEditor } from "./components/catalog-list-editor";
 import {
@@ -47,8 +49,13 @@ import {
   usePromotionalProducts,
 } from "./hooks/use-catalog";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc";
+import { authClient } from "@/lib/auth-client";
+import { useStores } from "@/features/stores/hooks/use-stores";
 import { useExport } from "./hooks/use-export";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
+import { buildDynamicContext } from "./lib/resolve-entity";
 import type {
   CardLayoutElement,
   CatalogConfig,
@@ -60,6 +67,7 @@ import type {
 import {
   DEFAULT_CONFIG,
   PER_PAGE_KEYS,
+  effectiveCardLayout,
   ensurePages,
   isOfferExpired,
   resolveFolders,
@@ -205,9 +213,10 @@ const EDITOR_TABS = [
   { value: "produtos", label: "Produtos", icon: Package },
   { value: "lista", label: "Lista", icon: TableIcon },
   { value: "layout", label: "Layout", icon: LayoutTemplate },
+  { value: "fundo", label: "Fundo", icon: Wallpaper },
   { value: "texto", label: "Texto", icon: Type },
-  { value: "etiqueta", label: "Etiqueta", icon: Sticker },
-  { value: "estilos", label: "Estilos", icon: Sparkles },
+  { value: "etiqueta", label: "Figurinhas", icon: Sticker },
+  { value: "estilos", label: "Etiqueta", icon: Sparkles },
 ] as const;
 
 export function CatalogEditor({ catalogId }: CatalogEditorProps) {
@@ -224,6 +233,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   // a página em foco ao rolar e sincronizar a aba Produtos com ela.
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const pageBoxRefs = useRef<(HTMLDivElement | null)[]>([]);
+  // Prévia da aba "Lista" — paginada (uma página por vez, sem sobrecarregar).
+  const [previewPage, setPreviewPage] = useState(0);
 
   const { data: catalogData, isLoading } = usePromotionalCatalog(catalogId);
   const autosave = useAutosaveCatalog();
@@ -233,6 +244,27 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const [panelOpen, setPanelOpen] = useState(true);
   // Sinal p/ abrir o diálogo "Adicionar produto" (botão do estado vazio).
   const [addProductSignal, setAddProductSignal] = useState(0);
+  // Pedido para abrir "Editar produto" (duplo clique no card da página). O
+  // `nonce` força o efeito no ConfigPanel a reagir mesmo ao reeditar o mesmo id.
+  const [editProductRequest, setEditProductRequest] = useState<{
+    id: string;
+    nonce: number;
+    entry?: "photo" | "label";
+    elementId?: string;
+  } | null>(null);
+  const requestEditProduct = (
+    id: string,
+    opts?: { entry?: "photo" | "label"; elementId?: string },
+  ) => {
+    setActiveTab("produtos");
+    setPanelOpen(true);
+    setEditProductRequest((r) => ({
+      id,
+      nonce: (r?.nonce ?? 0) + 1,
+      entry: opts?.entry ?? "label",
+      elementId: opts?.elementId,
+    }));
+  };
 
   // Ao entrar no editor (desktop), retrai a sidebar do app pra dar espaço —
   // uma única vez; o usuário reabre pelo botão de retrair no header.
@@ -284,27 +316,45 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const products = useMemo(() => {
     const excluded = new Set(config.excludedProductIds);
     const overrides = config.priceOverrides ?? {};
-    // Produtos do banco + produtos VIRTUAIS da aba "Lista" (planilha/PDF). Os
-    // virtuais já trazem preços; priceOverrides (por id do banco) não os afeta.
+    const offers = config.offerOverrides ?? {};
+    // Produtos VIRTUAIS da aba "Lista": o preço vive no próprio item (fonte
+    // única). Overrides NUNCA se aplicam a eles — senão um override defasado
+    // sombrearia o preço da lista (De/Por da lista e da página divergiriam).
+    const listItemIds = new Set(
+      (config.list?.items ?? []).map((it) => it.id),
+    );
     const pool = [...rawProducts, ...virtualProductsFromList(config.list)];
     let list = pool
       .filter((p) => !excluded.has(p.id))
       .map((p) => {
-        // Preço normal sobrescrito SÓ para este catálogo — recalcula
-        // desconto/economia a partir dele. `basePrice` guarda o do cadastro.
-        const override = overrides[p.id];
-        if (typeof override !== "number" || override <= 0) {
+        // "De" (normal) e "Por" (oferta) sobrescritos SÓ neste catálogo —
+        // recalcula desconto/economia. `basePrice` guarda o do cadastro.
+        const isListItem = listItemIds.has(p.id);
+        const override = isListItem ? undefined : overrides[p.id];
+        const offer = isListItem ? undefined : offers[p.id];
+        const salePrice =
+          typeof override === "number" && override > 0 ? override : p.salePrice;
+        const promotionalPrice =
+          typeof offer === "number" && offer > 0 ? offer : p.promotionalPrice;
+        if (
+          salePrice === p.salePrice &&
+          promotionalPrice === p.promotionalPrice
+        )
           return { ...p, basePrice: p.salePrice };
-        }
-        const salePrice = override;
-        const promotionalPrice = p.promotionalPrice;
         const discount =
           promotionalPrice != null && salePrice > 0
             ? ((salePrice - promotionalPrice) / salePrice) * 100
             : null;
         const savings =
           promotionalPrice != null ? salePrice - promotionalPrice : null;
-        return { ...p, salePrice, discount, savings, basePrice: p.salePrice };
+        return {
+          ...p,
+          salePrice,
+          promotionalPrice,
+          discount,
+          savings,
+          basePrice: p.salePrice,
+        };
       });
 
     switch (config.sortBy) {
@@ -333,9 +383,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         break;
     }
 
-    // Ordem manual (arrastar ↑/↓ na lista) tem prioridade sobre `sortBy`:
-    // os ids listados vêm primeiro, o resto segue a ordenação automática.
-    const order = config.productOrder ?? [];
+    // Ordem manual tem prioridade sobre `sortBy`. Para catálogos de LISTA, a
+    // fonte única da ordem é `list.items` (ordem da lista) — assim reordenar na
+    // lista OU na página reflete nos dois ao vivo. Sem lista, usa `productOrder`.
+    const order =
+      config.list?.items && config.list.items.length > 0
+        ? config.list.items.map((it) => it.id)
+        : (config.productOrder ?? []);
     if (order.length > 0) {
       const pos = new Map(order.map((id, i) => [id, i]));
       list = [...list].sort(
@@ -352,6 +406,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     config.excludedProductIds,
     config.sortBy,
     config.priceOverrides,
+    config.offerOverrides,
     config.productOrder,
   ]);
 
@@ -366,6 +421,63 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   // ── Páginas (estilo Canva): cada uma tem Disposição/Fundo/Etiquetas próprios;
   // os produtos ainda fluem automaticamente por elas (Fase 1). ──
   const pages = useMemo(() => ensurePages(config), [config]);
+
+  // ── Páginas DINÂMICAS: resolve as entidades (loja/org/usuário/produto) de
+  // cada página para os textos/etiquetas com `binding`. Loja casa pelo nome da
+  // página (ou refId); org = org do catálogo; usuário = sessão (fase 1). ──
+  const anyDynamic = useMemo(() => pages.some((p) => p.dynamic), [pages]);
+  // Todas as páginas são dinâmicas? (para o toggle "Todas as páginas dinâmicas".)
+  const allPagesDynamic = useMemo(
+    () => pages.length > 0 && pages.every((p) => !!p.dynamic),
+    [pages],
+  );
+  // Aplica (ou remove, com `undefined`) o mesmo vínculo dinâmico a TODAS as
+  // páginas de uma vez. Loja com `auto` casa cada página pelo seu próprio nome.
+  const setAllPagesDynamic = (dynamic: CatalogPage["dynamic"]) => {
+    setConfig((prev) => {
+      const pgs = ensurePages(prev);
+      return { ...prev, pages: pgs.map((p) => ({ ...p, dynamic })) };
+    });
+    toast.success(
+      dynamic
+        ? "Todas as páginas agora são dinâmicas."
+        : "Modo dinâmico removido de todas as páginas.",
+    );
+  };
+  const { stores } = useStores({ pageSize: 100 });
+  const { data: orgData } = useQuery({
+    ...orpc.org.get.queryOptions({ input: undefined }),
+    enabled: anyDynamic,
+  });
+  const { data: session } = authClient.useSession();
+  const dynamicContexts = useMemo(() => {
+    const org = orgData?.organization
+      ? {
+          name: orgData.organization.name,
+          tradeName: orgData.organization.tradeName,
+          sigla: orgData.organization.sigla,
+          city: orgData.organization.city,
+          state: orgData.organization.state,
+          logo: orgData.organization.logo,
+        }
+      : null;
+    const sessionUser = session?.user
+      ? {
+          name: session.user.name,
+          email: session.user.email ?? null,
+          whatsapp: null,
+          image: session.user.image ?? null,
+        }
+      : null;
+    return pages.map((pg) =>
+      buildDynamicContext(pg.dynamic, pg.name, {
+        stores,
+        org,
+        sessionUser,
+        products,
+      }),
+    );
+  }, [pages, stores, orgData, session, products]);
 
   // Oferta vencida → bloqueia compartilhar e mostra aviso no preview.
   const offerExpired = isOfferExpired(config);
@@ -387,6 +499,20 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   const totalPages = pages.length;
   const safePage = Math.min(currentPage, totalPages - 1);
+  // Prévia da Lista (paginada): página atual + pasta correspondente (rodapé).
+  const safePreview = Math.max(0, Math.min(previewPage, totalPages - 1));
+  const previewFolderKey =
+    resolveFolders(config.list)[safePreview]?.key ?? null;
+  // Título dinâmico da prévia: nome da entidade vinculada (loja/produto/…) ou o
+  // nome da página (cliente/pasta).
+  const previewDyn = dynamicContexts[safePreview];
+  const previewTitle =
+    previewDyn?.store?.name ??
+    previewDyn?.product?.name ??
+    previewDyn?.user?.name ??
+    previewDyn?.org?.name ??
+    pages[safePreview]?.name ??
+    `Página ${safePreview + 1}`;
 
   // Config efetiva de uma página = global + overrides (layout, fundo, etiquetas).
   const configForPage = (pageIndex: number): CatalogConfig => {
@@ -407,6 +533,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       overlays: pg.overlays ?? [],
       texts: pg.texts ?? [],
       styleBlocks: pg.styleBlocks ?? [],
+      dynamic: pg.dynamic,
       // Card efetivo da página: override da página > global.
       cardLayout: pg.cardLayout ?? config.cardLayout,
     };
@@ -496,6 +623,84 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     }
   }, [currentPage, totalPages]);
 
+  // Catálogo de LISTA: cada página segue a sua pasta (list.items) ao vivo.
+  // (1) sincroniza `productIds` da página com os itens ATUAIS da pasta — itens
+  // novos (ex.: "Adicionar linha") entram, removidos saem; (2) reordena as
+  // páginas para casar com a ordem das pastas (prévia × rodapé alinhados).
+  // Preserva todo o resto de cada página. Idempotente.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reage a mudanças de lista/páginas; idempotente pelos guards.
+  useEffect(() => {
+    const folders = resolveFolders(config.list);
+    if (folders.length === 0) return;
+    const pgs = config.pages ?? [];
+    if (pgs.length === 0) return;
+    const rank = new Map(folders.map((f, i) => [f.key, i]));
+    // Ids que pertencem à LISTA — o que NÃO é da lista numa página é adição
+    // MANUAL (produto do cadastro) e deve ser preservada ao sincronizar.
+    const listItemIds = new Set((config.list?.items ?? []).map((it) => it.id));
+    const folderOf = (pg: (typeof pgs)[number]) => {
+      const ids = pg.productIds ?? [];
+      return folders.find((f) => ids.some((id) => f.itemIds.includes(id)));
+    };
+    // (1) productIds = itens atuais da pasta + adições manuais já existentes na
+    // página (só a 1ª página que casa a pasta, pra não duplicar se dividida).
+    const claimed = new Set<string>();
+    let mutated = false;
+    const synced = pgs.map((pg) => {
+      const f = folderOf(pg);
+      if (!f || claimed.has(f.key)) return pg;
+      claimed.add(f.key);
+      const cur = pg.productIds ?? [];
+      // Preserva produtos adicionados à mão (não são itens da lista).
+      const manual = cur.filter((id) => !listItemIds.has(id));
+      const want = [...f.itemIds, ...manual];
+      const same =
+        cur.length === want.length && cur.every((id, i) => id === want[i]);
+      if (same) return pg;
+      mutated = true;
+      return { ...pg, productIds: want };
+    });
+    // (2) reordena pela ordem das pastas.
+    const sorted = synced
+      .map((pg, i) => ({
+        pg,
+        i,
+        r: rank.get(folderOf(pg)?.key ?? "") ?? Number.POSITIVE_INFINITY,
+      }))
+      .sort((a, b) => a.r - b.r || a.i - b.i)
+      .map((x) => x.pg);
+    const reordered = sorted.some((p, i) => p.id !== pgs[i].id);
+    if (mutated || reordered)
+      setConfig((prev) => ({ ...prev, pages: sorted }));
+  }, [config.list, config.pages]);
+
+  // Higiene: produtos da LISTA não devem ter override de preço (o preço vive no
+  // item). Remove entradas defasadas de priceOverrides/offerOverrides que apontem
+  // para ids de itens da lista — senão sombreariam o preço da lista.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: só limpa quando há chaves a remover; idempotente.
+  useEffect(() => {
+    const listItemIds = new Set((config.list?.items ?? []).map((it) => it.id));
+    if (listItemIds.size === 0) return;
+    const po = config.priceOverrides ?? {};
+    const oo = config.offerOverrides ?? {};
+    const poHas = Object.keys(po).some((id) => listItemIds.has(id));
+    const ooHas = Object.keys(oo).some((id) => listItemIds.has(id));
+    if (!poHas && !ooHas) return;
+    setConfig((prev) => ({
+      ...prev,
+      priceOverrides: Object.fromEntries(
+        Object.entries(prev.priceOverrides ?? {}).filter(
+          ([id]) => !listItemIds.has(id),
+        ),
+      ),
+      offerOverrides: Object.fromEntries(
+        Object.entries(prev.offerOverrides ?? {}).filter(
+          ([id]) => !listItemIds.has(id),
+        ),
+      ),
+    }));
+  }, [config.list, config.priceOverrides, config.offerOverrides]);
+
   // Página em foco segue o SCROLL: a aba Produtos mostra os produtos da página
   // mais visível na lista vertical. Observa cada caixa de página no container.
   useEffect(() => {
@@ -522,6 +727,11 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     );
     for (const el of pageBoxRefs.current) if (el) io.observe(el);
     return () => io.disconnect();
+  }, [totalPages]);
+
+  // Prévia da aba "Lista" paginada: clampa a página quando o total muda.
+  useEffect(() => {
+    setPreviewPage((p) => Math.max(0, Math.min(p, totalPages - 1)));
   }, [totalPages]);
 
   // Limpa a seleção ao trocar de página (ids de card/elemento são por página).
@@ -708,7 +918,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const { exportAsPng, exportAsPdf, isExporting } = useExport({
+  const {
+    exportAsPng,
+    exportAsPdf,
+    exportPageAsPng,
+    exportPageAsPdf,
+    isExporting,
+  } = useExport({
     previewRef,
     allPageRefs,
     totalPages,
@@ -804,6 +1020,15 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     const maxCount = list.maxPerPage ?? Math.max(1, ...counts);
     const gridCols = 3;
     const gridRows = Math.max(1, Math.ceil(maxCount / gridCols));
+    // Elementos DINÂMICOS do PADRÃO (logo da loja, nome do cliente…): entram em
+    // TODA página nova (clonados com id próprio). Se o padrão era dinâmico,
+    // marca cada página como dinâmica (auto por loja) pra os bindings resolverem.
+    const seedDyn = source.templateDynamic;
+    const pageDynamic = source.dynamic
+      ? { type: source.dynamic.type, auto: source.dynamic.type === "store" }
+      : seedDyn
+        ? { type: "store" as const, auto: true }
+        : undefined;
     const pages: CatalogPage[] = folders.map((f, i) => ({
       id: `list-page-${i}`,
       name: f.name,
@@ -816,8 +1041,15 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       backgroundOpacity: source.backgroundOpacity,
       backgroundImage: source.backgroundImage,
       backgroundFit: source.backgroundFit,
-      overlays: [],
-      texts: [],
+      overlays: (seedDyn?.overlays ?? []).map((o) => ({
+        ...o,
+        id: crypto.randomUUID(),
+      })),
+      texts: (seedDyn?.texts ?? []).map((t) => ({
+        ...t,
+        id: crypto.randomUUID(),
+      })),
+      ...(pageDynamic ? { dynamic: pageDynamic } : {}),
       productIds: f.itemIds,
     }));
     setConfig((prev) => ({
@@ -826,6 +1058,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       gridCols,
       gridRows,
       pages,
+      // A ordem dos produtos vem de `list.items` (fonte única) — ver o useMemo
+      // `products`. Regenerar não precisa mais fixar `productOrder`.
     }));
     setActiveTab("produtos");
     setCurrentPage(0);
@@ -953,7 +1187,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     else if (next.kind === "text") setActiveTab("texto");
     else if (next.kind === "card") setActiveTab("produtos");
     else if (next.kind === "styleBlock") setActiveTab("estilos");
-    else setActiveTab("layout"); // group e background editam na aba Layout
+    else if (next.kind === "background")
+      setActiveTab("fundo"); // fundo da página
+    else setActiveTab("layout"); // grupo de produtos edita na aba Layout
     setPanelOpen(true);
   };
 
@@ -1141,6 +1377,19 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     setDeletePageIndex(null);
   };
 
+  // Salto pela busca de página: foca a página e rola a caixa até o topo da lista.
+  // A aba "lista" esconde a coluna de páginas, então sai dela antes de rolar.
+  const jumpToPage = (index: number) => {
+    setActiveTab((t) => (t === "lista" ? "produtos" : t));
+    setCurrentPage(index);
+    requestAnimationFrame(() => {
+      pageBoxRefs.current[index]?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4">
@@ -1170,7 +1419,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       <div className="flex items-center gap-2 pb-3 sm:gap-3 lg:gap-4 lg:pb-4">
         {/* Retrair menu lateral (o header global fica oculto nesta rota) */}
         <SidebarTrigger className="shrink-0" />
-        <div className="flex min-w-0 flex-1 items-center gap-1">
+        <div className="flex min-w-0 shrink items-center gap-1">
           <Button asChild variant="ghost" size="sm" className="shrink-0 px-2">
             <Link href="/catalogo-promocional">
               <ArrowLeft className="h-4 w-4 sm:mr-1" />
@@ -1183,9 +1432,22 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
           <span className="truncate px-1 text-sm font-semibold">
             {catalogData.name}
           </span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">
+            /
+          </span>
         </div>
-        {/* Desfazer / Refazer (estilo Canva) */}
-        <div className="flex shrink-0 items-center">
+        <PageSearch
+          pages={pages.map((p, i) => ({
+            id: p.id ?? `page-${i}`,
+            name: p.name ?? `Página ${i + 1}`,
+          }))}
+          onJump={jumpToPage}
+          className="hidden w-64 shrink md:block"
+        />
+        {/* Desfazer / Refazer (estilo Canva) — `ml-auto` empurra este grupo e
+            os controles seguintes (Salvar/Visualizar/Compartilhar/Tela cheia)
+            de volta pro canto direito, sem a busca ocupar o espaço livre. */}
+        <div className="ml-auto flex shrink-0 items-center">
           <Button
             variant="ghost"
             size="icon"
@@ -1303,6 +1565,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               products={prods}
               allProducts={products}
               supplierLogos={selectedSupplierLogos}
+              dynamicContext={dynamicContexts[i]}
             />
           ))}
         </div>
@@ -1373,10 +1636,15 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             onActiveTabChange={setActiveTab}
             selection={selection}
             onSelectionChange={handleSelectionChange}
+            editProductRequest={editProductRequest}
             addProductSignal={addProductSignal}
             onSaveCardLayout={handleSaveCardLayout}
             onApplyStyleToAllPages={applyStyleToAllPages}
             pageCount={totalPages}
+            pageName={pages[safePage]?.name ?? ""}
+            allPagesDynamic={allPagesDynamic}
+            onAllPagesDynamic={setAllPagesDynamic}
+            dynamicContext={dynamicContexts[safePage]}
           />
         </div>
 
@@ -1388,6 +1656,71 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               onConfigChange={handleConfigChange}
               onGenerate={generateCatalogFromList}
               onSaveCardLayout={handleSaveCardLayout}
+              activeFolderFromPreview={previewFolderKey}
+              onSelectFolder={(key) => {
+                const idx = resolveFolders(config.list).findIndex(
+                  (f) => f.key === key,
+                );
+                if (idx >= 0) setPreviewPage(idx);
+              }}
+              preview={
+                pageChunks.length === 0 ? (
+                  <div className="flex h-full items-center justify-center p-4">
+                    <p className="text-center text-xs text-muted-foreground">
+                      Gere o catálogo para ver a prévia aqui.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="flex h-full flex-col">
+                    {/* Título dinâmico (loja/cliente) + navegação por página */}
+                    <div className="flex items-center gap-1 border-b bg-neutral-200/95 px-2 py-1.5 dark:bg-neutral-800/95">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        disabled={safePreview <= 0}
+                        onClick={() =>
+                          setPreviewPage((p) => Math.max(0, p - 1))
+                        }
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                      </Button>
+                      <div className="min-w-0 flex-1 text-center">
+                        <p className="truncate text-xs font-semibold">
+                          {previewTitle}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {safePreview + 1} / {totalPages}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 shrink-0"
+                        disabled={safePreview >= totalPages - 1}
+                        onClick={() =>
+                          setPreviewPage((p) =>
+                            Math.min(totalPages - 1, p + 1),
+                          )
+                        }
+                      >
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="min-h-0 flex-1 overflow-auto p-2">
+                      <div className="w-full shadow-sm">
+                        <CatalogPreview
+                          config={configForPage(safePreview)}
+                          products={pageChunks[safePreview] ?? []}
+                          allProducts={products}
+                          supplierLogos={selectedSupplierLogos}
+                          dynamicContext={dynamicContexts[safePreview]}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              }
             />
           </div>
         )}
@@ -1439,7 +1772,6 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                       layout={cfg.layout}
                       gridCols={cfg.gridCols}
                       gridRows={cfg.gridRows}
-                      sortBy={cfg.sortBy}
                       onLayoutChange={(layout) =>
                         handlePageConfigChange(i, { layout })
                       }
@@ -1448,9 +1780,6 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                       }
                       onGridRowsChange={(gridRows) =>
                         handlePageConfigChange(i, { gridRows })
-                      }
-                      onSortChange={(sortBy) =>
-                        handlePageConfigChange(i, { sortBy })
                       }
                       onRename={(name) => renamePage(i, name)}
                       onMovePrev={() => movePage(i, -1)}
@@ -1472,6 +1801,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                             products={prods}
                             allProducts={products}
                             supplierLogos={selectedSupplierLogos}
+                            dynamicContext={dynamicContexts[i]}
                           />
                           {!locked && (
                             <SelectionLayer
@@ -1485,6 +1815,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                                 setCurrentPage(i);
                                 handleSelectionChange(next);
                               }}
+                              onEditProduct={(productId, opts) => {
+                                setCurrentPage(i);
+                                requestEditProduct(productId, opts);
+                              }}
+                              cardLayoutFor={(pid) =>
+                                effectiveCardLayout(config, pid)
+                              }
                               onOverlaysChange={(overlays) =>
                                 handlePageConfigChange(i, { overlays })
                               }
@@ -1630,6 +1967,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         initialPage={safePage}
         onExportPng={exportAsPng}
         onExportPdf={exportAsPdf}
+        onExportPagePng={exportPageAsPng}
+        onExportPagePdf={exportPageAsPdf}
         capturePage={capturePage}
       />
 
@@ -1675,6 +2014,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                 products={pageChunks[safePage] ?? []}
                 allProducts={products}
                 supplierLogos={selectedSupplierLogos}
+                dynamicContext={dynamicContexts[safePage]}
               />
             </div>
           </div>

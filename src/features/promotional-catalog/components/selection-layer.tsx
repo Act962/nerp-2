@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import { Copy, Move, RotateCw, Trash2 } from "lucide-react";
 import { constructUrl } from "@/hooks/use-construct-url";
 import type {
+  CardLayoutElement,
   LayerRect,
   LayerSelection,
   Overlay,
@@ -66,6 +67,17 @@ interface SelectionLayerProps {
   styleBlocks: StyleBlock[];
   selection: LayerSelection;
   onSelectionChange: (s: LayerSelection) => void;
+  // Duplo clique num card na página → abre o popup do produto. Sem elemento
+  // atingido → "Montar Etiqueta" (entry "label"); numa variável foto → "Editar
+  // produto" (entry "photo"); numa variável de preço/texto → "Montar Etiqueta"
+  // com aquele elemento selecionado (elementId).
+  onEditProduct?: (
+    productId: string,
+    opts?: { entry?: "photo" | "label"; elementId?: string },
+  ) => void;
+  // Etiqueta efetiva de um produto — para saber qual variável o duplo-clique
+  // atingiu dentro do card.
+  cardLayoutFor?: (productId: string) => CardLayoutElement[];
   onOverlaysChange: (overlays: Overlay[]) => void;
   onTextsChange: (texts: TextElement[]) => void;
   onStyleBlocksChange: (blocks: StyleBlock[]) => void;
@@ -220,6 +232,8 @@ export function SelectionLayer({
   styleBlocks,
   selection,
   onSelectionChange,
+  onEditProduct,
+  cardLayoutFor,
   onOverlaysChange,
   onTextsChange,
   onStyleBlocksChange,
@@ -873,6 +887,33 @@ export function SelectionLayer({
     setHover(hitTest(e.clientX, e.clientY));
   };
 
+  // Duplo clique num card → abre o popup do produto, roteando pela variável
+  // atingida: foto → "Editar produto"; preço/texto (qualquer elemento) →
+  // "Montar Etiqueta" com o elemento selecionado; vazio → "Montar Etiqueta".
+  const onLayerDoubleClick = (e: React.MouseEvent) => {
+    const layer = ref.current;
+    if (!layer) return;
+    const lr = layer.getBoundingClientRect();
+    const x = e.clientX - lr.left;
+    const y = e.clientY - lr.top;
+    const card = boxes.cards.find((c) => inBox(x, y, c.box));
+    if (!card?.id) return;
+    // Fração do ponto DENTRO da célula do card → acha o elemento no topo (z).
+    const layout = cardLayoutFor?.(card.id) ?? [];
+    const fx = (x - card.box.left) / card.box.width;
+    const fy = (y - card.box.top) / card.box.height;
+    const el = [...layout]
+      .sort((a, b) => (b.z ?? 0) - (a.z ?? 0))
+      .find(
+        (le) =>
+          fx >= le.x && fx <= le.x + le.w && fy >= le.y && fy <= le.y + le.h,
+      );
+    if (el?.kind === "var" && el.variable === "photo")
+      onEditProduct?.(card.id, { entry: "photo" });
+    else if (el) onEditProduct?.(card.id, { entry: "label", elementId: el.id });
+    else onEditProduct?.(card.id, { entry: "label" });
+  };
+
   const onLayerDown = (e: React.PointerEvent) => {
     const hit = hitTest(e.clientX, e.clientY);
     // Com o grupo JÁ selecionado (grupo ou um card dele), um pointerdown dentro
@@ -980,6 +1021,7 @@ export function SelectionLayer({
       onPointerDown={onLayerDown}
       onPointerMove={onLayerMove}
       onPointerLeave={() => setHover(null)}
+      onDoubleClick={onLayerDoubleClick}
       onDragOver={(e) => e.preventDefault()}
       onDrop={onDrop}
     >

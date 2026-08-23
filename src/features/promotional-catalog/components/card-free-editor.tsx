@@ -30,6 +30,7 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   CARD_VARIABLES,
   type CardLayoutElement,
@@ -37,6 +38,11 @@ import {
   type CatalogProduct,
   makeCardElement,
 } from "../types";
+import {
+  type CropRect,
+  type PageBgConfig,
+  pageWindowBg,
+} from "../lib/background-presets";
 import { CardFreeLayout } from "./cards/card-free-layout";
 
 // Ícone por variável — paleta mais intuitiva.
@@ -73,6 +79,22 @@ type Drag =
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
+
+// Que preço uma variável representa, para edição inline na etiqueta:
+// "offer" = preço em destaque/ativo ("Por"); "normal" = "De" riscado.
+function priceKindOf(
+  variable: CardVariable | undefined,
+): "offer" | "normal" | null {
+  if (variable === "priceFrom") return "normal";
+  if (
+    variable === "priceActive" ||
+    variable === "priceReais" ||
+    variable === "priceCents" ||
+    variable === "priceCurrency"
+  )
+    return "offer";
+  return null;
+}
 
 // Nós de dimensionamento do card — DENTRO do preview (inset da borda), nos 4
 // cantos + meios das 4 bordas. Arrastar muda a proporção (largura/altura):
@@ -138,9 +160,18 @@ const RESIZE_HANDLES: ResizeHandle[] = [
 interface CardFreeEditorProps {
   elements: CardLayoutElement[];
   onElementsChange: (elements: CardLayoutElement[]) => void;
-  cardColor: string;
   product: CatalogProduct;
-  onClose: () => void;
+  // Voltar/fechar o editor (botão no canto + também exposto no rodapé do modal).
+  onClose?: () => void;
+  // Elemento pré-selecionado ao abrir (duplo-clique numa variável na página):
+  // seleciona e foca a edição. Texto → foca o input de texto.
+  initialSelectedId?: string;
+  // Duplo-clique na variável FOTO → abre "Editar produto" (gestão de imagem).
+  onEditPhoto?: () => void;
+  // Editar o PREÇO direto na etiqueta (duplo-clique numa variável de preço):
+  // "offer" = preço ativo/"Por" (offerOverrides); "normal" = "De" riscado
+  // (priceOverrides). Grava no catálogo, não no cadastro. null = limpar.
+  onSetPrice?: (which: "offer" | "normal", value: number | null) => void;
   canManageSystem: boolean;
   // Salvar como NOVO estilo na biblioteca (modo criação). Oculto no modo edição.
   onSaveStyle?: (name: string, scope: "USER" | "SYSTEM") => void;
@@ -149,6 +180,22 @@ interface CardFreeEditorProps {
   // `onCardAspectChange` é passado, mostra o controle de altura.
   cardAspectRatio?: number;
   onCardAspectChange?: (ratio: number) => void;
+  // Recorte exato do card na página + config de fundo — o fundo da área vira uma
+  // "janela" para a página (célula do card na caixa, contexto ao redor). Quando
+  // ausentes, usa `pageBackground` cru.
+  pageCrop?: CropRect | null;
+  pageBgConfig?: PageBgConfig;
+  // Fallback: fundo da ÁREA do preview cru (null = cinza padrão).
+  pageBackground?: React.CSSProperties | null;
+  // Fundo da Etiqueta (config do catálogo) — controles movidos da aba Layout.
+  // Quando `onCardBgChange` é passado, mostra "Fundo transparente" + "Cor" e a
+  // caixa do card reflete a cor (ou fica transparente = janela para a página).
+  hideCardBackground?: boolean;
+  cardColor?: string;
+  onCardBgChange?: (changes: {
+    hideCardBackground?: boolean;
+    cardColor?: string;
+  }) => void;
 }
 
 // Editor livre do card: arraste variáveis e formas, montando o card. Opera sobre
@@ -157,18 +204,64 @@ interface CardFreeEditorProps {
 export function CardFreeEditor({
   elements,
   onElementsChange,
-  cardColor,
   product,
   onClose,
+  initialSelectedId,
+  onEditPhoto,
+  onSetPrice,
   canManageSystem,
   onSaveStyle,
   hideSave,
   cardAspectRatio,
   onCardAspectChange,
+  pageCrop,
+  pageBgConfig,
+  pageBackground,
+  hideCardBackground,
+  cardColor,
+  onCardBgChange,
 }: CardFreeEditorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [name, setName] = useState("");
   const [scope, setScope] = useState<"USER" | "SYSTEM">("USER");
+  const textInputRef = useRef<HTMLInputElement>(null);
+  // Edição de texto INLINE no card (duplo-clique num elemento de texto): abre um
+  // campo sobre o próprio elemento para digitar direto.
+  const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  // Edição de PREÇO inline (duplo-clique numa variável de preço).
+  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [editingPriceValue, setEditingPriceValue] = useState("");
+
+  // Seleção inicial (duplo-clique numa variável na página): seleciona e, se for
+  // texto, já entra na edição inline. Só ao mudar o pedido.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reage só ao initialSelectedId; `elements` é lido no momento, não deve re-disparar.
+  useEffect(() => {
+    if (!initialSelectedId) return;
+    setSelectedIds([initialSelectedId]);
+    const el = elements.find((e) => e.id === initialSelectedId);
+    if (el?.kind === "text") setEditingTextId(initialSelectedId);
+  }, [initialSelectedId]);
+
+  // Tecla Delete/Backspace remove os elementos selecionados (ignora se estiver
+  // digitando num campo).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const tag = t?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || t?.isContentEditable) return;
+      if (
+        (e.key === "Delete" || e.key === "Backspace") &&
+        selectedIds.length > 0
+      ) {
+        e.preventDefault();
+        const kill = new Set(selectedIds);
+        onElementsChange(elements.filter((el) => !kill.has(el.id)));
+        setSelectedIds([]);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [elements, selectedIds, onElementsChange]);
   const canvasRef = useRef<HTMLDivElement>(null);
   const drag = useRef<Drag | null>(null);
   // Altura do canvas medida — para desenhar o contorno de seleção com o mesmo
@@ -198,15 +291,37 @@ export function CardFreeEditor({
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  // Proporção largura/altura do card (default 1 = quadrado). O card vira o
-  // MAIOR retângulo com essa proporção que cabe na área — com uma MARGEM ao
-  // redor (respiro dentro do popup).
-  const aspect = cardAspectRatio && cardAspectRatio > 0 ? cardAspectRatio : 1;
+  // Proporção largura/altura do card. Default = a proporção REAL da célula na
+  // página (`pageCrop.aspect`) quando não há override manual — assim o card
+  // nasce com o mesmo formato do seu lugar no encarte. O card vira o MAIOR
+  // retângulo com essa proporção que cabe na área, com uma MARGEM ao redor.
+  const aspect =
+    cardAspectRatio && cardAspectRatio > 0
+      ? cardAspectRatio
+      : pageCrop?.aspect && pageCrop.aspect > 0
+        ? pageCrop.aspect
+        : 1;
   const AREA_PAD = 48;
   const availW = Math.max(0, area.w - AREA_PAD * 2);
   const availH = Math.max(0, area.h - AREA_PAD * 2);
-  const cardW = Math.max(0, Math.min(availW, availH * aspect));
+  // Encaixe máximo mantendo a proporção, reduzido em 15% (largura e altura
+  // caem juntas, então a proporção `aspect` é preservada).
+  const PREVIEW_SCALE = 0.85;
+  const cardW = Math.max(0, Math.min(availW, availH * aspect)) * PREVIEW_SCALE;
   const cardH = aspect > 0 ? cardW / aspect : cardW;
+  // Fundo da área = "janela" para a página: a célula do card ocupa exatamente a
+  // caixa (cardW×cardH centrada) e o contexto da página aparece ao redor.
+  const areaBackground =
+    pageBgConfig && area.w > 0 && cardW > 0
+      ? pageWindowBg(pageBgConfig, pageCrop, {
+          containerW: area.w,
+          containerH: area.h,
+          cardLeft: (area.w - cardW) / 2,
+          cardTop: (area.h - cardH) / 2,
+          cardW,
+          cardH,
+        })
+      : pageBackground;
 
   const selSet = new Set(selectedIds);
   const single =
@@ -453,19 +568,21 @@ export function CardFreeEditor({
       {/* Card 1:1 — maior quadrado que cabe, preenchendo a altura */}
       <div
         ref={areaRef}
-        className="relative flex min-h-[40vh] min-w-0 flex-1 items-center justify-center overflow-hidden bg-muted/30"
+        className={`relative flex min-h-[40vh] min-w-0 flex-1 items-center justify-center overflow-hidden ${areaBackground ? "" : "bg-muted/30"}`}
+        style={areaBackground ?? undefined}
       >
-        {/* Voltar — canto superior esquerdo */}
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          className="absolute left-2 top-2 z-10 h-8 gap-1 text-xs shadow"
-          onClick={onClose}
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Voltar
-        </Button>
+        {onClose && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="absolute left-2 top-2 z-10 h-8 gap-1 text-xs shadow"
+            onClick={onClose}
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Voltar
+          </Button>
+        )}
         <div
           className="relative"
           style={{
@@ -473,9 +590,13 @@ export function CardFreeEditor({
             height: cardH || undefined,
           }}
         >
+          {/* Caixa do redimensionador: reflete o fundo da Etiqueta. Com "Fundo
+              transparente" o recorte da página aparece atrás; senão, usa a cor. */}
           <div
-            className="absolute inset-0 overflow-hidden rounded-lg border shadow-sm"
-            style={{ backgroundColor: cardColor }}
+            className="absolute inset-0 overflow-hidden rounded-lg border border-border/50"
+            style={{
+              backgroundColor: hideCardBackground ? undefined : cardColor,
+            }}
           >
             <div
               ref={canvasRef}
@@ -492,6 +613,7 @@ export function CardFreeEditor({
               {elements.map((el) => {
                 const isSel = selSet.has(el.id);
                 return (
+                  // biome-ignore lint/a11y/noStaticElementInteractions: moldura de arraste/seleção do elemento no canvas
                   <div
                     key={el.id}
                     className="absolute"
@@ -507,7 +629,89 @@ export function CardFreeEditor({
                       cursor: "move",
                     }}
                     onPointerDown={(e) => startMove(e, el)}
+                    onDoubleClick={(e) => {
+                      e.stopPropagation();
+                      // Foto → "Editar produto"; texto → edição de texto inline;
+                      // preço → edição de valor inline (grava no catálogo).
+                      if (el.kind === "var" && el.variable === "photo") {
+                        onEditPhoto?.();
+                        return;
+                      }
+                      if (el.kind === "text") {
+                        setSelectedIds([el.id]);
+                        setEditingTextId(el.id);
+                        return;
+                      }
+                      if (el.kind === "var" && onSetPrice) {
+                        const which = priceKindOf(el.variable);
+                        if (!which) return;
+                        const cur =
+                          which === "offer"
+                            ? (product.promotionalPrice ?? product.salePrice)
+                            : product.salePrice;
+                        setSelectedIds([el.id]);
+                        setEditingPriceValue(cur != null ? String(cur) : "");
+                        setEditingPriceId(el.id);
+                      }
+                    }}
                   >
+                    {el.kind === "text" && editingTextId === el.id && (
+                      <textarea
+                        // biome-ignore lint/a11y/noAutofocus: entra em edição no duplo-clique
+                        autoFocus
+                        value={el.text ?? ""}
+                        onChange={(ev) =>
+                          update(el.id, { text: ev.target.value })
+                        }
+                        onPointerDown={(ev) => ev.stopPropagation()}
+                        onBlur={() => setEditingTextId(null)}
+                        onKeyDown={(ev) => {
+                          ev.stopPropagation();
+                          if (
+                            (ev.key === "Enter" && !ev.shiftKey) ||
+                            ev.key === "Escape"
+                          ) {
+                            ev.preventDefault();
+                            (ev.target as HTMLTextAreaElement).blur();
+                          }
+                        }}
+                        className="absolute inset-0 z-20 resize-none rounded-sm border border-primary bg-background/95 p-0.5 text-center text-[11px] leading-tight text-foreground outline-none"
+                      />
+                    )}
+                    {el.kind === "var" && editingPriceId === el.id && (
+                      <input
+                        // biome-ignore lint/a11y/noAutofocus: entra em edição no duplo-clique
+                        autoFocus
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={editingPriceValue}
+                        onChange={(ev) => setEditingPriceValue(ev.target.value)}
+                        onPointerDown={(ev) => ev.stopPropagation()}
+                        onBlur={() => {
+                          const which = priceKindOf(el.variable);
+                          if (which) {
+                            const num =
+                              editingPriceValue !== ""
+                                ? Number(editingPriceValue)
+                                : Number.NaN;
+                            onSetPrice?.(
+                              which,
+                              Number.isFinite(num) && num > 0 ? num : null,
+                            );
+                          }
+                          setEditingPriceId(null);
+                        }}
+                        onKeyDown={(ev) => {
+                          ev.stopPropagation();
+                          if (ev.key === "Enter" || ev.key === "Escape") {
+                            ev.preventDefault();
+                            (ev.target as HTMLInputElement).blur();
+                          }
+                        }}
+                        className="absolute inset-0 z-20 w-full rounded-sm border border-primary bg-background/95 p-0.5 text-center text-[11px] font-semibold leading-tight text-foreground outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+                      />
+                    )}
                     {isSel && selectedIds.length === 1 && (
                       <>
                         <button
@@ -536,28 +740,57 @@ export function CardFreeEditor({
               })}
             </div>
           </div>
-          {onCardAspectChange && (
-            <>
-              {RESIZE_HANDLES.map((h) => (
-                <button
-                  type="button"
-                  key={h.key}
-                  aria-label="Alça de dimensionamento do card"
-                  title="Arraste para redimensionar o card (duplo-clique = 1:1)"
-                  onPointerDown={(e) => startCardResize(e, h.dir)}
-                  onDoubleClick={() => onCardAspectChange(1)}
-                  className="absolute z-30 h-3.5 w-3.5 rounded-full border-2 border-white bg-primary shadow-md ring-1 ring-black/20"
-                  style={{ ...h.pos, cursor: h.cursor, touchAction: "none" }}
-                />
-              ))}
-            </>
-          )}
+          {onCardAspectChange &&
+            RESIZE_HANDLES.map((h) => (
+              <button
+                type="button"
+                key={h.key}
+                aria-label="Alça de dimensionamento da Etiqueta"
+                title="Arraste para redimensionar a Etiqueta (duplo-clique = 1:1)"
+                onPointerDown={(e) => startCardResize(e, h.dir)}
+                onDoubleClick={() => onCardAspectChange(1)}
+                className="absolute z-30 h-3.5 w-3.5 rounded-full border-2 border-white bg-primary shadow-md ring-1 ring-black/20"
+                style={{ ...h.pos, cursor: h.cursor, touchAction: "none" }}
+              />
+            ))}
         </div>
       </div>
 
       {/* Paleta + propriedades */}
       <div className="flex w-full flex-col gap-3 p-3 md:h-full md:w-[300px] md:overflow-y-auto">
-        <h3 className="text-sm font-semibold">Montar card</h3>
+        <h3 className="text-sm font-semibold">Montar Etiqueta</h3>
+
+        {/* Fundo da Etiqueta (movido da aba Layout): transparente = janela p/ a
+            página; senão, cor de fundo do card. */}
+        {onCardBgChange && (
+          <div className="flex flex-col gap-2 rounded-md border p-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="cfe-hide-bg" className="text-xs">
+                Fundo transparente
+              </Label>
+              <Switch
+                id="cfe-hide-bg"
+                checked={hideCardBackground === true}
+                onCheckedChange={(v) =>
+                  onCardBgChange({ hideCardBackground: v })
+                }
+              />
+            </div>
+            {!hideCardBackground && (
+              <label className="flex items-center justify-between text-xs text-muted-foreground">
+                Cor da Etiqueta
+                <input
+                  type="color"
+                  value={cardColor ?? "#ffffff"}
+                  onChange={(e) =>
+                    onCardBgChange({ cardColor: e.target.value })
+                  }
+                  className="h-6 w-8 cursor-pointer rounded border p-0"
+                />
+              </label>
+            )}
+          </div>
+        )}
 
         <Button
           type="button"
@@ -674,6 +907,7 @@ export function CardFreeEditor({
 
             {single.kind === "text" && (
               <Input
+                ref={textInputRef}
                 value={single.text ?? ""}
                 onChange={(e) => update(single.id, { text: e.target.value })}
                 placeholder="Texto (ex.: UND, cada)"
@@ -781,21 +1015,81 @@ export function CardFreeEditor({
               </>
             )}
 
+            {/* Caixa (borda/fundo) — para a forma Retângulo/Círculo (igual ao
+                box de texto: fundo + borda + contorno + cantos). */}
             {single.kind === "shape" && (
-              <div className="flex items-center justify-between gap-3">
-                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  Cor
-                  <input
-                    type="color"
-                    value={single.fill ?? "#dc2626"}
-                    onChange={(e) =>
-                      update(single.id, { fill: e.target.value })
+              <div className="flex flex-col gap-2 border-t pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-medium text-muted-foreground">
+                    Caixa (borda/fundo)
+                  </span>
+                  {/* Alterna entre preenchido e SEM fundo (transparente — só
+                      contorno, deixando o fundo da página aparecer). */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={
+                      single.fill === "transparent" ? "default" : "outline"
                     }
-                    className="h-6 w-8 cursor-pointer rounded border p-0"
+                    className="h-6 text-[11px]"
+                    onClick={() =>
+                      update(single.id, {
+                        fill:
+                          single.fill === "transparent"
+                            ? "#dc2626"
+                            : "transparent",
+                      })
+                    }
+                  >
+                    Sem fundo
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between gap-3">
+                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    Fundo
+                    <input
+                      type="color"
+                      value={
+                        single.fill && single.fill !== "transparent"
+                          ? single.fill
+                          : "#dc2626"
+                      }
+                      disabled={single.fill === "transparent"}
+                      onChange={(e) =>
+                        update(single.id, { fill: e.target.value })
+                      }
+                      className="h-6 w-8 cursor-pointer rounded border p-0 disabled:cursor-not-allowed disabled:opacity-40"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    Borda
+                    <input
+                      type="color"
+                      value={single.outlineColor ?? "#111111"}
+                      onChange={(e) =>
+                        update(single.id, { outlineColor: e.target.value })
+                      }
+                      className="h-6 w-8 cursor-pointer rounded border p-0"
+                    />
+                  </label>
+                </div>
+                <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                  Contorno
+                  <input
+                    type="range"
+                    min={0}
+                    max={20}
+                    value={Math.round((single.outlineWidth ?? 0) * 1000)}
+                    onChange={(e) =>
+                      update(single.id, {
+                        outlineWidth: Number(e.target.value) / 1000,
+                      })
+                    }
+                    className="flex-1"
                   />
                 </label>
                 {single.shape === "rect" && (
-                  <label className="flex flex-1 items-center gap-2 text-[11px] text-muted-foreground">
+                  <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                     Cantos
                     <input
                       type="range"
