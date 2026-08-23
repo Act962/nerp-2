@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Save, Trash2 } from "lucide-react";
+import { Loader2, Lock, Save, Shapes, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
 import {
   type CatalogConfig,
   type TemplateKind,
@@ -16,11 +15,12 @@ import {
   useCreateCatalogTemplate,
   useDeleteCatalogTemplate,
 } from "../hooks/use-catalog";
+import { SectionCard, Segmented, SectionTitle } from "./panel-ui";
 
 const CATS: { kind: TemplateKind; label: string }[] = [
-  { kind: "background", label: "Padrão de Fundo" },
-  { kind: "group", label: "Padrão de grupo de produtos" },
-  { kind: "label", label: "Padrão de etiquetas" },
+  { kind: "background", label: "Fundos" },
+  { kind: "label", label: "Etiquetas" },
+  { kind: "group", label: "Grupos" },
 ];
 
 // "Padrões do Sistema": 3 categorias de padrões UNIVERSAIS (fundo / grupo /
@@ -66,69 +66,63 @@ export function SystemTemplatesPanel({
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Sub-abas das 3 categorias */}
-      <div className="flex flex-wrap gap-1">
-        {CATS.map((c) => (
-          <Button
-            key={c.kind}
-            type="button"
-            size="sm"
-            variant={cat === c.kind ? "default" : "outline"}
-            className="h-7 px-2 text-[11px]"
-            onClick={() => setCat(c.kind)}
-          >
-            {c.label}
-          </Button>
-        ))}
-      </div>
+      <SectionTitle icon={Shapes}>Padrões do sistema</SectionTitle>
 
-      {/* Salvar a categoria atual como padrão do sistema (só super usuário) */}
-      {canManage && (
-        <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+      {/* Menu das 3 categorias */}
+      <Segmented
+        value={cat}
+        onChange={setCat}
+        options={CATS.map((c) => ({ value: c.kind, label: c.label }))}
+      />
+
+      {/* Salvar a categoria atual como padrão do sistema — só o super usuário. */}
+      {canManage ? (
+        <SectionCard className="gap-2.5">
+          <SectionTitle icon={Save}>
             Salvar "{catLabel}" no sistema
-          </p>
+          </SectionTitle>
           <Input
             placeholder="Nome do padrão"
             value={name}
             onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && save()}
-            className="h-8"
+            className="h-10 rounded-xl lg:h-9"
           />
           <Button
             type="button"
-            size="sm"
-            className="w-full gap-1"
+            className="h-10 w-full gap-2 rounded-xl text-[14px] lg:h-9 lg:text-[13px]"
             disabled={!name.trim() || create.isPending}
             onClick={save}
           >
             {create.isPending ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <Save className="h-3.5 w-3.5" />
+              <Save className="h-4 w-4" />
             )}
             Salvar padrão do sistema
           </Button>
+        </SectionCard>
+      ) : (
+        <div className="flex items-center gap-2 rounded-xl bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground">
+          <Lock className="h-3.5 w-3.5 shrink-0" />
+          Só o administrador do sistema adiciona padrões. Você pode aplicar os
+          existentes.
         </div>
       )}
 
       {/* Biblioteca de padrões do sistema (inspiração + aplicar) */}
       {items.length === 0 ? (
-        <p className="rounded-md bg-muted/50 px-2 py-4 text-center text-xs text-muted-foreground">
+        <p className="rounded-xl bg-muted/40 px-3 py-5 text-center text-[13px] text-muted-foreground">
           Nenhum padrão de sistema em "{catLabel}" ainda.
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           {items.map((t) => (
             <div
               key={t.id}
-              className="flex flex-col gap-1 rounded-lg border p-1.5"
+              className="flex flex-col gap-1.5 rounded-2xl border bg-card/40 p-2"
             >
-              <div
-                className={cn(
-                  "aspect-square w-full overflow-hidden rounded-md bg-muted",
-                )}
-              >
+              <div className="aspect-square w-full overflow-hidden rounded-xl bg-muted">
                 {t.thumbnail ? (
                   // biome-ignore lint/performance/noImgElement: miniatura data-URL
                   <img
@@ -138,13 +132,15 @@ export function SystemTemplatesPanel({
                   />
                 ) : null}
               </div>
-              <span className="truncate text-[11px] font-medium">{t.name}</span>
+              <span className="truncate px-0.5 text-[12px] font-medium">
+                {t.name}
+              </span>
               <div className="flex items-center gap-1">
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  className="h-7 flex-1 text-[11px]"
+                  className="h-8 flex-1 rounded-lg text-[12px]"
                   onClick={() =>
                     onConfigChange(
                       applyTemplateSlice(t.config as Record<string, unknown>),
@@ -158,11 +154,11 @@ export function SystemTemplatesPanel({
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7 shrink-0 text-destructive"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                     title="Excluir padrão do sistema"
                     onClick={() => del.mutate({ id: t.id })}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </Button>
                 )}
               </div>
@@ -170,9 +166,9 @@ export function SystemTemplatesPanel({
           ))}
         </div>
       )}
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-[12px] leading-snug text-muted-foreground">
         As imagens são só inspiração — aplicar copia apenas a aparência (fundo /
-        grupo / etiqueta + dinâmicos), nunca produtos ou preços.
+        etiqueta / grupo + dinâmicos), nunca produtos ou preços.
       </p>
     </div>
   );

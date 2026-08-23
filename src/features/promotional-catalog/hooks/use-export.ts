@@ -169,6 +169,60 @@ export function useExport({
     }
   }
 
+  // Imprime a página `pageIndex`: gera um PDF de UMA página com o tamanho da
+  // própria página (`format: [wMm, hMm]`, sem margem) e a imagem preenchendo-a
+  // por inteiro — o jsPDF faz o AJUSTE DE TAMANHO DE PÁGINA mantendo a PROPORÇÃO
+  // dos elementos. Abre o diálogo de impressão do navegador via `autoPrint()`.
+  async function printPage(pageIndex: number) {
+    setIsExporting(true);
+    try {
+      await prepareExport?.();
+      const el = allPageRefs.current[pageIndex];
+      if (!el) {
+        toast.error("Página não encontrada.");
+        return;
+      }
+      const { jsPDF } = await import("jspdf");
+      const pxToMm = (px: number) => px * 0.264583;
+      const dataUrl = await captureEl(el);
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Falha ao carregar a página"));
+      });
+      const wMm = pxToMm(img.naturalWidth || img.width);
+      const hMm = pxToMm(img.naturalHeight || img.height);
+      const orientation = wMm > hMm ? "landscape" : "portrait";
+      const pdf = new jsPDF({ orientation, unit: "mm", format: [wMm, hMm] });
+      pdf.addImage(dataUrl, "PNG", 0, 0, wMm, hMm);
+      pdf.autoPrint();
+      // iframe OCULTO (sem pop-up, sem bloqueador): carrega o PDF já com
+      // `autoPrint` e dispara o diálogo de impressão do navegador.
+      const blobUrl = pdf.output("bloburl");
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText =
+        "position:fixed;right:0;bottom:0;width:0;height:0;border:0;";
+      iframe.src = String(blobUrl);
+      iframe.onload = () => {
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          // autoPrint no próprio PDF cobre o caso de print() ser bloqueado.
+        }
+        window.setTimeout(() => iframe.remove(), 60_000);
+      };
+      document.body.appendChild(iframe);
+    } catch (err) {
+      console.error("Erro ao imprimir a página:", err);
+      toast.error("Erro ao preparar a impressão. Tente novamente.");
+    } finally {
+      finishExport?.();
+      setIsExporting(false);
+    }
+  }
+
   // Baixa APENAS a página `pageIndex` (a selecionada) como .pdf.
   async function exportPageAsPdf(pageIndex: number) {
     setIsExporting(true);
@@ -208,6 +262,7 @@ export function useExport({
     exportAsPdf,
     exportPageAsPng,
     exportPageAsPdf,
+    printPage,
     isExporting,
   };
 }

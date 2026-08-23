@@ -14,6 +14,7 @@ import {
   Sticker,
   Type,
   Tag,
+  Shapes,
   Plus,
   Image as ImageIcon,
   Wallpaper,
@@ -217,6 +218,7 @@ const EDITOR_TABS = [
   { value: "texto", label: "Texto", icon: Type },
   { value: "etiqueta", label: "Figurinhas", icon: Sticker },
   { value: "estilos", label: "Etiqueta", icon: Tag },
+  { value: "padroes-sistema", label: "Padrões", icon: Shapes },
 ] as const;
 
 export function CatalogEditor({ catalogId }: CatalogEditorProps) {
@@ -520,6 +522,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       layout: pg.layout,
       gridCols: pg.gridCols ?? config.gridCols,
       gridRows: pg.gridRows ?? config.gridRows,
+      centerLastRow: pg.centerLastRow ?? config.centerLastRow,
       productGroup: pg.productGroup,
       productGroups: pg.productGroups,
       productGroupScale: pg.productGroupScale,
@@ -775,19 +778,33 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   };
 
   // Monta o layer de exportação e espera as imagens (data-URLs) ficarem prontas
-  // — senão o html-to-image captura antes das fotos ou com taint de CORS.
+  // — senão o html-to-image captura antes das fotos/fundo ou com taint de CORS.
   const waitForExportReady = async () => {
     const deadline = Date.now() + 12000;
+    // URL http(s) que NÃO é do nosso domínio (o html-to-image não consegue
+    // embutir — vira placeholder/some no PNG).
+    const isExternal = (s: string) =>
+      s.startsWith("http") && !s.startsWith(window.location.origin);
     while (Date.now() < deadline) {
       await new Promise((r) => requestAnimationFrame(() => r(null)));
       const el = exportLayerRef.current;
       if (el) {
         const imgs = [...el.querySelectorAll("img")];
-        const tainted = imgs.some((i) => {
-          const s = i.currentSrc || i.src;
-          return s.startsWith("http") && !s.startsWith(window.location.origin);
+        const imgsReady =
+          imgs.every((i) => i.complete) &&
+          !imgs.some((i) => isExternal(i.currentSrc || i.src));
+        // O FUNDO da página é um CSS background-image (div, não <img>). Precisa
+        // esperar virar data URL — a marca d'água (<img>) satisfazia o gate
+        // antigo e o capture saía antes do fundo embutir.
+        const bgReady = ![
+          ...el.querySelectorAll<HTMLElement>("[style*='background-image']"),
+        ].some((n) => {
+          const m = (n.style.backgroundImage || "").match(
+            /url\((['"]?)(.*?)\1\)/,
+          );
+          return m ? isExternal(m[2]) : false;
         });
-        if (imgs.length > 0 && !tainted && imgs.every((i) => i.complete)) {
+        if (imgsReady && bgReady) {
           await new Promise((r) => setTimeout(r, 150));
           return;
         }
@@ -920,6 +937,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     exportAsPdf,
     exportPageAsPng,
     exportPageAsPdf,
+    printPage,
     isExporting,
   } = useExport({
     previewRef,
@@ -1065,18 +1083,22 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   };
 
   // Copia a APARÊNCIA da página atual (layout + posição da grade + fundo) para
-  // TODAS as páginas ("Aplicar padrão para todas as páginas" em Layout). Não
-  // copia etiquetas/textos (conteúdo por página) nem os produtos.
+  // TODAS as páginas ("Aplicar padrão para todas as páginas" em Layout). NÃO
+  // copia etiquetas/textos ESTÁTICOS (conteúdo fixo por página) nem os produtos,
+  // mas REPLICA as etiquetas/textos DINÂMICOS (com `binding`) — eles fazem parte
+  // do padrão e resolvem o dado de cada página automaticamente no render.
   const applyStyleToAllPages = () => {
     setConfig((prev) => {
       const pgs = ensurePages(prev);
       if (pgs.length <= 1) return prev;
-      const cur = pgs[Math.min(safePage, pgs.length - 1)];
+      const srcIndex = Math.min(safePage, pgs.length - 1);
+      const cur = pgs[srcIndex];
       if (!cur) return prev;
       const style = {
         layout: cur.layout,
         gridCols: cur.gridCols,
         gridRows: cur.gridRows,
+        centerLastRow: cur.centerLastRow,
         productGroup: cur.productGroup,
         productGroups: cur.productGroups,
         productGroupScale: cur.productGroupScale,
@@ -1086,7 +1108,31 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         backgroundImage: cur.backgroundImage,
         backgroundFit: cur.backgroundFit,
       };
-      return { ...prev, pages: pgs.map((p) => ({ ...p, ...style })) };
+      // Dinâmicos da página fonte, replicados em cada página com id próprio.
+      const dynOverlays = (cur.overlays ?? []).filter((o) => o.binding);
+      const dynTexts = (cur.texts ?? []).filter((t) => t.binding);
+      return {
+        ...prev,
+        pages: pgs.map((p, i) => {
+          const base = { ...p, ...style };
+          if (i === srcIndex) return base; // fonte mantém seus dinâmicos
+          // Preserva os ESTÁTICOS da página e troca os dinâmicos pelos do padrão
+          // (idempotente: reaplicar não acumula duplicatas).
+          const staticOverlays = (p.overlays ?? []).filter((o) => !o.binding);
+          const staticTexts = (p.texts ?? []).filter((t) => !t.binding);
+          return {
+            ...base,
+            overlays: [
+              ...staticOverlays,
+              ...dynOverlays.map((o) => ({ ...o, id: crypto.randomUUID() })),
+            ],
+            texts: [
+              ...staticTexts,
+              ...dynTexts.map((t) => ({ ...t, id: crypto.randomUUID() })),
+            ],
+          };
+        }),
+      };
     });
     toast.success("Padrão aplicado a todas as páginas.");
   };
@@ -1186,7 +1232,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     else if (next.kind === "styleBlock") setActiveTab("estilos");
     else if (next.kind === "background")
       setActiveTab("fundo"); // fundo da página
-    else setActiveTab("layout"); // grupo de produtos edita na aba Layout
+    else if (next.kind === "group" && next.id)
+      setActiveTab("produtos"); // grupo nomeado → aba "Página" (mostra o grupo)
+    else setActiveTab("layout"); // grade padrão de produtos edita na aba Layout
     setPanelOpen(true);
   };
 
@@ -1575,7 +1623,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         {/* Rail de ícones (estilo Canva) — só desktop. As abas viram ícones + há
             o botão de retrair o painel. No mobile as abas ficam horizontais
             dentro do ConfigPanel. */}
-        <div className="hidden w-16 shrink-0 flex-col items-center gap-1 border-r bg-background py-2 lg:flex">
+        <div className="hidden w-[68px] shrink-0 flex-col items-center gap-1.5 border-r bg-background py-3 lg:flex">
           {EDITOR_TABS.map((t) => {
             const active = activeTab === t.value && panelOpen;
             return (
@@ -1588,13 +1636,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                   setPanelOpen(true);
                 }}
                 className={cn(
-                  "flex w-14 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-medium transition-colors",
+                  "flex w-[58px] flex-col items-center gap-1 rounded-2xl py-2.5 text-[10px] font-medium transition-all",
                   active
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted",
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                 )}
               >
-                <t.icon className="h-5 w-5" />
+                <t.icon className="h-[18px] w-[18px]" />
                 {t.label}
               </button>
             );
@@ -1704,7 +1752,22 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                       </Button>
                     </div>
                     <div className="min-h-0 flex-1 overflow-auto p-2">
-                      <div className="w-full shadow-sm">
+                      {/* Clicar na prévia abre EXATAMENTE a página da loja/cliente
+                          correspondente no editor (sai da aba "lista" e rola até ela). */}
+                      {/* biome-ignore lint/a11y/useSemanticElements: a prévia tem blocos; um <button> aninharia conteúdo inválido */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        title={`Abrir a página de ${previewTitle}`}
+                        className="w-full cursor-pointer rounded-sm shadow-sm outline-none ring-primary/60 transition hover:ring-2 focus-visible:ring-2"
+                        onClick={() => jumpToPage(safePreview)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            jumpToPage(safePreview);
+                          }
+                        }}
+                      >
                         <CatalogPreview
                           config={configForPage(safePreview)}
                           products={pageChunks[safePreview] ?? []}
@@ -1965,6 +2028,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         onExportPdf={exportAsPdf}
         onExportPagePng={exportPageAsPng}
         onExportPagePdf={exportPageAsPdf}
+        onPrintPage={printPage}
         capturePage={capturePage}
       />
 

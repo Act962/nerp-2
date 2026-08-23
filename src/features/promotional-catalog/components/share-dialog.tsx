@@ -8,6 +8,7 @@ import {
   Copy,
   Download,
   FileText,
+  Printer,
   Loader2,
 } from "lucide-react";
 import { Link2, Link2Off } from "lucide-react";
@@ -53,6 +54,8 @@ interface ShareDialogProps {
   // Baixa APENAS a página selecionada (.png / .pdf).
   onExportPagePng: (index: number) => void;
   onExportPagePdf: (index: number) => void;
+  // Imprime a página selecionada (abre o diálogo de impressão do navegador).
+  onPrintPage: (index: number) => void;
   // Captura UMA página em PNG (data URL, resolução cheia) p/ copiar/compartilhar.
   capturePage: (index: number) => Promise<string>;
 }
@@ -69,6 +72,7 @@ export function ShareDialog({
   onExportPdf,
   onExportPagePng,
   onExportPagePdf,
+  onPrintPage,
   capturePage,
 }: ShareDialogProps) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -333,6 +337,14 @@ export function ShareDialog({
           >
             <FileText className="h-4 w-4" />
             Baixar PDF{totalPages > 1 ? " (todas as páginas)" : ""}
+          </Button>
+          <Button
+            variant="outline"
+            className="justify-start gap-2"
+            onClick={() => onPrintPage(safeIndex)}
+          >
+            <Printer className="h-4 w-4" />
+            Imprimir página{totalPages > 1 ? " selecionada" : ""}
           </Button>
           {totalPages > 1 && (
             <>

@@ -98,6 +98,8 @@ export function CatalogCard({
             <img
               src={thumbnail}
               alt={name}
+              loading="lazy"
+              decoding="async"
               className="h-full w-full object-contain"
             />
           ) : (

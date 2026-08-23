@@ -42,9 +42,9 @@ export function ElementProperties({
   const rotation = ((overlay.rotation % 360) + 360) % 360;
 
   return (
-    <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-3">
+    <div className="flex flex-col gap-4 rounded-2xl border bg-card/40 p-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-[13px] font-medium text-foreground">
           Propriedades do elemento
         </p>
         <Button

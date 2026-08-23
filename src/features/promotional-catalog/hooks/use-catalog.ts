@@ -11,6 +11,14 @@ export function usePromotionalCatalogs() {
   return useQuery(orpc.promotionalCatalog.list.queryOptions({ input: {} }));
 }
 
+// Miniaturas em query SEPARADA: a lista aparece na hora e as miniaturas (data
+// URL pesada) preenchem os cards em segundo plano.
+export function useCatalogThumbnails() {
+  return useQuery(
+    orpc.promotionalCatalog.catalogThumbnails.queryOptions({ input: {} }),
+  );
+}
+
 // ── Padrões (presets de estilo) ──────────────────────────────────────────
 export function useCatalogTemplates() {
   return useQuery(
@@ -129,6 +137,9 @@ export function useCreateCatalog() {
         queryClient.invalidateQueries({
           queryKey: orpc.promotionalCatalog.list.key(),
         });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.catalogThumbnails.key(),
+        });
         router.push(`/catalogo-promocional/${data.id}`);
       },
       onError: () => {
@@ -149,6 +160,9 @@ export function useUpdateCatalog() {
         // a config local em edição (fonte da verdade é o cliente).
         queryClient.invalidateQueries({
           queryKey: orpc.promotionalCatalog.list.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.catalogThumbnails.key(),
         });
       },
     }),
@@ -171,6 +185,9 @@ export function useDeleteCatalog() {
         queryClient.invalidateQueries({
           queryKey: orpc.promotionalCatalog.list.key(),
         });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.catalogThumbnails.key(),
+        });
         toast.success("Catálogo excluído");
       },
       onError: () => {
@@ -189,6 +206,9 @@ export function useDuplicateCatalog() {
       onSuccess: (data) => {
         queryClient.invalidateQueries({
           queryKey: orpc.promotionalCatalog.list.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.catalogThumbnails.key(),
         });
         toast.success("Catálogo duplicado");
         router.push(`/catalogo-promocional/${data.id}`);
