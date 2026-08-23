@@ -9,6 +9,10 @@ type ExportOptions = {
   totalPages: number;
   catalogName: string;
   pageSize: "square" | "story" | "portrait";
+  // Monta o layer de exportação (todas as páginas) e espera as imagens; e o
+  // desmonta ao terminar — para não manter os previews na memória.
+  prepareExport?: () => Promise<void>;
+  finishExport?: () => void;
 };
 
 // 1×1 PNG REALMENTE transparente — fallback para imagens que falham (404/CORS).
@@ -50,6 +54,8 @@ export function useExport({
   totalPages,
   catalogName,
   pageSize: _pageSize,
+  prepareExport,
+  finishExport,
 }: ExportOptions) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -64,6 +70,7 @@ export function useExport({
         return;
       }
 
+      await prepareExport?.();
       const { zipSync } = await import("fflate");
       const files: Record<string, Uint8Array> = {};
       const pad = String(totalPages).length;
@@ -88,6 +95,7 @@ export function useExport({
       console.error("Erro ao exportar PNG:", err);
       toast.error("Erro ao gerar PNG. Tente novamente.");
     } finally {
+      finishExport?.();
       setIsExporting(false);
     }
   }
@@ -95,6 +103,7 @@ export function useExport({
   async function exportAsPdf() {
     setIsExporting(true);
     try {
+      await prepareExport?.();
       const { jsPDF } = await import("jspdf");
 
       const pxToMm = (px: number) => px * 0.264583;
@@ -134,9 +143,71 @@ export function useExport({
       console.error("Erro ao exportar PDF:", err);
       toast.error("Erro ao gerar PDF. Tente novamente.");
     } finally {
+      finishExport?.();
       setIsExporting(false);
     }
   }
 
-  return { exportAsPng, exportAsPdf, isExporting };
+  // Baixa APENAS a página `pageIndex` (a selecionada) como .png.
+  async function exportPageAsPng(pageIndex: number) {
+    setIsExporting(true);
+    try {
+      await prepareExport?.();
+      const el = allPageRefs.current[pageIndex];
+      if (!el) {
+        toast.error("Página não encontrada.");
+        return;
+      }
+      const dataUrl = await captureEl(el);
+      triggerDownload(dataUrl, `${catalogName}-pagina-${pageIndex + 1}.png`);
+    } catch (err) {
+      console.error("Erro ao exportar PNG da página:", err);
+      toast.error("Erro ao gerar PNG. Tente novamente.");
+    } finally {
+      finishExport?.();
+      setIsExporting(false);
+    }
+  }
+
+  // Baixa APENAS a página `pageIndex` (a selecionada) como .pdf.
+  async function exportPageAsPdf(pageIndex: number) {
+    setIsExporting(true);
+    try {
+      await prepareExport?.();
+      const el = allPageRefs.current[pageIndex];
+      if (!el) {
+        toast.error("Página não encontrada.");
+        return;
+      }
+      const { jsPDF } = await import("jspdf");
+      const pxToMm = (px: number) => px * 0.264583;
+      const dataUrl = await captureEl(el);
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = () => reject(new Error("Falha ao carregar a página"));
+      });
+      const wMm = pxToMm(img.naturalWidth || img.width);
+      const hMm = pxToMm(img.naturalHeight || img.height);
+      const orientation = wMm > hMm ? "landscape" : "portrait";
+      const pdf = new jsPDF({ orientation, unit: "mm", format: [wMm, hMm] });
+      pdf.addImage(dataUrl, "PNG", 0, 0, wMm, hMm);
+      pdf.save(`${catalogName}-pagina-${pageIndex + 1}.pdf`);
+    } catch (err) {
+      console.error("Erro ao exportar PDF da página:", err);
+      toast.error("Erro ao gerar PDF. Tente novamente.");
+    } finally {
+      finishExport?.();
+      setIsExporting(false);
+    }
+  }
+
+  return {
+    exportAsPng,
+    exportAsPdf,
+    exportPageAsPng,
+    exportPageAsPdf,
+    isExporting,
+  };
 }

@@ -1,8 +1,8 @@
-import prisma from "@/lib/db";
 import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { resolvePromotionalProducts } from "@/features/promotional-catalog/server/resolve-products";
 
 export const listPromotionalProducts = base
   .use(requireAuthMiddleware)
@@ -17,6 +17,9 @@ export const listPromotionalProducts = base
       excludedIds: z.array(z.string()).optional(),
       manuallyAddedIds: z.array(z.string()).optional(),
       categoryFilter: z.array(z.string()).optional(),
+      // Inclui automaticamente todos os promocionais ativos. Default false — o
+      // catálogo só mostra o que foi escolhido (manual/categoria).
+      autoPromotions: z.boolean().optional(),
       name: z.string().optional(),
       sortBy: z
         .enum([
@@ -48,90 +51,5 @@ export const listPromotionalProducts = base
     ),
   )
   .handler(async ({ input, context }) => {
-    const excludedIds = input.excludedIds ?? [];
-    const manuallyAddedIds = input.manuallyAddedIds ?? [];
-    const categoryFilter = input.categoryFilter ?? [];
-
-    const products = await prisma.product.findMany({
-      where: {
-        organizationId: context.org.id,
-        OR: [
-          // Automáticos: produtos com promoção ativa, respeitando isActive, o
-          // filtro de categoria e a lista de excluídos.
-          {
-            isActive: true,
-            promotionalPrice: { not: null },
-            NOT: { id: { in: excludedIds } },
-            ...(categoryFilter.length > 0 && {
-              category: { slug: { in: categoryFilter } },
-            }),
-          },
-          // Manuais: escolha explícita do usuário — SEMPRE aparecem, mesmo que
-          // inativos ou de outra categoria. O "excluído" é aplicado no cliente.
-          ...(manuallyAddedIds.length > 0
-            ? [{ id: { in: manuallyAddedIds } }]
-            : []),
-        ],
-        ...(input.name && {
-          name: { contains: input.name, mode: "insensitive" as const },
-        }),
-      },
-      include: {
-        category: { select: { name: true } },
-      },
-    });
-
-    const result = products.map((p) => {
-      const salePrice = p.salePrice.toNumber();
-      const promotionalPrice = p.promotionalPrice
-        ? p.promotionalPrice.toNumber()
-        : null;
-      // salePrice > 0 é obrigatório: com salePrice 0 o cálculo vira Infinity/NaN,
-      // que reprova a validação de saída (z.number()) e derruba a query INTEIRA
-      // com 500 — some o catálogo todo por causa de um único produto ruim.
-      const discount =
-        promotionalPrice !== null && salePrice > 0
-          ? ((salePrice - promotionalPrice) / salePrice) * 100
-          : null;
-      const savings =
-        promotionalPrice !== null ? salePrice - promotionalPrice : null;
-
-      return {
-        id: p.id,
-        name: p.name,
-        sku: p.sku ?? "",
-        thumbnail: p.thumbnail ?? "",
-        salePrice,
-        promotionalPrice,
-        discount,
-        savings,
-        categoryName: p.category?.name ?? null,
-        currentStock: p.currentStock.toNumber(),
-        description: p.description,
-        unit: p.unit,
-      };
-    });
-
-    const sortBy = input.sortBy ?? "discount-desc";
-    if (sortBy === "discount-desc") {
-      result.sort((a, b) => (b.discount ?? 0) - (a.discount ?? 0));
-    } else if (sortBy === "savings-desc") {
-      result.sort((a, b) => (b.savings ?? 0) - (a.savings ?? 0));
-    } else if (sortBy === "price-asc") {
-      result.sort(
-        (a, b) =>
-          (a.promotionalPrice ?? a.salePrice) -
-          (b.promotionalPrice ?? b.salePrice),
-      );
-    } else if (sortBy === "price-desc") {
-      result.sort(
-        (a, b) =>
-          (b.promotionalPrice ?? b.salePrice) -
-          (a.promotionalPrice ?? a.salePrice),
-      );
-    } else if (sortBy === "name-asc") {
-      result.sort((a, b) => a.name.localeCompare(b.name));
-    }
-
-    return result;
+    return resolvePromotionalProducts(context.org.id, input);
   });

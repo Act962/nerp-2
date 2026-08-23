@@ -501,8 +501,16 @@ export function AppSidebar() {
       ? fallbackNavigation
       : visibleNavigation;
 
+  // Editores em tela cheia (PDV e o editor de catálogo) recolhem a sidebar por
+  // completo (offcanvas), sem deixar a régua de ícones — o usuário reabre pelo
+  // ícone de menu do próprio editor. `/catalogo-promocional/<id>` (com barra) é
+  // o editor; a lista `/catalogo-promocional` mantém a sidebar normal.
+  const fullscreenEditor =
+    pathname === "/vendas/novo" ||
+    pathname.startsWith("/catalogo-promocional/");
+
   return (
-    <Sidebar collapsible={pathname === "/vendas/novo" ? "offcanvas" : "icon"}>
+    <Sidebar collapsible={fullscreenEditor ? "offcanvas" : "icon"}>
       <SidebarHeader>
         <OrgMenu />
       </SidebarHeader>

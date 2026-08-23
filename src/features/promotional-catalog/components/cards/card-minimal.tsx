@@ -11,9 +11,8 @@ import { TEXT_SIZE_CSS, FONT_WEIGHT_CSS } from "../../types";
 import { PriceBadge } from "./price-badge";
 import { PriceDisplay } from "./price-display";
 import { getContrastColor } from "@/utils/get-contrast-color";
-import { constructUrl } from "@/hooks/use-construct-url";
 import { cn } from "@/lib/utils";
-import { imageStyleFromAdjust } from "./image-style";
+import { cardImageSrc, imageStyleFromAdjust } from "./image-style";
 
 interface CardMinimalProps {
   product: CatalogProduct;
@@ -70,15 +69,13 @@ export function CardMinimal({
         }}
       >
         <div className="relative h-full w-full overflow-hidden">
-          {product.thumbnail ? (
-            <Image
-              src={imageSrc || constructUrl(product.thumbnail)}
-              alt={product.name}
-              fill
-              unoptimized
-              style={imageStyle}
-            />
-          ) : null}
+          <Image
+            src={cardImageSrc(imageSrc, product)}
+            alt={product.name}
+            fill
+            unoptimized
+            style={imageStyle}
+          />
         </div>
       </div>
       <div className="p-2" style={{ textAlign: align }}>

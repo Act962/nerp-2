@@ -15,7 +15,11 @@ interface ColorPickerFieldProps {
   onChange: (hex: string) => void;
 }
 
-export function ColorPickerField({ label, value, onChange }: ColorPickerFieldProps) {
+export function ColorPickerField({
+  label,
+  value,
+  onChange,
+}: ColorPickerFieldProps) {
   const handleChange = (color: ColorResult) => {
     onChange(color.hex);
   };
@@ -38,11 +42,7 @@ export function ColorPickerField({ label, value, onChange }: ColorPickerFieldPro
           side="left"
           sideOffset={8}
         >
-          <SketchPicker
-            color={value}
-            onChange={handleChange}
-            disableAlpha
-          />
+          <SketchPicker color={value} onChange={handleChange} disableAlpha />
         </PopoverContent>
       </Popover>
     </div>

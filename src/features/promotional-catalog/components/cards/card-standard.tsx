@@ -12,9 +12,8 @@ import { PriceBadge, formatPrice } from "./price-badge";
 import { PriceDisplay } from "./price-display";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { parseDescriptionText } from "./parse-description";
-import { constructUrl } from "@/hooks/use-construct-url";
 import { cn } from "@/lib/utils";
-import { imageStyleFromAdjust } from "./image-style";
+import { cardImageSrc, imageStyleFromAdjust } from "./image-style";
 
 interface CardStandardProps {
   product: CatalogProduct;
@@ -80,19 +79,13 @@ export function CardStandard({
         }}
       >
         <div className="relative h-full w-full overflow-hidden">
-          {product.thumbnail ? (
-            <Image
-              src={imageSrc || constructUrl(product.thumbnail)}
-              alt={product.name}
-              fill
-              unoptimized
-              style={imageStyle}
-            />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-xs">
-              Sem imagem
-            </div>
-          )}
+          <Image
+            src={cardImageSrc(imageSrc, product)}
+            alt={product.name}
+            fill
+            unoptimized
+            style={imageStyle}
+          />
         </div>
         {product.discount && (
           <PriceBadge
