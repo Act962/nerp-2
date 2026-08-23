@@ -9,8 +9,17 @@ import {
   Eye,
   Save,
   Share2,
+  Package,
+  LayoutTemplate,
+  Palette,
+  Sticker,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { FullscreenToggle } from "@/components/fullscreen-toggle";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -159,12 +168,35 @@ interface CatalogEditorProps {
   catalogId: string;
 }
 
+// Rail de ícones (estilo Canva) — as abas de config viram ícones na lateral.
+const EDITOR_TABS = [
+  { value: "produtos", label: "Produtos", icon: Package },
+  { value: "layout", label: "Layout", icon: LayoutTemplate },
+  { value: "padroes", label: "Padrões", icon: Palette },
+  { value: "etiqueta", label: "Etiqueta", icon: Sticker },
+] as const;
+
 export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const previewRef = useRef<HTMLDivElement>(null);
   const allPageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const { data: catalogData, isLoading } = usePromotionalCatalog(catalogId);
   const autosave = useAutosaveCatalog();
+
+  // Aba ativa (rail) + painel de config aberto/retraído (só no desktop).
+  const [activeTab, setActiveTab] = useState<string>("produtos");
+  const [panelOpen, setPanelOpen] = useState(true);
+
+  // Ao entrar no editor (desktop), retrai a sidebar do app pra dar espaço —
+  // uma única vez; o usuário reabre pelo botão de retrair no header.
+  const { setOpen: setSidebarOpen, isMobile } = useSidebar();
+  const sidebarCollapsedRef = useRef(false);
+  useEffect(() => {
+    if (!isMobile && !sidebarCollapsedRef.current) {
+      sidebarCollapsedRef.current = true;
+      setSidebarOpen(false);
+    }
+  }, [isMobile, setSidebarOpen]);
 
   const [config, setConfig] = useState<CatalogConfig>(DEFAULT_CONFIG);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">(
@@ -435,9 +467,11 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   }
 
   return (
-    <div className="flex flex-col gap-0 h-full">
+    <div className="flex h-full flex-col gap-0 p-3 sm:p-4">
       {/* Header — no mobile os botões viram ícones e "Salvar" some (autosave) */}
       <div className="flex items-center gap-2 pb-3 sm:gap-3 lg:gap-4 lg:pb-4">
+        {/* Retrair menu lateral (o header global fica oculto nesta rota) */}
+        <SidebarTrigger className="shrink-0" />
         <div className="flex min-w-0 flex-1 items-center gap-1">
           <Button asChild variant="ghost" size="sm" className="shrink-0 px-2">
             <Link href="/catalogo-promocional">
@@ -509,6 +543,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             {isExporting ? "Gerando..." : "Compartilhar"}
           </span>
         </Button>
+        {/* Tela inteira (o header global fica oculto nesta rota) */}
+        <FullscreenToggle className="shrink-0" />
       </div>
 
       {/*
@@ -543,15 +579,64 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
           editor) em vez de altura fixa em 100vh — assim não sobra espaço abaixo
           quando o header/breadcrumb globais estão ocultos nesta rota. */}
       <div className="flex flex-1 min-h-0 flex-col-reverse gap-0 overflow-hidden rounded-lg border lg:flex-row">
-        {/* Config panel — desktop: coluna fixa à esquerda; mobile: embaixo,
-            ocupando o resto da altura com rolagem própria. */}
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden border-t bg-background lg:w-[432px] lg:flex-none lg:border-t-0 lg:border-r">
+        {/* Rail de ícones (estilo Canva) — só desktop. As abas viram ícones + há
+            o botão de retrair o painel. No mobile as abas ficam horizontais
+            dentro do ConfigPanel. */}
+        <div className="hidden w-16 shrink-0 flex-col items-center gap-1 border-r bg-background py-2 lg:flex">
+          {EDITOR_TABS.map((t) => {
+            const active = activeTab === t.value && panelOpen;
+            return (
+              <button
+                key={t.value}
+                type="button"
+                title={t.label}
+                onClick={() => {
+                  setActiveTab(t.value);
+                  setPanelOpen(true);
+                }}
+                className={cn(
+                  "flex w-14 flex-col items-center gap-1 rounded-md py-2 text-[10px] font-medium transition-colors",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted",
+                )}
+              >
+                <t.icon className="h-5 w-5" />
+                {t.label}
+              </button>
+            );
+          })}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="mt-auto"
+            title={panelOpen ? "Retrair menu" : "Expandir menu"}
+            onClick={() => setPanelOpen((o) => !o)}
+          >
+            {panelOpen ? (
+              <PanelLeftClose className="h-4 w-4" />
+            ) : (
+              <PanelLeftOpen className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+
+        {/* Config panel — mobile: embaixo ocupando o resto; desktop: coluna de
+            360px, oculta quando o painel está retraído. */}
+        <div
+          className={cn(
+            "flex min-h-0 flex-1 flex-col overflow-hidden border-t bg-background lg:flex-none lg:border-t-0 lg:border-r",
+            panelOpen ? "lg:w-[360px]" : "lg:hidden",
+          )}
+        >
           <ConfigPanel
             config={config}
             products={products}
             itemsPerPage={itemsPerPage}
             onConfigChange={handleConfigChange}
             captureThumbnail={captureThumbnail}
+            activeTab={activeTab}
+            onActiveTabChange={setActiveTab}
           />
         </div>
 
@@ -587,7 +672,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             </div>
           )}
           <div className="flex-1 overflow-auto bg-neutral-300 dark:bg-neutral-800 p-3 sm:p-6">
-            <div className="relative">
+            {/* Canvas sempre centralizado (estilo Canva), com largura máxima. */}
+            <div className="relative mx-auto w-full max-w-[680px]">
               <CatalogPreview
                 ref={previewRef}
                 config={config}
