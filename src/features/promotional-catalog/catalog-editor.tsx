@@ -1653,6 +1653,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               onConfigChange={handleConfigChange}
               onGenerate={generateCatalogFromList}
               onSaveCardLayout={handleSaveCardLayout}
+              resolvedProducts={products}
               activeFolderFromPreview={previewFolderKey}
               onSelectFolder={(key) => {
                 const idx = resolveFolders(config.list).findIndex(

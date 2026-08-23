@@ -103,6 +103,9 @@ interface CatalogListEditorProps {
   // Preview do catálogo (25% à direita, entre a barra "Gerar catálogo" e as
   // pastas). Montado pelo editor pai, que tem as páginas/produtos resolvidos.
   preview?: ReactNode;
+  // Produtos resolvidos (lista + cadastro) — para mostrar na Lista os produtos
+  // MANUAIS (do cadastro) que foram agrupados numa página, sob o divisor do grupo.
+  resolvedProducts?: CatalogProduct[];
   // Pasta (key) da página atual na prévia — o rodapé acompanha a paginação.
   activeFolderFromPreview?: string | null;
   // Clique numa pasta do rodapé → a prévia navega até a página daquela pasta.
@@ -166,6 +169,7 @@ export function CatalogListEditor({
   onGenerate,
   onSaveCardLayout,
   preview,
+  resolvedProducts,
   activeFolderFromPreview,
   onSelectFolder,
 }: CatalogListEditorProps) {
@@ -562,15 +566,45 @@ export function CatalogListEditor({
       (g) => g.productIds !== undefined,
     );
   }, [activeFolder, folders, config.pages]);
-  // Itens visíveis ordenados por grupo (grupos na ordem; "Sem grupo" no fim).
-  const groupedVisible = useMemo(() => {
-    if (activeGroups.length === 0) return visibleItems;
+  // Linhas da tabela = itens da LISTA + produtos MANUAIS (cadastro) da página
+  // ativa que foram agrupados, ordenados por grupo (grupos na ordem; "Sem grupo"
+  // no fim). Assim um grupo só de produtos do cadastro (ex.: "Grupo 2") aparece.
+  const groupedRows = useMemo(() => {
+    const listRows = visibleItems.map((it) => ({
+      id: it.id,
+      item: it as CatalogListItem | undefined,
+      product: undefined as CatalogProduct | undefined,
+    }));
+    let manualRows: typeof listRows = [];
+    if (activeFolder) {
+      const listIds = new Set(items.map((i) => i.id));
+      const byId = new Map((resolvedProducts ?? []).map((p) => [p.id, p]));
+      const folderIds = new Set(
+        folders.find((f) => f.key === activeFolder)?.itemIds ?? [],
+      );
+      const page = (config.pages ?? []).find((pg) =>
+        (pg.productIds ?? []).some((id) => folderIds.has(id)),
+      );
+      manualRows = (page?.productIds ?? [])
+        .filter((id) => !listIds.has(id) && byId.has(id))
+        .map((id) => ({ id, item: undefined, product: byId.get(id) }));
+    }
+    const all = [...listRows, ...manualRows];
+    if (activeGroups.length === 0) return all;
     const rankOf = (id: string) => {
       const i = activeGroups.findIndex((g) => g.productIds?.includes(id));
       return i < 0 ? Number.POSITIVE_INFINITY : i;
     };
-    return [...visibleItems].sort((a, b) => rankOf(a.id) - rankOf(b.id));
-  }, [visibleItems, activeGroups]);
+    return [...all].sort((a, b) => rankOf(a.id) - rankOf(b.id));
+  }, [
+    visibleItems,
+    activeFolder,
+    items,
+    resolvedProducts,
+    folders,
+    config.pages,
+    activeGroups,
+  ]);
   const groupNameOf = (id: string) =>
     activeGroups.find((g) => g.productIds?.includes(id))?.name;
 
@@ -894,193 +928,244 @@ export function CatalogListEditor({
                   </TableCell>
                 </TableRow>
               )}
-              {groupedVisible.map((it) => {
-                const showClientDivider = it.client !== lastClient;
-                lastClient = it.client;
+              {groupedRows.map((row) => {
+                const it = row.item;
+                const prod = row.product;
+                const showClientDivider = it ? it.client !== lastClient : false;
+                if (it) lastClient = it.client;
                 // Divisor por GRUPO (nome do grupo + os produtos dele abaixo).
                 const gId =
-                  activeGroups.find((g) => g.productIds?.includes(it.id))?.id ??
-                  "__none__";
+                  activeGroups.find((g) => g.productIds?.includes(row.id))
+                    ?.id ?? "__none__";
                 const showGroupDivider =
                   activeGroups.length > 0 && gId !== lastGroupId;
                 lastGroupId = gId;
-                // Foto: o snapshot da linha ou, se vazio, a foto atual do cadastro.
-                const thumbKey =
-                  it.thumbnail ||
-                  (it.productId ? (dbThumbMap.get(it.productId) ?? "") : "");
+                // Foto: snapshot da linha (lista) ou a foto do cadastro (manual).
+                const thumbKey = it
+                  ? it.thumbnail ||
+                    (it.productId ? (dbThumbMap.get(it.productId) ?? "") : "")
+                  : (prod?.thumbnail ?? "");
                 const img = thumbKey ? constructUrl(thumbKey) : "";
                 return (
-                  <Fragment key={it.id}>
+                  <Fragment key={row.id}>
                     {showGroupDivider && (
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
                         <TableCell
                           colSpan={dividerColSpan}
                           className="py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
                         >
-                          {groupNameOf(it.id) || "Sem grupo"}
+                          {groupNameOf(row.id) || "Sem grupo"}
                         </TableCell>
                       </TableRow>
                     )}
-                    <TableRow>
-                      {showCol("image") && (
+                    {!it && prod ? (
+                      <TableRow className="text-muted-foreground">
+                        {showCol("image") && (
+                          <TableCell className="p-1">
+                            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted">
+                              {img ? (
+                                // biome-ignore lint/performance/noImgElement: prévia local
+                                <img
+                                  src={img}
+                                  alt=""
+                                  className="h-full w-full object-contain"
+                                />
+                              ) : (
+                                <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                              )}
+                            </div>
+                          </TableCell>
+                        )}
                         <TableCell className="p-1">
-                          <button
-                            type="button"
-                            title="Editar produto"
-                            onClick={() => setEditRowId(it.id)}
-                            className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80"
-                          >
-                            {img ? (
-                              // biome-ignore lint/performance/noImgElement: prévia local
-                              <img
-                                src={img}
-                                alt=""
-                                className="h-full w-full object-contain"
-                              />
-                            ) : (
-                              <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
-                            )}
-                          </button>
-                        </TableCell>
-                      )}
-                      <TableCell className="p-1">
-                        <div className="flex items-center gap-2">
-                          <ProductNameSearch
-                            value={it.productName}
-                            onChange={(name) =>
-                              updateItem(it.id, { productName: name })
-                            }
-                            onPick={(p) =>
-                              updateItem(it.id, {
-                                productName: p.name,
-                                productId: p.id,
-                                thumbnail: p.thumbnail,
-                                ...(it.normalPrice == null
-                                  ? { normalPrice: p.salePrice }
-                                  : {}),
-                                ...(!it.department && p.categoryName
-                                  ? { department: p.categoryName }
-                                  : {}),
-                              })
-                            }
-                            className="h-8 flex-1"
-                          />
-                          <span
-                            title={
-                              it.productId
-                                ? "Vinculado a um produto do cadastro"
-                                : "Produto avulso (não está no cadastro)"
-                            }
-                            className={cn(
-                              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                              it.productId
-                                ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                                : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                            )}
-                          >
-                            {it.productId ? "cadastrado" : "novo"}
-                          </span>
-                        </div>
-                      </TableCell>
-                      {showCol("normalPrice") && (
-                        <TableCell className="p-1">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={it.normalPrice ?? ""}
-                            onChange={(e) =>
-                              updateItem(it.id, {
-                                normalPrice:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              })
-                            }
-                            className="h-8"
-                          />
-                        </TableCell>
-                      )}
-                      {showCol("offerPrice") && (
-                        <TableCell className="p-1">
-                          <Input
-                            type="number"
-                            step="0.01"
-                            value={it.offerPrice ?? ""}
-                            onChange={(e) =>
-                              updateItem(it.id, {
-                                offerPrice:
-                                  e.target.value === ""
-                                    ? undefined
-                                    : Number(e.target.value),
-                              })
-                            }
-                            className="h-8"
-                          />
-                        </TableCell>
-                      )}
-                      {showCol("department") && (
-                        <TableCell className="p-1">
-                          <Input
-                            value={it.department ?? ""}
-                            onChange={(e) =>
-                              updateItem(it.id, {
-                                department: e.target.value || undefined,
-                              })
-                            }
-                            className="h-8"
-                          />
-                        </TableCell>
-                      )}
-                      {showCol("client") && (
-                        <TableCell className="p-1">
-                          <Input
-                            value={it.client}
-                            onChange={(e) =>
-                              updateItem(it.id, {
-                                client: e.target.value || "Sem cliente",
-                              })
-                            }
-                            className={cn(
-                              "h-8",
-                              showClientDivider &&
-                                "border-primary/40 font-medium",
-                            )}
-                          />
-                        </TableCell>
-                      )}
-                      <TableCell className="p-1">
-                        <div className="flex items-center">
-                          <div className="flex flex-col">
-                            <button
-                              type="button"
-                              className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                              title="Mover para cima"
-                              disabled={!canMoveItem(it.id, -1)}
-                              onClick={() => moveListItem(it.id, -1)}
-                            >
-                              <ChevronUp className="h-3.5 w-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
-                              title="Mover para baixo"
-                              disabled={!canMoveItem(it.id, 1)}
-                              onClick={() => moveListItem(it.id, 1)}
-                            >
-                              <ChevronDown className="h-3.5 w-3.5" />
-                            </button>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate text-sm">
+                              {prod.name}
+                            </span>
+                            <span className="shrink-0 rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:text-blue-400">
+                              cadastro
+                            </span>
                           </div>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-8 w-8 text-destructive"
-                            onClick={() => removeItem(it.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                        {showCol("normalPrice") && (
+                          <TableCell className="p-1 text-xs">
+                            {prod.basePrice ?? prod.salePrice}
+                          </TableCell>
+                        )}
+                        {showCol("offerPrice") && (
+                          <TableCell className="p-1 text-xs">
+                            {prod.promotionalPrice ?? prod.salePrice}
+                          </TableCell>
+                        )}
+                        {showCol("department") && (
+                          <TableCell className="p-1 text-xs">
+                            {prod.categoryName ?? ""}
+                          </TableCell>
+                        )}
+                        {showCol("client") && <TableCell className="p-1" />}
+                        <TableCell className="p-1" />
+                      </TableRow>
+                    ) : it ? (
+                      <TableRow>
+                        {showCol("image") && (
+                          <TableCell className="p-1">
+                            <button
+                              type="button"
+                              title="Editar produto"
+                              onClick={() => setEditRowId(it.id)}
+                              className="flex h-11 w-11 items-center justify-center overflow-hidden rounded border bg-muted transition-opacity hover:opacity-80"
+                            >
+                              {img ? (
+                                // biome-ignore lint/performance/noImgElement: prévia local
+                                <img
+                                  src={img}
+                                  alt=""
+                                  className="h-full w-full object-contain"
+                                />
+                              ) : (
+                                <ImageIcon className="h-4 w-4 text-muted-foreground/50" />
+                              )}
+                            </button>
+                          </TableCell>
+                        )}
+                        <TableCell className="p-1">
+                          <div className="flex items-center gap-2">
+                            <ProductNameSearch
+                              value={it.productName}
+                              onChange={(name) =>
+                                updateItem(it.id, { productName: name })
+                              }
+                              onPick={(p) =>
+                                updateItem(it.id, {
+                                  productName: p.name,
+                                  productId: p.id,
+                                  thumbnail: p.thumbnail,
+                                  ...(it.normalPrice == null
+                                    ? { normalPrice: p.salePrice }
+                                    : {}),
+                                  ...(!it.department && p.categoryName
+                                    ? { department: p.categoryName }
+                                    : {}),
+                                })
+                              }
+                              className="h-8 flex-1"
+                            />
+                            <span
+                              title={
+                                it.productId
+                                  ? "Vinculado a um produto do cadastro"
+                                  : "Produto avulso (não está no cadastro)"
+                              }
+                              className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                                it.productId
+                                  ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                                  : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                              )}
+                            >
+                              {it.productId ? "cadastrado" : "novo"}
+                            </span>
+                          </div>
+                        </TableCell>
+                        {showCol("normalPrice") && (
+                          <TableCell className="p-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={it.normalPrice ?? ""}
+                              onChange={(e) =>
+                                updateItem(it.id, {
+                                  normalPrice:
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value),
+                                })
+                              }
+                              className="h-8"
+                            />
+                          </TableCell>
+                        )}
+                        {showCol("offerPrice") && (
+                          <TableCell className="p-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={it.offerPrice ?? ""}
+                              onChange={(e) =>
+                                updateItem(it.id, {
+                                  offerPrice:
+                                    e.target.value === ""
+                                      ? undefined
+                                      : Number(e.target.value),
+                                })
+                              }
+                              className="h-8"
+                            />
+                          </TableCell>
+                        )}
+                        {showCol("department") && (
+                          <TableCell className="p-1">
+                            <Input
+                              value={it.department ?? ""}
+                              onChange={(e) =>
+                                updateItem(it.id, {
+                                  department: e.target.value || undefined,
+                                })
+                              }
+                              className="h-8"
+                            />
+                          </TableCell>
+                        )}
+                        {showCol("client") && (
+                          <TableCell className="p-1">
+                            <Input
+                              value={it.client}
+                              onChange={(e) =>
+                                updateItem(it.id, {
+                                  client: e.target.value || "Sem cliente",
+                                })
+                              }
+                              className={cn(
+                                "h-8",
+                                showClientDivider &&
+                                  "border-primary/40 font-medium",
+                              )}
+                            />
+                          </TableCell>
+                        )}
+                        <TableCell className="p-1">
+                          <div className="flex items-center">
+                            <div className="flex flex-col">
+                              <button
+                                type="button"
+                                className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                                title="Mover para cima"
+                                disabled={!canMoveItem(it.id, -1)}
+                                onClick={() => moveListItem(it.id, -1)}
+                              >
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                className="text-muted-foreground transition-colors hover:text-foreground disabled:opacity-30"
+                                title="Mover para baixo"
+                                disabled={!canMoveItem(it.id, 1)}
+                                onClick={() => moveListItem(it.id, 1)}
+                              >
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive"
+                              onClick={() => removeItem(it.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
                   </Fragment>
                 );
               })}
