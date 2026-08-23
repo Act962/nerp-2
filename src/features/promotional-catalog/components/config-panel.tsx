@@ -1699,7 +1699,7 @@ export function ConfigPanel({
           no mobile continuam como abas horizontais. */}
       <TabsList className="w-full rounded-none border-b shrink-0 h-10 bg-transparent justify-start px-2 gap-1 lg:hidden">
         <TabsTrigger value="produtos" className="text-xs h-8">
-          Produtos
+          Página
         </TabsTrigger>
         <TabsTrigger value="lista" className="text-xs h-8">
           Lista
@@ -1824,13 +1824,7 @@ export function ConfigPanel({
             />
           </div>
 
-          <DynamicPageSection
-            config={config}
-            onConfigChange={onConfigChange}
-            pageName={pageName}
-            allPagesDynamic={allPagesDynamic}
-            onAllPagesDynamic={onAllPagesDynamic}
-          />
+          {/* "Página dinâmica" foi movida para a aba "Página" (topo). */}
         </div>
       </TabsContent>
 
@@ -1940,9 +1934,23 @@ export function ConfigPanel({
         </div>
       </TabsContent>
 
-      {/* ── Produtos ── */}
+      {/* ── Página (produtos + entidade dinâmica da página) ── */}
       <TabsContent value="produtos" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-3">
+          {/* Nome da página + vínculo dinâmico (loja/cliente) desta página. É
+              aqui que se escolhe a loja de cada página (dinâmica). */}
+          {pageName && (
+            <p className="truncate text-sm font-semibold" title={pageName}>
+              {pageName}
+            </p>
+          )}
+          <DynamicPageSection
+            config={config}
+            onConfigChange={onConfigChange}
+            pageName={pageName}
+            allPagesDynamic={allPagesDynamic}
+            onAllPagesDynamic={onAllPagesDynamic}
+          />
           {/* Título + Ordenação (movida do cabeçalho da página) */}
           <div className="flex items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

@@ -210,7 +210,7 @@ interface CatalogEditorProps {
 
 // Rail de ícones (estilo Canva) — as abas de config viram ícones na lateral.
 const EDITOR_TABS = [
-  { value: "produtos", label: "Produtos", icon: Package },
+  { value: "produtos", label: "Página", icon: Package },
   { value: "lista", label: "Lista", icon: TableIcon },
   { value: "layout", label: "Layout", icon: LayoutTemplate },
   { value: "fundo", label: "Fundo", icon: Wallpaper },
