@@ -32,10 +32,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   CARD_VARIABLES,
   type CardLayoutElement,
   type CardVariable,
   type CatalogProduct,
+  TEXT_FONTS,
   makeCardElement,
 } from "../types";
 import {
@@ -304,10 +312,15 @@ export function CardFreeEditor({
   const AREA_PAD = 48;
   const availW = Math.max(0, area.w - AREA_PAD * 2);
   const availH = Math.max(0, area.h - AREA_PAD * 2);
-  // Encaixe máximo mantendo a proporção, reduzido em 15% (largura e altura
-  // caem juntas, então a proporção `aspect` é preservada).
-  const PREVIEW_SCALE = 0.85;
-  const cardW = Math.max(0, Math.min(availW, availH * aspect)) * PREVIEW_SCALE;
+  // Encaixe máximo mantendo a proporção, reduzido por PREVIEW_SCALE e com um
+  // TETO em px (MAX_CARD_W): em telas largas o card não fica gigante. Largura e
+  // altura caem juntas (proporção `aspect` e posições fracionárias preservadas).
+  const PREVIEW_SCALE = 0.7;
+  const MAX_CARD_W = 420;
+  const cardW = Math.min(
+    Math.max(0, Math.min(availW, availH * aspect)) * PREVIEW_SCALE,
+    MAX_CARD_W,
+  );
   const cardH = aspect > 0 ? cardW / aspect : cardW;
   // Fundo da área = "janela" para a página: a célula do card ocupa exatamente a
   // caixa (cardW×cardH centrada) e o contexto da página aparece ao redor.
@@ -675,6 +688,7 @@ export function CardFreeEditor({
                             (ev.target as HTMLTextAreaElement).blur();
                           }
                         }}
+                        style={{ fontFamily: el.fontFamily }}
                         className="absolute inset-0 z-20 resize-none rounded-sm border border-primary bg-background/95 p-0.5 text-center text-[11px] leading-tight text-foreground outline-none"
                       />
                     )}
@@ -757,17 +771,26 @@ export function CardFreeEditor({
       </div>
 
       {/* Paleta + propriedades */}
-      <div className="flex w-full flex-col gap-3 p-3 md:h-full md:w-[300px] md:overflow-y-auto">
+      <div className="flex w-full flex-col gap-2 p-2.5 md:h-full md:w-[416px] md:overflow-y-auto">
         <h3 className="text-sm font-semibold">Montar Etiqueta</h3>
 
-        {/* Fundo da Etiqueta (movido da aba Layout): transparente = janela p/ a
-            página; senão, cor de fundo do card. */}
+        {/* Fundo da Etiqueta — transparente = janela p/ a página; senão, cor.
+            Compacto: toggle + cor na mesma linha. */}
         {onCardBgChange && (
-          <div className="flex flex-col gap-2 rounded-md border p-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="cfe-hide-bg" className="text-xs">
-                Fundo transparente
-              </Label>
+          <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5">
+            <Label htmlFor="cfe-hide-bg" className="text-xs">
+              Fundo transparente
+            </Label>
+            <div className="flex items-center gap-2">
+              {!hideCardBackground && (
+                <input
+                  type="color"
+                  title="Cor da Etiqueta"
+                  value={cardColor ?? "#ffffff"}
+                  onChange={(e) => onCardBgChange({ cardColor: e.target.value })}
+                  className="h-7 w-7 cursor-pointer rounded-lg border p-0 shadow-sm"
+                />
+              )}
               <Switch
                 id="cfe-hide-bg"
                 checked={hideCardBackground === true}
@@ -776,91 +799,68 @@ export function CardFreeEditor({
                 }
               />
             </div>
-            {!hideCardBackground && (
-              <label className="flex items-center justify-between text-xs text-muted-foreground">
-                Cor da Etiqueta
-                <input
-                  type="color"
-                  value={cardColor ?? "#ffffff"}
-                  onChange={(e) =>
-                    onCardBgChange({ cardColor: e.target.value })
-                  }
-                  className="h-6 w-8 cursor-pointer rounded border p-0"
-                />
-              </label>
-            )}
           </div>
         )}
 
-        <Button
-          type="button"
-          size="sm"
-          variant="secondary"
-          className="w-full gap-1 text-xs"
-          onClick={addPricePreset}
-        >
-          <DollarSign className="h-3.5 w-3.5" />
-          Preço destaque (5,49 UND)
-        </Button>
-
-        {/* Variáveis (ícone + nome) */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Variáveis</Label>
-          <div className="grid grid-cols-3 gap-1.5">
+        {/* Inserir: variáveis + formas + texto — ícone + nome embaixo. O painel
+            largo (30% maior) mantém 3 linhas, então cabe sem rolagem. */}
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">Inserir</Label>
+          <div className="grid grid-cols-5 gap-1">
             {CARD_VARIABLES.map((v) => {
               const Icon = VAR_ICONS[v.value];
               return (
                 <Button
                   key={v.value}
                   type="button"
-                  size="sm"
                   variant="outline"
-                  className="h-auto flex-col gap-1 px-1 py-2 text-[10px] leading-tight"
+                  className="h-auto flex-col gap-1 px-1 py-1.5 text-[10px] leading-tight"
+                  title={v.label}
                   onClick={() => addVariable(v.value)}
                 >
-                  <Icon className="h-4 w-4 text-muted-foreground" />
-                  {v.label}
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="w-full truncate text-center">{v.label}</span>
                 </Button>
               );
             })}
-          </div>
-        </div>
-
-        {/* Formas e texto */}
-        <div className="flex flex-col gap-1.5">
-          <Label className="text-xs">Formas e texto</Label>
-          <div className="grid grid-cols-3 gap-1.5">
             <Button
               type="button"
-              size="sm"
               variant="outline"
-              className="h-auto flex-col gap-1 px-1 py-2 text-[10px]"
+              className="h-auto flex-col gap-1 px-1 py-1.5 text-[10px] leading-tight"
               onClick={() => addShape("rect")}
             >
-              <Square className="h-4 w-4 text-muted-foreground" />
-              Retângulo
+              <Square className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="w-full truncate text-center">Retângulo</span>
             </Button>
             <Button
               type="button"
-              size="sm"
               variant="outline"
-              className="h-auto flex-col gap-1 px-1 py-2 text-[10px]"
+              className="h-auto flex-col gap-1 px-1 py-1.5 text-[10px] leading-tight"
               onClick={() => addShape("circle")}
             >
-              <Circle className="h-4 w-4 text-muted-foreground" />
-              Círculo
+              <Circle className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="w-full truncate text-center">Círculo</span>
             </Button>
             <Button
               type="button"
-              size="sm"
               variant="outline"
-              className="h-auto flex-col gap-1 px-1 py-2 text-[10px]"
+              className="h-auto flex-col gap-1 px-1 py-1.5 text-[10px] leading-tight"
               onClick={addText}
             >
-              <Type className="h-4 w-4 text-muted-foreground" />
-              Texto
+              <Type className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="w-full truncate text-center">Texto</span>
             </Button>
           </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="mt-0.5 w-full gap-1 text-xs"
+            onClick={addPricePreset}
+          >
+            <DollarSign className="h-3.5 w-3.5" />
+            Preço destaque (5,49 UND)
+          </Button>
         </div>
 
         {/* Seleção */}
@@ -895,8 +895,8 @@ export function CardFreeEditor({
 
         {/* Propriedades (1 selecionado) */}
         {single ? (
-          <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-2">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-3">
+            <p className="text-[13px] font-medium text-foreground">
               {single.kind === "shape"
                 ? "Forma"
                 : single.kind === "text"
@@ -917,6 +917,33 @@ export function CardFreeEditor({
 
             {isText && (
               <>
+                {/* Tipografia — cada opção renderizada na própria fonte. */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] text-muted-foreground">
+                    Tipografia
+                  </span>
+                  <Select
+                    value={single.fontFamily ?? "Inter, sans-serif"}
+                    onValueChange={(v) =>
+                      update(single.id, { fontFamily: v })
+                    }
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEXT_FONTS.map((f) => (
+                        <SelectItem
+                          key={f.value}
+                          value={f.value}
+                          style={{ fontFamily: f.value }}
+                        >
+                          {f.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] text-muted-foreground">
                     Tamanho
@@ -970,7 +997,7 @@ export function CardFreeEditor({
                       onChange={(e) =>
                         update(single.id, { color: e.target.value })
                       }
-                      className="h-6 w-8 cursor-pointer rounded border p-0"
+                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                     />
                   </label>
                   <Button
@@ -1058,7 +1085,7 @@ export function CardFreeEditor({
                       onChange={(e) =>
                         update(single.id, { fill: e.target.value })
                       }
-                      className="h-6 w-8 cursor-pointer rounded border p-0 disabled:cursor-not-allowed disabled:opacity-40"
+                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
                     />
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -1069,7 +1096,7 @@ export function CardFreeEditor({
                       onChange={(e) =>
                         update(single.id, { outlineColor: e.target.value })
                       }
-                      className="h-6 w-8 cursor-pointer rounded border p-0"
+                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                     />
                   </label>
                 </div>
@@ -1148,7 +1175,7 @@ export function CardFreeEditor({
                           onChange={(e) =>
                             update(single.id, { fill: e.target.value })
                           }
-                          className="h-6 w-8 cursor-pointer rounded border p-0"
+                          className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                         />
                       </label>
                       <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -1159,7 +1186,7 @@ export function CardFreeEditor({
                           onChange={(e) =>
                             update(single.id, { outlineColor: e.target.value })
                           }
-                          className="h-6 w-8 cursor-pointer rounded border p-0"
+                          className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                         />
                       </label>
                     </div>
@@ -1230,15 +1257,10 @@ export function CardFreeEditor({
           </p>
         )}
 
-        {/* Salvar na biblioteca "Estilos" (modo criação) */}
+        {/* Salvar na biblioteca "Estilos" (modo criação) — compacto: nome +
+            botão na mesma linha, pra não ocupar altura à toa. */}
         {!hideSave && (
-          <div className="mt-auto flex flex-col gap-2 rounded-lg border bg-muted/30 p-2">
-            <Input
-              placeholder="Nome do estilo"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-9"
-            />
+          <div className="mt-auto flex flex-col gap-1.5 rounded-xl border bg-card/40 p-2">
             {canManageSystem && (
               <div className="grid grid-cols-2 gap-1.5">
                 <Button
@@ -1261,15 +1283,24 @@ export function CardFreeEditor({
                 </Button>
               </div>
             )}
-            <Button
-              type="button"
-              className="w-full gap-1"
-              disabled={!name.trim() || elements.length === 0}
-              onClick={() => onSaveStyle?.(name.trim(), scope)}
-            >
-              <Save className="h-4 w-4" />
-              Salvar em Estilos
-            </Button>
+            <div className="flex items-center gap-1.5">
+              <Input
+                placeholder="Salvar como estilo…"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-9 flex-1"
+              />
+              <Button
+                type="button"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                title="Salvar em Estilos"
+                disabled={!name.trim() || elements.length === 0}
+                onClick={() => onSaveStyle?.(name.trim(), scope)}
+              >
+                <Save className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         )}
       </div>

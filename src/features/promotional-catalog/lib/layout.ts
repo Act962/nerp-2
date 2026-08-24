@@ -207,6 +207,7 @@ export function effectivePageConfig(
     layout: pg.layout,
     gridCols: pg.gridCols ?? config.gridCols,
     gridRows: pg.gridRows ?? config.gridRows,
+    centerLastRow: pg.centerLastRow ?? config.centerLastRow,
     productGroup: pg.productGroup,
     productGroups: pg.productGroups,
     productGroupScale: pg.productGroupScale,

@@ -29,6 +29,7 @@ import { searchCatalogProducts } from "./search-products";
 import { createOfferProducts } from "./create-offer-products";
 import { matchStoresByName } from "./match-stores-by-name";
 import { productThumbnails } from "./product-thumbnails";
+import { catalogThumbnails } from "./catalog-thumbnails";
 
 export const promotionalCatalogRouter = {
   list: listCatalogs,
@@ -62,4 +63,5 @@ export const promotionalCatalogRouter = {
   createOfferProducts,
   matchStoresByName,
   productThumbnails,
+  catalogThumbnails,
 };

@@ -292,7 +292,7 @@ function PriceStylesLibrary({
       </p>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-[13px] font-medium text-foreground">
           Meus estilos {data ? `(${data.mine.length})` : ""}
         </p>
         {isLoading ? (
@@ -309,7 +309,7 @@ function PriceStylesLibrary({
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-[13px] font-medium text-foreground">
           Estilos do sistema {data ? `(${data.system.length})` : ""}
         </p>
         <Grid
@@ -372,7 +372,7 @@ function PriceStylesLibrary({
         <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-[1100px]">
           <DialogTitle className="sr-only">Editar estilo</DialogTitle>
           {edit && (
-            <div className="flex h-[86vh] flex-col">
+            <div className="flex h-[94vh] flex-col">
               <div className="min-h-0 flex-1 p-3">
                 <CardFreeEditor
                   elements={edit.layout}
@@ -736,7 +736,7 @@ export function ProductPhotoButton({
               : `Editar produto — ${product.name}`}
           </DialogTitle>
           {mode === "priceStyle" ? (
-            <div className="flex h-[86vh] flex-col">
+            <div className="flex h-[94vh] flex-col">
               <div className="min-h-0 flex-1">
                 <CardFreeEditor
                   elements={cardDraft}
@@ -786,9 +786,9 @@ export function ProductPhotoButton({
                   size="sm"
                   variant="outline"
                   disabled={!cardDirty}
-                  onClick={() => saveCardScope("product")}
+                  onClick={() => saveCardScope("all")}
                 >
-                  Salvar só para esse produto
+                  Alterar todas as páginas
                 </Button>
                 <Button
                   type="button"
@@ -803,9 +803,9 @@ export function ProductPhotoButton({
                   type="button"
                   size="sm"
                   disabled={!cardDirty}
-                  onClick={() => saveCardScope("all")}
+                  onClick={() => saveCardScope("product")}
                 >
-                  Alterar todas as páginas
+                  Salvar só para esse produto
                 </Button>
               </div>
             </div>
@@ -836,7 +836,7 @@ export function ProductPhotoButton({
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  <p className="text-[13px] font-medium text-foreground">
                     Prévia da Etiqueta
                   </p>
                   {/* Card sobre o recorte EXATO do fundo. A caixa tem a proporção
@@ -1497,6 +1497,13 @@ export function ConfigPanel({
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
   // Grupo selecionado → a lista de produtos da "Página" mostra só os dele.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  // Clicar num grupo nomeado no canvas abre a aba "Página" (roteado no editor) e
+  // já mostra esse grupo selecionado aqui.
+  useEffect(() => {
+    if (selection?.kind === "group" && selection.id) {
+      setSelectedGroupId(selection.id);
+    }
+  }, [selection]);
   const updateGroup = (
     groupId: string,
     patch: Partial<{
@@ -1544,15 +1551,26 @@ export function ConfigPanel({
       .filter((id) => selectedForGroup.has(id));
     if (ids.length === 0) return;
     const existing = config.productGroups ?? [];
-    const rows = Math.max(1, Math.ceil(ids.length / 3));
-    // Região empilhada abaixo das existentes (px no canvas 1080×pageH).
-    const top = 120 + existing.length * 380;
+    // O grupo HERDA a disposição da página (colunas + tamanho de célula +
+    // posição), pra nascer com o MESMO layout — não rearranjar/redimensionar os
+    // cards. `config.productGroup` = região atual da página (se houver).
+    const base = config.productGroup;
+    const cols = Math.max(1, config.gridCols ?? 3);
+    const rows = Math.max(1, Math.ceil(ids.length / cols));
+    const x = base?.x ?? 40;
+    const w = base?.w ?? 1000;
+    // Altura por linha igual à da página (mantém o tamanho do card).
+    const pageRows = Math.max(1, config.gridRows ?? rows);
+    const cellH = base && base.h > 0 ? base.h / pageRows : w / cols;
+    const h = Math.round(rows * cellH);
+    // 1º grupo ocupa a mesma região da página; os demais empilham abaixo.
+    const y = Math.round((base?.y ?? 48) + existing.length * (h + 48));
     const group = {
       id: crypto.randomUUID(),
       name: `Grupo ${namedGroups.length + 1}`,
       productIds: ids,
-      rect: { x: 40, y: top, w: 1000, h: rows * 300 },
-      gridCols: 3,
+      rect: { x, y, w, h },
+      gridCols: cols,
       gridRows: rows,
     };
     onConfigChange({ productGroups: [...existing, group] });
@@ -1569,8 +1587,9 @@ export function ConfigPanel({
   // manuallyAddedIds), igual ao X de cada produto — senão ficam "fantasmas"
   // (some o grupo mas o "Adicionar produto" ainda os mostra como adicionados).
   const removeGroup = (groupId: string) => {
-    const ids = (config.productGroups ?? []).find((g) => g.id === groupId)
-      ?.productIds;
+    const ids = (config.productGroups ?? []).find(
+      (g) => g.id === groupId,
+    )?.productIds;
     onConfigChange({
       productGroups: (config.productGroups ?? []).filter(
         (g) => g.id !== groupId,
@@ -1734,34 +1753,58 @@ export function ConfigPanel({
     <Tabs
       value={activeTab}
       onValueChange={onActiveTabChange}
-      className="flex flex-col h-full overflow-hidden"
+      className="promo-panel flex flex-col h-full overflow-hidden"
     >
       {/* No desktop as abas viram o rail de ícones do editor (lg:hidden aqui);
           no mobile continuam como abas horizontais. */}
-      <TabsList className="w-full rounded-none border-b shrink-0 h-10 bg-transparent justify-start px-2 gap-1 lg:hidden">
-        <TabsTrigger value="produtos" className="text-xs h-8">
+      <TabsList className="h-auto w-full shrink-0 justify-start gap-1.5 overflow-x-auto rounded-none border-b bg-transparent px-3 py-2 lg:hidden">
+        <TabsTrigger
+          value="produtos"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Página
         </TabsTrigger>
-        <TabsTrigger value="lista" className="text-xs h-8">
+        <TabsTrigger
+          value="lista"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Lista
         </TabsTrigger>
-        <TabsTrigger value="layout" className="text-xs h-8">
+        <TabsTrigger
+          value="layout"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Layout
         </TabsTrigger>
-        <TabsTrigger value="fundo" className="text-xs h-8">
+        <TabsTrigger
+          value="fundo"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Fundo
         </TabsTrigger>
-        <TabsTrigger value="texto" className="text-xs h-8">
+        <TabsTrigger
+          value="texto"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Texto
         </TabsTrigger>
-        <TabsTrigger value="etiqueta" className="text-xs h-8">
+        <TabsTrigger
+          value="etiqueta"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Figurinhas
         </TabsTrigger>
-        <TabsTrigger value="estilos" className="text-xs h-8">
+        <TabsTrigger
+          value="estilos"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
           Etiqueta
         </TabsTrigger>
-        <TabsTrigger value="padroes-sistema" className="text-xs h-8">
-          Sistema
+        <TabsTrigger
+          value="padroes-sistema"
+          className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+        >
+          Padrões
         </TabsTrigger>
       </TabsList>
 
@@ -1865,6 +1908,22 @@ export function ConfigPanel({
             />
           </div>
 
+          {/* Centralizar a última linha incompleta da grade (ex.: 8 produtos em
+              3 colunas → os 2 últimos centralizados). */}
+          <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <div className="flex flex-col">
+              <Label htmlFor="center-last-row">Centralizar última linha</Label>
+              <span className="text-[11px] text-muted-foreground">
+                Alinha ao centro os produtos que sobram na última linha.
+              </span>
+            </div>
+            <Switch
+              id="center-last-row"
+              checked={config.centerLastRow !== false}
+              onCheckedChange={(v) => onConfigChange({ centerLastRow: v })}
+            />
+          </div>
+
           {/* "Página dinâmica" foi movida para a aba "Página" (topo). */}
         </div>
       </TabsContent>
@@ -1890,8 +1949,8 @@ export function ConfigPanel({
 
           {/* Salvar a aparência atual como padrão (reutilizável em novos
               catálogos via "+ Novo catálogo"). */}
-          <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4">
+            <p className="text-[13px] font-medium text-foreground">
               Salvar como padrão
             </p>
             <Input
@@ -1978,85 +2037,81 @@ export function ConfigPanel({
       {/* ── Página (produtos + entidade dinâmica da página) ── */}
       <TabsContent value="produtos" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-3">
-          {/* Nome da página. O vínculo dinâmico (loja/cliente) fica no FIM. */}
-          {pageName && (
-            <p className="truncate text-sm font-semibold" title={pageName}>
-              {pageName}
-            </p>
-          )}
-          {/* Título + Ordenação (movida do cabeçalho da página). Com grupo
-              selecionado, mostra só os produtos dele + "Ver todos". */}
+          {/* Título = nome da loja/cliente + contagem; ordenação à direita. Com
+              grupo selecionado, mostra o grupo + "ver todos". */}
           <div className="flex items-center justify-between gap-2">
-            <p className="min-w-0 truncate text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p
+              className="min-w-0 truncate text-[15px] font-semibold text-foreground lg:text-[14px]"
+              title={pageName}
+            >
               {selectedGroupId ? (
                 <>
                   {namedGroups.find((g) => g.id === selectedGroupId)?.name ||
                     "Grupo"}{" "}
-                  ·{" "}
                   <button
                     type="button"
-                    className="lowercase underline hover:text-foreground"
+                    className="text-[13px] font-normal text-muted-foreground underline hover:text-foreground"
                     onClick={() => setSelectedGroupId(null)}
                   >
                     ver todos
                   </button>
                 </>
               ) : (
-                `Produtos na página (${pageProducts.length})`
+                <>
+                  {pageName || "Página"}{" "}
+                  <span className="font-normal text-muted-foreground">
+                    ({pageProducts.length})
+                  </span>
+                </>
               )}
             </p>
-            <div className="flex shrink-0 items-center gap-1">
-              <ArrowDownUp className="h-3.5 w-3.5 text-muted-foreground" />
-              <Select
-                value={config.sortBy}
-                onValueChange={(v) =>
-                  onConfigChange({ sortBy: v as CatalogConfig["sortBy"] })
-                }
+            <Select
+              value={config.sortBy}
+              onValueChange={(v) =>
+                onConfigChange({ sortBy: v as CatalogConfig["sortBy"] })
+              }
+            >
+              <SelectTrigger
+                className="h-9 w-auto shrink-0 gap-1.5 rounded-lg px-2.5 text-[13px]"
+                title="Ordenação"
               >
-                <SelectTrigger
-                  className="h-7 w-auto gap-1 px-2 text-xs"
-                  title="Ordenação"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SORT_OPTS.map((o) => (
-                    <SelectItem
-                      key={o.value}
-                      value={o.value}
-                      className="text-xs"
-                    >
-                      {o.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+                <ArrowDownUp className="h-4 w-4 text-muted-foreground" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SORT_OPTS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <AddProductDialog
-            config={config}
-            onConfigChange={onConfigChange}
-            open={addProductOpen}
-            onOpenChange={setAddProductOpen}
-          />
 
-          {/* + Adicionar Grupo — agrupa os produtos SELECIONADOS (checkbox ou
-              Shift+clique) num grupo nomeado. Uma página pode ter vários. */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="w-full gap-1"
-            disabled={selectedForGroup.size === 0}
-            onClick={addGroupFromSelection}
-          >
-            <Layers className="h-4 w-4" />
-            {selectedForGroup.size > 0
-              ? `Adicionar Grupo (${selectedForGroup.size})`
-              : "Adicionar Grupo"}
-          </Button>
+          {/* Ações lado a lado: adicionar produto | adicionar grupo. */}
+          <div className="grid grid-cols-2 gap-2">
+            <AddProductDialog
+              config={config}
+              onConfigChange={onConfigChange}
+              open={addProductOpen}
+              onOpenChange={setAddProductOpen}
+            />
+            <Button
+              type="button"
+              variant={selectedForGroup.size > 0 ? "default" : "outline"}
+              className="h-10 w-full gap-1.5 rounded-xl text-[14px] lg:h-9 lg:text-[13px]"
+              disabled={selectedForGroup.size === 0}
+              title="Selecione produtos (caixa ou Shift+clique) e agrupe"
+              onClick={addGroupFromSelection}
+            >
+              <Layers className="h-4 w-4" />
+              {selectedForGroup.size > 0
+                ? `Agrupar (${selectedForGroup.size})`
+                : "Adicionar Grupo"}
+            </Button>
+          </div>
           {selectedForGroup.size > 0 && (
-            <p className="-mt-1 text-center text-[11px] text-muted-foreground">
+            <p className="-mt-1 text-center text-[12px] text-muted-foreground">
               {selectedForGroup.size} selecionado(s) ·{" "}
               <button
                 type="button"
@@ -2073,7 +2128,7 @@ export function ConfigPanel({
             <div className="flex flex-col gap-1.5 rounded-md border bg-muted/20 p-2">
               <button
                 type="button"
-                className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground"
+                className="flex items-center gap-1 text-[13px] font-medium text-foreground transition-colors hover:text-foreground"
                 onClick={() => setGroupsCollapsed((c) => !c)}
                 title={groupsCollapsed ? "Expandir" : "Recolher"}
               >
@@ -2139,7 +2194,7 @@ export function ConfigPanel({
                               onChange={(e) =>
                                 updateGroup(g.id, { bgColor: e.target.value })
                               }
-                              className="h-6 w-8 cursor-pointer rounded border p-0"
+                              className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                             />
                           </label>
                           <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
@@ -2195,7 +2250,7 @@ export function ConfigPanel({
                                     borderColor: e.target.value,
                                   })
                                 }
-                                className="h-6 w-8 cursor-pointer rounded border p-0"
+                                className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                               />
                             </label>
                           )}
@@ -2279,18 +2334,8 @@ export function ConfigPanel({
                 })}
             </div>
           )}
-          <div className="flex items-center justify-between rounded-md border px-2 py-1.5">
-            <Label htmlFor="auto-promotions" className="text-xs">
-              Incluir promoções automaticamente
-            </Label>
-            <Switch
-              id="auto-promotions"
-              checked={config.autoPromotions === true}
-              onCheckedChange={(v) => onConfigChange({ autoPromotions: v })}
-            />
-          </div>
           {pageProducts.length === 0 && (
-            <p className="rounded-md bg-muted/50 px-2 py-3 text-center text-xs text-muted-foreground">
+            <p className="rounded-xl bg-muted/40 px-3 py-4 text-center text-[13px] text-muted-foreground">
               Nenhum produto nesta página. Use “Adicionar produto”.
             </p>
           )}
@@ -2347,11 +2392,35 @@ export function ConfigPanel({
                       }}
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="truncate flex-1 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className="min-w-0 flex-1 truncate text-[14px]">
                           {p.name}
                         </span>
-                        {/* Reordenar (↑/↓) — define a ordem manual dos produtos */}
+                        {/* Grupo do produto (só quando a página tem grupos) */}
+                        {namedGroups.length > 0 && (
+                          <select
+                            value={
+                              namedGroups.find((g) =>
+                                g.productIds?.includes(p.id),
+                              )?.id ?? ""
+                            }
+                            onChange={(e) => {
+                              const gid = e.target.value;
+                              if (gid) addProductToGroup(p.id, gid);
+                              else removeProductFromGroups(p.id);
+                            }}
+                            title="Grupo do produto"
+                            className="h-6 max-w-[96px] shrink-0 rounded-md border bg-background px-1 text-[11px] text-muted-foreground"
+                          >
+                            <option value="">Sem grupo</option>
+                            {namedGroups.map((g) => (
+                              <option key={g.id} value={g.id}>
+                                {g.name || "Grupo"}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {/* Reordenar (↑/↓) */}
                         <div className="flex shrink-0 flex-col">
                           <button
                             type="button"
@@ -2375,7 +2444,7 @@ export function ConfigPanel({
                         <Button
                           variant="ghost"
                           size="icon"
-                          className="h-6 w-6 shrink-0"
+                          className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
                           title="Remover do catálogo"
                           onClick={() =>
                             onConfigChange({
@@ -2392,7 +2461,7 @@ export function ConfigPanel({
                             })
                           }
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-3.5 w-3.5" />
                         </Button>
                       </div>
                       <div className="flex items-center justify-between gap-2">
@@ -2416,33 +2485,6 @@ export function ConfigPanel({
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
                       </div>
-                      {/* Adicionar em qual grupo? (só quando a página tem grupos) */}
-                      {namedGroups.length > 0 && (
-                        <div className="flex items-center gap-1.5">
-                          <Layers className="h-3 w-3 shrink-0 text-muted-foreground" />
-                          <select
-                            value={
-                              namedGroups.find((g) =>
-                                g.productIds?.includes(p.id),
-                              )?.id ?? ""
-                            }
-                            onChange={(e) => {
-                              const gid = e.target.value;
-                              if (gid) addProductToGroup(p.id, gid);
-                              else removeProductFromGroups(p.id);
-                            }}
-                            title="Adicionar em qual grupo?"
-                            className="h-6 min-w-0 flex-1 rounded border bg-background px-1 text-[11px]"
-                          >
-                            <option value="">Sem grupo</option>
-                            {namedGroups.map((g) => (
-                              <option key={g.id} value={g.id}>
-                                {g.name || "Grupo"}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </Fragment>
@@ -2450,14 +2492,23 @@ export function ConfigPanel({
             })}
           </div>
 
-          {/* Página dinâmica (loja/cliente desta página) — no FIM da aba. */}
-          <DynamicPageSection
-            config={config}
-            onConfigChange={onConfigChange}
-            pageName={pageName}
-            allPagesDynamic={allPagesDynamic}
-            onAllPagesDynamic={onAllPagesDynamic}
-          />
+          {/* Configurações da página (secundárias) agrupadas no fim. */}
+          <div className="mt-1 flex flex-col gap-3 border-t pt-3">
+            <div className="flex items-center justify-between gap-3 text-[15px] text-muted-foreground lg:text-[13px]">
+              <span>Incluir promoções automaticamente</span>
+              <Switch
+                checked={config.autoPromotions === true}
+                onCheckedChange={(v) => onConfigChange({ autoPromotions: v })}
+              />
+            </div>
+            <DynamicPageSection
+              config={config}
+              onConfigChange={onConfigChange}
+              pageName={pageName}
+              allPagesDynamic={allPagesDynamic}
+              onAllPagesDynamic={onAllPagesDynamic}
+            />
+          </div>
         </div>
       </TabsContent>
 
@@ -2490,8 +2541,8 @@ export function ConfigPanel({
             </div>
           )}
           {selectedOverlay && (
-            <div className="flex flex-col gap-2 rounded-lg border bg-muted/30 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4">
+              <p className="text-[13px] font-medium text-foreground">
                 Redimensionar imagem
               </p>
               <ImageResizer
@@ -2525,7 +2576,7 @@ export function ConfigPanel({
             />
           )}
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[13px] font-medium text-foreground">
               Adicionar etiqueta
             </p>
             <input
@@ -2560,7 +2611,7 @@ export function ConfigPanel({
           </div>
 
           <div className="flex flex-col gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[13px] font-medium text-foreground">
               Biblioteca ({assets.length})
             </p>
             {assets.length === 0 ? (
@@ -2609,7 +2660,7 @@ export function ConfigPanel({
         {/* Etiquetas dinâmicas — imagem que resolve de uma entidade da página
             dinâmica (foto da loja / logo da org / foto do produto / usuário). */}
         <div className="mb-4 flex flex-col gap-1.5 rounded-md border p-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="text-[13px] font-medium text-foreground">
             Etiquetas dinâmicas
           </p>
           {config.dynamic?.type ? (
@@ -2678,7 +2729,7 @@ export function ConfigPanel({
             que cada bloco representa (também entra na aba Produtos) + remover. */}
         {(config.styleBlocks ?? []).length > 0 && (
           <div className="mt-4 flex flex-col gap-2 border-t pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[13px] font-medium text-foreground">
               Estilos na página ({(config.styleBlocks ?? []).length})
             </p>
             {(config.styleBlocks ?? []).map((block, i) => {

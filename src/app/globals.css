@@ -201,6 +201,35 @@
   }
 }
 
+/* Editor do catálogo promocional no MOBILE: fonte confortável, padrão de app web
+   (~15px). Os utilitários minúsculos do painel ganham um piso legível. A classe
+   `.promo-panel` limita o efeito ao painel do editor; no desktop (painel lateral
+   estreito) as fontes originais/`lg:` continuam valendo. */
+@media (max-width: 1023px) {
+  .promo-panel {
+    font-size: 15px;
+  }
+  .promo-panel .text-sm {
+    font-size: 16px;
+  }
+  .promo-panel .text-xs {
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  .promo-panel .text-\[13px\] {
+    font-size: 15px;
+  }
+  .promo-panel .text-\[12px\] {
+    font-size: 14px;
+  }
+  .promo-panel .text-\[11px\] {
+    font-size: 14px;
+  }
+  .promo-panel .text-\[10px\] {
+    font-size: 13px;
+  }
+}
+
 /* O TradeGram público é vitrine: quem chega pelo link não é usuário do ERP e
    não escolheu tema nenhum. Sem isto a página herda o `prefers-color-scheme` do
    visitante e a mesma URL compartilhada aparece escura para uns e clara para

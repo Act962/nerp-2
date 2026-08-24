@@ -36,6 +36,8 @@ interface AddProductDialogProps {
   // escolhido (ex.: para ligar a um bloco de estilo) e fecha o diálogo.
   onPicked?: (id: string) => void;
   triggerLabel?: string;
+  // Classe do botão-gatilho (para alinhar com outros botões, ex.: lado a lado).
+  triggerClassName?: string;
   title?: string;
   // Abertura controlada (opcional) — permite abrir o diálogo de fora (ex.: botão
   // "Adicionar produto" do estado de página vazia).
@@ -131,6 +133,7 @@ export function AddProductDialog({
   onConfigChange,
   onPicked,
   triggerLabel,
+  triggerClassName,
   title,
   open: openProp,
   onOpenChange,
@@ -238,8 +241,14 @@ export function AddProductDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="mt-1 w-full">
-          <Plus className="mr-1 h-3.5 w-3.5" />
+        <Button
+          variant="outline"
+          className={
+            triggerClassName ??
+            "h-10 w-full gap-1.5 rounded-xl text-[14px] lg:h-9 lg:text-[13px]"
+          }
+        >
+          <Plus className="h-4 w-4" />
           {triggerLabel ?? "Adicionar produto"}
         </Button>
       </DialogTrigger>

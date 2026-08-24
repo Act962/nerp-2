@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { CatalogCard } from "./components/catalog-card";
 import {
   usePromotionalCatalogs,
+  useCatalogThumbnails,
   useCreateCatalog,
   useDuplicateCatalog,
   useCatalogTemplates,
@@ -28,6 +29,9 @@ export function CatalogList() {
   const [templateId, setTemplateId] = useState<string | null>(null);
 
   const { data: catalogs, isLoading } = usePromotionalCatalogs();
+  // Miniaturas em query separada — não bloqueiam a grade (aparecem depois).
+  const { data: thumbs } = useCatalogThumbnails();
+  const thumbMap = new Map((thumbs ?? []).map((t) => [t.id, t.thumbnail]));
   const { data: templatesData } = useCatalogTemplates();
   // "+ Novo catálogo" pode partir de qualquer padrão: da organização + do sistema.
   const templates = templatesData
@@ -95,7 +99,7 @@ export function CatalogList() {
               key={catalog.id}
               id={catalog.id}
               name={catalog.name}
-              thumbnail={catalog.thumbnail}
+              thumbnail={thumbMap.get(catalog.id) ?? null}
               updatedAt={catalog.updatedAt}
               createdAt={catalog.createdAt}
               createdBy={catalog.createdBy}

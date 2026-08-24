@@ -373,6 +373,8 @@ export type CardLayoutElement = {
   fill?: string;
   fontFrac?: number;
   fontWeight?: number;
+  // Tipografia (família da fonte). Ausente = Inter (padrão). Valores em TEXT_FONTS.
+  fontFamily?: string;
   align?: "left" | "center" | "right";
   // Raio dos cantos como FRAÇÃO da altura do card (px uniforme; não distorce
   // ao esticar). Vale para formas e para a caixa de texto.
@@ -440,6 +442,9 @@ export type CatalogConfig = {
   // itens por página = gridCols × gridRows.
   gridCols: number;
   gridRows: number;
+  // Centraliza a ÚLTIMA linha incompleta da grade (ex.: 8 produtos em 3 colunas
+  // → os 2 últimos centralizados). Ausente = ligado. false = alinha à esquerda.
+  centerLastRow?: boolean;
   // Retângulo do Grupo de produtos (Fase 5, estilo Canva). Quando definido, a
   // grade é posicionada absolutamente nessas coords (mover/redimensionar o grupo
   // → os cards se ajustam). Ausente = fluxo padrão (ocupa a área de conteúdo).
@@ -600,6 +605,7 @@ export type CatalogPage = {
   layout: CatalogConfig["layout"];
   gridCols: number;
   gridRows: number;
+  centerLastRow?: boolean;
   productGroup?: LayerRect;
   productGroups?: ProductGroup[];
   productGroupScale?: number;
@@ -636,6 +642,7 @@ export const PER_PAGE_KEYS = [
   "layout",
   "gridCols",
   "gridRows",
+  "centerLastRow",
   "productGroup",
   "productGroups",
   "productGroupScale",

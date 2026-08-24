@@ -110,7 +110,7 @@ export function TextProperties({
 
       {/* Textos dinâmicos — resolvem um dado da entidade da página dinâmica. */}
       <div className="flex flex-col gap-1.5 rounded-md border p-2">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+        <p className="text-[13px] font-medium text-foreground">
           Texto dinâmico
         </p>
         {dynType ? (
@@ -143,9 +143,9 @@ export function TextProperties({
           para editá-lo. Arraste para mover; use os cantos para redimensionar.
         </p>
       ) : (
-        <div className="flex flex-col gap-4 rounded-lg border bg-muted/30 p-3">
+        <div className="flex flex-col gap-4 rounded-2xl border bg-card/40 p-4">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[13px] font-medium text-foreground">
               Texto selecionado
             </p>
             <Button
@@ -246,7 +246,7 @@ export function TextProperties({
                 type="color"
                 value={selected.color}
                 onChange={(e) => update({ color: e.target.value })}
-                className="h-7 w-9 cursor-pointer rounded border p-0"
+                className="h-8 w-9 cursor-pointer rounded-xl border p-0 shadow-sm"
               />
             </label>
           </div>
@@ -511,7 +511,7 @@ export function TextProperties({
                       type="color"
                       value={selected.boxFill ?? "#ffffff"}
                       onChange={(e) => update({ boxFill: e.target.value })}
-                      className="h-6 w-8 cursor-pointer rounded border p-0"
+                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                     />
                   </label>
                   <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -522,7 +522,7 @@ export function TextProperties({
                       onChange={(e) =>
                         update({ boxBorderColor: e.target.value })
                       }
-                      className="h-6 w-8 cursor-pointer rounded border p-0"
+                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                     />
                   </label>
                 </div>

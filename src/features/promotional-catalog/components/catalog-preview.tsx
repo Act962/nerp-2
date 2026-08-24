@@ -112,16 +112,23 @@ export function renderCard(
       ? `${config.cardBorderWidth}px solid ${config.cardBorderColor ?? "#111111"}`
       : undefined;
 
-  // Estilo da FOTO (aplicado no template E na variável "Foto" do card livre) —
-  // controlado pelos toggles de "IMAGEM" no painel Layout > Card.
+  // Estilo da FOTO (template E variável "Foto" do card livre). Por PADRÃO a foto
+  // fica LIMPA — sem fundo, contorno ou sombra — porque as imagens já vêm com o
+  // fundo removido (o box branco atrapalhava). Só aparece quando explicitamente
+  // ativado (`hideImage* === false`), preservando compatibilidade.
   const photoBox: CSSProperties = {
-    backgroundColor: config.hideImageBackground
-      ? undefined
-      : (config.imageBackgroundColor ?? config.cardColor),
-    border: config.hideImageBorder ? undefined : "1px solid rgba(0,0,0,0.12)",
-    boxShadow: config.hideImageShadow
-      ? undefined
-      : "0 1px 4px rgba(0,0,0,0.18)",
+    backgroundColor:
+      config.hideImageBackground === false
+        ? (config.imageBackgroundColor ?? config.cardColor)
+        : undefined,
+    border:
+      config.hideImageBorder === false
+        ? "1px solid rgba(0,0,0,0.12)"
+        : undefined,
+    boxShadow:
+      config.hideImageShadow === false
+        ? "0 1px 4px rgba(0,0,0,0.18)"
+        : undefined,
   };
 
   // Card livre (editor de variáveis + formas): quando há elementos, desenha o
@@ -293,6 +300,39 @@ const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
   story: 1920,
   portrait: 1440,
 };
+
+// Renderiza os cards num grid, CENTRALIZANDO a última linha incompleta quando
+// `config.centerLastRow` está ligado (padrão). Ex.: 8 produtos em 3 colunas →
+// os 2 últimos ficam centralizados (largura de coluna e gap iguais aos de cima).
+// Só centraliza a sobra quando há mais de uma linha (tail incompleto).
+function renderGridChildren(
+  products: CatalogProduct[],
+  cols: number,
+  config: CatalogConfig,
+  thumbSrcs: Record<string, string>,
+) {
+  const center = config.centerLastRow !== false;
+  const rem = products.length % cols;
+  const hasTail = center && cols > 1 && rem > 0 && products.length > cols;
+  if (!hasTail) return products.map((p) => renderCard(p, config, thumbSrcs));
+  const full = products.length - rem;
+  const colW = `calc((100% - ${(cols - 1) * 16}px) / ${cols})`;
+  return [
+    ...products.slice(0, full).map((p) => renderCard(p, config, thumbSrcs)),
+    <div
+      key="__last-row-centered"
+      style={{
+        gridColumn: "1 / -1",
+        display: "grid",
+        gap: 16,
+        gridTemplateColumns: `repeat(${rem}, ${colW})`,
+        justifyContent: "center",
+      }}
+    >
+      {products.slice(full).map((p) => renderCard(p, config, thumbSrcs))}
+    </div>,
+  ];
+}
 
 export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
   (
@@ -620,28 +660,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                         gridAutoRows: "minmax(min-content, 1fr)",
                       }}
                     >
-                      {slice.map((p, i) => {
-                        const loneLast =
-                          cols > 1 &&
-                          i === slice.length - 1 &&
-                          slice.length % cols === 1;
-                        const card = renderCard(p, config, thumbSrcs);
-                        return loneLast ? (
-                          <div
-                            key={p.id}
-                            className="grid"
-                            style={{
-                              gridColumn: "1 / -1",
-                              justifySelf: "center",
-                              width: `calc((100% - ${(cols - 1) * 16}px) / ${cols})`,
-                            }}
-                          >
-                            {card}
-                          </div>
-                        ) : (
-                          card
-                        );
-                      })}
+                      {renderGridChildren(slice, cols, config, thumbSrcs)}
                     </div>
                   );
                 });
@@ -736,30 +755,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                       gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                     }}
                   >
-                    {products.map((p, i) => {
-                      // Item sozinho na última linha → centralizado (ocupa a
-                      // linha inteira, mas com a largura de uma coluna).
-                      const loneLast =
-                        cols > 1 &&
-                        i === products.length - 1 &&
-                        products.length % cols === 1;
-                      const card = renderCard(p, config, thumbSrcs);
-                      return loneLast ? (
-                        <div
-                          key={p.id}
-                          className="grid"
-                          style={{
-                            gridColumn: "1 / -1",
-                            justifySelf: "center",
-                            width: `calc((100% - ${(cols - 1) * 16}px) / ${cols})`,
-                          }}
-                        >
-                          {card}
-                        </div>
-                      ) : (
-                        card
-                      );
-                    })}
+                    {renderGridChildren(products, cols, config, thumbSrcs)}
                   </div>
                 );
               })()

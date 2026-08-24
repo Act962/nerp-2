@@ -148,6 +148,7 @@ export function CardFreeLayout({
               color: el.color,
               fontSize,
               fontWeight: el.fontWeight,
+              fontFamily: el.fontFamily,
               lineHeight: 1.05,
               display: "flex",
               alignItems: "center",

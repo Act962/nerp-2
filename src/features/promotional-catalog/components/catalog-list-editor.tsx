@@ -65,7 +65,7 @@ import type {
   CatalogProduct,
 } from "../types";
 import { resolveFolders, virtualProductsFromList } from "../types";
-import { ProductNameSearch } from "./product-name-search";
+import { ProductNameSearch, type PickedProduct } from "./product-name-search";
 import { ProductPhotoButton } from "./config-panel";
 import { CatalogListWizard, type WizardResult } from "./catalog-list-wizard";
 import {
@@ -479,6 +479,45 @@ export function CatalogListEditor({
       items.map((it) => (it.id === id ? { ...it, ...patch } : it)),
       true,
     );
+  // Um produto se repete por cliente/página; o NOME é propriedade do produto, não
+  // da linha. Renomear/vincular sincroniza TODAS as páginas do mesmo produto
+  // (mesmo productId; ou, se avulso, mesmo nome atual).
+  const sameProductAs = (ref: CatalogListItem) => (x: CatalogListItem) =>
+    ref.productId
+      ? x.productId === ref.productId
+      : x.productName === ref.productName;
+  const renameProduct = (id: string, name: string) => {
+    const ref = items.find((i) => i.id === id);
+    if (!ref) return;
+    const same = sameProductAs(ref);
+    setItems(
+      items.map((x) => (same(x) ? { ...x, productName: name } : x)),
+      true,
+    );
+  };
+  const pickProductForRow = (id: string, p: PickedProduct) => {
+    const ref = items.find((i) => i.id === id);
+    if (!ref) return;
+    const same = sameProductAs(ref);
+    setItems(
+      items.map((x) => {
+        if (!same(x)) return x;
+        const next: CatalogListItem = {
+          ...x,
+          productName: p.name,
+          productId: p.id,
+          thumbnail: p.thumbnail,
+        };
+        // Preço/departamento variam por loja — só preenche na linha editada.
+        if (x.id === id) {
+          if (x.normalPrice == null) next.normalPrice = p.salePrice;
+          if (!x.department && p.categoryName) next.department = p.categoryName;
+        }
+        return next;
+      }),
+      true,
+    );
+  };
   const removeItem = (id: string) =>
     setItems(
       items.filter((it) => it.id !== id),
@@ -618,7 +657,7 @@ export function CatalogListEditor({
   // Wizard ocupa a área toda quando há linhas recém-importadas.
   if (wizardRows) {
     return (
-      <div className="flex h-full flex-col">
+      <div className="promo-panel flex h-full flex-col">
         <input {...getInputProps()} />
         <CatalogListWizard
           rows={wizardRows}
@@ -632,7 +671,7 @@ export function CatalogListEditor({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="promo-panel flex h-full flex-col">
       <input {...getInputProps()} />
 
       {/* "Editar produto" da linha (montado só p/ a linha em edição; o gatilho
@@ -952,7 +991,7 @@ export function CatalogListEditor({
                       <TableRow className="bg-muted/40 hover:bg-muted/40">
                         <TableCell
                           colSpan={dividerColSpan}
-                          className="py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
+                          className="py-1 text-[13px] font-medium text-foreground"
                         >
                           {groupNameOf(row.id) || "Sem grupo"}
                         </TableCell>
@@ -1031,22 +1070,8 @@ export function CatalogListEditor({
                           <div className="flex items-center gap-2">
                             <ProductNameSearch
                               value={it.productName}
-                              onChange={(name) =>
-                                updateItem(it.id, { productName: name })
-                              }
-                              onPick={(p) =>
-                                updateItem(it.id, {
-                                  productName: p.name,
-                                  productId: p.id,
-                                  thumbnail: p.thumbnail,
-                                  ...(it.normalPrice == null
-                                    ? { normalPrice: p.salePrice }
-                                    : {}),
-                                  ...(!it.department && p.categoryName
-                                    ? { department: p.categoryName }
-                                    : {}),
-                                })
-                              }
+                              onChange={(name) => renameProduct(it.id, name)}
+                              onPick={(p) => pickProductForRow(it.id, p)}
                               className="h-8 flex-1"
                             />
                             <span
