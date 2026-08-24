@@ -7,8 +7,18 @@ cmds = ["pnpm install --frozen-lockfile"]
 # `db:deploy` é um passo separado de propósito: o `build` do turbo é cacheável,
 # e uma build restaurada do cache pularia a migration silenciosamente. Aplicar
 # aqui garante que o schema sobe em todo deploy.
+#
+# O build é FILTRADO no app que este deploy serve. `pnpm build` (turbo sem
+# filtro) constrói todo workspace com script de `build` — hoje isso arrasta o
+# `@nerp/desktop` (bundle Vite do Tauri), que o servidor não usa: minutos de
+# build morto em cada publicação. O `start` já servia só o web, então o build
+# largo nunca teve efeito além do custo.
+#
+# É também o ponto de extensão para um segundo app Next: cada deploy aponta seu
+# `--filter`, e só UM deles mantém o `db:deploy` (dois deploys concorrentes
+# migrando o mesmo banco correm um contra o outro).
 [phases.build]
-cmds = ["pnpm db:deploy", "pnpm build"]
+cmds = ["pnpm db:deploy", "pnpm turbo build --filter=@nerp/web"]
 
 [start]
 cmd = "pnpm start"
