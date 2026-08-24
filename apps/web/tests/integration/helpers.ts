@@ -1,5 +1,6 @@
 import type { Organization, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { DEFAULT_DEVICE_SCOPES } from "@/lib/device-scopes";
 
 /**
  * Contexto S2S aceito por `requireAuthMiddleware` e `requireOrgMiddleware`.
@@ -25,19 +26,40 @@ export function s2sContext(
 /**
  * Contexto de dispositivo desktop — o principal que `verifyDeviceAuth` injeta
  * na rota. Usa o ramo `isDevice` de `requireAuthMiddleware`/`requireOrgMiddleware`.
+ *
+ * O default é o escopo de um terminal real (`DEFAULT_DEVICE_SCOPES`); passe
+ * uma lista menor para exercitar a negativa por escopo.
  */
 export function deviceContext(
   user: User,
   org: Organization,
-  scopes: string[] = [],
+  scopes: readonly string[] = DEFAULT_DEVICE_SCOPES,
 ) {
   return {
     headers: new Headers(),
     isDevice: true as const,
     deviceUser: user,
     deviceOrg: org,
-    deviceScopes: scopes,
+    deviceScopes: [...scopes],
   };
+}
+
+/**
+ * Opções completas de `call()` para um device: contexto + `path`.
+ *
+ * O `path` importa: a autorização do terminal é por procedure
+ * (`device-scopes.ts`) e é dele que o middleware descobre qual está sendo
+ * chamada. Na rota HTTP e no `createRouterClient` ele vem de graça; num
+ * `call()` direto, quem chama informa — então o teste passa pelo MESMO guard
+ * que o request real.
+ */
+export function deviceOptions(
+  user: User,
+  org: Organization,
+  path: readonly string[],
+  scopes?: readonly string[],
+) {
+  return { context: deviceContext(user, org, scopes), path };
 }
 
 let counter = 0;

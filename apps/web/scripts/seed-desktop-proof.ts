@@ -8,6 +8,7 @@
  * Uso: DATABASE_URL=postgres://...5433 pnpm --filter @nerp/web exec tsx scripts/seed-desktop-proof.ts
  */
 import prisma from "@/lib/db";
+import { DEFAULT_DEVICE_SCOPES } from "@/lib/device-scopes";
 import { generateDeviceToken, hashDeviceToken } from "@/lib/device-token";
 
 async function main() {
@@ -48,7 +49,7 @@ async function main() {
       userId: user.id,
       name: "Caixa Prova",
       platform: "windows",
-      scopes: [],
+      scopes: DEFAULT_DEVICE_SCOPES,
       tokenHash: hashDeviceToken(token),
     },
   });

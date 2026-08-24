@@ -4,7 +4,7 @@ import { openCaixaFromDevice } from "@/app/router/caixa/open-from-device";
 import { createSaleFromDevice } from "@/app/router/sales/create-from-device";
 import type { Organization, Product, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
-import { createOrg, createUser, deviceContext, resetDb } from "./helpers";
+import { createOrg, createUser, deviceOptions, resetDb } from "./helpers";
 
 const SESSION = "sess-A";
 
@@ -60,7 +60,7 @@ describe("sales.createFromDevice (Fase 3 — replay offline)", () => {
     await call(
       openCaixaFromDevice,
       { operationId: SESSION, openingBalance: 0, registerName: "Caixa Teste" },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["caixa", "openFromDevice"]),
     );
   });
 
@@ -70,9 +70,7 @@ describe("sales.createFromDevice (Fase 3 — replay offline)", () => {
     const result = await call(
       createSaleFromDevice,
       saleInput(productA, "op-1"),
-      {
-        context: deviceContext(userA, orgA),
-      },
+      deviceOptions(userA, orgA, ["sales", "createFromDevice"]),
     );
 
     expect(result.duplicate).toBe(false);
@@ -88,9 +86,7 @@ describe("sales.createFromDevice (Fase 3 — replay offline)", () => {
     const replay = await call(
       createSaleFromDevice,
       saleInput(productA, "op-1"),
-      {
-        context: deviceContext(userA, orgA),
-      },
+      deviceOptions(userA, orgA, ["sales", "createFromDevice"]),
     );
     expect(replay.duplicate).toBe(true);
 
@@ -108,9 +104,11 @@ describe("sales.createFromDevice (Fase 3 — replay offline)", () => {
   it("não deixa vender produto de outra organização", async () => {
     const productB = await makeProduct(orgB, userA, 10);
     await expect(
-      call(createSaleFromDevice, saleInput(productB, "op-2"), {
-        context: deviceContext(userA, orgA),
-      }),
+      call(
+        createSaleFromDevice,
+        saleInput(productB, "op-2"),
+        deviceOptions(userA, orgA, ["sales", "createFromDevice"]),
+      ),
     ).rejects.toThrow();
   });
 });

@@ -1,6 +1,7 @@
 import { base } from "@/app/middlewares/base";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
+import { DEFAULT_DEVICE_SCOPES } from "@/lib/device-scopes";
 import { generateDeviceToken, hashDeviceToken } from "@/lib/device-token";
 import { z } from "zod";
 
@@ -13,7 +14,8 @@ import { z } from "zod";
  * (que já tem CORS), sem o inferno de cookie cross-subdomínio.
  *
  * O device nasce amarrado a UMA org (single-tenant por instalação): a informada
- * em `organizationId` (revalidada contra as do usuário) ou a primeira do usuário.
+ * em `organizationId` (revalidada contra as do usuário) ou a primeira do usuário,
+ * e com os escopos de PDV (`DEFAULT_DEVICE_SCOPES`) — nunca acesso ao router todo.
  */
 export const pairDeviceWithCredentials = base
   .input(
@@ -83,7 +85,7 @@ export const pairDeviceWithCredentials = base
         userId,
         name: input.name,
         platform: input.platform,
-        scopes: [],
+        scopes: DEFAULT_DEVICE_SCOPES,
         tokenHash: hashDeviceToken(token),
       },
       select: { id: true },

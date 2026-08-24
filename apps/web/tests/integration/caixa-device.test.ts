@@ -6,7 +6,7 @@ import { openCaixaFromDevice } from "@/app/router/caixa/open-from-device";
 import { createSaleFromDevice } from "@/app/router/sales/create-from-device";
 import type { Organization, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
-import { createOrg, createUser, deviceContext, resetDb } from "./helpers";
+import { createOrg, createUser, deviceOptions, resetDb } from "./helpers";
 
 describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
   let orgA: Organization;
@@ -14,7 +14,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
   let userA: User;
   let userB: User;
   let productId: string;
-  const ctxA = () => ({ context: deviceContext(userA, orgA) });
+  const asA = (...path: string[]) => deviceOptions(userA, orgA, path);
 
   beforeAll(async () => {
     await resetDb();
@@ -48,7 +48,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
     const open = await call(
       openCaixaFromDevice,
       { operationId: "s1", openingBalance: 100, registerName: "Caixa 01" },
-      ctxA(),
+      asA("caixa", "openFromDevice"),
     );
     expect(open.duplicate).toBe(false);
 
@@ -69,7 +69,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
           { productId, productName: "Café", quantity: 10, unitPrice: 10 },
         ],
       },
-      ctxA(),
+      asA("sales", "createFromDevice"),
     );
     expect(sale.duplicate).toBe(false);
 
@@ -84,7 +84,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
     const sangria = await call(
       cashMovementFromDevice,
       { operationId: "m1", clientSessionId: "s1", kind: "SANGRIA", amount: 30 },
-      ctxA(),
+      asA("caixa", "movementFromDevice"),
     );
     expect(sangria.duplicate).toBe(false);
 
@@ -93,7 +93,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
     const close = await call(
       closeCaixaFromDevice,
       { operationId: "c1", clientSessionId: "s1", countedBalance: 110 },
-      ctxA(),
+      asA("caixa", "closeFromDevice"),
     );
     expect(close.expectedBalance).toBe(110);
     expect(close.difference).toBe(0);
@@ -116,7 +116,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
     const reopen = await call(
       openCaixaFromDevice,
       { operationId: "s1", openingBalance: 100, registerName: "Caixa 01" },
-      ctxA(),
+      asA("caixa", "openFromDevice"),
     );
     expect(reopen.duplicate).toBe(true);
     expect(
@@ -126,7 +126,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
     const resangria = await call(
       cashMovementFromDevice,
       { operationId: "m1", clientSessionId: "s1", kind: "SANGRIA", amount: 30 },
-      ctxA(),
+      asA("caixa", "movementFromDevice"),
     );
     expect(resangria.duplicate).toBe(true);
     expect(
@@ -138,7 +138,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
     const reclose = await call(
       closeCaixaFromDevice,
       { operationId: "c1", clientSessionId: "s1", countedBalance: 999 },
-      ctxA(),
+      asA("caixa", "closeFromDevice"),
     );
     expect(reclose.duplicate).toBe(true);
     expect(reclose.expectedBalance).toBe(110);
@@ -154,7 +154,7 @@ describe("caixa por device (Corte 1 — sessão de caixa offline)", () => {
           kind: "SANGRIA",
           amount: 10,
         },
-        { context: deviceContext(userB, orgB) },
+        deviceOptions(userB, orgB, ["caixa", "movementFromDevice"]),
       ),
     ).rejects.toThrow();
   });

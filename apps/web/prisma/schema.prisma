@@ -1541,7 +1541,8 @@ model NasaIntegrationKey {
 // Terminal desktop pareado a uma organização. Autentica por token opaco
 // (bearer) — guardamos só o hash, nunca o token. Sem @relation de propósito:
 // mantém a migration self-contained (só CREATE TABLE, sem ALTER em User/Org);
-// a integridade org/user é validada em `device-auth-verify.ts`.
+// o vínculo org/user (Member) é revalidado a cada request em
+// `device-auth-verify.ts`.
 model Device {
   id             String    @id @default(cuid())
   organizationId String
@@ -1549,6 +1550,8 @@ model Device {
   name           String // "Caixa 01 — Loja Centro"
   platform       String // "windows" | "macos" | "linux"
   tokenHash      String    @unique // sha256 do token opaco
+  // O que o terminal pode chamar. Verificado (fail-closed) no
+  // `requireAuthMiddleware` — ver `src/lib/device-scopes.ts`. Vazio = nada.
   scopes         String[]
   lastSeenAt     DateTime?
   revokedAt      DateTime?

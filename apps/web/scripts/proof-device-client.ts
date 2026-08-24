@@ -6,10 +6,15 @@
  * um token de device como bearer. Valida CORS + ramo bearer + factory +
  * inferência de tipos de uma vez.
  *
+ * A procedure tem de estar na allowlist de `src/lib/device-scopes.ts` — um
+ * bearer de device NÃO alcança o router inteiro. Por isso `products.pull`, que
+ * é o que o desktop realmente chama, e não uma listagem comum do ERP.
+ *
  * Uso (contra staging ou local):
  *   NERP_API_URL=https://staging... NERP_DEVICE_TOKEN=<token> pnpm --filter @nerp/web exec tsx scripts/proof-device-client.ts
  *
- * O token sai de `device.pair` (chamado logado no ambiente-alvo).
+ * O token sai de `device.pair` (chamado logado no ambiente-alvo) ou do
+ * `scripts/seed-desktop-proof.ts`.
  */
 import { createNerpClient } from "@nerp/api";
 import type { RouterClient } from "@orpc/server";
@@ -29,10 +34,14 @@ async function main() {
     getToken: () => token,
   });
 
-  const result = await client.supplier.list({ page: 1, pageSize: 5 });
-  console.info(`OK — ${result.totalCount} fornecedores na org do device:`);
-  for (const supplier of result.suppliers) {
-    console.info(` - ${supplier.name}`);
+  const result = await client.products.pull({
+    updatedAt: null,
+    id: null,
+    limit: 5,
+  });
+  console.info(`OK — ${result.products.length} produtos na org do device:`);
+  for (const product of result.products) {
+    console.info(` - ${product.name}`);
   }
 }
 

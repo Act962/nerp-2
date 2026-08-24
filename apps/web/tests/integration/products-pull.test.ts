@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { pullProducts } from "@/app/router/products/pull";
 import type { Organization, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
-import { createOrg, createUser, deviceContext, resetDb } from "./helpers";
+import { createOrg, createUser, deviceOptions, resetDb } from "./helpers";
 
 describe("products.pull (Fase 2 — sync incremental)", () => {
   let orgA: Organization;
@@ -49,7 +49,7 @@ describe("products.pull (Fase 2 — sync incremental)", () => {
     const result = await call(
       pullProducts,
       { updatedAt: null, id: null, limit: 500 },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["products", "pull"]),
     );
     const names = result.products.map((p) => p.name).sort();
     expect(names).toEqual(["Produto A1", "Produto A2"]);
@@ -61,7 +61,7 @@ describe("products.pull (Fase 2 — sync incremental)", () => {
     const first = await call(
       pullProducts,
       { updatedAt: null, id: null, limit: 1 },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["products", "pull"]),
     );
     expect(first.products).toHaveLength(1);
     expect(first.hasMore).toBe(true);
@@ -73,7 +73,7 @@ describe("products.pull (Fase 2 — sync incremental)", () => {
         id: first.cursor?.id ?? null,
         limit: 1,
       },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["products", "pull"]),
     );
     expect(second.products).toHaveLength(1);
     expect(second.products[0].id).not.toBe(first.products[0].id);
@@ -83,7 +83,7 @@ describe("products.pull (Fase 2 — sync incremental)", () => {
     const full = await call(
       pullProducts,
       { updatedAt: null, id: null, limit: 500 },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["products", "pull"]),
     );
     // Nada mudou desde o watermark → vazio.
     const empty = await call(
@@ -93,7 +93,7 @@ describe("products.pull (Fase 2 — sync incremental)", () => {
         id: full.cursor?.id ?? null,
         limit: 500,
       },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["products", "pull"]),
     );
     expect(empty.products).toHaveLength(0);
 
@@ -113,7 +113,7 @@ describe("products.pull (Fase 2 — sync incremental)", () => {
         id: full.cursor?.id ?? null,
         limit: 500,
       },
-      { context: deviceContext(userA, orgA) },
+      deviceOptions(userA, orgA, ["products", "pull"]),
     );
     expect(incremental.products.map((p) => p.name)).toEqual([
       "Produto A1 (novo preço)",

@@ -1,9 +1,19 @@
 import { auth } from "@/lib/auth";
+import { deviceCanAccess } from "@/lib/device-scopes";
 import { base } from "./base";
 
 export const requireAuthMiddleware = base.middleware(
-  async ({ context, next, errors }) => {
+  async ({ context, next, errors, path }) => {
     if (context.isDevice && context.deviceUser && context.deviceOrg) {
+      // Autorização do terminal: fail-closed. O bearer de device só alcança as
+      // procedures listadas em `device-scopes.ts` e para as quais ele tem o
+      // escopo — sem isto, o token vale como o login inteiro do operador.
+      if (!deviceCanAccess(path, context.deviceScopes ?? [])) {
+        throw errors.FORBIDDEN({
+          message: "Este dispositivo não tem permissão para esta operação",
+        });
+      }
+
       const now = new Date();
       const session = {
         id: `device-${context.deviceOrg.id}`,

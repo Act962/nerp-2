@@ -316,7 +316,7 @@ Config correlata: `trustedOrigins` do Better Auth ganha as origins do desktop (p
 - [x] `apps/web/src/rpc-type.ts` + subpath export `@nerp/web/rpc-type`.
 
 ### Verificação
-- [x] `tests/integration/device-auth.test.ts` (4 testes: hash, resolução de principal, rejeição de inválido/revogado, isolamento de org).
+- [x] `tests/integration/device-auth.test.ts` (hash, resolução de principal, rejeição de inválido/revogado, escopos concedidos no pareamento, queda por perda de vínculo, negativa fail-closed fora do contrato, negativa por escopo faltando, isolamento de org) + `src/lib/device-scopes.test.ts` (5 casos).
 - [x] Script de prova `scripts/proof-device-client.ts` (compila; roda contra staging com `NERP_API_URL`+`NERP_DEVICE_TOKEN`). Bônus: teste unitário do `desktopCorsHeaders`.
 
 ---
@@ -328,9 +328,17 @@ Config correlata: `trustedOrigins` do Better Auth ganha as origins do desktop (p
 - **`@nerp/api` genérico sobre o router**, sem depender de `apps/web` — o desktop é quem junta tipo + factory. Grafo de dependência limpo.
 - **`Device` sem `@relation`** para Organization/User — mantém a migration self-contained e não toca os models existentes (FK a nível de app, via `verifyDeviceAuth`).
 - **Pareamento exige login interativo** e amarra o token à org ativa (single-tenant por instalação).
+- **Escopos granulares por área, verificados fail-closed** (`src/lib/device-scopes.ts`):
+  `pdv:sync` / `pdv:sales` / `pdv:caixa`. O `requireAuthMiddleware` só deixa o
+  bearer de device alcançar as procedures mapeadas — procedure nova nasce
+  inacessível ao terminal até ser listada de propósito. Sem isso o token valia
+  como o login inteiro do operador sobre as 55 entidades do router.
+- **Vínculo `Member` revalidado a cada request** em `verifyDeviceAuth`: tirar o
+  usuário da organização derruba os terminais dele junto, em vez de o token
+  sobreviver ao desligamento.
 
 ## 8. Em aberto
 
-- [ ] Escopos do device (`scopes`): começar com um único escopo "pdv" ou já granular? (afeta `device.pair`).
+- [x] Escopos do device (`scopes`): granular por área — ver § 7. `device.pair` valida contra `DEVICE_SCOPES` e usa `DEFAULT_DEVICE_SCOPES` como default; migration `20260823120000_device_scopes_backfill` reidrata os terminais pareados antes do guard.
 - [ ] Origin exata do Tauri por SO (v2 usa protocolo custom) → fixar os valores de `DESKTOP_ALLOWED_ORIGINS` na Fase 1.
-- [ ] Rotação/expiração do token de device (hoje: sem expiração, só revogação manual).
+- [ ] Rotação/expiração do token de device (hoje: sem expiração, só revogação manual — e ainda sem página no admin para acionar `device.revoke`).
