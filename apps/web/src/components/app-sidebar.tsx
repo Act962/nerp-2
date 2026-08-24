@@ -31,6 +31,7 @@ import {
   ChevronsUpDown,
   CreditCard,
   GalleryVerticalEnd,
+  FileText,
   Inbox,
   LayoutDashboard,
   Library,
@@ -47,6 +48,7 @@ import {
   ScanBarcode,
   Settings,
   ShoppingCart,
+  Smartphone,
   Store,
   Tag,
   Tags,
@@ -131,7 +133,12 @@ const navigation: NavItem[] = [
     children: [
       { name: "Produtos", href: "/produtos", icon: Package },
       { name: "Categorias", href: "/produtos/categorias", icon: Tag },
-      { name: "Tabelas de preço", href: "/precos", icon: Tags, permission: "precos" },
+      {
+        name: "Tabelas de preço",
+        href: "/precos",
+        icon: Tags,
+        permission: "precos",
+      },
     ],
   },
   {
@@ -272,6 +279,12 @@ const navigation: NavItem[] = [
         icon: Inbox,
         permission: "trade-interesses",
       },
+      {
+        name: "Contratos",
+        href: "/trade/contratos",
+        icon: FileText,
+        permission: "contratos",
+      },
       // Os dois apps de campo ficam juntos no fim da lista: é o par que o
       // gestor abre no celular, não algo que ele configura.
       {
@@ -370,6 +383,28 @@ const navigation: NavItem[] = [
     permission: "catalogo-promocional",
   },
   {
+    // Apps de campo abertos no celular (antes ficavam em Trade Marketing).
+    name: "Apps",
+    href: "/promotor",
+    icon: Smartphone,
+    children: [
+      {
+        name: "App Promotor",
+        href: "/promotor",
+        icon: Camera,
+        permission: "promotor",
+      },
+      {
+        // Mesmo motor do App Promotor + aba "Estou aqui" para registrar
+        // presença ao vivo — reusa `/vendedor` com `mode='vendedor'`.
+        name: "App Vendedor",
+        href: "/vendedor",
+        icon: MapPinned,
+        permission: "vendedor",
+      },
+    ],
+  },
+  {
     name: "Configurações",
     href: "/configuracoes",
     icon: Settings,
@@ -466,8 +501,16 @@ export function AppSidebar() {
       ? fallbackNavigation
       : visibleNavigation;
 
+  // Editores em tela cheia (PDV e o editor de catálogo) recolhem a sidebar por
+  // completo (offcanvas), sem deixar a régua de ícones — o usuário reabre pelo
+  // ícone de menu do próprio editor. `/catalogo-promocional/<id>` (com barra) é
+  // o editor; a lista `/catalogo-promocional` mantém a sidebar normal.
+  const fullscreenEditor =
+    pathname === "/vendas/novo" ||
+    pathname.startsWith("/catalogo-promocional/");
+
   return (
-    <Sidebar collapsible={pathname === "/vendas/novo" ? "offcanvas" : "icon"}>
+    <Sidebar collapsible={fullscreenEditor ? "offcanvas" : "icon"}>
       <SidebarHeader>
         <OrgMenu />
       </SidebarHeader>

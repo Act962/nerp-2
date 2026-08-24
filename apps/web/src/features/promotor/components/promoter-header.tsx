@@ -27,6 +27,7 @@ export type PromotorView =
   | "capture"
   | "route"
   | "photos"
+  | "catalogos"
   | "industries"
   | "clients";
 

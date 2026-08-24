@@ -18,6 +18,7 @@ export const updateCatalog = base
       id: z.string(),
       name: z.string().min(1).optional(),
       config: z.record(z.string(), z.unknown()).optional(),
+      thumbnail: z.string().optional(),
     }),
   )
   .output(
@@ -44,6 +45,7 @@ export const updateCatalog = base
       where: { id: input.id },
       data: {
         ...(input.name && { name: input.name }),
+        ...(input.thumbnail !== undefined && { thumbnail: input.thumbnail }),
         config: mergedConfig as object,
       },
     });

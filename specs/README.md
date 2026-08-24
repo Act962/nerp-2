@@ -33,6 +33,12 @@ feature depois de trabalhar em outra coisa.
 - [`dashboard.md`](./dashboard.md) — Dashboard pessoal + org + publico: 18 widgets, Oracle, alertas, pendencias
 - [`fornecedores.md`](./fornecedores.md) — CRUD de fornecedores (segurança, busca, refatoração)
 - [`importacao-fornecedores.md`](./importacao-fornecedores.md) — Importação via planilha (✅ entregue)
+- [`catalogo-editor-canva.md`](./catalogo-editor-canva.md) — Editor de Catálogo estilo Canva: 4 camadas, seleção/nós, painel de propriedades, grupo container · `feat/catalogo-paginas-canva` · 🟡 Fases 1-5 entregues
+- [`catalogo-precos-livre.md`](./catalogo-precos-livre.md) — Construtor "Padrão de estilos de preços" como canvas livre: variáveis (Preço/Nome/Foto/SKU/…) + formas com drag/resize, padrão reutilizável · `feat/catalogo-precos-livre` · 📋 Planejado
+- [`catalogo-multi-grupo.md`](./catalogo-multi-grupo.md) — Página com múltiplos grupos de produtos (duplicar grupo) + blocos de estilo individuais posicionáveis · `feat/catalogo-paginas-canva` · 🟡 Fases 1 e 3 entregues (Fase 2 = atribuição manual de produtos, pendente)
+- [`catalogo-filtros-oracle.md`](./catalogo-filtros-oracle.md) — "Adicionar produto": filtro por categoria (✅ entregue) + buscas Oracle (mais vendidos, vencimento, giro) · `feat/catalogo-filtros-oracle` · 🟡 categoria pronta; buscas Oracle planejadas
+- [`catalogo-link-publico.md`](./catalogo-link-publico.md) — Compartilhar: escolher página + link público do catálogo + WhatsApp com link · `feat/catalogo-paginas-canva` · 🟢 entregue (token no config, sem migration)
+- [`catalogo-lista.md`](./catalogo-lista.md) — Aba "Lista": planilha/PDF/imagem (IA Gemini) → catálogo com 1 página por cliente, preços por linha, imagens casadas por nome · `feat/catalogo-lista` · 🟢 MVP entregue (Fases 1-4, sem migration)
 
 ## ERP — Núcleo de varejo (roadmap)
 

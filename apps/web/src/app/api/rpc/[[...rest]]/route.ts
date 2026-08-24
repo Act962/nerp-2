@@ -5,6 +5,11 @@ import { verifyNasaS2S } from "@/lib/nasa-s2s-verify";
 import { verifyDeviceAuth } from "@/lib/device-auth-verify";
 import { desktopCorsHeaders } from "@/lib/desktop-cors";
 
+// Teto de duração da função (Vercel). Algumas rotas fazem trabalho longo, como a
+// extração de ofertas de um PDF por IA (~2-3 min). É um MÁXIMO — chamadas normais
+// terminam bem antes. Requer plano que permita esse limite.
+export const maxDuration = 300;
+
 const handler = new RPCHandler(router, {
   interceptors: [
     onError((error) => {

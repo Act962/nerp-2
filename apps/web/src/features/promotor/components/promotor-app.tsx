@@ -18,7 +18,9 @@ import {
   useMyPhotoCounts,
   usePromotorProfile,
 } from "../hooks/use-promotor";
+import { useUnseenCatalogCount } from "@/features/promotional-catalog/hooks/use-catalog";
 import { CaptureWizard } from "./capture-wizard";
+import { CatalogosTab } from "./catalogos-tab";
 import { GpsStatusBanner } from "./gps-status-banner";
 import { HereNowTab } from "./here-now-tab";
 import { MyClientsList, MyIndustriesList } from "./my-links-list";
@@ -72,6 +74,9 @@ export function PromotorApp({
     name: string;
   } | null>(null);
   const { counts } = useMyPhotoCounts();
+  // Badge de catálogos não vistos — só o vendedor tem a aba Catálogos.
+  const { data: unseenCatalogs } = useUnseenCatalogCount(isSeller);
+  const unseenCount = unseenCatalogs?.count ?? 0;
 
   if (loadingProfile) {
     return (
@@ -93,7 +98,18 @@ export function PromotorApp({
     );
   }
 
-  const isSubPage = view === "industries" || view === "clients";
+  // No vendedor, "Minhas fotos" sai do bottom-nav e vira sub-página (aberta pelo
+  // menu sanduíche). No promotor continua sendo aba.
+  const isSubPage =
+    view === "industries" ||
+    view === "clients" ||
+    (isSeller && view === "photos");
+  const subPageTitle =
+    view === "industries"
+      ? "Minhas indústrias"
+      : view === "clients"
+        ? "Meus clientes"
+        : "Minhas fotos";
 
   return (
     <div className="mx-auto w-full max-w-xl px-4 py-6">
@@ -129,37 +145,52 @@ export function PromotorApp({
               variant="ghost"
               size="icon"
               className="shrink-0"
-              onClick={() => setView("capture")}
+              onClick={() => setView(isSeller ? "here" : "capture")}
               aria-label="Voltar"
             >
               <ArrowLeft className="size-4" />
             </Button>
-            <h1 className="text-lg font-semibold">
-              {view === "industries" ? "Minhas indústrias" : "Meus clientes"}
-            </h1>
+            <h1 className="text-lg font-semibold">{subPageTitle}</h1>
           </div>
-          {view === "industries" ? <MyIndustriesList /> : <MyClientsList />}
+          {view === "industries" ? (
+            <MyIndustriesList />
+          ) : view === "clients" ? (
+            <MyClientsList />
+          ) : (
+            <MyPhotosList
+              key={photosStatus}
+              initialStatus={photosStatus}
+              onRetake={(target) => {
+                setRetake(target);
+                setView("capture");
+              }}
+            />
+          )}
         </div>
       ) : (
         <Tabs
           value={
-            view === "photos"
-              ? "mine"
-              : view === "route"
-                ? "route"
-                : view === "here"
-                  ? "here"
-                  : "capture"
+            view === "catalogos"
+              ? "catalogos"
+              : view === "photos"
+                ? "mine"
+                : view === "route"
+                  ? "route"
+                  : view === "here"
+                    ? "here"
+                    : "capture"
           }
           onValueChange={(value) =>
             setView(
-              value === "mine"
-                ? "photos"
-                : value === "route"
-                  ? "route"
-                  : value === "here"
-                    ? "here"
-                    : "capture",
+              value === "catalogos"
+                ? "catalogos"
+                : value === "mine"
+                  ? "photos"
+                  : value === "route"
+                    ? "route"
+                    : value === "here"
+                      ? "here"
+                      : "capture",
             )
           }
         >
@@ -175,9 +206,20 @@ export function PromotorApp({
             <TabsTrigger value="route" className="flex-1">
               Rota
             </TabsTrigger>
-            <TabsTrigger value="mine" className="flex-1">
-              Minhas fotos
-            </TabsTrigger>
+            {isSeller ? (
+              <TabsTrigger value="catalogos" className="flex-1 gap-1.5">
+                Catálogos
+                {unseenCount > 0 && (
+                  <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-4 text-primary-foreground">
+                    {unseenCount > 99 ? "99+" : unseenCount}
+                  </span>
+                )}
+              </TabsTrigger>
+            ) : (
+              <TabsTrigger value="mine" className="flex-1">
+                Minhas fotos
+              </TabsTrigger>
+            )}
           </TabsList>
           {isSeller && (
             <TabsContent value="here" className="mt-4">
@@ -221,16 +263,23 @@ export function PromotorApp({
               }}
             />
           </TabsContent>
-          <TabsContent value="mine" className="mt-4">
-            <MyPhotosList
-              key={photosStatus}
-              initialStatus={photosStatus}
-              onRetake={(target) => {
-                setRetake(target);
-                setView("capture");
-              }}
-            />
-          </TabsContent>
+          {!isSeller && (
+            <TabsContent value="mine" className="mt-4">
+              <MyPhotosList
+                key={photosStatus}
+                initialStatus={photosStatus}
+                onRetake={(target) => {
+                  setRetake(target);
+                  setView("capture");
+                }}
+              />
+            </TabsContent>
+          )}
+          {isSeller && (
+            <TabsContent value="catalogos" className="mt-4">
+              <CatalogosTab />
+            </TabsContent>
+          )}
         </Tabs>
       )}
 

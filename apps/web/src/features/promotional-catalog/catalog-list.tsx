@@ -13,28 +13,45 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { CatalogCard } from "./components/catalog-card";
 import {
   usePromotionalCatalogs,
+  useCatalogThumbnails,
   useCreateCatalog,
   useDuplicateCatalog,
+  useCatalogTemplates,
 } from "./hooks/use-catalog";
-
-import type { CatalogConfig } from "./types";
 
 export function CatalogList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newCatalogName, setNewCatalogName] = useState("");
+  const [templateId, setTemplateId] = useState<string | null>(null);
 
   const { data: catalogs, isLoading } = usePromotionalCatalogs();
+  // Miniaturas em query separada — não bloqueiam a grade (aparecem depois).
+  const { data: thumbs } = useCatalogThumbnails();
+  const thumbMap = new Map((thumbs ?? []).map((t) => [t.id, t.thumbnail]));
+  const { data: templatesData } = useCatalogTemplates();
+  // "+ Novo catálogo" pode partir de qualquer padrão: da organização + do sistema.
+  const templates = templatesData
+    ? [...templatesData.mine, ...templatesData.system]
+    : undefined;
   const createMutation = useCreateCatalog();
-  const { duplicate, isPending: isDuplicating } = useDuplicateCatalog();
+  const duplicateMutation = useDuplicateCatalog();
 
   const handleCreate = () => {
     if (!newCatalogName.trim()) return;
-    createMutation.mutate({ name: newCatalogName.trim() });
+    const template = templates?.find((t) => t.id === templateId);
+    createMutation.mutate({
+      name: newCatalogName.trim(),
+      ...(template
+        ? { config: template.config as Record<string, unknown> }
+        : {}),
+    });
     setCreateOpen(false);
     setNewCatalogName("");
+    setTemplateId(null);
   };
 
   return (
@@ -43,7 +60,8 @@ export function CatalogList() {
         <div>
           <h1 className="text-2xl font-bold">Catálogo Promocional</h1>
           <p className="text-muted-foreground text-sm">
-            Crie catálogos visuais de produtos em promoção para divulgar em redes sociais.
+            Crie catálogos visuais de produtos em promoção para divulgar em
+            redes sociais.
           </p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -53,9 +71,9 @@ export function CatalogList() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-40 rounded-lg" />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <Skeleton key={i} className="aspect-[3/4] rounded-lg" />
           ))}
         </div>
       ) : !catalogs || catalogs.length === 0 ? (
@@ -75,18 +93,18 @@ export function CatalogList() {
           </Button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
           {catalogs.map((catalog) => (
             <CatalogCard
               key={catalog.id}
               id={catalog.id}
               name={catalog.name}
+              thumbnail={thumbMap.get(catalog.id) ?? null}
               updatedAt={catalog.updatedAt}
-              onDuplicate={(id, name, config) => {
-                if (!isDuplicating) {
-                  duplicate(id, name, config as CatalogConfig);
-                }
-              }}
+              createdAt={catalog.createdAt}
+              createdBy={catalog.createdBy}
+              duplicating={duplicateMutation.isPending}
+              onDuplicate={() => duplicateMutation.mutate({ id: catalog.id })}
             />
           ))}
         </div>
@@ -108,6 +126,58 @@ export function CatalogList() {
               autoFocus
             />
           </div>
+
+          {templates && templates.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <Label>Começar de um padrão</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTemplateId(null)}
+                  className={cn(
+                    "flex aspect-[3/4] flex-col items-center justify-center gap-1 rounded-md border-2 bg-muted/40 p-2 text-xs text-muted-foreground transition-colors hover:bg-muted",
+                    templateId === null
+                      ? "border-primary"
+                      : "border-transparent",
+                  )}
+                >
+                  <Plus className="h-5 w-5" />
+                  Em branco
+                </button>
+                {templates.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setTemplateId(t.id)}
+                    className={cn(
+                      "flex aspect-[3/4] flex-col overflow-hidden rounded-md border-2 transition-colors",
+                      templateId === t.id
+                        ? "border-primary"
+                        : "border-transparent hover:border-muted-foreground/30",
+                    )}
+                  >
+                    <div className="flex-1 overflow-hidden bg-muted">
+                      {t.thumbnail ? (
+                        // biome-ignore lint/performance/noImgElement: miniatura local do padrão
+                        <img
+                          src={t.thumbnail}
+                          alt={t.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <Tag className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      )}
+                    </div>
+                    <span className="truncate px-1 py-0.5 text-[11px]">
+                      {t.name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Cancelar

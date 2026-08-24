@@ -1688,6 +1688,8 @@ model PromotionalCatalog {
   organizationId String
   name           String
   config         Json
+  // Miniatura (data URL JPEG) capturada no autosave — mostrada na lista.
+  thumbnail      String?  @db.Text
   createdById    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -1697,6 +1699,77 @@ model PromotionalCatalog {
 
   @@index([organizationId])
   @@map("promotional_catalogs")
+}
+
+// Etiqueta: PNG (logo, figura, adesivo) da biblioteca da organização, para
+// arrastar sobre o catálogo. `key` é a chave no R2. Escopo por org manual.
+model CatalogAsset {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  key            String
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@map("catalog_assets")
+}
+
+// Marca quando um usuário (ex.: vendedor) abriu um catálogo promocional. Usado
+// pelo badge "catálogos não vistos" no App Vendedor. Sem FK para evitar migração
+// pesada; linhas órfãs (catálogo apagado) são inofensivas para a contagem.
+model CatalogView {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  catalogId      String
+  viewedAt       DateTime @default(now())
+
+  @@unique([userId, catalogId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("catalog_views")
+}
+
+// Padrão de catálogo: preset de ESTILO (config sem os campos de produto),
+// reutilizável entre catálogos da organização. `thumbnail` guarda a miniatura
+// (data URL JPEG ~240px) capturada no momento de salvar. Sem relations
+// explícitas — o escopo por organizationId é manual, como no resto do app.
+model PromotionalCatalogTemplate {
+  // scope "USER" = padrão da organização (organizationId setado); "SYSTEM" =
+  // padrão universal do sistema (organizationId null; só super-usuário gerencia).
+  id             String   @id @default(cuid())
+  organizationId String?
+  scope          String   @default("USER")
+  name           String
+  config         Json
+  thumbnail      String?  @db.Text
+  createdById    String
+  createdByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("promotional_catalog_templates")
+}
+
+// Estilo de preço salvo (preset do "Padrão de estilos de preços"). `scope`
+// "USER" = "Meus estilos" da organização (organizationId preenchido); "SYSTEM"
+// = "Estilos do sistema" globais (organizationId NULL), que só o super usuário
+// pode criar. `style` é o objeto PriceStyle. Escopo por organizationId manual.
+model PromotionalPriceStyle {
+  id             String   @id @default(cuid())
+  organizationId String?
+  scope          String
+  name           String
+  style          Json
+  createdById    String
+  createdByEmail String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@map("promotional_price_styles")
 }
 
 // ============================================
@@ -1895,6 +1968,21 @@ enum NegotiationStatus {
   PROPOSTA
   FECHADA
   CANCELADA
+}
+
+// Ciclo de vida do CONTRATO (quando uma negociação FECHADA vira contrato ativo).
+enum ContractStatus {
+  ATIVO
+  EXPIRADO
+  CANCELADO
+  RENOVADO
+  SUSPENSO
+}
+
+// Periodicidade da cobrança do contrato (gera os recebíveis no Financeiro).
+enum ContractBilling {
+  MENSAL
+  UNICO
 }
 
 // Biblioteca Nacional de Espaços Comerciais — classificação do espaço p/
@@ -2760,6 +2848,11 @@ model SpaceNegotiation {
   amount            Decimal?          @db.Decimal(12, 2)
   status            NegotiationStatus @default(RASCUNHO)
   notes             String?           @db.Text
+  // Contrato: null = só negociação; setado quando vira contrato de 1a classe.
+  contractStatus      ContractStatus?
+  contractBilling     ContractBilling?
+  contractActivatedAt DateTime?
+  contractDocumentUrl String?
   createdById       String
   createdAt         DateTime          @default(now())
   updatedAt         DateTime          @updatedAt
@@ -2770,11 +2863,13 @@ model SpaceNegotiation {
   brand           Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
   negotiationType NegotiationType? @relation(fields: [negotiationTypeId], references: [id], onDelete: SetNull)
   createdBy       User             @relation("CreatedSpaceNegotiations", fields: [createdById], references: [id])
+  financeiroEntries PaymentEntry[] @relation("SpaceContractEntries")
 
   @@index([organizationId])
   @@index([mapObjectId, createdAt(sort: Desc)])
   @@index([organizationId, endDate])
   @@index([organizationId, negotiationTypeId])
+  @@index([mapObjectId, contractStatus])
   @@map("space_negotiations")
 }
 
@@ -4273,6 +4368,8 @@ model PaymentCategory {
   icon           String?
   parentId       String?               @map("parent_id")
   isActive       Boolean               @default(true) @map("is_active")
+  // DRO: operacional (padrão) x não-operacional/financeiro (juros, multas, etc.)
+  isOperational  Boolean               @default(true) @map("is_operational")
   createdAt      DateTime              @default(now()) @map("created_at")
   updatedAt      DateTime              @updatedAt @map("updated_at")
 
@@ -4341,6 +4438,8 @@ model PaymentEntry {
   costCenterId String? @map("cost_center_id")
   contactId    String? @map("contact_id")
   accountId    String? @map("account_id")
+  // Recebível gerado por um contrato de espaço (TradeGram).
+  spaceNegotiationId String? @map("space_negotiation_id")
 
   // Parcelamento
   installmentTotal   Int?    @map("installment_total")
@@ -4360,6 +4459,7 @@ model PaymentEntry {
   costCenter   PaymentCostCenter?  @relation(fields: [costCenterId], references: [id])
   contact      PaymentContact?     @relation(fields: [contactId], references: [id])
   account      PaymentBankAccount? @relation(fields: [accountId], references: [id])
+  spaceNegotiation SpaceNegotiation? @relation("SpaceContractEntries", fields: [spaceNegotiationId], references: [id], onDelete: SetNull)
   createdBy    User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
@@ -4369,6 +4469,7 @@ model PaymentEntry {
   @@index([contactId])
   @@index([categoryId])
   @@index([installmentGroupId])
+  @@index([spaceNegotiationId])
   @@map("payment_entries")
 }
 

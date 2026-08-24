@@ -29,7 +29,10 @@ export function middleware(request: NextRequest) {
     // Sem esta linha, abri-lo por um subdomínio de inquilino seria reescrito
     // para /<subdominio>/tradegram/... e daria 404 — e é justamente o link que
     // as pessoas compartilham.
-    pathname.startsWith("/tradegram")
+    pathname.startsWith("/tradegram") ||
+    // Link público do Catálogo Promocional (/promocao/{token}). Aberto/deslogado
+    // e compartilhável de qualquer domínio.
+    pathname.startsWith("/promocao")
   ) {
     return NextResponse.next();
   }

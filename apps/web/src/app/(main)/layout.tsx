@@ -5,6 +5,7 @@ import { requireAuth, currentOrganization } from "@/lib/auth-utils";
 import { ModalProvider } from "@/components/providers/modal-provider";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { AppHeader } from "@/components/app-header";
+import { ShellContent } from "@/components/shell-content";
 import { EmptyOrganization } from "@/components/empty-organization";
 
 export default async function Layout({
@@ -33,10 +34,10 @@ export default async function Layout({
             // o <main> ganha largura via flex-1 do SidebarProvider e o
             // conteúdo se expande junto. Páginas que precisam de largura
             // contida (forms longos) podem usar max-w-* localmente.
-            <div className="w-full space-y-6 p-4 md:p-6">
+            <ShellContent>
               <BreadcrumbNav />
               {children}
-            </div>
+            </ShellContent>
           ) : (
             <EmptyOrganization />
           )}

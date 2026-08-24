@@ -2,8 +2,9 @@
 
 > Como levar `feat/desktop` (monorepo + app desktop) para a `main`, que continua single-app e andou 27 commits em paralelo. O nó não é o desktop: é o **lift-and-shift de caminhos** (`src/` → `apps/web/src/`) colidindo com 104 arquivos que a `main` mexeu nesses mesmos caminhos.
 > Feature: raiz do repo · `apps/web` · `packages/*` · `nixpacks.toml` · Coolify/Vercel
-> Criado em: 2026-08-21 · Atualizado em: 2026-08-21
-> Status: 📋 Planejado — **não executar sem decisão explícita do dev**
+> Criado em: 2026-08-21 · Atualizado em: 2026-08-24
+> Status: 🟡 Em execução — merge resolvido e validado em `chore/integracao-monorepo`.
+> O PR para a `main` continua sendo decisão **exclusiva e explícita** do dev.
 
 ---
 
@@ -34,6 +35,90 @@ espaço), financeiro (DRE/DRO).
 **49 arquivos foram tocados nos dois lados** (lista completa em § Superfície de
 conflito). Nenhum deles é do desktop — são todos do `apps/web`, o que confirma
 que o desktop em si é aditivo e o conflito é do *rebase de layout*.
+
+---
+
+## Execucao — 2026-08-24
+
+Branch: `chore/integracao-monorepo` (a partir de `feat/desktop`), merge de
+`origin/main` **não commitado** — aguarda revisão do dev.
+
+Na remedição do dia a `main` estava em **39 commits / 163 arquivos** (o snapshot
+de 21/08 dizia 27/104) e as colisões subiram de 49 para **56**.
+
+O merge saiu **muito mais barato que o previsto**: com
+`merge.renameLimit=40000`, a detecção de renome de diretório do `ort` casou
+`src/` → `apps/web/src/` sozinha. Dos 78 conflitos:
+
+| tipo | qtd | resolução |
+|---|---|---|
+| `UA` — arquivo novo da `main` já reposicionado | 74 | `git add` (o git acertou o destino) |
+| `UU` — conteúdo | 3 | `db.ts`, `package.json`, `pnpm-lock.yaml` |
+| `DU` — renome não detectado | 1 | `api/rpc/route.ts`, 3-way via `git merge-file` |
+
+Os outros ~53 arquivos colididos auto-mesclaram. **Só 7 tiveram mudança dos dois
+lados**; o resto ficou byte-a-byte igual à `main`.
+
+⚠️ **O que o `ort` NÃO pegou** (e precisou de `git mv` manual): 13 arquivos da
+`main` em diretórios *novos*, largados no caminho antigo — as 8 migrations em
+`prisma/migrations/`, `features/contracts/**`, `trade/contratos/page.tsx` e
+`promocao/[shareToken]/page.tsx`. Um merge dado como "resolvido" sem conferir a
+raiz teria subido sem as migrations da `main`.
+
+### Decisões desta execução
+
+- `SCHEMA_VERSION` → **`v67-integracao-monorepo`** (main estava em `v66`, não `v64`).
+- `20260819120000_caixa_client_ids` → **`20260824120000_caixa_client_ids`**.
+  As **duas** migrations da `main` que também compartilham o prefixo
+  `20260819120000` **ficam como estão**: são disjuntas (tabelas diferentes),
+  idempotentes (`IF NOT EXISTS`) e já aplicadas em produção — renomeá-las
+  quebraria o `_prisma_migrations` da prod.
+- `fflate`, `pdf-lib`, `pdfjs-dist` — a `main` as adicionou no `package.json` da
+  raiz; migradas à mão para `apps/web/package.json` (a raiz do monorepo não tem
+  `dependencies`). Sem isso o catálogo por PDF quebraria.
+- `turbo.json`: `OPENAI_*` no `globalEnv` — código novo da `main` lê
+  `OPENAI_API_KEY`/`OPENAI_VISION_MODEL`, e sem declarar o cache do build pode
+  restaurar uma build feita com chaves diferentes.
+- Os 13 `apply-*-migration.mjs` da raiz foram **apagados** (one-offs já aplicados,
+  sem referência no repo), junto com o `bash.exe.stackdump` (+ `*.stackdump` no
+  `.gitignore`).
+
+### Validação executada
+
+| passo | resultado |
+|---|---|
+| `pnpm install` + `--frozen-lockfile` | ✅ lockfile regenerado e em sync |
+| `turbo check-types` (7 workspaces) | ✅ packages, desktop e web |
+| `prisma migrate deploy` em **banco limpo** | ✅ **159 migrations**, ordem nova aplica do zero |
+| `test:integration` | ✅ 6 arquivos / 22 testes (inclui o de cross-tenant) |
+| `pnpm build` | ✅ 3 tasks, 8m41s — inclui `/trade/contratos` e `/promocao/[shareToken]` |
+| `test` (unit + component) | ✅ 6 arquivos / 26 testes |
+| `tsc --noEmit` em `apps/web` pós-build | ✅ 0 erros |
+
+> Não rodados: `test:e2e` (browsers do Playwright) e `tauri build` (toolchain
+> Rust) — a CI cobre o primeiro no PR.
+
+> O `check-types` do `@nerp/web` acusa 4 erros `TS2307` em
+> `@/assets/background-default-image.svg` **num worktree novo**: o
+> `next-env.d.ts` é gerado e gitignorado. Some depois do primeiro build — não é
+> regressão do merge.
+
+### Armadilha do `_prisma_migrations`
+
+Renomear a migration faz o Prisma vê-la como pendente em qualquer banco que já a
+aplicou com o nome antigo — e ela **falha** (`column "clientSessionId" already
+exists`). Aconteceu no `nerp-db-test`. Em **produção não acontece** (a `main`
+nunca teve essa migration). Nos bancos de dev, rodar antes de subir o merge:
+
+```sql
+UPDATE "_prisma_migrations"
+SET migration_name = '20260824120000_caixa_client_ids'
+WHERE migration_name = '20260819120000_caixa_client_ids';
+
+-- se uma tentativa já falhou, apague a linha morta:
+DELETE FROM "_prisma_migrations"
+WHERE migration_name = '20260824120000_caixa_client_ids' AND finished_at IS NULL;
+```
 
 ---
 
@@ -125,32 +210,32 @@ Passo a passo:
 
 ### 🔴 Crítico — resolver com atenção individual
 
-- [ ] **`prisma/schema.prisma`** — os dois lados só **adicionaram** (main +78 linhas: templates/assets/views de catálogo, contrato de espaço, categoria operacional; desktop +30/−4: `Device`, `clientOperationId`, IDs de caixa). Como são blocos disjuntos, o merge tende a ser mecânico — mas revise linha a linha: `−4` do desktop indica **alteração** de modelo existente, não só adição.
-- [ ] **Colisão de timestamp de migration** — **três** migrations compartilham o prefixo `20260819120000`:
+- [x] **`prisma/schema.prisma`** — os dois lados só **adicionaram** (main +78 linhas: templates/assets/views de catálogo, contrato de espaço, categoria operacional; desktop +30/−4: `Device`, `clientOperationId`, IDs de caixa). Como são blocos disjuntos, o merge tende a ser mecânico — mas revise linha a linha: `−4` do desktop indica **alteração** de modelo existente, não só adição.
+- [x] **Colisão de timestamp de migration** — **três** migrations compartilham o prefixo `20260819120000`:
   - `20260819120000_payment_category_operational` (main)
   - `20260819120000_promotional_catalog_templates` (main)
   - `20260819120000_caixa_client_ids` (desktop)
 
   O Prisma ordena migrations pelo **nome do diretório**; prefixos idênticos deixam a ordem ambígua e dependente de desempate lexicográfico do sufixo. Como são hand-authored (§ CLAUDE.md), **renomeie a do desktop** para um timestamp posterior (ex.: `20260821120000_caixa_client_ids`) antes do merge. Renomear migration **já aplicada** em qualquer banco exige acertar a tabela `_prisma_migrations` — decidir isso *antes* de tocar em produção.
-- [ ] **`src/lib/db.ts` — `SCHEMA_VERSION`** — main em `v64-catalog-views`, desktop em `v63-caixa-client-ids`. O merge deve resultar em um **`v65-…` novo** que cubra os dois conjuntos; herdar qualquer um dos dois deixa o cache do Prisma stale em dev (a causa nº 1 de "500 impossível", § Gotchas).
-- [ ] **`package.json` (raiz)** — conflito **semântico**, não textual: a `main` é `erp-limas` com `prisma generate && prisma migrate deploy && next build` dentro do `build`; o monorepo é `nerp` delegando ao `turbo`, com a migration fora do build de propósito (build cacheável pularia a migration em silêncio). **Vence a versão do monorepo** — e isso exige o passo de deploy abaixo.
+- [x] **`src/lib/db.ts` — `SCHEMA_VERSION`** — main em `v64-catalog-views`, desktop em `v63-caixa-client-ids`. O merge deve resultar em um **`v65-…` novo** que cubra os dois conjuntos; herdar qualquer um dos dois deixa o cache do Prisma stale em dev (a causa nº 1 de "500 impossível", § Gotchas).
+- [x] **`package.json` (raiz)** — conflito **semântico**, não textual: a `main` é `erp-limas` com `prisma generate && prisma migrate deploy && next build` dentro do `build`; o monorepo é `nerp` delegando ao `turbo`, com a migration fora do build de propósito (build cacheável pularia a migration em silêncio). **Vence a versão do monorepo** — e isso exige o passo de deploy abaixo.
 - [ ] **Deploy: `nixpacks.toml` × build da `main`** — a `main` não tem `nixpacks.toml` e depende da migration embutida no `build`. Ao migrar, o Coolify precisa de **Base Directory `/`**, start command `pnpm start` e o `pnpm db:deploy` do `nixpacks.toml` rodando antes do build. Sem isso, **o primeiro deploy do monorepo sobe sem aplicar migration**.
-- [ ] **`pnpm-lock.yaml`** — não resolver à mão. Descartar e regerar com `pnpm install` após unificar todos os `package.json`.
+- [x] **`pnpm-lock.yaml`** — não resolver à mão. Descartar e regerar com `pnpm install` após unificar todos os `package.json`.
 
 ### 🟠 Funcional — conflitos reais de conteúdo (revisar cada um)
 
-- [ ] **`src/lib/permissions.ts`** — os dois lados provavelmente adicionaram chaves em `PAGE_PERMISSIONS`. União simples, mas confira que nenhuma página nova ficou sem chave (§ Auth & permissions).
-- [ ] **`src/components/app-sidebar.tsx`**, `app-header.tsx`, `breadcrumb-nav.tsx` — entradas de menu das features novas da `main`.
-- [ ] **`src/app/(main)/layout.tsx`** — atenção ao `import "@/lib/orpc.server"` da linha 1: removê-lo quebra toda chamada oRPC server-side em silêncio.
-- [ ] **Catálogo promocional** (16 arquivos: `router/promotional-catalog/*`, `features/promotional-catalog/**`, incl. `cards/*`) — área de maior atividade da `main`. Em quase todos, **a `main` vence** (o desktop só os tocou pelo movimento de caminho).
-- [ ] **Store-map** (8 arquivos: `components/*`, `engine/scene-store.ts`, `renderers/konva/*`) — idem.
-- [ ] **Financeiro** (4), **TradeGram/space-negotiation** (4), **products/planogram** (3), **promotor** (2) — idem.
+- [x] **`src/lib/permissions.ts`** — os dois lados provavelmente adicionaram chaves em `PAGE_PERMISSIONS`. União simples, mas confira que nenhuma página nova ficou sem chave (§ Auth & permissions).
+- [x] **`src/components/app-sidebar.tsx`**, `app-header.tsx`, `breadcrumb-nav.tsx` — entradas de menu das features novas da `main`.
+- [x] **`src/app/(main)/layout.tsx`** — atenção ao `import "@/lib/orpc.server"` da linha 1: removê-lo quebra toda chamada oRPC server-side em silêncio.
+- [x] **Catálogo promocional** (16 arquivos: `router/promotional-catalog/*`, `features/promotional-catalog/**`, incl. `cards/*`) — área de maior atividade da `main`. Em quase todos, **a `main` vence** (o desktop só os tocou pelo movimento de caminho).
+- [x] **Store-map** (8 arquivos: `components/*`, `engine/scene-store.ts`, `renderers/konva/*`) — idem.
+- [x] **Financeiro** (4), **TradeGram/space-negotiation** (4), **products/planogram** (3), **promotor** (2) — idem.
 
 ### 🟡 Higiene
 
-- [ ] **Scripts `apply-*-migration.mjs` da raiz** — a `main` tem 13; o working tree atual já apaga 7 deles (mudança local não commitada). Decidir de uma vez: são one-offs já aplicados e devem sair na migração, ou viram `apps/web/scripts/`.
-- [ ] **`bash.exe.stackdump`** — lixo versionado na `main`; aproveitar para remover.
-- [ ] **Scripts untracked** (`apps/web/scripts/list-orgs.ts`, `load-upload-env.ts`, `move-orphan-images.ts`, `reset-local-password.ts`, `upload-product-images.ts`) — commitar ou descartar antes de começar; não deixar boiando no meio de um merge grande.
+- [x] **Scripts `apply-*-migration.mjs` da raiz** — a `main` tem 13; o working tree atual já apaga 7 deles (mudança local não commitada). Decidir de uma vez: são one-offs já aplicados e devem sair na migração, ou viram `apps/web/scripts/`.
+- [x] **`bash.exe.stackdump`** — lixo versionado na `main`; aproveitar para remover.
+- [x] **Scripts untracked** (`apps/web/scripts/list-orgs.ts`, `load-upload-env.ts`, `move-orphan-images.ts`, `reset-local-password.ts`, `upload-product-images.ts`) — commitar ou descartar antes de começar; não deixar boiando no meio de um merge grande.
 - [ ] **`vercel.json`** — a `main` restringe deploy a `main`. Confirmar se continua válido no layout de monorepo (Root Directory do projeto na Vercel).
 - [ ] **Renormalização de EOL** — rodar `git add --renormalize .` num commit próprio **depois** do merge (pendência herdada do `turborepo.md`); fazer antes polui o diff do merge.
 

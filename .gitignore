@@ -64,3 +64,4 @@ dist
 # tauri (build nativo)
 apps/desktop/src-tauri/target
 apps/desktop/src-tauri/gen
+*.stackdump

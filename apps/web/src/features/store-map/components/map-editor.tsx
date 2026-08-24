@@ -89,7 +89,7 @@ export function MapEditor({ floorPlanId }: MapEditorProps) {
             </>
           )}
         </div>
-        <aside className="flex w-72 shrink-0 flex-col border-l">
+        <aside className="flex w-[331px] shrink-0 flex-col border-l">
           <div className="min-h-0 flex-1 overflow-y-auto">
             <ObjectPropertiesPanel />
           </div>
