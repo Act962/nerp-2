@@ -58,12 +58,23 @@ export const DEFAULT_IMAGE_ADJUSTMENT: ImageAdjustment = {
 // no canvas de 1080 × pageH (mesmo espaço do preview), então independem do zoom.
 export type Overlay = {
   id: string;
-  assetKey: string; // chave R2 do PNG
+  assetKey: string; // chave R2 do PNG (vazio quando `shape` está presente)
   x: number;
   y: number;
   w: number;
   h: number;
   rotation: number; // graus
+  // FORMA vetorial (aba "Elementos", estilo Canva). Quando presente, o overlay
+  // é desenhado como forma (não imagem). `fill` = cor de preenchimento.
+  shape?:
+    | "rect"
+    | "rounded"
+    | "circle"
+    | "line"
+    | "triangle"
+    | "star"
+    | "frame";
+  fill?: string;
   // Propriedades de estilo (Fase 4). Ausentes = padrão (sem efeito).
   opacity?: number; // 0-100 (%); default 100
   radius?: number; // arredondamento de canto em px; default 0
@@ -634,6 +645,9 @@ export type CatalogPage = {
     refId?: string;
     auto?: boolean;
   };
+  // Validade da oferta DESTA página (ISO datetime-local). Após a data, a página
+  // é ocultada no link público. Cada página tem seu próprio prazo.
+  offerValidUntil?: string;
 };
 
 // Campos de aparência que passam a ser POR PÁGINA (sobrescrevem o global na
@@ -655,6 +669,7 @@ export const PER_PAGE_KEYS = [
   "texts",
   "styleBlocks",
   "dynamic",
+  "offerValidUntil",
 ] as const;
 
 // Deriva a página 1 a partir dos campos globais (migração de catálogos antigos).
@@ -677,6 +692,7 @@ export function firstPageFromConfig(config: CatalogConfig): CatalogPage {
     overlays: config.overlays ?? [],
     texts: config.texts ?? [],
     styleBlocks: config.styleBlocks ?? [],
+    offerValidUntil: config.offerValidUntil,
   };
 }
 
@@ -689,7 +705,7 @@ export function ensurePages(config: CatalogConfig): CatalogPage[] {
 
 // A oferta está vencida? (validade definida e já passou.)
 export function isOfferExpired(
-  config: CatalogConfig,
+  config: { offerValidUntil?: string },
   now: Date = new Date(),
 ): boolean {
   if (!config.offerValidUntil) return false;
@@ -864,7 +880,8 @@ export type CatalogList = {
   // Máx. de produtos por página (auto = maior pasta), editável.
   maxPerPage?: number;
   // Como dividir em pastas (cada pasta = uma página). Default "client".
-  groupBy?: "client" | "department" | "custom";
+  // "none" = sem agrupamento (uma única pasta com tudo).
+  groupBy?: "client" | "department" | "custom" | "none";
   // Nome exibido de cada pasta (chave do grupo → nome). Permite renomear a aba.
   folderNames?: Record<string, string>;
   // Nome da oferta (espelha o nome do catálogo).
@@ -876,6 +893,8 @@ export function itemFolderKey(
   item: CatalogListItem,
   groupBy: CatalogList["groupBy"],
 ): string {
+  // "none" = tudo numa única pasta (sem agrupamento).
+  if (groupBy === "none") return "";
   if (groupBy === "department")
     return item.department?.trim() || "Sem departamento";
   if (groupBy === "custom") return item.folder?.trim() || "Sem pasta";

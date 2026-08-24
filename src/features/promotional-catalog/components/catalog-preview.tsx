@@ -2,7 +2,7 @@
 
 import { forwardRef, useRef, useState, useEffect } from "react";
 import type { CSSProperties } from "react";
-import type { CatalogConfig, CatalogProduct } from "../types";
+import type { CatalogConfig, CatalogProduct, Overlay } from "../types";
 import { DEFAULT_PRICE_STYLE, TEXT_SIZE_CSS } from "../types";
 import { CardStandard } from "./cards/card-standard";
 import { CardCompact } from "./cards/card-compact";
@@ -53,6 +53,45 @@ interface CatalogPreviewProps {
   // Entidades resolvidas da PÁGINA DINÂMICA (loja/org/produto/usuário). Textos e
   // etiquetas com `binding` resolvem daqui no render. Ausente = sem dinâmicos.
   dynamicContext?: DynamicContext;
+}
+
+// Desenha uma FORMA (aba "Elementos") dentro do box do overlay. Preenche 100%
+// do box (a posição/rotação/opacidade ficam no wrapper). `frame` é transparente
+// e usa o contorno do wrapper como moldura.
+function renderOverlayShape(shape: NonNullable<Overlay["shape"]>, fill: string) {
+  const box = { width: "100%", height: "100%" } as const;
+  switch (shape) {
+    case "circle":
+      return (
+        <div style={{ ...box, background: fill, borderRadius: "50%" }} />
+      );
+    case "rounded":
+      return <div style={{ ...box, background: fill, borderRadius: "14%" }} />;
+    case "line":
+    case "rect":
+      return <div style={{ ...box, background: fill }} />;
+    case "frame":
+      return <div style={{ ...box, background: "transparent" }} />;
+    case "triangle":
+      return (
+        // biome-ignore lint/a11y/noSvgWithoutTitle: forma decorativa
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={box}>
+          <polygon points="50,2 98,98 2,98" fill={fill} />
+        </svg>
+      );
+    case "star":
+      return (
+        // biome-ignore lint/a11y/noSvgWithoutTitle: forma decorativa
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={box}>
+          <polygon
+            points="50,2 61,38 98,38 68,60 79,96 50,74 21,96 32,60 2,38 39,38"
+            fill={fill}
+          />
+        </svg>
+      );
+    default:
+      return <div style={{ ...box, background: fill }} />;
+  }
 }
 
 // Escolhe o canto inferior (esquerda/direita) com MENOS conteúdo por baixo para
@@ -876,12 +915,16 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                     pointerEvents: "none",
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={src}
-                    alt=""
-                    style={{ width: "100%", height: "100%", ...imgStyle }}
-                  />
+                  {ov.shape ? (
+                    renderOverlayShape(ov.shape, ov.fill ?? "#111111")
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={src}
+                      alt=""
+                      style={{ width: "100%", height: "100%", ...imgStyle }}
+                    />
+                  )}
                 </div>
               );
             })}

@@ -33,6 +33,12 @@ import {
   Image as ImageIcon,
   Loader2,
   Minus,
+  Square,
+  Squircle,
+  Circle,
+  Triangle,
+  Star,
+  Frame,
   Plus,
   Search,
   Wand2,
@@ -181,12 +187,24 @@ function styleToLayout(style: unknown): CardLayoutElement[] {
 
 // Miniatura de um estilo (etiqueta montada com o produto exemplo, 1:1). Fundo
 // CINZA para as etiquetas com áreas claras/transparentes ficarem visíveis.
-function PriceStyleThumb({ style }: { style: unknown }) {
+function PriceStyleThumb({
+  style,
+  aspect,
+}: {
+  style: unknown;
+  // Proporção largura/altura do card (mesma da célula na página). Assim a
+  // etiqueta aparece COMPLETA, sem o corte de um quadrado forçado.
+  aspect?: number;
+}) {
   return (
-    <div className="aspect-square w-full overflow-hidden rounded-md bg-muted shadow-sm ring-1 ring-border">
+    <div
+      className="w-full overflow-hidden rounded-md bg-muted shadow-sm ring-1 ring-border"
+      style={{ aspectRatio: aspect && aspect > 0 ? String(aspect) : "1 / 1" }}
+    >
       <CardFreeLayout
         product={SAMPLE_PRODUCT}
         elements={styleToLayout(style)}
+        aspectRatio={aspect && aspect > 0 ? String(aspect) : undefined}
       />
     </div>
   );
@@ -197,9 +215,13 @@ function PriceStyleThumb({ style }: { style: unknown }) {
 function PriceStylesLibrary({
   onApply,
   onAdd,
+  cardAspect,
 }: {
   onApply: (layout: CardLayoutElement[]) => void;
   onAdd: (layout: CardLayoutElement[]) => void;
+  // Proporção real do card na página — usada nos previews para a etiqueta
+  // aparecer COMPLETA (sem o corte de um quadrado forçado).
+  cardAspect?: number;
 }) {
   const { data, isLoading } = usePriceStyles();
   const deleteStyle = useDeletePriceStyle();
@@ -245,7 +267,7 @@ function PriceStylesLibrary({
                 setPreview({ name: s.name, layout: styleToLayout(s.style) })
               }
             >
-              <PriceStyleThumb style={s.style} />
+              <PriceStyleThumb style={s.style} aspect={cardAspect} />
               <span className="truncate border-t px-2 py-1 text-xs">
                 {s.name}
               </span>
@@ -330,11 +352,20 @@ function PriceStylesLibrary({
           <DialogTitle className="text-base">
             {preview?.name ?? "Estilo"}
           </DialogTitle>
-          <div className="mx-auto aspect-square w-full max-w-[300px] overflow-hidden rounded-lg border bg-muted shadow-sm">
+          <div
+            className="mx-auto w-full max-w-[300px] overflow-hidden rounded-lg border bg-muted shadow-sm"
+            style={{
+              aspectRatio:
+                cardAspect && cardAspect > 0 ? String(cardAspect) : "1 / 1",
+            }}
+          >
             {preview && (
               <CardFreeLayout
                 product={SAMPLE_PRODUCT}
                 elements={preview.layout}
+                aspectRatio={
+                  cardAspect && cardAspect > 0 ? String(cardAspect) : undefined
+                }
               />
             )}
           </div>
@@ -1376,6 +1407,12 @@ interface ConfigPanelProps {
     entry?: "photo" | "label";
     elementId?: string;
   } | null;
+  // Abre o editor de um produto (navega + reabre via nonce). Usado pelo clique
+  // na foto do diálogo "Adicionar produto".
+  onEditProductRequest?: (
+    id: string,
+    opts?: { entry?: "photo" | "label"; elementId?: string },
+  ) => void;
   // Sinal (contador) para abrir o diálogo "Adicionar produto" de fora — ex.: o
   // botão do estado de página vazia. Cada incremento abre o diálogo.
   addProductSignal?: number;
@@ -1429,6 +1466,7 @@ export function ConfigPanel({
   selection,
   onSelectionChange,
   editProductRequest,
+  onEditProductRequest,
   addProductSignal,
   onSaveCardLayout,
   onApplyStyleToAllPages,
@@ -1669,6 +1707,42 @@ export function ConfigPanel({
     });
   };
 
+  // Adiciona uma FORMA (aba "Elementos") no centro da página e a seleciona.
+  // `overlays` é por-página, então cai na página atual.
+  const addShape = (shape: NonNullable<Overlay["shape"]>) => {
+    const isLine = shape === "line";
+    const isFrame = shape === "frame";
+    const w = isLine ? 420 : 320;
+    const h = isLine ? 14 : 320;
+    const ov: Overlay = {
+      id: crypto.randomUUID(),
+      assetKey: "",
+      shape,
+      fill: isFrame ? "transparent" : "#111111",
+      x: Math.round(540 - w / 2),
+      y: 380,
+      w,
+      h,
+      rotation: 0,
+      ...(isFrame ? { borderWidth: 8, borderColor: "#111111" } : {}),
+    };
+    onConfigChange({ overlays: [...overlays, ov] });
+    onSelectionChange?.({ kind: "element", id: ov.id });
+  };
+  const SHAPES: {
+    shape: NonNullable<Overlay["shape"]>;
+    label: string;
+    Icon: typeof Square;
+  }[] = [
+    { shape: "rect", label: "Retângulo", Icon: Square },
+    { shape: "rounded", label: "Arredondado", Icon: Squircle },
+    { shape: "circle", label: "Círculo", Icon: Circle },
+    { shape: "triangle", label: "Triângulo", Icon: Triangle },
+    { shape: "star", label: "Estrela", Icon: Star },
+    { shape: "line", label: "Linha", Icon: Minus },
+    { shape: "frame", label: "Moldura", Icon: Frame },
+  ];
+
   // Padrões (presets de estilo). O bloco "Salvar como padrão" fica na aba
   // Layout; escolher um padrão para iniciar um catálogo agora vive em
   // "+ Novo catálogo".
@@ -1792,7 +1866,7 @@ export function ConfigPanel({
           value="etiqueta"
           className="h-9 shrink-0 rounded-xl px-3.5 text-[14px] font-medium text-muted-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
         >
-          Figurinhas
+          Elementos
         </TabsTrigger>
         <TabsTrigger
           value="estilos"
@@ -1861,41 +1935,6 @@ export function ConfigPanel({
                 Story 9:16
               </Button>
             </div>
-          </div>
-
-          {/* Validade da oferta — sempre visível (sem retração) */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="catalog-validity">Validade da oferta</Label>
-              {config.offerValidUntil && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => onConfigChange({ offerValidUntil: undefined })}
-                >
-                  Limpar
-                </Button>
-              )}
-            </div>
-            <Input
-              id="catalog-validity"
-              type="datetime-local"
-              value={config.offerValidUntil ?? ""}
-              onChange={(e) =>
-                onConfigChange({
-                  offerValidUntil: e.target.value || undefined,
-                })
-              }
-            />
-            <p className="text-[11px] text-muted-foreground">
-              {config.offerValidUntil
-                ? isOfferExpired(config)
-                  ? "⚠️ Oferta vencida — o compartilhamento está bloqueado."
-                  : "Após esta data o catálogo não poderá ser compartilhado."
-                : "Sem prazo. Defina uma data/hora para expirar a oferta."}
-            </p>
           </div>
 
           {/* Marca d'água Órbita — canto inferior livre (auto) */}
@@ -2088,6 +2127,45 @@ export function ConfigPanel({
             </Select>
           </div>
 
+          {/* Validade da oferta DESTA página — só controla a expiração no link
+              público (a página some quando vence). Não aparece na arte. */}
+          <div className="flex flex-col gap-2 rounded-md border p-2.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="page-validity" className="text-[13px]">
+                Validade da oferta (desta página)
+              </Label>
+              {config.offerValidUntil && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => onConfigChange({ offerValidUntil: undefined })}
+                >
+                  Limpar
+                </Button>
+              )}
+            </div>
+            <Input
+              id="page-validity"
+              type="datetime-local"
+              className="h-9"
+              value={config.offerValidUntil ?? ""}
+              onChange={(e) =>
+                onConfigChange({
+                  offerValidUntil: e.target.value || undefined,
+                })
+              }
+            />
+            <p className="text-[11px] text-muted-foreground">
+              {config.offerValidUntil
+                ? isOfferExpired(config)
+                  ? "⚠️ Página vencida — fica oculta no link público."
+                  : "Após esta data, esta página some do link público."
+                : "Sem prazo. Defina uma data/hora para expirar esta página."}
+            </p>
+          </div>
+
           {/* Ações lado a lado: adicionar produto | adicionar grupo. */}
           <div className="grid grid-cols-2 gap-2">
             <AddProductDialog
@@ -2095,6 +2173,16 @@ export function ConfigPanel({
               onConfigChange={onConfigChange}
               open={addProductOpen}
               onOpenChange={setAddProductOpen}
+              onEditProduct={(id) => {
+                // Reusa o mecanismo robusto (nonce) — abre o editor mesmo com o
+                // produto recém-adicionado (evita corrida com a lista).
+                if (onEditProductRequest) onEditProductRequest(id, { entry: "photo" });
+                else {
+                  setEditEntry("photo");
+                  setEditElementId(undefined);
+                  setEditingId(id);
+                }
+              }}
             />
             <Button
               type="button"
@@ -2458,6 +2546,28 @@ export function ConfigPanel({
                               manuallyAddedIds: config.manuallyAddedIds.filter(
                                 (id) => id !== p.id,
                               ),
+                              // Fonte única: remove de todas as páginas e, se for
+                              // um item de lista, também da lista → some na Lista.
+                              pages: (config.pages ?? []).map((pg) =>
+                                pg.productIds
+                                  ? {
+                                      ...pg,
+                                      productIds: pg.productIds.filter(
+                                        (pid) => pid !== p.id,
+                                      ),
+                                    }
+                                  : pg,
+                              ),
+                              ...(config.list
+                                ? {
+                                    list: {
+                                      ...config.list,
+                                      items: config.list.items.filter(
+                                        (it) => it.id !== p.id,
+                                      ),
+                                    },
+                                  }
+                                : {}),
                             })
                           }
                         >
@@ -2524,6 +2634,29 @@ export function ConfigPanel({
 
       <TabsContent value="etiqueta" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-4">
+          {/* Formas (elementos do Canva) — clique para adicionar à página */}
+          <div className="flex flex-col gap-2">
+            <p className="text-[13px] font-medium text-foreground">Formas</p>
+            <div className="grid grid-cols-4 gap-2">
+              {SHAPES.map(({ shape, label, Icon }) => (
+                <button
+                  key={shape}
+                  type="button"
+                  title={label}
+                  onClick={() => addShape(shape)}
+                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border bg-card/40 text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-foreground"
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="text-[10px] leading-none">{label}</span>
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              A forma nasce no centro da página. Selecione-a para mudar cor,
+              tamanho, contorno e camada.
+            </p>
+          </div>
+
           {selectedOverlay?.binding && (
             <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5">
               <span className="truncate text-[11px] text-muted-foreground">
@@ -2540,7 +2673,7 @@ export function ConfigPanel({
               </Button>
             </div>
           )}
-          {selectedOverlay && (
+          {selectedOverlay && !selectedOverlay.shape && (
             <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4">
               <p className="text-[13px] font-medium text-foreground">
                 Redimensionar imagem
@@ -2701,6 +2834,15 @@ export function ConfigPanel({
         </div>
 
         <PriceStylesLibrary
+          cardAspect={
+            config.cardAspectRatio && config.cardAspectRatio > 0
+              ? config.cardAspectRatio
+              : (productCropRect(
+                  config,
+                  0,
+                  Math.max(1, (config.gridCols ?? 3) * (config.gridRows ?? 4)),
+                )?.aspect ?? 1)
+          }
           onApply={(layout) => onConfigChange({ cardLayout: layout })}
           onAdd={(layout) => {
             // "Adicionar" coloca o estilo como um BLOCO posicionável na página.

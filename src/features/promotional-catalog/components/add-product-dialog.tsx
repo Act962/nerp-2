@@ -23,6 +23,8 @@ import {
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import { useCursorPagination } from "@/hooks/use-cursor-pagination";
+import { constructUrl } from "@/hooks/use-construct-url";
+import { ImageIcon } from "lucide-react";
 import { useUpdateProductPrice } from "../hooks/use-catalog";
 import type { CatalogConfig } from "../types";
 
@@ -43,16 +45,27 @@ interface AddProductDialogProps {
   // "Adicionar produto" do estado de página vazia).
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  // Clique no thumbnail da foto: adiciona o produto (se ainda não estiver) e
+  // pede ao pai para abrir o editor daquele produto (igual à aba "Página").
+  onEditProduct?: (id: string) => void;
 }
 
 interface AddProductRowProps {
-  product: { id: string; name: string; sku: string; salePrice: number };
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    salePrice: number;
+    image: string;
+  };
   added: boolean;
   saving: boolean;
   // Modo "vincular" (bloco de estilo): sempre permite escolher, mesmo que o
   // produto já esteja no catálogo — o clique (re)liga o produto ao bloco.
   binding: boolean;
   onAdd: (id: string, prices: { de: number; por: number | null }) => void;
+  // Clique na foto → abre o editor (opcional). Ausente = foto não clicável.
+  onEditPhoto?: (id: string, prices: { de: number; por: number | null }) => void;
 }
 
 // Linha do produto na busca: "De R$ / Por R$" editáveis para adição rápida.
@@ -62,23 +75,48 @@ function AddProductRow({
   saving,
   binding,
   onAdd,
+  onEditPhoto,
 }: AddProductRowProps) {
   const [de, setDe] = useState<string>(String(product.salePrice));
   const [por, setPor] = useState<string>("");
 
-  const submit = () =>
-    onAdd(product.id, {
-      de: Number(de),
-      por: por !== "" ? Number(por) : null,
-    });
+  const prices = () => ({
+    de: Number(de),
+    por: por !== "" ? Number(por) : null,
+  });
+  const submit = () => onAdd(product.id, prices());
 
   // No modo vincular o botão nunca é desabilitado por "já adicionado".
   const isAdded = added && !binding;
+  const photoSrc = product.image
+    ? product.image.startsWith("http")
+      ? product.image
+      : constructUrl(product.image)
+    : null;
 
   return (
     <div className="flex flex-col gap-1.5 rounded px-2 py-2 hover:bg-muted">
       <div className="flex items-center justify-between gap-2">
-        <div className="flex min-w-0 flex-col">
+        {/* Preview da foto — clique abre o editor do produto (como na Página) */}
+        <button
+          type="button"
+          className="relative size-11 shrink-0 overflow-hidden rounded-md border bg-muted"
+          title={onEditPhoto ? "Editar produto (foto/etiqueta)" : product.name}
+          disabled={!onEditPhoto}
+          onClick={() => onEditPhoto?.(product.id, prices())}
+        >
+          {photoSrc ? (
+            // biome-ignore lint/performance/noImgElement: thumbnail de produto
+            <img
+              src={photoSrc}
+              alt={product.name}
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <ImageIcon className="absolute inset-0 m-auto h-4 w-4 text-muted-foreground/50" />
+          )}
+        </button>
+        <div className="flex min-w-0 flex-1 flex-col">
           <span className="truncate text-sm">{product.name}</span>
           <span className="text-xs text-muted-foreground">
             {product.sku || "sem SKU"}
@@ -137,6 +175,7 @@ export function AddProductDialog({
   title,
   open: openProp,
   onOpenChange,
+  onEditProduct,
 }: AddProductDialogProps) {
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
@@ -238,6 +277,21 @@ export function AddProductDialog({
     }
   };
 
+  // Clique na foto: garante o produto no catálogo e abre o editor dele (aba
+  // "Página"). Fecha o diálogo para o editor ficar em foco.
+  const handleEditPhoto = onEditProduct
+    ? (
+        id: string,
+        salePrice: number,
+        prices: { de: number; por: number | null },
+        alreadyAdded: boolean,
+      ) => {
+        if (!alreadyAdded) handleAdd(id, salePrice, prices);
+        onEditProduct(id);
+        setOpen(false);
+      }
+    : undefined;
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -317,16 +371,25 @@ export function AddProductDialog({
               Nenhum produto encontrado.
             </p>
           )}
-          {data?.products.map((p) => (
-            <AddProductRow
-              key={p.id}
-              product={p}
-              added={alreadyAdded.has(p.id) && !excludedSet.has(p.id)}
-              saving={priceMutation.isPending}
-              binding={!!onPicked}
-              onAdd={(id, prices) => handleAdd(id, p.salePrice, prices)}
-            />
-          ))}
+          {data?.products.map((p) => {
+            const isAdded = alreadyAdded.has(p.id) && !excludedSet.has(p.id);
+            return (
+              <AddProductRow
+                key={p.id}
+                product={p}
+                added={isAdded}
+                saving={priceMutation.isPending}
+                binding={!!onPicked}
+                onAdd={(id, prices) => handleAdd(id, p.salePrice, prices)}
+                onEditPhoto={
+                  handleEditPhoto
+                    ? (id, prices) =>
+                        handleEditPhoto(id, p.salePrice, prices, isAdded)
+                    : undefined
+                }
+              />
+            );
+          })}
         </div>
 
         {data && data.totalCount > 0 && (

@@ -64,7 +64,7 @@ import type {
   CatalogListItem,
   CatalogProduct,
 } from "../types";
-import { resolveFolders, virtualProductsFromList } from "../types";
+import { virtualProductsFromList } from "../types";
 import { ProductNameSearch, type PickedProduct } from "./product-name-search";
 import { ProductPhotoButton } from "./config-panel";
 import { CatalogListWizard, type WizardResult } from "./catalog-list-wizard";
@@ -195,6 +195,35 @@ export function CatalogListEditor({
     if (activeFolderFromPreview != null)
       setActiveFolder(activeFolderFromPreview);
   }, [activeFolderFromPreview]);
+
+  // ── FONTE ÚNICA: `pages[].productIds`. Cada PÁGINA é uma "pasta" na Lista
+  // (key = page.id, nome = page.name, membros = page.productIds). A Lista e a
+  // Página leem daqui, então adicionar/apagar reflete nos dois lados. ──
+  const pages = config.pages ?? [];
+  const folders = useMemo(
+    () =>
+      (config.pages ?? []).map((pg, i) => ({
+        key: pg.id,
+        name: pg.name?.trim() || `Página ${i + 1}`,
+        itemIds: pg.productIds ?? [],
+      })),
+    [config.pages],
+  );
+  const activePage = useMemo(
+    () =>
+      activeFolder
+        ? (config.pages ?? []).find((pg) => pg.id === activeFolder)
+        : undefined,
+    [activeFolder, config.pages],
+  );
+  const listItemById = useMemo(
+    () => new Map((config.list?.items ?? []).map((it) => [it.id, it])),
+    [config.list],
+  );
+  const productById = useMemo(
+    () => new Map((resolvedProducts ?? []).map((p) => [p.id, p])),
+    [resolvedProducts],
+  );
 
   const extract = useExtractOffersFromFile();
   const matchProducts = useMatchProductsByName();
@@ -518,132 +547,126 @@ export function CatalogListEditor({
       true,
     );
   };
+  // Apagar um ITEM DE LISTA: some da lista E de todas as páginas → some na
+  // Página também. (Deleção simétrica Lista → Página.)
   const removeItem = (id: string) =>
-    setItems(
-      items.filter((it) => it.id !== id),
-      true,
-    );
-  // Reordena um item DENTRO do seu cliente/pasta (troca com o vizinho na ordem
-  // exibida). Como a ordem vive em `list.items`, a PÁGINA acompanha ao vivo.
+    onConfigChange({
+      ...(list
+        ? { list: { ...list, items: items.filter((it) => it.id !== id) } }
+        : {}),
+      pages: pages.map((pg) =>
+        pg.productIds
+          ? { ...pg, productIds: pg.productIds.filter((pid) => pid !== id) }
+          : pg,
+      ),
+    });
+  // Apagar um produto do CADASTRO (linha "cadastro", não é item de lista): tira
+  // de manuallyAddedIds, marca excluído e remove de todas as páginas.
+  const removeManual = (id: string) =>
+    onConfigChange({
+      manuallyAddedIds: (config.manuallyAddedIds ?? []).filter((x) => x !== id),
+      excludedProductIds: Array.from(
+        new Set([...(config.excludedProductIds ?? []), id]),
+      ),
+      pages: pages.map((pg) =>
+        pg.productIds
+          ? { ...pg, productIds: pg.productIds.filter((pid) => pid !== id) }
+          : pg,
+      ),
+    });
+  // Reordena dentro da PÁGINA ativa (troca vizinhos em pages[].productIds).
   const canMoveItem = (id: string, dir: -1 | 1): boolean => {
-    const it = items.find((i) => i.id === id);
-    if (!it) return false;
-    const group = ordered.filter((x) => x.client === it.client);
-    const pos = group.findIndex((x) => x.id === id);
-    return pos + dir >= 0 && pos + dir < group.length;
+    const ids = activePage?.productIds ?? [];
+    const pos = ids.indexOf(id);
+    return pos >= 0 && pos + dir >= 0 && pos + dir < ids.length;
   };
   const moveListItem = (id: string, dir: -1 | 1) => {
-    const it = items.find((i) => i.id === id);
-    if (!it) return;
-    const group = ordered.filter((x) => x.client === it.client);
-    const pos = group.findIndex((x) => x.id === id);
+    if (!activePage) return;
+    const ids = [...(activePage.productIds ?? [])];
+    const pos = ids.indexOf(id);
     const target = pos + dir;
-    if (target < 0 || target >= group.length) return;
-    const bId = group[target].id;
-    const next = [...items];
-    const ai = next.findIndex((x) => x.id === id);
-    const bi = next.findIndex((x) => x.id === bId);
-    [next[ai], next[bi]] = [next[bi], next[ai]];
-    setItems(next, true);
+    if (pos < 0 || target < 0 || target >= ids.length) return;
+    [ids[pos], ids[target]] = [ids[target], ids[pos]];
+    onConfigChange({
+      pages: pages.map((pg) =>
+        pg.id === activePage.id ? { ...pg, productIds: ids } : pg,
+      ),
+    });
   };
+  // "Adicionar linha": cria um item de lista E o coloca na PÁGINA ativa → aparece
+  // na Página imediatamente. (Sincronização Lista → Página.)
   const addRow = () => {
-    const last = items[items.length - 1];
+    const gb = list?.groupBy ?? "client";
     const row: CatalogListItem = {
       id: uid(),
-      client: last?.client ?? "Sem cliente",
+      client: activePage?.name?.trim() || "Sem cliente",
       productName: "",
     };
-    // A tabela pode estar filtrada por uma pasta (aba ativa / prévia). Preenche
-    // o campo de agrupamento para a nova linha CAIR nessa pasta — senão o filtro
-    // a esconde e parece que "não adicionou".
-    const gb = list?.groupBy ?? "client";
-    if (activeFolder) {
-      if (gb === "department") row.department = activeFolder;
-      else if (gb === "custom") row.folder = activeFolder;
-      else row.client = activeFolder;
+    if (activePage) {
+      if (gb === "department") row.department = activePage.name;
+      else if (gb === "custom") row.folder = activePage.name;
     }
+    const targetId = activePage?.id ?? pages[0]?.id;
     setItems([...items, row], true);
+    if (targetId)
+      onConfigChange({
+        pages: (config.pages ?? []).map((pg) =>
+          pg.id === targetId
+            ? { ...pg, productIds: [...(pg.productIds ?? []), row.id] }
+            : pg,
+        ),
+      });
   };
 
-  const clientCount = useMemo(
-    () => new Set(items.map((i) => i.client)).size,
-    [items],
-  );
-  // Ordena por cliente (agrupa visualmente) preservando a ordem de aparição.
-  const ordered = useMemo(() => {
-    const order = new Map<string, number>();
-    items.forEach((i) => {
-      if (!order.has(i.client)) order.set(i.client, order.size);
-    });
-    return [...items].sort(
-      (a, b) => (order.get(a.client) ?? 0) - (order.get(b.client) ?? 0),
-    );
-  }, [items]);
-
   const groupBy = list?.groupBy ?? "client";
-  const folders = useMemo(() => resolveFolders(list), [list]);
-  // Tabela filtrada pela pasta (aba) ativa.
-  const visibleItems = useMemo(() => {
-    if (!activeFolder) return ordered;
-    const ids = new Set(
-      folders.find((f) => f.key === activeFolder)?.itemIds ?? [],
-    );
-    return ordered.filter((it) => ids.has(it.id));
-  }, [ordered, activeFolder, folders]);
 
-  // Grupos NOMEADOS da PÁGINA da pasta ativa — para dividir a lista por grupo
-  // (divisor com o nome do grupo + os produtos dele abaixo).
-  const activeGroups = useMemo(() => {
-    if (!activeFolder) return [];
-    const folderIds = new Set(
-      folders.find((f) => f.key === activeFolder)?.itemIds ?? [],
-    );
-    const page = (config.pages ?? []).find((pg) =>
-      (pg.productIds ?? []).some((id) => folderIds.has(id)),
-    );
-    return (page?.productGroups ?? []).filter(
-      (g) => g.productIds !== undefined,
-    );
-  }, [activeFolder, folders, config.pages]);
-  // Linhas da tabela = itens da LISTA + produtos MANUAIS (cadastro) da página
-  // ativa que foram agrupados, ordenados por grupo (grupos na ordem; "Sem grupo"
-  // no fim). Assim um grupo só de produtos do cadastro (ex.: "Grupo 2") aparece.
-  const groupedRows = useMemo(() => {
-    const listRows = visibleItems.map((it) => ({
-      id: it.id,
-      item: it as CatalogListItem | undefined,
-      product: undefined as CatalogProduct | undefined,
-    }));
-    let manualRows: typeof listRows = [];
-    if (activeFolder) {
-      const listIds = new Set(items.map((i) => i.id));
-      const byId = new Map((resolvedProducts ?? []).map((p) => [p.id, p]));
-      const folderIds = new Set(
-        folders.find((f) => f.key === activeFolder)?.itemIds ?? [],
-      );
-      const page = (config.pages ?? []).find((pg) =>
-        (pg.productIds ?? []).some((id) => folderIds.has(id)),
-      );
-      manualRows = (page?.productIds ?? [])
-        .filter((id) => !listIds.has(id) && byId.has(id))
-        .map((id) => ({ id, item: undefined, product: byId.get(id) }));
-    }
-    const all = [...listRows, ...manualRows];
-    if (activeGroups.length === 0) return all;
+  // Grupos NOMEADOS da página ativa (divisores por grupo na Lista).
+  const activeGroups = useMemo(
+    () =>
+      (activePage?.productGroups ?? []).filter(
+        (g) => g.productIds !== undefined,
+      ),
+    [activePage],
+  );
+
+  // Ids a exibir: da PÁGINA ativa; ou de TODAS as páginas ("Todos"), sem repetir.
+  const visibleIds = useMemo(() => {
+    if (activeFolder) return activePage?.productIds ?? [];
+    const seen = new Set<string>();
+    const all: string[] = [];
+    for (const pg of config.pages ?? [])
+      for (const id of pg.productIds ?? [])
+        if (!seen.has(id)) {
+          seen.add(id);
+          all.push(id);
+        }
+    return all;
+  }, [activeFolder, activePage, config.pages]);
+
+  // Linhas = productIds da página (na ordem), resolvidos para item de LISTA
+  // (linha editável) ou produto do CADASTRO (linha "cadastro", leitura).
+  // Divididas por grupo quando a página tem grupos nomeados.
+  type Row = {
+    id: string;
+    item: CatalogListItem | undefined;
+    product: CatalogProduct | undefined;
+  };
+  const groupedRows = useMemo<Row[]>(() => {
+    const rows = visibleIds
+      .map((id): Row | null => {
+        const item = listItemById.get(id);
+        if (item) return { id, item, product: undefined };
+        const product = productById.get(id);
+        return product ? { id, item: undefined, product } : null;
+      })
+      .filter((r): r is Row => r != null);
+    if (activeGroups.length === 0) return rows;
     const rankOf = (id: string) => {
       const i = activeGroups.findIndex((g) => g.productIds?.includes(id));
       return i < 0 ? Number.POSITIVE_INFINITY : i;
     };
-    return [...all].sort((a, b) => rankOf(a.id) - rankOf(b.id));
-  }, [
-    visibleItems,
-    activeFolder,
-    items,
-    resolvedProducts,
-    folders,
-    config.pages,
-    activeGroups,
-  ]);
+    return [...rows].sort((a, b) => rankOf(a.id) - rankOf(b.id));
+  }, [visibleIds, listItemById, productById, activeGroups]);
   const groupNameOf = (id: string) =>
     activeGroups.find((g) => g.productIds?.includes(id))?.name;
 
@@ -797,7 +820,8 @@ export function CatalogListEditor({
         <div className="mr-auto flex items-center gap-2">
           <TableIcon className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold">
-            {items.length} produto(s) · {clientCount} cliente(s)
+            {new Set(pages.flatMap((pg) => pg.productIds ?? [])).size}{" "}
+            produto(s) · {folders.length} página(s)
           </span>
         </div>
         {items.length > 0 && (
@@ -814,6 +838,7 @@ export function CatalogListEditor({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="none">Nenhum</SelectItem>
                 <SelectItem value="client">Cliente</SelectItem>
                 <SelectItem value="department">Departamento</SelectItem>
                 <SelectItem value="custom">Personalizado</SelectItem>
@@ -953,7 +978,7 @@ export function CatalogListEditor({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.length === 0 && (
+              {groupedRows.length === 0 && (
                 <TableRow>
                   <TableCell
                     colSpan={
@@ -1041,7 +1066,19 @@ export function CatalogListEditor({
                           </TableCell>
                         )}
                         {showCol("client") && <TableCell className="p-1" />}
-                        <TableCell className="p-1" />
+                        <TableCell className="p-1">
+                          {prod && (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive"
+                              title="Remover da página"
+                              onClick={() => removeManual(prod.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ) : it ? (
                       <TableRow>
