@@ -11,6 +11,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.2.0",
     "@nerp/typescript-config": "workspace:*",
+    "@nerp/web": "workspace:*",
     "@playwright/test": "^1.50.0",
     "@types/node": "^20.19.27",
     "typescript": "^5"
