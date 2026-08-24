@@ -26,6 +26,7 @@ feature depois de trabalhar em outra coisa.
 - [`desktop-pagamento-eletronico.md`](./desktop-pagamento-eletronico.md) — Pagamento eletrônico (PaymentProcessor/TEF) do PDV desktop: arquitetura ports & adapters revisada; Mock como contrato · 🟡 domínio pronto, adapter real futuro
 - [`desktop-release.md`](./desktop-release.md) — Distribuição do instalador Windows: assinatura de código, URL de produção, CORS prod, pt-BR, auto-update · 📋 planejado
 - [`migracao-monorepo-main.md`](./migracao-monorepo-main.md) — Levar o monorepo (`feat/desktop`) para a `main`: alinhamento de layout, colisão de migrations, deploy · 📋 planejado (não executar sem decisão do dev)
+- [`novos-apps.md`](./novos-apps.md) — Adicionar apps (React Native e outros web) ao monorepo: o que se compartilha hoje, deploy por app no Coolify, ordem de extração de `packages/ui` e `packages/database` · 🟡 em andamento
 
 ## Specs por feature
 
