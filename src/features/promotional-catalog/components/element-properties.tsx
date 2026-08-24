@@ -58,6 +58,23 @@ export function ElementProperties({
         </Button>
       </div>
 
+      {/* Preenchimento — só para FORMAS preenchidas (moldura usa o contorno) */}
+      {overlay.shape && overlay.shape !== "frame" && (
+        <div className="flex flex-col gap-1.5">
+          <Label className="text-xs">Preenchimento</Label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={overlay.fill ?? "#111111"}
+              onChange={(e) => onChange({ fill: e.target.value })}
+              className="h-8 w-10 cursor-pointer rounded border bg-background"
+              title="Cor de preenchimento"
+            />
+            <span className="text-xs text-muted-foreground">cor da forma</span>
+          </div>
+        </div>
+      )}
+
       {/* Transparência */}
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
