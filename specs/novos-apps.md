@@ -2,7 +2,7 @@
 
 > Como adicionar um app (web ou React Native) ao monorepo sem retrabalho: o que
 > dá para compartilhar hoje, o que quebra, e em que ordem extrair o resto.
-> Feature: raiz do repo · `packages/*` · `apps/*` · `.nixpacks.toml`
+> Feature: raiz do repo · `packages/*` · `apps/*` · `nixpacks.toml`
 > Criado em: 2026-08-24 · Atualizado em: 2026-08-24
 > Status: 🟡 Em andamento — barrel do `@nerp/core` corrigido; extrações pendentes
 
@@ -28,7 +28,7 @@ Arquivos principais:
 - `packages/core/src/` — domínio offline (venda, pagamento, caixa, outbox, sync) em ports & adapters
 - `packages/api/src/contract.ts` — contrato tipado do cliente; guard em `apps/web/src/lib/desktop-contract-conformance.ts`
 - `packages/types/src/enums.ts` — espelho manual de 4 dos 89 enums do Prisma, com teste de paridade
-- `.nixpacks.toml` — build do deploy, filtrado por app
+- `nixpacks.toml` — build do deploy, filtrado por app
 
 ---
 

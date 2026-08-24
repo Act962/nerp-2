@@ -46,9 +46,9 @@ docker compose up -d  # Postgres 17 — db on host port 5433, db-test on 5434
 
 Scope a task to one workspace with `--filter`: `pnpm --filter @nerp/web test`, `turbo build --filter=@nerp/web`.
 
-**Migrations are no longer part of `build`.** `turbo build` is cached, so a restored build would skip `prisma migrate deploy` silently. `.nixpacks.toml` runs `pnpm db:deploy` before `pnpm build`. Don't move it back into the build script.
+**Migrations are no longer part of `build`.** `turbo build` is cached, so a restored build would skip `prisma migrate deploy` silently. `nixpacks.toml` runs `pnpm db:deploy` before `pnpm build`. Don't move it back into the build script.
 
-Only `main` deploys on Vercel (`vercel.json`); `.nixpacks.toml` is the Coolify target.
+Only `main` deploys on Vercel (`vercel.json`); `nixpacks.toml` is the Coolify target.
 
 `.claude/launch.json` defines the preview targets: `nerp` (pnpm dev, :3000), `nerp-attach` (attach to an already-running server), `inngest` (:8299).
 

@@ -1,7 +1,7 @@
 # Migração do monorepo para a `main` — plano de integração
 
 > Como levar `feat/desktop` (monorepo + app desktop) para a `main`, que continua single-app e andou 27 commits em paralelo. O nó não é o desktop: é o **lift-and-shift de caminhos** (`src/` → `apps/web/src/`) colidindo com 104 arquivos que a `main` mexeu nesses mesmos caminhos.
-> Feature: raiz do repo · `apps/web` · `packages/*` · `.nixpacks.toml` · Coolify/Vercel
+> Feature: raiz do repo · `apps/web` · `packages/*` · `nixpacks.toml` · Coolify/Vercel
 > Criado em: 2026-08-21 · Atualizado em: 2026-08-21
 > Status: 📋 Planejado — **não executar sem decisão explícita do dev**
 
@@ -23,7 +23,7 @@ seguem em layouts **incompatíveis**.
 | Commits desde o base | 27 *(snapshot)* | 31 *(snapshot)* |
 | Arquivos alterados | 104 (+9.717 / −733) *(snapshot)* | 1.911 *(snapshot)* — dos quais ~1.800 são **só o movimento** de caminho; o trabalho de desktop em si é 153 arquivos (+15.788 / −33) |
 | `package.json` (raiz) | `erp-limas`, Next direto | `nerp`, só delega ao `turbo` |
-| Migration no build | **sim** (`prisma migrate deploy` dentro do `build`) | não — `pnpm db:deploy` no `.nixpacks.toml` |
+| Migration no build | **sim** (`prisma migrate deploy` dentro do `build`) | não — `pnpm db:deploy` no `nixpacks.toml` |
 | `SCHEMA_VERSION` | `v64-catalog-views` | `v63-caixa-client-ids` |
 
 O que a `main` construiu no período: catálogo promocional (editor visual,
@@ -134,7 +134,7 @@ Passo a passo:
   O Prisma ordena migrations pelo **nome do diretório**; prefixos idênticos deixam a ordem ambígua e dependente de desempate lexicográfico do sufixo. Como são hand-authored (§ CLAUDE.md), **renomeie a do desktop** para um timestamp posterior (ex.: `20260821120000_caixa_client_ids`) antes do merge. Renomear migration **já aplicada** em qualquer banco exige acertar a tabela `_prisma_migrations` — decidir isso *antes* de tocar em produção.
 - [ ] **`src/lib/db.ts` — `SCHEMA_VERSION`** — main em `v64-catalog-views`, desktop em `v63-caixa-client-ids`. O merge deve resultar em um **`v65-…` novo** que cubra os dois conjuntos; herdar qualquer um dos dois deixa o cache do Prisma stale em dev (a causa nº 1 de "500 impossível", § Gotchas).
 - [ ] **`package.json` (raiz)** — conflito **semântico**, não textual: a `main` é `erp-limas` com `prisma generate && prisma migrate deploy && next build` dentro do `build`; o monorepo é `nerp` delegando ao `turbo`, com a migration fora do build de propósito (build cacheável pularia a migration em silêncio). **Vence a versão do monorepo** — e isso exige o passo de deploy abaixo.
-- [ ] **Deploy: `.nixpacks.toml` × build da `main`** — a `main` não tem `.nixpacks.toml` e depende da migration embutida no `build`. Ao migrar, o Coolify precisa de **Base Directory `/`**, start command `pnpm start` e o `pnpm db:deploy` do `.nixpacks.toml` rodando antes do build. Sem isso, **o primeiro deploy do monorepo sobe sem aplicar migration**.
+- [ ] **Deploy: `nixpacks.toml` × build da `main`** — a `main` não tem `nixpacks.toml` e depende da migration embutida no `build`. Ao migrar, o Coolify precisa de **Base Directory `/`**, start command `pnpm start` e o `pnpm db:deploy` do `nixpacks.toml` rodando antes do build. Sem isso, **o primeiro deploy do monorepo sobe sem aplicar migration**.
 - [ ] **`pnpm-lock.yaml`** — não resolver à mão. Descartar e regerar com `pnpm install` após unificar todos os `package.json`.
 
 ### 🟠 Funcional — conflitos reais de conteúdo (revisar cada um)

@@ -1,7 +1,7 @@
 # Release / distribuição do app desktop — checklist
 
 > O que falta para o instalador do NERP Caixa sair de "build de teste local" para **distribuição pública** numa máquina de caixa real. Foco no que bloqueia de verdade (assinatura, URL de produção), não só no visual.
-> Feature: `apps/desktop/src-tauri/tauri.conf.json` + `.nixpacks`/deploy do backend + `apps/desktop/src/lib/config.ts`
+> Feature: `apps/desktop/src-tauri/tauri.conf.json` + `nixpacks.toml`/deploy do backend + `apps/desktop/src/lib/config.ts`
 > Criado em: 2026-08-21 · Atualizado em: 2026-08-21
 > Status: 📋 planejado — não iniciar sem decisão de publicar
 

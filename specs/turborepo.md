@@ -18,7 +18,7 @@ Arquivos principais:
 - `packages/vitest-config` — presets `node` e `jsdom` (alias de `server-only`, `vite-tsconfig-paths`)
 - `apps/web/vitest.config.ts` — projects `unit`, `component`, `integration`
 - `e2e/playwright.config.ts` — sobe `pnpm --filter @nerp/web start`
-- `.nixpacks.toml` — `pnpm db:deploy` **antes** de `pnpm build`
+- `nixpacks.toml` — `pnpm db:deploy` **antes** de `pnpm build`
 
 ---
 
@@ -26,7 +26,7 @@ Arquivos principais:
 
 - **Lift-and-shift, sem extrair `packages/database` nem `packages/ui`** — 495 arquivos importam `@/lib/db` e 161 importam `@/generated/prisma`. Extrair agora custaria uma reescrita de ~650 arquivos (ou um mapeamento de paths disfarçando a origem) sem um segundo consumidor que justificasse. Fica para quando o app desktop existir.
 - **Nixpacks, não Dockerfile + `turbo prune`** — o caminho recomendado pela doc do Turborepo exige `output: "standalone"` e resolver `oracledb`, `bcrypt` e `sharp` numa imagem própria. Risco alto para ganho nenhum enquanto só existe um app. Reavaliar quando o build no Coolify começar a incomodar.
-- **`prisma migrate deploy` saiu do `build`** — o `build` do turbo é cacheável; uma build restaurada do cache pularia a migration em silêncio. Virou `pnpm db:deploy`, passo explícito do `.nixpacks.toml`. **Não devolver para dentro do `build`.**
+- **`prisma migrate deploy` saiu do `build`** — o `build` do turbo é cacheável; uma build restaurada do cache pularia a migration em silêncio. Virou `pnpm db:deploy`, passo explícito do `nixpacks.toml`. **Não devolver para dentro do `build`.**
 - **Banco de teste separado (`db-test`, porta 5434, `tmpfs`)** — a suíte de integração trunca tabelas. `tests/integration/env.ts` recusa rodar se o `DATABASE_URL` não tiver "test" no nome.
 - **Integração chama procedure por `call()` com contexto S2S** — `requireAuthMiddleware` e `requireOrgMiddleware` já têm ramo para integrações máquina-a-máquina, então o teste entra por ali em vez de forjar sessão do Better Auth. Sem subir o Next.
 - **`.gitattributes` com `eol=lf`** — com `core.autocrlf=true` no Windows, o working tree ficava CRLF e o Biome acusava erro de formatação em 1.556 arquivos, tornando `pnpm lint` inútil.

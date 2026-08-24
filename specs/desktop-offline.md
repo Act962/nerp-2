@@ -228,7 +228,7 @@ Cada fase é um branch/PR (convenção do projeto). O web e o deploy no Coolify 
 
 ## 5. Impacto no deploy (preservado)
 
-- **Coolify / web:** nada muda. O único acréscimo server-side é aditivo (CORS, bearer, ledger de idempotência, header opcional). `.nixpacks.toml` e `vercel.json` intactos.
+- **Coolify / web:** nada muda. O único acréscimo server-side é aditivo (CORS, bearer, ledger de idempotência, header opcional). `nixpacks.toml` e `vercel.json` intactos.
 - **Desktop:** **não** vai para o Coolify. Bundles Tauri são artefatos por SO (Windows/macOS/Linux), gerados em CI separado (`tauri build`) e distribuídos pelo **updater do Tauri** — canal de distribuição independente do deploy do backend.
 - **Turbo:** `apps/desktop` ganha tasks próprias (`dev`, `build`, `tauri:build`) com `cache: false` no que envolve toolchain nativa. O `build` do web continua isolado por `--filter`.
 

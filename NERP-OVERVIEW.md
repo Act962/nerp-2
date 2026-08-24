@@ -67,9 +67,9 @@ docker compose up -d  # Postgres 17 — db na 5433, db-test na 5434
 
 Para limitar a um workspace: `pnpm --filter @nerp/web test`, `turbo build --filter=@nerp/web`.
 
-> **A migration NÃO faz parte do `build`.** O `build` do turbo é cacheável — uma build restaurada do cache pularia `migrate deploy` em silêncio. O `.nixpacks.toml` roda `pnpm db:deploy` antes. Não devolva para dentro do build.
+> **A migration NÃO faz parte do `build`.** O `build` do turbo é cacheável — uma build restaurada do cache pularia `migrate deploy` em silêncio. O `nixpacks.toml` roda `pnpm db:deploy` antes. Não devolva para dentro do build.
 
-> Deploy: só `main` sobe na Vercel (`vercel.json`); `.nixpacks.toml` é o alvo do Coolify.
+> Deploy: só `main` sobe na Vercel (`vercel.json`); `nixpacks.toml` é o alvo do Coolify.
 
 ### 3.1 Layout do monorepo
 
