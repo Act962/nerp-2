@@ -94,9 +94,17 @@ raiz teria subido sem as migrations da `main`.
 | `pnpm build` | ✅ 3 tasks, 8m41s — inclui `/trade/contratos` e `/promocao/[shareToken]` |
 | `test` (unit + component) | ✅ 6 arquivos / 26 testes |
 | `tsc --noEmit` em `apps/web` pós-build | ✅ 0 erros |
+| `test:e2e` | ✅ 3 testes (Playwright + app buildado) |
 
-> Não rodados: `test:e2e` (browsers do Playwright) e `tauri build` (toolchain
-> Rust) — a CI cobre o primeiro no PR.
+> Único passo não rodado: `tauri build` (passo 7) — exige o toolchain Rust.
+
+> Ao rodar o e2e, confira que a porta 3000 está livre: `reuseExistingServer`
+> faria o Playwright testar um servidor já de pé — possivelmente de outro
+> checkout, ou seja, o código errado.
+
+> Num worktree aninhado dentro do repo, o Next avisa que inferiu a raiz do
+> workspace pelo lockfile de fora. É inofensivo aqui (não usamos
+> `output: "standalone"` nem `outputFileTracingRoot`) e some na `main`.
 
 > O `check-types` do `@nerp/web` acusa 4 erros `TS2307` em
 > `@/assets/background-default-image.svg` **num worktree novo**: o
