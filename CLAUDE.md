@@ -211,6 +211,7 @@ Current functions: `sync-nasa-delivery`; the four spreadsheet importers (`produc
 - `src/context/` and `src/schemas/` predate the `src/features/` convention and are vestigial — don't add to them.
 - **`.env` lives in `apps/web/`, not the repo root** — Next.js reads it from the app directory. Same for `.env.local` and `.env.test`. On Coolify the variables are injected into the environment, so this only affects local dev.
 - The repo's blobs are LF and `.gitattributes` pins `eol=lf`. On a Windows checkout made **before** that file existed, the working tree is CRLF and Biome flags every file as misformatted; `git add --renormalize .` fixes it once.
+- **`pnpm.packageExtensions` in the root `package.json` declares `vitest` as an optional peer of `@testing-library/jest-dom`** — don't drop it. jest-dom's `dist/vitest.mjs` does `import { expect } from "vitest"` without declaring the peer, so under pnpm's strict (non-hoisted) layout that import can't resolve: every `*.test.tsx` fails to collect *and* `toBeInTheDocument` stops type-checking. The extension makes pnpm link `vitest` into jest-dom's own `node_modules`.
 - Docs drift from code: the README env template and the `docs/catalogo-promocional/` route paths are out of date. Trust the code, `apps/web/.env`, and `docker-compose.yml` (Postgres on host port **5433**, test database on **5434**).
 
 ## Reference docs
