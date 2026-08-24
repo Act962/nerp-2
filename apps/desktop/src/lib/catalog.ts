@@ -1,18 +1,14 @@
-import {
-  createIndexedDbCatalog,
-  type LocalCatalog,
-  syncCatalog,
-  type SyncResult,
-} from "@nerp/core";
+import { type LocalCatalog, syncCatalog, type SyncResult } from "@nerp/core";
 import { client } from "./client";
 import { isNative } from "./platform";
 
 /**
  * Catálogo local do device.
  *
- * No Tauri usa SQLite (`@nerp/core/sqlite`), carregado por import dinâmico só no
- * app nativo (`isNative()`) — assim o `@tauri-apps/plugin-sql` NÃO entra no
- * bundle web. No navegador/dev usa IndexedDB.
+ * Os dois adapters entram por import dinâmico de subpath: SQLite
+ * (`@nerp/core/sqlite`) no Tauri, IndexedDB (`@nerp/core/indexeddb`) no
+ * navegador. Nenhum dos dois está no barrel, então cada bundle carrega só a
+ * dependência de plataforma que usa.
  */
 let catalogPromise: Promise<LocalCatalog> | null = null;
 
@@ -22,6 +18,7 @@ export function getCatalog(): Promise<LocalCatalog> {
       const { createSqliteCatalog } = await import("@nerp/core/sqlite");
       return createSqliteCatalog();
     }
+    const { createIndexedDbCatalog } = await import("@nerp/core/indexeddb");
     return createIndexedDbCatalog();
   })();
   return catalogPromise;

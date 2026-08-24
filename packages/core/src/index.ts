@@ -1,14 +1,24 @@
+/**
+ * Barrel do `@nerp/core`: só DOMÍNIO, nenhum adapter de storage.
+ *
+ * Todo adapter carrega uma dependência de plataforma — `idb` (browser),
+ * `@tauri-apps/plugin-sql` (nativo), amanhã `expo-sqlite` (React Native) — e
+ * cada uma delas é lixo, ou erro de resolução, nas outras plataformas. Por isso
+ * TODOS ficam em subpath (`@nerp/core/indexeddb`, `@nerp/core/sqlite`, …) e o
+ * host escolhe o seu por import dinâmico.
+ *
+ * A simetria é o ponto: enquanto só o SQLite estava em subpath, importar o
+ * barrel arrastava o IndexedDB para bundles que nunca teriam `indexedDB` —
+ * problema que só apareceria no primeiro app React Native.
+ */
 export * from "./types";
 export * from "./local-catalog";
 export * from "./sync";
 export * from "./connectivity";
-// Adapter web (default). O SQLite (nativo) fica no subpath "@nerp/core/sqlite"
-// para não arrastar `@tauri-apps/plugin-sql` para o bundle do browser.
-export { createIndexedDbCatalog } from "./adapters/indexeddb-catalog";
 export * from "./outbox";
-export { createIndexedDbOutbox } from "./adapters/indexeddb-outbox";
-// Domínio de pagamento (ports & adapters). O mock não tem dep nativa, então
-// entra no barrel; adapters reais (TEF/adquirente) irão por subpath depois.
+// Domínio de pagamento (ports & adapters). O mock é a exceção à regra acima:
+// não tem dependência de plataforma nenhuma, então entra no barrel. Adapters
+// reais (TEF/adquirente) irão por subpath, como os de storage.
 export * from "./payment";
 export * from "./payment-processor";
 export * from "./sale";
@@ -17,8 +27,6 @@ export type {
   MockOutcome,
   MockPaymentProcessorConfig,
 } from "./adapters/mock-payment-processor";
-// Domínio de caixa (sessão). Store SQLite (nativo) fica no subpath
-// "@nerp/core/sqlite-cash-session".
+// Domínio de caixa (sessão).
 export * from "./cash-session";
 export * from "./cash-session-store";
-export { createIndexedDbCashSessionStore } from "./adapters/indexeddb-cash-session";

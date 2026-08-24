@@ -1,9 +1,4 @@
-import {
-  createIndexedDbOutbox,
-  drainOutbox,
-  type Outbox,
-  type OutboxItem,
-} from "@nerp/core";
+import { drainOutbox, type Outbox, type OutboxItem } from "@nerp/core";
 import { client } from "./client";
 import { isNative } from "./platform";
 
@@ -21,6 +16,9 @@ export function getOutbox(): Promise<Outbox> {
       const { createSqliteOutbox } = await import("@nerp/core/sqlite-outbox");
       return createSqliteOutbox();
     }
+    const { createIndexedDbOutbox } = await import(
+      "@nerp/core/indexeddb-outbox"
+    );
     return createIndexedDbOutbox();
   })();
   return outboxPromise;

@@ -1,7 +1,6 @@
 import {
   type CashSessionStore,
   type CashSummary,
-  createIndexedDbCashSessionStore,
   type LocalCashSession,
   type Operator,
   summarizeCash,
@@ -25,6 +24,9 @@ export function getCashSessionStore(): Promise<CashSessionStore> {
       );
       return createSqliteCashSessionStore();
     }
+    const { createIndexedDbCashSessionStore } = await import(
+      "@nerp/core/indexeddb-cash-session"
+    );
     return createIndexedDbCashSessionStore();
   })();
   return storePromise;
