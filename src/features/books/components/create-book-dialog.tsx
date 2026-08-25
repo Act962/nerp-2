@@ -9,8 +9,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import { Check, ChevronsUpDown } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -51,8 +66,17 @@ export function CreateBookDialog({
   onOpenChange,
 }: CreateBookDialogProps) {
   const router = useRouter();
-  const { suppliers } = useSupplier();
   const createBook = useCreateBook();
+
+  // Indústria via combobox com busca no servidor (a lista pode ser grande; o
+  // Select truncava em 10 e escondia indústrias como a Pepsico).
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierLabel, setSupplierLabel] = useState("");
+  const { suppliers, isLoading: suppliersLoading } = useSupplier({
+    search: supplierSearch || undefined,
+    pageSize: 100,
+  });
 
   const now = new Date();
   const [name, setName] = useState("");
@@ -64,6 +88,8 @@ export function CreateBookDialog({
     if (!open) return;
     setName("");
     setSupplierId(NONE);
+    setSupplierLabel("");
+    setSupplierSearch("");
     setMonth(String(new Date().getMonth() + 1));
     setYear(String(new Date().getFullYear()));
   }, [open]);
@@ -110,21 +136,87 @@ export function CreateBookDialog({
 
           <Field>
             <FieldLabel>Indústria (opcional)</FieldLabel>
-            <Select value={supplierId} onValueChange={setSupplierId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Nenhuma (book geral de ações)" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NONE}>
-                  Nenhuma (book geral de ações)
-                </SelectItem>
-                {suppliers.map((supplier) => (
-                  <SelectItem key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  // biome-ignore lint/a11y/useSemanticElements: combobox trigger
+                  role="combobox"
+                  aria-expanded={supplierOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  <span
+                    className={cn(
+                      supplierId === NONE && "text-muted-foreground",
+                    )}
+                  >
+                    {supplierId === NONE
+                      ? "Nenhuma (book geral de ações)"
+                      : supplierLabel}
+                  </span>
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-[--radix-popover-trigger-width] p-0"
+                align="start"
+              >
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Buscar indústria..."
+                    value={supplierSearch}
+                    onValueChange={setSupplierSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
+                      {suppliersLoading
+                        ? "Buscando..."
+                        : "Nenhuma indústria encontrada."}
+                    </CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="__none__"
+                        onSelect={() => {
+                          setSupplierId(NONE);
+                          setSupplierLabel("");
+                          setSupplierOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 size-4",
+                            supplierId === NONE ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        Nenhuma (book geral de ações)
+                      </CommandItem>
+                      {suppliers.map((supplier) => (
+                        <CommandItem
+                          key={supplier.id}
+                          value={supplier.id}
+                          onSelect={() => {
+                            setSupplierId(supplier.id);
+                            setSupplierLabel(supplier.name);
+                            setSupplierOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 size-4",
+                              supplierId === supplier.id
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                          {supplier.name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </Field>
 
           <div className="flex gap-4">

@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { memberCan } from "@/lib/permissions";
+import { resyncBooksAfterPhotoChange } from "@/features/books/server/resync-book";
 import { z } from "zod";
 
 // Troca a foto pela versão já com o selo da indústria e limpa a marcação de
@@ -56,6 +57,11 @@ export const applyPromotorSeal = base
           : {}),
       },
     });
+
+    // Book vivo: aprovar junto com o selo insere a foto nos books do escopo.
+    if (input.approve) {
+      await resyncBooksAfterPhotoChange(context.org.id, [photo.id]);
+    }
 
     return { success: true as const };
   });

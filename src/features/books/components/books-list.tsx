@@ -65,18 +65,32 @@ function matchesFilter(
 interface BooksListProps {
   filter: BookFilter | null;
   onClearFilter: () => void;
+  // Filtros Data/Indústria/Loja controlados pela tela (compartilhados com os
+  // indicadores do painel).
+  periodFilter: string;
+  onPeriodChange: (v: string) => void;
+  supplierFilter: string;
+  onSupplierChange: (v: string) => void;
+  storeFilter: string;
+  onStoreChange: (v: string) => void;
 }
 
 const ALL = "__all__";
 
-export function BooksList({ filter, onClearFilter }: BooksListProps) {
+export function BooksList({
+  filter,
+  onClearFilter,
+  periodFilter,
+  onPeriodChange,
+  supplierFilter,
+  onSupplierChange,
+  storeFilter,
+  onStoreChange,
+}: BooksListProps) {
   const { books: allBooks, isLoading } = useBooks();
   const [selectedId, setSelectedId] = useState("");
   const [openDelete, setOpenDelete] = useState(false);
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [periodFilter, setPeriodFilter] = useState(ALL);
-  const [supplierFilter, setSupplierFilter] = useState(ALL);
-  const [storeFilter, setStoreFilter] = useState(ALL);
 
   // Opções derivadas dos books carregados (distintas, ordenadas). Período usa
   // a chave "ano-mês" pra ordenar cronologicamente e rotula com formatPeriod.
@@ -125,7 +139,7 @@ export function BooksList({ filter, onClearFilter }: BooksListProps) {
   return (
     <>
       <div className="flex flex-wrap items-center gap-2">
-        <Select value={periodFilter} onValueChange={setPeriodFilter}>
+        <Select value={periodFilter} onValueChange={onPeriodChange}>
           <SelectTrigger size="sm" className="w-[150px]">
             <SelectValue placeholder="Data" />
           </SelectTrigger>
@@ -139,7 +153,7 @@ export function BooksList({ filter, onClearFilter }: BooksListProps) {
           </SelectContent>
         </Select>
 
-        <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+        <Select value={supplierFilter} onValueChange={onSupplierChange}>
           <SelectTrigger size="sm" className="w-[170px]">
             <SelectValue placeholder="Indústria" />
           </SelectTrigger>
@@ -153,7 +167,7 @@ export function BooksList({ filter, onClearFilter }: BooksListProps) {
           </SelectContent>
         </Select>
 
-        <Select value={storeFilter} onValueChange={setStoreFilter}>
+        <Select value={storeFilter} onValueChange={onStoreChange}>
           <SelectTrigger size="sm" className="w-[170px]">
             <SelectValue placeholder="Loja" />
           </SelectTrigger>
@@ -174,9 +188,9 @@ export function BooksList({ filter, onClearFilter }: BooksListProps) {
             size="sm"
             className="h-8"
             onClick={() => {
-              setPeriodFilter(ALL);
-              setSupplierFilter(ALL);
-              setStoreFilter(ALL);
+              onPeriodChange(ALL);
+              onSupplierChange(ALL);
+              onStoreChange(ALL);
             }}
           >
             Limpar

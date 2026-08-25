@@ -6,9 +6,10 @@ import prisma from "@/lib/db";
 import { reapplyBaseChrome } from "@/features/books/lib/cover-layout";
 import { z } from "zod";
 
-// Reaplica o visual do PADRÃO BASE (fundo + logos + textos) a todas as páginas
-// de fotos da indústria, preservando o arranjo de espaços de foto de cada uma.
-// Não toca em capa/página final (não herdam base). Devolve quantas atualizou.
+// Reaplica o visual do PADRÃO BASE (fundo + logos + textos) às páginas de fotos,
+// extras e página final (CLOSING) da indústria, preservando o arranjo de espaços
+// de foto de cada uma (extras/final não têm slots → ficam só com o chrome do
+// base). A capa (COVER) não herda base. Devolve quantas atualizou.
 export const reapplyIndustryBase = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
@@ -37,19 +38,19 @@ export const reapplyIndustryBase = base
       });
     }
 
-    const photos = await prisma.bookPageTemplate.findMany({
+    const pages = await prisma.bookPageTemplate.findMany({
       where: {
         organizationId: context.org.id,
         supplierId: input.supplierId,
-        kind: "PHOTO",
+        kind: { in: ["PHOTO", "EXTRA", "CLOSING"] },
       },
       select: { id: true, layout: true },
     });
 
-    for (const photo of photos) {
-      const layout = reapplyBaseChrome(baseTemplate.layout, photo.layout);
+    for (const page of pages) {
+      const layout = reapplyBaseChrome(baseTemplate.layout, page.layout);
       await prisma.bookPageTemplate.update({
-        where: { id: photo.id },
+        where: { id: page.id },
         data: {
           layout: layout as unknown as Prisma.InputJsonValue,
           background:
@@ -58,5 +59,5 @@ export const reapplyIndustryBase = base
       });
     }
 
-    return { updated: photos.length };
+    return { updated: pages.length };
   });
