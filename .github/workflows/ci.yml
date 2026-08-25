@@ -17,6 +17,15 @@ env:
   # dentro de um mesmo job, inútil entre jobs/execuções).
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # `--affected` compara com `main` por padrão, mas num checkout de PR essa ref
+  # não existe localmente (só o merge commit) — o turbo avisava "Failed to
+  # resolve base ref 'main'" e caía no fallback de considerar TUDO afetado, o
+  # que anulava o gate barato que este workflow tenta fazer.
+  # Num PR comparamos com o SHA da base; num push, com o commit anterior.
+  # Se nem isso resolver (ex.: primeiro push de uma branch, quando `before` é
+  # só zeros), o turbo volta ao fallback de sempre — que é o comportamento
+  # atual, então o pior caso aqui é empatar.
+  TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
 jobs:
   # ── Detecta se a mudança toca o desktop (app ou packages que ele consome) ──
