@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules
 /.pnp
 .pnp.*
 .yarn/*
@@ -10,15 +10,22 @@
 !.yarn/releases
 !.yarn/versions
 
+# turborepo
+.turbo
+
 # testing
-/coverage
+coverage
+playwright-report
+test-results
+blob-report
+.playwright
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build
 
 # misc
 .DS_Store
@@ -32,6 +39,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...menos os moldes de exemplo, que são versionados de propósito
+!**/.env*.example
 
 # vercel
 .vercel
@@ -40,10 +49,19 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-/src/generated
+# prisma client gerado
+**/src/generated
 
 # Configuração local do Claude Code — não versionar
 .claude/
 
 # WASM do leitor de código de barras — copiado de node_modules em dev/build
-/public/wasm
+**/public/wasm
+
+# vite / desktop build
+dist
+
+# tauri (build nativo)
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen
+*.stackdump

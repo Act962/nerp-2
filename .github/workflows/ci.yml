@@ -1,0 +1,233 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, feat/turborepo, feat/desktop]
+
+# Cancela execuções antigas do mesmo ref quando um novo push chega.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  # Remote cache (opcional): defina os secrets no repo para o cache do Turbo
+  # persistir entre execuções. Sem eles, o cache é só local ao job (ainda útil
+  # dentro de um mesmo job, inútil entre jobs/execuções).
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  # ── Detecta se a mudança toca o desktop (app ou packages que ele consome) ──
+  # Gate barato p/ não subir um runner Windows à toa. Mesma lógica do --affected,
+  # mas o `tauri build` não é task do turbo, então filtramos por path.
+  changes:
+    name: detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      desktop: ${{ steps.filter.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            desktop:
+              - 'apps/desktop/**'
+              - 'packages/core/**'
+              - 'packages/api/**'
+              - 'packages/types/**'
+              - '.github/workflows/ci.yml'
+              - 'pnpm-lock.yaml'
+
+  # ── Rápido, sem banco: typecheck + testes unit/component ─────────────────
+  verify:
+    name: typecheck + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # `turbo --affected` precisa do histórico p/ comparar
+
+      - uses: pnpm/action-setup@v4 # lê a versão do campo packageManager
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `db:generate` (prisma generate) roda sozinho: é dependsOn de
+      # check-types e test no turbo.json. Não precisa de banco.
+      - run: pnpm turbo run check-types test --affected
+
+  # ── Lint separado e NÃO-bloqueante enquanto a dívida pré-existente não zera ─
+  # ~324 diagnósticos herdados (noImgElement, useImportType, noExplicitAny…).
+  # Deixe como gate obrigatório só depois de limpar — ver specs/turborepo.md.
+  lint:
+    name: lint (não-bloqueante)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm turbo run lint --affected
+
+  # ── Integração: precisa do Postgres de teste ─────────────────────────────
+  integration:
+    name: integration (@nerp/web)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: docker
+          POSTGRES_PASSWORD: docker
+          POSTGRES_DB: nerp-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docker -d nerp-test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # O guard (tests/integration/env.ts) exige o arquivo e "test" na URL.
+      # O global-setup aplica as migrations (prisma migrate deploy) sozinho.
+      - name: Escreve apps/web/.env.test
+        run: |
+          cat > apps/web/.env.test <<'EOF'
+          DATABASE_URL="postgresql://docker:docker@localhost:5432/nerp-test?schema=public"
+          BETTER_AUTH_SECRET="test-secret-nao-usar-em-producao"
+          BETTER_AUTH_URL="http://localhost:3000"
+          NEXT_PUBLIC_BASE_DOMAIN="localhost:3000"
+          NEXT_PUBLIC_DOMAIN="http://localhost:3000"
+          EOF
+
+      - run: pnpm turbo run test:integration --affected
+
+  # ── E2E: mais pesado (build + browsers do Playwright). Só o que for afetado. ─
+  e2e:
+    name: e2e (Playwright)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: docker
+          POSTGRES_PASSWORD: docker
+          POSTGRES_DB: nerp-test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docker -d nerp-test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Escreve apps/web/.env.test
+        run: |
+          cat > apps/web/.env.test <<'EOF'
+          DATABASE_URL="postgresql://docker:docker@localhost:5432/nerp-test?schema=public"
+          BETTER_AUTH_SECRET="test-secret-nao-usar-em-producao"
+          BETTER_AUTH_URL="http://localhost:3000"
+          NEXT_PUBLIC_BASE_DOMAIN="localhost:3000"
+          NEXT_PUBLIC_DOMAIN="http://localhost:3000"
+          EOF
+
+      - name: Aplica migrations no banco de teste
+        working-directory: apps/web
+        run: pnpm exec prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://docker:docker@localhost:5432/nerp-test?schema=public
+
+      - name: Instala browsers do Playwright
+        run: pnpm --filter @nerp/e2e exec playwright install --with-deps chromium
+
+      # test:e2e tem dependsOn ^build no turbo.json — o app é buildado antes.
+      - run: pnpm turbo run test:e2e --affected
+        env:
+          DATABASE_URL: postgresql://docker:docker@localhost:5432/nerp-test?schema=public
+          BETTER_AUTH_SECRET: test-secret-nao-usar-em-producao
+          BETTER_AUTH_URL: http://localhost:3000
+          NEXT_PUBLIC_BASE_DOMAIN: localhost:3000
+          NEXT_PUBLIC_DOMAIN: http://localhost:3000
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+
+  # ── Build de fumaça do app Tauri (Windows) ───────────────────────────────
+  # Só roda quando o desktop (ou um package que ele consome) muda. Prova que o
+  # Rust COMPILA e que o bundle EMPACOTA — nada além disso: o instalador sai
+  # SEM assinatura e com API_URL default (localhost). Release assinado/prod é
+  # outro fluxo, deliberadamente separado — ver specs/desktop-release.md.
+  tauri-build:
+    name: build desktop (Tauri · Windows · smoke)
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          # Cacheia o target/ do crate — sem isso o compile a frio custa minutos
+          # (e runner Windows conta 2x). Chave escopada ao crate do Tauri.
+          workspaces: apps/desktop/src-tauri
+
+      - run: pnpm install --frozen-lockfile
+
+      # `tauri build` roda o beforeBuildCommand (pnpm build = vite build),
+      # compila o Rust e empacota NSIS + MSI (bundle.targets = "all").
+      # WebView2 já vem no runner windows-latest — sem deps de sistema extras.
+      - run: pnpm --filter @nerp/desktop tauri build
+
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: nerp-caixa-nsis-unsigned
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*.exe
+          retention-days: 7
+          if-no-files-found: warn

@@ -1,0 +1,22 @@
+{
+  "name": "@nerp/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "biome check",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orpc/client": "^1.13.2",
+    "@orpc/server": "^1.13.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@nerp/typescript-config": "workspace:*",
+    "typescript": "^5"
+  }
+}

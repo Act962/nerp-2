@@ -1,0 +1,9 @@
+{
+  "extends": "@nerp/typescript-config/react-library.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "moduleResolution": "bundler"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "src-tauri"]
+}

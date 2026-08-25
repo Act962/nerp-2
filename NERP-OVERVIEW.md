@@ -1,7 +1,8 @@
 # NERP — Visão Geral do Projeto
 
 > Documento de referência para consultas (ex.: colar no ChatGPT). Descreve arquitetura, stack, domínio e convenções do NERP.
-> Gerado a partir do código em `2026-08-05`. Nome do pacote: `erp-limas` (v0.1.0).
+> Gerado a partir do código em `2026-08-05`, atualizado para o monorepo em `2026-08-18`.
+> **Todo caminho `src/…` deste documento é relativo a `apps/web/`** — o repositório virou um Turborepo (ver `specs/turborepo.md`).
 
 ---
 
@@ -44,29 +45,51 @@ Cada empresa é uma **organização** (tenant). Usuários pertencem a organizaç
 
 ## 3. Comandos
 
+Tudo roda da **raiz** do monorepo; a raiz só delega ao `turbo`.
+
 ```bash
-pnpm dev              # dev server (Turbopack) na :3000
-pnpm build            # copy-zxing-wasm + prisma generate + migrate deploy + next build
-pnpm lint             # Biome check (NÃO ESLint)
+pnpm dev              # turbo dev → Next (Turbopack) na :3000
+pnpm build            # turbo build → copy-zxing-wasm + next build (cacheável, SEM migration)
+pnpm db:deploy        # prisma migrate deploy — passo explícito, antes do deploy
+pnpm lint             # turbo lint → Biome check (NÃO ESLint)
 pnpm format           # Biome format --write
-npx tsc --noEmit      # typecheck (não há script npm — rode direto)
+pnpm check-types      # turbo check-types → tsc --noEmit em todos os workspaces
+pnpm test             # turbo test → Vitest unit + component
+pnpm test:integration # Vitest integração (exige o container db-test)
+pnpm test:e2e         # Playwright
 pnpm db:migrate       # prisma migrate dev
 pnpm db:generate      # regenera Prisma Client (obrigatório após pull do schema)
 pnpm db:studio
-pnpm db:seed          # prisma/seed.ts
+pnpm db:seed          # apps/web/prisma/seed.ts
 pnpm inngest:dev      # Inngest dev server na :8299 (necessário p/ jobs)
-docker compose up -d  # Postgres 17, host port 5433
+docker compose up -d  # Postgres 17 — db na 5433, db-test na 5434
 ```
 
-> **Não há suíte de testes** (sem Vitest/Jest/Playwright, sem CI). Verificação = `pnpm lint` + `npx tsc --noEmit` + exercitar o fluxo no navegador. Não invente `pnpm test`.
+Para limitar a um workspace: `pnpm --filter @nerp/web test`, `turbo build --filter=@nerp/web`.
 
-> `pnpm build` roda `prisma migrate deploy` — uma migration ruim quebra o **build**, não só o runtime. Deploy: só `main` sobe na Vercel (`vercel.json`); `.nixpacks.toml` é um segundo alvo Nixpacks.
+> **A migration NÃO faz parte do `build`.** O `build` do turbo é cacheável — uma build restaurada do cache pularia `migrate deploy` em silêncio. O `nixpacks.toml` roda `pnpm db:deploy` antes. Não devolva para dentro do build.
+
+> Deploy: só `main` sobe na Vercel (`vercel.json`); `nixpacks.toml` é o alvo do Coolify.
+
+### 3.1 Layout do monorepo
+
+```
+apps/web/            @nerp/web — o app Next.js (src/, prisma/, public/, scripts/, .env)
+e2e/                 @nerp/e2e — Playwright
+packages/
+  typescript-config/ base / nextjs / react-library
+  vitest-config/     presets node e jsdom
+scripts/             ferramenta de repo (preview-all.mjs)
+turbo.json  pnpm-workspace.yaml  biome.json (config raiz)
+```
+
+O alias `@/*` continua apontando para `apps/web/src` — nenhum import do app mudou na migração. `packages/database` e `packages/ui` **não** foram extraídos; ver `specs/turborepo.md`.
 
 ---
 
 ## 4. Arquitetura
 
-Next.js 15 App Router + oRPC + Prisma + Better Auth + Inngest. Alias único: `@/*` → `./src/*`.
+Next.js 15 App Router + oRPC + Prisma + Better Auth + Inngest. Alias único: `@/*` → `./src/*` (dentro de `apps/web/`).
 
 ### 4.1 O servidor oRPC vive em `src/app/` (não em `src/server` nem `src/rpc`)
 
@@ -321,7 +344,9 @@ WHATSAPP_NUMBER, NODE_ENV
 - `src/context/` e `src/schemas/` são anteriores à convenção `src/features/` e são vestigiais — não adicione neles.
 - Docs desatualizados: template de env do README, porta do DB (compose diz 5433) e paths em `docs/catalogo-promocional/`. Confie no código e no `docker-compose.yml`.
 - Após rodar migration, **bump do `SCHEMA_VERSION`** — sem isso o dev roda com o Prisma Client antigo e o campo novo dá 500.
-- Multi-tenancy manual (§4.2) é a maior fonte de bugs de segurança: sempre filtrar por `organizationId`.
+- Multi-tenancy manual (§4.2) é a maior fonte de bugs de segurança: sempre filtrar por `organizationId`. Há um teste de integração que trava essa regra em `supplier.list` — replique-o procedure a procedure.
+- **`.env` fica em `apps/web/`**, não na raiz — o Next lê do diretório do app. Idem `.env.local` e `.env.test`.
+- A migration saiu do `build` (§3). Devolvê-la para lá faz o cache do turbo pular a aplicação do schema.
 
 ---
 
@@ -329,5 +354,6 @@ WHATSAPP_NUMBER, NODE_ENV
 
 - `docs/TRADE_MARKETING.md` — módulo de mapa/PDV/Book: modelo de dados, o domínio em metros desacoplado do renderer Konva (`src/features/store-map/engine/`), roadmap M1–M9, convenções (§9), issues conhecidas (§11).
 - `docs/catalogo-promocional/` — spec do catálogo promocional (paths parcialmente desatualizados).
-- `.agents/skills/` — skills de terceiros vendored (shadcn, vercel-react-best-practices, web-design-guidelines, context7).
+- `specs/turborepo.md` — por que o monorepo tem esta forma e o que ficou de fora de propósito (`packages/database`, `packages/ui`, Dockerfile + `turbo prune`, app desktop).
+- `.agents/skills/` — skills de terceiros vendored (shadcn, vercel-react-best-practices, web-design-guidelines, frontend-design, context7-cli).
 - `CLAUDE.md` — instruções para o Claude Code (fonte deste resumo).

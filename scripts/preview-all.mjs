@@ -15,10 +15,11 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 const PREVIEW_BRANCH = "preview/tudo-local";
 // Arquivos "aditivos" onde `merge=union` costuma resolver sozinho (mantém os
 // dois lados sem marcadores). Fixups abaixo cuidam do que sobra.
-const UNION_ATTRS = `prisma/schema.prisma merge=union
-src/lib/permissions.ts merge=union
-src/components/app-sidebar.tsx merge=union
-src/app/router/index.ts merge=union
+const UNION_ATTRS = `* text=auto eol=lf
+apps/web/prisma/schema.prisma merge=union
+apps/web/src/lib/permissions.ts merge=union
+apps/web/src/components/app-sidebar.tsx merge=union
+apps/web/src/app/router/index.ts merge=union
 `;
 
 const args = process.argv.slice(2);
@@ -155,15 +156,15 @@ if (postFixups.length > 0) {
 bumpSchemaVersion();
 log("prisma generate");
 try {
-  shLive("npx prisma generate");
+  shLive("pnpm db:generate");
 } catch {
-  warn("prisma generate falhou — inspecione prisma/schema.prisma");
+  warn("prisma generate falhou — inspecione apps/web/prisma/schema.prisma");
 }
 
 // ─── 9) Typecheck rápido pra validar (não bloqueia) ─────────────────────────
 log("Typecheck");
 try {
-  shLive("npx tsc --noEmit");
+  shLive("pnpm check-types");
   ok("tsc limpo");
 } catch {
   warn("tsc tem erros — inspecione acima.");
@@ -197,10 +198,10 @@ if (skipped.length > 0) {
 function applyKnownFixups() {
   const applied = [];
 
-  // 1) prisma/schema.prisma — chave } de fechamento após @@map(...) some quando
+  // 1) apps/web/prisma/schema.prisma — chave } de fechamento após @@map(...) some quando
   //    duas features adicionam models em sequência e o union descarta o \n} \n
   //    entre elas. Detecção: `@@map("...")\n` seguido de linha que NÃO é `}`.
-  const schemaPath = "prisma/schema.prisma";
+  const schemaPath = "apps/web/prisma/schema.prisma";
   if (existsSync(schemaPath)) {
     const before = readFileSync(schemaPath, "utf8");
     const after = before.replace(
@@ -213,12 +214,12 @@ function applyKnownFixups() {
     }
   }
 
-  // 2) src/lib/permissions.ts — dois objetos {key,label,href} fundidos num
+  // 2) apps/web/src/lib/permissions.ts — dois objetos {key,label,href} fundidos num
   //    único literal (padrão do union). Ex.:
   //      { key: "a", label: "A", href: "/a",
   //        key: "b", label: "B", href: "/b" }
   //    Split em dois objetos separados.
-  const permsPath = "src/lib/permissions.ts";
+  const permsPath = "apps/web/src/lib/permissions.ts";
   if (existsSync(permsPath)) {
     const before = readFileSync(permsPath, "utf8");
     const after = before.replace(
@@ -235,9 +236,9 @@ function applyKnownFixups() {
     }
   }
 
-  // 3) src/components/app-sidebar.tsx — duplicação nas listas de nav. Detecção
+  // 3) apps/web/src/components/app-sidebar.tsx — duplicação nas listas de nav. Detecção
   //    conservadora: procura duas linhas consecutivas idênticas com "name:".
-  const sidebarPath = "src/components/app-sidebar.tsx";
+  const sidebarPath = "apps/web/src/components/app-sidebar.tsx";
   if (existsSync(sidebarPath)) {
     const before = readFileSync(sidebarPath, "utf8");
     // De-duplica linhas consecutivas idênticas em children arrays (mesmo indent
@@ -258,7 +259,7 @@ function applyKnownFixups() {
 // SCHEMA_VERSION do runtime cache do Prisma. Bumpa pra um valor único desta
 // preview — senão o dev roda com Client cacheado de outra composição.
 function bumpSchemaVersion() {
-  const path = "src/lib/db.ts";
+  const path = "apps/web/src/lib/db.ts";
   if (!existsSync(path)) return;
   const now = new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 12);
   const before = readFileSync(path, "utf8");

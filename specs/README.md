@@ -13,6 +13,21 @@ feature depois de trabalhar em outra coisa.
 - [`_TEMPLATE.md`](./_TEMPLATE.md) — Template padrao para novos specs
 - [`COMO-SOLICITAR.md`](./COMO-SOLICITAR.md) — Guia de como formular requisicoes eficientes
 
+## Infraestrutura
+
+- [`turborepo.md`](./turborepo.md) — Monorepo (Turborepo + pnpm workspaces), Vitest/Playwright, deploy no Coolify · `feat/turborepo` · 🟡 em andamento
+- [`desktop-offline.md`](./desktop-offline.md) — App desktop Tauri + offline-first (SQLite + sync por operações), packages compartilhados · 📋 proposta
+- [`desktop-fase-0.md`](./desktop-fase-0.md) — Desktop Fase 0: fundações (client tipado, auth de device, CORS) · ✅ implementado
+- [`desktop-fase-1.md`](./desktop-fase-1.md) — Desktop Fase 1: app Tauri online-only (login + PDV) · ✅ implementado
+- [`desktop-fase-2.md`](./desktop-fase-2.md) — Desktop Fase 2: banco local (SQLite/IndexedDB) + leitura offline · ✅ implementado
+- [`desktop-fase-3.md`](./desktop-fase-3.md) — Desktop Fase 3: escrita de venda offline (outbox + replay idempotente) · ✅ implementado
+- [`desktop-fase-4.md`](./desktop-fase-4.md) — Desktop Fase 4: endurecimento (conectividade real, dead-letter, token seguro) · ✅ implementado
+- [`desktop-fase-5.md`](./desktop-fase-5.md) — Desktop Fase 5: app nativo Tauri real (SQLite/store, instalador Windows) + guard de conformidade do contrato · ✅ implementado
+- [`desktop-pagamento-eletronico.md`](./desktop-pagamento-eletronico.md) — Pagamento eletrônico (PaymentProcessor/TEF) do PDV desktop: arquitetura ports & adapters revisada; Mock como contrato · 🟡 domínio pronto, adapter real futuro
+- [`desktop-release.md`](./desktop-release.md) — Distribuição do instalador Windows: assinatura de código, URL de produção, CORS prod, pt-BR, auto-update · 📋 planejado
+- [`migracao-monorepo-main.md`](./migracao-monorepo-main.md) — Levar o monorepo (`feat/desktop`) para a `main`: alinhamento de layout, colisão de migrations, deploy · 📋 planejado (não executar sem decisão do dev)
+- [`novos-apps.md`](./novos-apps.md) — Adicionar apps (React Native e outros web) ao monorepo: o que se compartilha hoje, deploy por app no Coolify, ordem de extração de `packages/ui` e `packages/database` · 🟡 em andamento
+
 ## Specs por feature
 
 - [`dashboard.md`](./dashboard.md) — Dashboard pessoal + org + publico: 18 widgets, Oracle, alertas, pendencias

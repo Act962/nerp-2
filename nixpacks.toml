@@ -1,0 +1,34 @@
+# Configuração do Nixpacks (Coolify).
+#
+# O NOME DO ARQUIVO IMPORTA: o Nixpacks lê `nixpacks.toml` / `nixpacks.json`.
+# Este arquivo já existiu como `.nixpacks.toml` (com ponto) e era ignorado em
+# silêncio — o deploy usava o plano inferido do `package.json`. Na `main` isso
+# passou despercebido porque o `build` inferido já continha a migration; no
+# monorepo o `build` virou `turbo build` e a migration parou de rodar.
+#
+# ATENÇÃO ao editar: arrays aqui SOBRESCREVEM o que o provider Node detecta,
+# não estendem (use `'...'` como primeiro item para estender). Por isso este
+# arquivo só declara a fase de `build`: `setup` e `install` ficam com o que o
+# provider acerta sozinho (openssl para o Prisma, corepack, cache do store do
+# pnpm), e `start` já é inferido corretamente como `pnpm run start`.
+
+[phases.build]
+# Reposto explicitamente: sobrescrever `cmds` descartaria o `dependsOn` que o
+# provider tinha, e o build rodaria antes do install.
+dependsOn = ["install"]
+
+# `db:deploy` é um passo separado de propósito: o `build` do turbo é cacheável,
+# e uma build restaurada do cache pularia a migration silenciosamente.
+#
+# O build é FILTRADO no app que este deploy serve. Sem o filtro, `turbo build`
+# constrói todo workspace com script de `build` — incluindo o `@nerp/desktop`
+# (bundle Vite do Tauri), que o servidor não usa.
+#
+# É também o ponto de extensão para um segundo app Next: cada deploy aponta seu
+# `--filter`, e só UM deles mantém o `db:deploy` (dois deploys concorrentes
+# migrando o mesmo banco correm um contra o outro).
+cmds = ["pnpm db:deploy", "pnpm turbo build --filter=@nerp/web"]
+
+# Mesmos diretórios que o provider Node usa; declarados porque o override de
+# `cmds` os descartaria junto.
+cacheDirectories = ["apps/web/.next/cache", "node_modules/.cache"]
