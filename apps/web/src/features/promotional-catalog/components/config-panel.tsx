@@ -101,7 +101,6 @@ import {
   type LayerSelection,
   makeDynamicOverlay,
   type Overlay,
-  type StyleBlock,
   toTemplateConfig,
 } from "../types";
 import { ElementProperties } from "./element-properties";
@@ -210,15 +209,12 @@ function PriceStyleThumb({
   );
 }
 
-// Biblioteca de estilos (aba "Estilos"): "Meus estilos" (da org) e "Estilos do
-// sistema" (globais). Clicar aplica o card a todos os produtos.
+// Biblioteca de estilos (aba "Etiqueta"): "Meus estilos" (da org) e "Estilos do
+// sistema" (globais). É apenas uma REFERÊNCIA VISUAL de como as etiquetas da
+// página devem ficar — clicar só pré-visualiza, não aplica nem insere nada.
 function PriceStylesLibrary({
-  onApply,
-  onAdd,
   cardAspect,
 }: {
-  onApply: (layout: CardLayoutElement[]) => void;
-  onAdd: (layout: CardLayoutElement[]) => void;
   // Proporção real do card na página — usada nos previews para a etiqueta
   // aparecer COMPLETA (sem o corte de um quadrado forçado).
   cardAspect?: number;
@@ -369,32 +365,11 @@ function PriceStylesLibrary({
               />
             )}
           </div>
-          <div className="flex flex-col gap-2">
-            <Button
-              type="button"
-              onClick={() => {
-                if (preview) onApply(preview.layout);
-                setPreview(null);
-              }}
-            >
-              Alterar todos os estilos da página
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                if (preview) onAdd(preview.layout);
-                setPreview(null);
-              }}
-            >
-              Adicionar estilo à página
-            </Button>
-            <p className="text-[11px] text-muted-foreground">
-              “Alterar” substitui a Etiqueta de todos os produtos da página.
-              “Adicionar” coloca este estilo como um bloco posicionável na
-              página (mova/redimensione como uma etiqueta).
-            </p>
-          </div>
+          <p className="text-center text-[12px] text-muted-foreground">
+            Esta biblioteca é só uma <b>referência visual</b> de como as
+            etiquetas da página devem ficar. Monte a etiqueta de cada produto
+            pela aba “Página”.
+          </p>
         </DialogContent>
       </Dialog>
 
@@ -2176,7 +2151,8 @@ export function ConfigPanel({
               onEditProduct={(id) => {
                 // Reusa o mecanismo robusto (nonce) — abre o editor mesmo com o
                 // produto recém-adicionado (evita corrida com a lista).
-                if (onEditProductRequest) onEditProductRequest(id, { entry: "photo" });
+                if (onEditProductRequest)
+                  onEditProductRequest(id, { entry: "photo" });
                 else {
                   setEditEntry("photo");
                   setEditElementId(undefined);
@@ -2843,28 +2819,6 @@ export function ConfigPanel({
                   Math.max(1, (config.gridCols ?? 3) * (config.gridRows ?? 4)),
                 )?.aspect ?? 1)
           }
-          onApply={(layout) => onConfigChange({ cardLayout: layout })}
-          onAdd={(layout) => {
-            // "Adicionar" coloca o estilo como um BLOCO posicionável na página.
-            // Nasce SEM produto — o usuário adiciona um produto real depois (em
-            // "Estilos na página"), que então entra na lista de Produtos.
-            const block: StyleBlock = {
-              id: crypto.randomUUID(),
-              x: 360,
-              y: 360,
-              w: 360,
-              h: 360,
-              rotation: 0,
-              productId: "",
-              cardLayout: layout.map((el) => ({
-                ...el,
-                id: crypto.randomUUID(),
-              })),
-            };
-            onConfigChange({
-              styleBlocks: [...(config.styleBlocks ?? []), block],
-            });
-          }}
         />
 
         {/* Blocos de estilo já colocados na página: escolher/adicionar o produto
