@@ -781,9 +781,19 @@ export function toTemplateConfig(
       ? { overlays: dynOverlays, texts: dynTexts }
       : undefined;
 
+  // A ETIQUETA (cardLayout) pode ter sido montada POR PÁGINA (pages[].cardLayout)
+  // em vez de global. Como o padrão não guarda `pages`, capturamos a 1ª página
+  // com etiqueta para o padrão nascer COMPLETO — senão "Começar de um padrão"
+  // traz o fundo mas não a etiqueta.
+  const cardLayout =
+    config.cardLayout ??
+    (config.pages ?? []).find(
+      (p) => Array.isArray(p.cardLayout) && p.cardLayout.length > 0,
+    )?.cardLayout;
+
   // Padrão POR CATEGORIA (sistema): só as chaves daquela fatia.
   if (kind) {
-    const src: Record<string, unknown> = { ...config, templateDynamic };
+    const src: Record<string, unknown> = { ...config, cardLayout, templateDynamic };
     const slice: Record<string, unknown> = { templateKind: kind };
     for (const key of TEMPLATE_KIND_KEEP[kind])
       if (src[key] !== undefined) slice[key] = src[key];
@@ -796,7 +806,7 @@ export function toTemplateConfig(
   }
 
   // Padrão COMPLETO (aparência do catálogo, org).
-  const clone: Record<string, unknown> = { ...config };
+  const clone: Record<string, unknown> = { ...config, cardLayout };
   for (const key of TEMPLATE_OMIT_KEYS) delete clone[key];
   if (templateDynamic) clone.templateDynamic = templateDynamic;
   else delete clone.templateDynamic;

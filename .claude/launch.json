@@ -4,7 +4,7 @@
     {
       "name": "nerp",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": ["--filter", "@nerp/web", "dev"],
       "port": 3000,
       "autoPort": false
     },

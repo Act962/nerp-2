@@ -30,7 +30,6 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -225,9 +224,6 @@ export function CardFreeEditor({
   pageCrop,
   pageBgConfig,
   pageBackground,
-  hideCardBackground,
-  cardColor,
-  onCardBgChange,
 }: CardFreeEditorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [name, setName] = useState("");
@@ -603,14 +599,9 @@ export function CardFreeEditor({
             height: cardH || undefined,
           }}
         >
-          {/* Caixa do redimensionador: reflete o fundo da Etiqueta. Com "Fundo
-              transparente" o recorte da página aparece atrás; senão, usa a cor. */}
-          <div
-            className="absolute inset-0 overflow-hidden rounded-lg border border-border/50"
-            style={{
-              backgroundColor: hideCardBackground ? undefined : cardColor,
-            }}
-          >
+          {/* Caixa do redimensionador: a Etiqueta é sempre transparente (fundo
+              descontinuado) — o recorte da página aparece atrás. */}
+          <div className="absolute inset-0 overflow-hidden rounded-lg border border-border/50">
             <div
               ref={canvasRef}
               className="absolute inset-0"
@@ -774,34 +765,6 @@ export function CardFreeEditor({
       <div className="flex w-full flex-col gap-2 p-2.5 md:h-full md:w-[416px] md:overflow-y-auto">
         <h3 className="text-sm font-semibold">Montar Etiqueta</h3>
 
-        {/* Fundo da Etiqueta — transparente = janela p/ a página; senão, cor.
-            Compacto: toggle + cor na mesma linha. */}
-        {onCardBgChange && (
-          <div className="flex items-center justify-between gap-2 rounded-md border px-2 py-1.5">
-            <Label htmlFor="cfe-hide-bg" className="text-xs">
-              Fundo transparente
-            </Label>
-            <div className="flex items-center gap-2">
-              {!hideCardBackground && (
-                <input
-                  type="color"
-                  title="Cor da Etiqueta"
-                  value={cardColor ?? "#ffffff"}
-                  onChange={(e) => onCardBgChange({ cardColor: e.target.value })}
-                  className="h-7 w-7 cursor-pointer rounded-lg border p-0 shadow-sm"
-                />
-              )}
-              <Switch
-                id="cfe-hide-bg"
-                checked={hideCardBackground === true}
-                onCheckedChange={(v) =>
-                  onCardBgChange({ hideCardBackground: v })
-                }
-              />
-            </div>
-          </div>
-        )}
-
         {/* Inserir: variáveis + formas + texto — ícone + nome embaixo. O painel
             largo (30% maior) mantém 3 linhas, então cabe sem rolagem. */}
         <div className="flex flex-col gap-1">
@@ -924,9 +887,7 @@ export function CardFreeEditor({
                   </span>
                   <Select
                     value={single.fontFamily ?? "Inter, sans-serif"}
-                    onValueChange={(v) =>
-                      update(single.id, { fontFamily: v })
-                    }
+                    onValueChange={(v) => update(single.id, { fontFamily: v })}
                   >
                     <SelectTrigger className="h-8 text-sm">
                       <SelectValue />

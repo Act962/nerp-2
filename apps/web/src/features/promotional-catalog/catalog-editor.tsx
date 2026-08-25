@@ -1724,6 +1724,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                 const idx = pages.findIndex((pg) => pg.id === key);
                 if (idx >= 0) setPreviewPage(idx);
               }}
+              onAddPage={() => addPage(pages.length - 1)}
               preview={
                 pageChunks.length === 0 ? (
                   <div className="flex h-full items-center justify-center p-4">
