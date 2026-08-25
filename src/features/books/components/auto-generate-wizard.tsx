@@ -11,8 +11,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -21,8 +34,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
-import { AlertTriangle, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsUpDown,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -58,7 +78,16 @@ export function AutoGenerateWizard({
   onOpenChange,
 }: AutoGenerateWizardProps) {
   const router = useRouter();
-  const { suppliers } = useSupplier();
+  // Indústria via combobox com busca no servidor (a lista de suppliers pode ser
+  // grande; um Select simples truncava em 10 e escondia indústrias como a
+  // Pepsico). `pageSize` alto + `search` garantem que qualquer uma apareça.
+  const [supplierOpen, setSupplierOpen] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierLabel, setSupplierLabel] = useState("");
+  const { suppliers, isLoading: suppliersLoading } = useSupplier({
+    search: supplierSearch || undefined,
+    pageSize: 100,
+  });
   const now = new Date();
 
   const [step, setStep] = useState<Step>("select");
@@ -150,21 +179,65 @@ export function AutoGenerateWizard({
           <div className="space-y-4">
             <Field>
               <FieldLabel>Indústria</FieldLabel>
-              <Select
-                value={supplierId ?? undefined}
-                onValueChange={(v) => setSupplierId(v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione a indústria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {suppliers.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    // biome-ignore lint/a11y/useSemanticElements: combobox trigger
+                    role="combobox"
+                    aria-expanded={supplierOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className={cn(!supplierLabel && "text-muted-foreground")}>
+                      {supplierLabel || "Selecione a indústria"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-[--radix-popover-trigger-width] p-0"
+                  align="start"
+                >
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Buscar indústria..."
+                      value={supplierSearch}
+                      onValueChange={setSupplierSearch}
+                    />
+                    <CommandList>
+                      <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
+                        {suppliersLoading
+                          ? "Buscando..."
+                          : "Nenhuma indústria encontrada."}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {suppliers.map((s) => (
+                          <CommandItem
+                            key={s.id}
+                            value={s.id}
+                            onSelect={() => {
+                              setSupplierId(s.id);
+                              setSupplierLabel(s.name);
+                              setSupplierOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                "mr-2 size-4",
+                                supplierId === s.id
+                                  ? "opacity-100"
+                                  : "opacity-0",
+                              )}
+                            />
+                            {s.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </Field>
 
             <div className="grid grid-cols-2 gap-4">
