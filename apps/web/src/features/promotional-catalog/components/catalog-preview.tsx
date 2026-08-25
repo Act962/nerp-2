@@ -151,24 +151,11 @@ export function renderCard(
       ? `${config.cardBorderWidth}px solid ${config.cardBorderColor ?? "#111111"}`
       : undefined;
 
-  // Estilo da FOTO (template E variável "Foto" do card livre). Por PADRÃO a foto
-  // fica LIMPA — sem fundo, contorno ou sombra — porque as imagens já vêm com o
-  // fundo removido (o box branco atrapalhava). Só aparece quando explicitamente
-  // ativado (`hideImage* === false`), preservando compatibilidade.
-  const photoBox: CSSProperties = {
-    backgroundColor:
-      config.hideImageBackground === false
-        ? (config.imageBackgroundColor ?? config.cardColor)
-        : undefined,
-    border:
-      config.hideImageBorder === false
-        ? "1px solid rgba(0,0,0,0.12)"
-        : undefined,
-    boxShadow:
-      config.hideImageShadow === false
-        ? "0 1px 4px rgba(0,0,0,0.18)"
-        : undefined,
-  };
+  // Foto SEMPRE limpa — sem fundo, contorno ou sombra. A função "fundo da
+  // etiqueta/imagem" foi DESCONTINUADA (o box branco atrapalhava e as imagens já
+  // vêm com o fundo removido); ignoramos `hideImage*`/`cardColor` mesmo em
+  // estilos já salvos.
+  const photoBox: CSSProperties = {};
 
   // Card livre (editor de variáveis + formas): quando há elementos, desenha o
   // card livremente, substituindo o template de `cardStyle`. Resolução:
@@ -181,9 +168,9 @@ export function renderCard(
         key={product.id}
         className="overflow-hidden rounded-lg"
         style={{
-          backgroundColor: config.hideCardBackground
-            ? "transparent"
-            : config.cardColor,
+          // Etiqueta sempre transparente (função "Fundo transparente"
+          // descontinuada); `cardColor` fica só para a cor do texto.
+          backgroundColor: "transparent",
           border: cardBorder,
         }}
       >
@@ -203,10 +190,8 @@ export function renderCard(
   }
 
   const cardStyle = {
-    backgroundColor:
-      config.hideCardBackground || config.hideImageBackground
-        ? "transparent"
-        : (config.imageBackgroundColor ?? config.cardColor),
+    // Sempre transparente — função descontinuada (ver photoBox acima).
+    backgroundColor: "transparent",
   };
   // `cardColor` só define a cor do TEXTO (contraste) — mantém a cor real mesmo
   // com fundo transparente, senão o texto ficaria ilegível.
