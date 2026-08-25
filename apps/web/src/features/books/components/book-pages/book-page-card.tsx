@@ -2,7 +2,13 @@
 
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, LayoutTemplate, SquarePen, Trash2 } from "lucide-react";
+import {
+  GripVertical,
+  Images,
+  LayoutTemplate,
+  SquarePen,
+  Trash2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { compressImage } from "@/lib/compress-image";
@@ -40,6 +46,7 @@ import {
   type PhotoLayoutPattern,
 } from "./book-page-photo-grid";
 import { PageItemLayoutDialog } from "./page-item-layout-dialog";
+import { BookStorePhotosDialog } from "./book-store-photos-dialog";
 import { ImportPhotoDialog } from "./import-photo-dialog";
 import { PhotoAdjustDialog } from "./photo-adjust-dialog";
 import type { CoverElement } from "../../lib/cover-layout";
@@ -55,6 +62,7 @@ export interface BookPageItem {
   pageLayout: unknown;
   pageBackground: unknown;
   storeName: string;
+  storeId: string | null;
   managerName: string | null;
   section: string | null;
   code: string | null;
@@ -245,6 +253,7 @@ export function BookPageCard({
 
   const applyPageTemplate = useApplyBookPageTemplate();
   const [layoutDialogOpen, setLayoutDialogOpen] = useState(false);
+  const [storePhotosOpen, setStorePhotosOpen] = useState(false);
   const hasOwnLayout = item.hasOwnPageLayout;
   // O picker não guarda qual padrão originou o layout — a cópia é por valor,
   // então só sabemos se a página tem layout próprio ou não.
@@ -555,6 +564,16 @@ export function BookPageCard({
           >
             <SquarePen className="size-4" />
           </button>
+          {item.storeId && (
+            <button
+              type="button"
+              className="flex size-9 items-center justify-center rounded-md bg-white/15 text-white hover:bg-white/25 md:size-7"
+              title="Ver e gerenciar as fotos aprovadas desta loja/cliente"
+              onClick={() => setStorePhotosOpen(true)}
+            >
+              <Images className="size-4" />
+            </button>
+          )}
           <button
             type="button"
             // touch-none: sem isso o browser sequestra o gesto pro scroll
@@ -624,13 +643,26 @@ export function BookPageCard({
         {position} / {total}
       </div>
 
+      {item.storeId && (
+        <BookStorePhotosDialog
+          open={storePhotosOpen}
+          onOpenChange={setStorePhotosOpen}
+          bookId={bookId}
+          storeId={item.storeId}
+          supplierId={supplierId ?? null}
+          storeName={item.storeName}
+        />
+      )}
+
       {importSlot != null && (
         <ImportPhotoDialog
           open
           onOpenChange={(nextOpen) => {
             if (!nextOpen) setImportSlot(null);
           }}
+          bookId={bookId}
           defaultSupplierId={supplierId ?? null}
+          defaultStoreId={item.storeId}
           onPick={(key) => {
             addKeyToSlot(importSlot, key);
             setImportSlot(null);

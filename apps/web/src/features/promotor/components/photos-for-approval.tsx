@@ -38,6 +38,8 @@ import {
   useReviewPromotorPhoto,
   useReviewPromotorPhotosBulk,
 } from "../hooks/use-promotor";
+import { MediaTypeSelect } from "@/features/trade-catalog/components/media-type-select";
+import { useUpdatePdvPhoto } from "@/features/pdv-photos/hooks/use-pdv-photos";
 import { applySealToPhoto } from "../lib/bake-photo";
 import {
   type DateRange,
@@ -540,6 +542,8 @@ function PhotoCard({
   const canStamp =
     photo.sealMissing && !!photo.photoKey && !!photo.supplierActionCodeImage;
   const stamping = sealingId === photo.id || applySealPending;
+  // Categorização por tipo de mídia (silencioso: salva sem toast a cada troca).
+  const updatePhoto = useUpdatePdvPhoto({ silent: true });
 
   return (
     <div
@@ -602,6 +606,16 @@ function PhotoCard({
             <AlertTriangle className="size-3" /> Foto fora do local da loja
           </p>
         )}
+        {/* Categorizar por tipo de mídia (favoritos primeiro; estrela favorita) */}
+        <div className="pt-0.5">
+          <MediaTypeSelect
+            value={photo.mediaTypeId ?? null}
+            onChange={(mediaTypeId) =>
+              updatePhoto.mutate({ id: photo.id, mediaTypeId })
+            }
+            className="w-full"
+          />
+        </div>
         {photo.approvalStatus === "REJECTED" && photo.approvalNote && (
           <p className="rounded bg-red-50 px-1.5 py-1 text-red-700">
             Motivo: {photo.approvalNote}

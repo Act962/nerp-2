@@ -78,6 +78,7 @@ export const getBook = base
                 capturedAt: true,
                 mediaTypeId: true,
                 managerName: true,
+                storeId: true,
                 store: { select: { name: true, managerName: true } },
                 mediaType: { select: { name: true } },
               },
@@ -193,6 +194,7 @@ export const getBook = base
         reviewedByName: item.reviewedByName,
         reviewedAt: item.reviewedAt?.toISOString() ?? null,
         storeName: item.pdvPhoto.store.name,
+        storeId: item.pdvPhoto.storeId,
         // Snapshot da página vence; vazio cai no gerente cadastrado na loja.
         managerName:
           item.pdvPhoto.managerName ?? item.pdvPhoto.store.managerName,

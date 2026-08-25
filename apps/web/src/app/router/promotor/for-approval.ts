@@ -82,6 +82,9 @@ export const listPhotosForApproval = base
           },
         },
         offSite: true,
+        // Tipo de mídia atual (categorização) — mostrado/editável no card.
+        mediaTypeId: true,
+        mediaType: { select: { id: true, code: true, name: true } },
         store: { select: { name: true } },
         supplier: { select: { id: true, name: true, actionCodeImage: true } },
       },
@@ -112,6 +115,8 @@ export const listPhotosForApproval = base
         approvalStatus: photo.approvalStatus,
         approvalNote: photo.approvalNote,
         possibleReuse: photo.possibleReuse,
+        mediaTypeId: photo.mediaTypeId,
+        mediaType: photo.mediaType,
         reuseOf: photo.reuseOf
           ? {
               id: photo.reuseOf.id,

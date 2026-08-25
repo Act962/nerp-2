@@ -217,6 +217,18 @@ export function useUpdateBookItemLayout() {
   );
 }
 
+// Layout PRÓPRIO de UMA página (modelo novo, BookPage) — usado pelo "Editar
+// layout" das páginas V2 (auto e manuais novas).
+export function useUpdateBookPageOwnLayout() {
+  const invalidateBooks = useInvalidateBooks();
+  return useMutation(
+    orpc.book.updateBookPageLayout.mutationOptions({
+      onSuccess: () => invalidateBooks(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 // ── Padrões por indústria ────────────────────────────────────────────────
 
 export function useBookTemplates(supplierId: string | null) {

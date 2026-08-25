@@ -218,30 +218,35 @@ export function BookEditor({ bookId }: BookEditorProps) {
         />
 
         {(book.pages?.length ?? 0) > 0 && (
-          <>
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-sm text-muted-foreground">
-                Use as setas ↑/↓ em cada página para reordená-las.
-              </p>
-              <AddExtraPageButton
-                bookId={bookId}
-                supplierId={book.supplierId}
-                pages={(book.pages ?? []).map((page, index) => ({
-                  id: page.id,
-                  label: `Página ${index + 1} — ${
-                    page.isExtra ? "Página extra" : (page.storeName ?? "Loja")
-                  }`,
-                }))}
-              />
-            </div>
-            <BookPagesListV2
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              Use as setas ↑/↓ em cada página para reordená-las.
+            </p>
+            <AddExtraPageButton
               bookId={bookId}
               supplierId={book.supplierId}
-              pages={book.pages ?? []}
-              logos={logos}
-              variableValues={variableValues}
+              pages={(book.pages ?? []).map((page, index) => ({
+                id: page.id,
+                label: `Página ${index + 1} — ${
+                  page.isExtra ? "Página extra" : (page.storeName ?? "Loja")
+                }`,
+              }))}
             />
-          </>
+          </div>
+        )}
+
+        {/* Modelo novo (BookPage): renderiza sempre que NÃO for um book só de
+            itens legados — inclusive vazio, pois a própria lista traz o botão
+            "Adicionar página" (loja/cliente + indústria do book) e a orientação
+            de "Gerar automático". */}
+        {((book.pages?.length ?? 0) > 0 || book.items.length === 0) && (
+          <BookPagesListV2
+            bookId={bookId}
+            supplierId={book.supplierId}
+            pages={book.pages ?? []}
+            logos={logos}
+            variableValues={variableValues}
+          />
         )}
 
         {book.items.length > 0 && (
@@ -258,14 +263,6 @@ export function BookEditor({ bookId }: BookEditorProps) {
             bookPageBackground={book.pageBackground}
             logos={logos}
           />
-        )}
-
-        {book.items.length === 0 && (book.pages?.length ?? 0) === 0 && (
-          <div className="rounded-lg border border-dashed bg-muted/20 p-6 text-center text-sm text-muted-foreground">
-            Nenhuma página de conteúdo ainda. Volte para <strong>Books</strong>{" "}
-            e use <strong>Gerar automático</strong> para criar 1 página por
-            supermercado a partir das fotos aprovadas.
-          </div>
         )}
 
         <BookCoverCard

@@ -402,10 +402,13 @@ export function useApprovedForImport(
   storeId: string | undefined,
   supplierId: string | undefined,
   enabled: boolean,
+  // Opcional: marca `usedInBook` nas fotos já usadas neste book (aviso de
+  // repetição no picker).
+  bookId?: string,
 ) {
   const query = useQuery({
     ...orpc.promotor.approvedForImport.queryOptions({
-      input: { storeId, supplierId },
+      input: { storeId, supplierId, bookId },
     }),
     enabled,
   });

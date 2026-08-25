@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { useUpdatePdvPhoto } from "@/features/pdv-photos/hooks/use-pdv-photos";
-import { Plus } from "lucide-react";
+import { ListOrdered, Plus } from "lucide-react";
 import {
   useAddBookPage,
   useDuplicateBookPage,
@@ -29,6 +29,7 @@ import {
 import { formatPeriod } from "../../lib/book-format";
 import { AddPageSheet } from "./add-page-sheet";
 import { BookPageCard, type BookPageItem } from "./book-page-card";
+import { ReorderPagesDialog } from "./reorder-pages-dialog";
 
 interface BookPagesListProps {
   bookId: string;
@@ -63,6 +64,7 @@ export function BookPagesList({
   const removeItem = useRemoveBookItem();
   const reorderItems = useReorderBookItems();
   const [openAddPage, setOpenAddPage] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   // A página só nasce no "Salvar": criar o PdvPhoto lá no passo 1 deixaria uma
   // página fantasma vazia toda vez que o promotor abandonasse o fluxo — e em
@@ -150,6 +152,40 @@ export function BookPagesList({
     </Button>
   );
 
+  const reorderControls =
+    orderedItems.length > 1 ? (
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1"
+          onClick={() => setReorderOpen(true)}
+          title="Reordenar páginas por busca (melhor para muitos itens)"
+        >
+          <ListOrdered className="size-4" />
+          Reordenar páginas
+        </Button>
+      </div>
+    ) : null;
+
+  const reorderDialog = reorderOpen ? (
+    <ReorderPagesDialog
+      open={reorderOpen}
+      onOpenChange={setReorderOpen}
+      isSaving={reorderItems.isPending}
+      items={orderedItems.map((item, i) => ({
+        id: item.pdvPhotoId,
+        name: item.storeName || `Página ${i + 1}`,
+      }))}
+      onSave={(orderedPdvPhotoIds) => {
+        setOrderedIds(orderedPdvPhotoIds);
+        reorderItems.mutate({ bookId, orderedPdvPhotoIds });
+        setReorderOpen(false);
+      }}
+    />
+  ) : null;
+
   // Só monta quando abre: o sheet consulta lojas e tipos de mídia no topo do
   // componente, e montado o tempo todo essas duas idas ao banco aconteciam em
   // toda abertura de book, para um formulário que ninguém tinha aberto.
@@ -187,6 +223,7 @@ export function BookPagesList({
 
   return (
     <div className="space-y-4">
+      {reorderControls}
       <DndContext
         sensors={sensors}
         collisionDetection={closestCenter}
@@ -223,6 +260,7 @@ export function BookPagesList({
 
       {addPageButton}
       {addPageSheet}
+      {reorderDialog}
     </div>
   );
 }

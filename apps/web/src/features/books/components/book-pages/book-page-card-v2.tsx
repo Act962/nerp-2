@@ -4,7 +4,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { ChevronDown, ChevronUp, Crop, Maximize2, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Crop,
+  Images,
+  Maximize2,
+  Pencil,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import {
   useDeleteBookPage,
@@ -17,6 +26,9 @@ import {
   DEFAULT_PHOTO_ADJUSTMENT,
   type PhotoAdjustment,
 } from "../../lib/photo-adjustment";
+import { BookPageLayoutDialog } from "./book-page-layout-dialog";
+import { BookStorePhotosDialog } from "./book-store-photos-dialog";
+import { HoverZoom } from "./hover-zoom";
 import { ImportPhotoDialog } from "./import-photo-dialog";
 import { PhotoAdjustDialog } from "./photo-adjust-dialog";
 import { LayoutPreview, type LayoutLogos } from "../templates/layout-preview";
@@ -71,6 +83,7 @@ interface BookPageCardV2Props {
   photoNumbers: Record<number, number>;
   onMoveUp: () => void;
   onMoveDown: () => void;
+  onInsertAfter: () => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
 }
@@ -86,6 +99,7 @@ export function BookPageCardV2({
   photoNumbers,
   onMoveUp,
   onMoveDown,
+  onInsertAfter,
   canMoveUp,
   canMoveDown,
 }: BookPageCardV2Props) {
@@ -98,6 +112,8 @@ export function BookPageCardV2({
     itemId: string | null;
   } | null>(null);
   const [adjustItem, setAdjustItem] = useState<BookPageItemV2 | null>(null);
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const [storePhotosOpen, setStorePhotosOpen] = useState(false);
 
   // Quantos slots a página tem: o maior entre nº de items e (maior slotIndex+1),
   // pra cobrir slots vazios no meio.
@@ -186,6 +202,17 @@ export function BookPageCardV2({
           )}
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1"
+            onClick={() => setLayoutOpen(true)}
+            title="Editar o layout desta página (fundo, imagens, textos)"
+          >
+            <Pencil className="size-4" />
+            Editar layout
+          </Button>
           {hasPhotos && (
             <Button
               type="button"
@@ -198,6 +225,19 @@ export function BookPageCardV2({
             >
               <Maximize2 className="size-4" />
               Caber inteira
+            </Button>
+          )}
+          {!page.isExtra && page.storeId && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={() => setStorePhotosOpen(true)}
+              title="Ver e gerenciar as fotos aprovadas desta loja/cliente"
+            >
+              <Images className="size-4" />
+              Fotos desta loja
             </Button>
           )}
           <Button
@@ -238,37 +278,54 @@ export function BookPageCardV2({
 
       <CardContent className="space-y-3 p-4">
         <div className="relative">
-          {hasLayout ? (
-            <LayoutPreview
-              layout={page.pageLayout}
-              background={page.pageBackground}
-              photoUrls={photoUrls}
-              photoAdjustments={photoAdjustments}
-              photoNumbers={photoNumbers}
-              variableValues={pageVariables}
-              photoVariables={photoVariables}
-              logos={logos}
-              className="rounded-md border"
-              onSlotClick={(slotIndex) =>
-                setSwapContext({
-                  slotIndex,
-                  itemId: itemBySlot(slotIndex)?.id ?? null,
-                })
-              }
-            />
-          ) : (
-            <SimpleGrid
-              slotCount={slotCount}
-              itemBySlot={itemBySlot}
-              onSwap={(slotIndex) =>
-                setSwapContext({
-                  slotIndex,
-                  itemId: itemBySlot(slotIndex)?.id ?? null,
-                })
-              }
-            />
-          )}
+          <HoverZoom>
+            {hasLayout ? (
+              <LayoutPreview
+                layout={page.pageLayout}
+                background={page.pageBackground}
+                photoUrls={photoUrls}
+                photoAdjustments={photoAdjustments}
+                photoNumbers={photoNumbers}
+                variableValues={pageVariables}
+                photoVariables={photoVariables}
+                logos={logos}
+                className="rounded-md border"
+                onSlotClick={(slotIndex) =>
+                  setSwapContext({
+                    slotIndex,
+                    itemId: itemBySlot(slotIndex)?.id ?? null,
+                  })
+                }
+              />
+            ) : (
+              <SimpleGrid
+                slotCount={slotCount}
+                itemBySlot={itemBySlot}
+                onSwap={(slotIndex) =>
+                  setSwapContext({
+                    slotIndex,
+                    itemId: itemBySlot(slotIndex)?.id ?? null,
+                  })
+                }
+              />
+            )}
+          </HoverZoom>
           <TradegramMark />
+          {/* Barra suspensa (estilo Catálogo): insere uma página logo após
+              esta, sem rolar até o fim do book. */}
+          <div className="absolute right-2 top-2 z-20">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="gap-1 border bg-background/90 shadow-md backdrop-blur hover:bg-background"
+              onClick={onInsertAfter}
+              title="Inserir uma página logo após esta"
+            >
+              <Plus className="size-4" />
+              Adicionar página
+            </Button>
+          </div>
         </div>
 
         {/* Barra de ações por foto: clicar no slot troca a foto; aqui ficam
@@ -321,6 +378,7 @@ export function BookPageCardV2({
         <SwapPhotoDialog
           open
           onOpenChange={(open) => !open && setSwapContext(null)}
+          bookId={bookId}
           supplierId={supplierId}
           supplierName={
             typeof variableValues.industria === "string"
@@ -361,6 +419,29 @@ export function BookPageCardV2({
               { onSuccess: () => setAdjustItem(null) },
             );
           }}
+        />
+      )}
+
+      <BookPageLayoutDialog
+        open={layoutOpen}
+        onOpenChange={setLayoutOpen}
+        bookPageId={page.id}
+        storeName={page.isExtra ? "Página extra" : (page.storeName ?? "Loja")}
+        layout={page.pageLayout}
+        background={page.pageBackground}
+        variableValues={pageVariables}
+        photoPreviewUrls={photoUrls.filter(Boolean)}
+        logos={logos}
+      />
+
+      {!page.isExtra && page.storeId && (
+        <BookStorePhotosDialog
+          open={storePhotosOpen}
+          onOpenChange={setStorePhotosOpen}
+          bookId={bookId}
+          storeId={page.storeId}
+          supplierId={supplierId}
+          storeName={page.storeName ?? "Loja"}
         />
       )}
     </Card>
@@ -431,6 +512,7 @@ function parseAdjustment(raw: unknown): PhotoAdjustment | undefined {
 function SwapPhotoDialog({
   open,
   onOpenChange,
+  bookId,
   supplierId,
   supplierName,
   storeId,
@@ -439,6 +521,7 @@ function SwapPhotoDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  bookId: string;
   supplierId: string | null;
   supplierName: string | null;
   storeId: string;
@@ -449,12 +532,14 @@ function SwapPhotoDialog({
     storeId,
     supplierId ?? undefined,
     open,
+    bookId,
   );
 
   return (
     <ImportPhotoDialog
       open={open}
       onOpenChange={onOpenChange}
+      bookId={bookId}
       defaultSupplierId={supplierId}
       defaultSupplierName={supplierName}
       defaultStoreId={storeId || null}
