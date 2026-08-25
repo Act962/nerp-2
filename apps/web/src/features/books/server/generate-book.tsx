@@ -26,7 +26,11 @@ import {
   type PhotoBackdropSource,
   type PhotoSource,
 } from "../pdf/book-document";
-import { composeFocusPhotoForPdf, cropPhotoForPdf } from "./crop-photo";
+import {
+  composeFocusPhotoForPdf,
+  cropPhotoForPdf,
+  reencodeToJpeg,
+} from "./crop-photo";
 import { getIndustryChrome } from "./industry-chrome";
 import type { BookVariableValues } from "../lib/book-variables";
 
@@ -41,8 +45,9 @@ async function resolveV2PhotoSource(
 ): Promise<PhotoSource> {
   // "Caber inteira" (contain) mostra a foto completa — não cortar, senão
   // perderíamos justamente a assinatura/senha/logo que o usuário quer manter.
+  // Ainda assim embute em JPEG (não deixa a URL pro react-pdf baixar).
   if (adjustment?.objectFit === "contain") {
-    return url;
+    return toJpegSource(url);
   }
   if (
     adjustment &&
@@ -52,10 +57,10 @@ async function resolveV2PhotoSource(
       const buffer = await cropPhotoForPdf(url, adjustment, slotAspect);
       return { data: buffer, format: "jpg" as const };
     } catch {
-      return url;
+      return toJpegSource(url);
     }
   }
-  return url;
+  return toJpegSource(url);
 }
 
 // `imageKey` de cada elemento tipo "image" vira URL completa — book-document.tsx
@@ -92,9 +97,21 @@ function readPhotoAdjustments(value: unknown): PhotoAdjustmentMap {
   return value as PhotoAdjustmentMap;
 }
 
-// Foto sem ajuste salvo = URL direta (react-pdf baixa e faz "cover"
-// sozinho, igual sempre foi). Com ajuste, corta com sharp reproduzindo o
-// mesmo pan/zoom calculado no editor antes de embutir no PDF.
+// Fonte de foto SEM corte: embute como JPEG (buffer) em vez de deixar a URL
+// pro react-pdf baixar no render. Só assim toda foto entra no PDF, mesmo em
+// fetch instável (book grande) ou formato que o react-pdf não decodifica.
+// Último recurso mantém a URL (comportamento antigo) pra nunca quebrar o PDF.
+async function toJpegSource(url: string): Promise<PhotoSource> {
+  try {
+    return { data: await reencodeToJpeg(url), format: "jpg" as const };
+  } catch {
+    return url;
+  }
+}
+
+// Foto sem ajuste salvo: antes ia como URL direta (react-pdf baixava e fazia
+// "cover" sozinho) — mas isso fazia fotos sumirem. Agora embute JPEG. Com
+// ajuste, corta com sharp reproduzindo o pan/zoom do editor antes de embutir.
 async function resolvePhotoSources(
   photos: string[],
   adjustments: PhotoAdjustmentMap,
@@ -104,12 +121,12 @@ async function resolvePhotoSources(
   return Promise.all(
     photos.map(async (key, index) => {
       const adjustment = adjustments[key];
-      if (!adjustment) return constructUrl(key);
+      if (!adjustment) return toJpegSource(constructUrl(key));
 
       let aspectRatio: number;
       if (photoSlots) {
         const slot = photoSlots.get(index);
-        if (!slot) return constructUrl(key);
+        if (!slot) return toJpegSource(constructUrl(key));
         aspectRatio = slot.aspectRatio;
         // Foco seletivo compõe a foto inteira desfocada + o recorte nítido numa
         // imagem só; vale mesmo em slot "caber inteira", que aí passa a
@@ -123,12 +140,14 @@ async function resolvePhotoSources(
             );
             return { data: buffer, format: "jpg" as const };
           } catch {
-            return constructUrl(key);
+            return toJpegSource(constructUrl(key));
           }
         }
         // "Caber inteira" sem foco precisa da imagem completa — cortar aqui
-        // contradiria a opção e comeria parte da foto.
-        if (slot.objectFit === "contain") return constructUrl(key);
+        // contradiria a opção e comeria parte da foto. Embute a foto inteira.
+        if (slot.objectFit === "contain") {
+          return toJpegSource(constructUrl(key));
+        }
       } else {
         aspectRatio = getSlotAspectRatio(pattern, index, photos.length);
       }
@@ -142,8 +161,8 @@ async function resolvePhotoSources(
         return { data: buffer, format: "jpg" as const };
       } catch {
         // Se o corte falhar por qualquer motivo (ex.: imagem inacessível),
-        // cai pra URL original em vez de quebrar a geração do PDF inteiro.
-        return constructUrl(key);
+        // ainda embute a foto inteira em JPEG; só cai pra URL em último caso.
+        return toJpegSource(constructUrl(key));
       }
     }),
   );

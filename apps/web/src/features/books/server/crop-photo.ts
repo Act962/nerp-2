@@ -3,6 +3,50 @@ import "server-only";
 import sharp from "sharp";
 import { computeCropRect, type PhotoAdjustment } from "../lib/photo-adjustment";
 
+// Semáforo global de processamento de imagem: um book grande (centenas de
+// fotos) processadas todas em paralelo estouraria memória/soquetes. Limita
+// quantos fetch+sharp rodam ao mesmo tempo, sem serializar tudo.
+const MAX_CONCURRENT_IMAGE_OPS = 6;
+let activeImageOps = 0;
+const imageOpQueue: Array<() => void> = [];
+async function withImageLimit<T>(fn: () => Promise<T>): Promise<T> {
+  if (activeImageOps >= MAX_CONCURRENT_IMAGE_OPS) {
+    await new Promise<void>((resolve) => imageOpQueue.push(resolve));
+  }
+  activeImageOps++;
+  try {
+    return await fn();
+  } finally {
+    activeImageOps--;
+    imageOpQueue.shift()?.();
+  }
+}
+
+// Baixa a foto e devolve um JPEG (buffer) já orientado pelo EXIF, com um teto
+// de dimensão. Serve pra EMBUTIR toda foto no PDF em vez de deixar o react-pdf
+// baixar a URL no render — o react-pdf só decodifica JPEG/PNG e falha calado em
+// fetch instável ou formato diferente (webp/heic), o que fazia "sumir" fotos.
+export async function reencodeToJpeg(url: string): Promise<Buffer> {
+  return withImageLimit(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`fetch ${response.status} em ${url}`);
+      }
+      const original = Buffer.from(await response.arrayBuffer());
+      return await sharp(original)
+        .rotate()
+        .resize(2600, 2600, { fit: "inside", withoutEnlargement: true })
+        .jpeg({ quality: 85 })
+        .toBuffer();
+    } finally {
+      clearTimeout(timeout);
+    }
+  });
+}
+
 // Baixa a foto original e aplica o mesmo corte (pan/zoom) calculado no
 // editor, pra render no PDF ficar idêntico ao que o admin ajustou na tela.
 export async function cropPhotoForPdf(
