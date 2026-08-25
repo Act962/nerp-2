@@ -207,6 +207,12 @@ jobs:
           BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_BASE_DOMAIN: localhost:3000
           NEXT_PUBLIC_DOMAIN: http://localhost:3000
+          # `src/lib/stripe.ts` faz `new Stripe(process.env.STRIPE_SECRET_KEY!)`
+          # no escopo do módulo, e o "collect page data" do `next build` importa
+          # a rota do webhook — sem a variável o build morre com "Neither apiKey
+          # nor config.authenticator provided". Chave de fachada: o e2e não
+          # chama o Stripe, só precisa o construtor não estourar.
+          STRIPE_SECRET_KEY: sk_test_fachada_ci_nao_usar
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
