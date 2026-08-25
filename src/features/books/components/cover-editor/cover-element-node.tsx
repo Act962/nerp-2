@@ -13,6 +13,8 @@ import {
 import useImage from "use-image";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {
+  COVER_CANVAS_HEIGHT,
+  COVER_CANVAS_WIDTH,
   DEFAULT_FONT_FAMILY,
   resolveImageKey,
   type CoverElement,
@@ -37,6 +39,23 @@ interface CoverElementNodeProps {
 }
 
 const SELECTION_COLOR = "#2563eb";
+
+// Encaixe (snap) nas bordas do canvas: ao arrastar/redimensionar, quando uma
+// borda do elemento fica a ≤ SNAP px de uma borda do canvas (0/960/0/540), ela
+// gruda na borda. Evita o "quase na borda" que deixa um vão no render (a faixa
+// de logos ficava em x=-21, sobrando navy à direita). Só ajusta a posição.
+const SNAP = 14;
+function snapBox(x: number, y: number, width: number, height: number) {
+  let nx = x;
+  let ny = y;
+  if (Math.abs(nx) <= SNAP) nx = 0;
+  else if (Math.abs(nx + width - COVER_CANVAS_WIDTH) <= SNAP)
+    nx = COVER_CANVAS_WIDTH - width;
+  if (Math.abs(ny) <= SNAP) ny = 0;
+  else if (Math.abs(ny + height - COVER_CANVAS_HEIGHT) <= SNAP)
+    ny = COVER_CANVAS_HEIGHT - height;
+  return { x: nx, y: ny };
+}
 
 function CoverImageNode({
   element,
@@ -94,11 +113,12 @@ function CoverImageNode({
         const scaleY = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
+        const width = Math.max(10, element.width * scaleX);
+        const height = Math.max(10, element.height * scaleY);
         onChange({
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(10, element.width * scaleX),
-          height: Math.max(10, element.height * scaleY),
+          ...snapBox(node.x(), node.y(), width, height),
+          width,
+          height,
           rotation: node.rotation(),
         });
       }}
@@ -280,7 +300,15 @@ export function CoverElementNode({
   };
 
   const handleDragEnd = (event: KonvaEventObject<DragEvent>) => {
-    onChange(element.id, { x: event.target.x(), y: event.target.y() });
+    onChange(
+      element.id,
+      snapBox(
+        event.target.x(),
+        event.target.y(),
+        element.width,
+        element.height,
+      ),
+    );
   };
 
   const patch = (value: Partial<CoverElement>) => onChange(element.id, value);
@@ -322,11 +350,12 @@ export function CoverElementNode({
       const scaleY = node.scaleY();
       node.scaleX(1);
       node.scaleY(1);
+      const width = Math.max(10, element.width * scaleX);
+      const height = Math.max(10, element.height * scaleY);
       patch({
-        x: node.x(),
-        y: node.y(),
-        width: Math.max(10, element.width * scaleX),
-        height: Math.max(10, element.height * scaleY),
+        ...snapBox(node.x(), node.y(), width, height),
+        width,
+        height,
         rotation: node.rotation(),
       });
     },
@@ -403,11 +432,12 @@ export function CoverElementNode({
           const scaleY = node.scaleY();
           node.scaleX(1);
           node.scaleY(1);
+          const width = Math.max(2, element.width * scaleX);
+          const height = Math.max(2, element.height * scaleY);
           patch({
-            x: node.x(),
-            y: node.y(),
-            width: Math.max(2, element.width * scaleX),
-            height: Math.max(2, element.height * scaleY),
+            ...snapBox(node.x(), node.y(), width, height),
+            width,
+            height,
             rotation: node.rotation(),
           });
         }}
@@ -434,11 +464,12 @@ export function CoverElementNode({
         const scaleY = node.scaleY();
         node.scaleX(1);
         node.scaleY(1);
+        const width = Math.max(20, element.width * scaleX);
+        const height = Math.max(16, element.height * scaleY);
         patch({
-          x: node.x(),
-          y: node.y(),
-          width: Math.max(20, element.width * scaleX),
-          height: Math.max(16, element.height * scaleY),
+          ...snapBox(node.x(), node.y(), width, height),
+          width,
+          height,
           rotation: node.rotation(),
         });
       }}
