@@ -60,8 +60,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # `db:generate` (prisma generate) roda sozinho: é dependsOn de
-      # check-types e test no turbo.json. Não precisa de banco.
+      # check-types e test no turbo.json. Ele NÃO conecta em banco — mas o
+      # `apps/web/prisma.config.ts` resolve `env("DATABASE_URL")` no
+      # CARREGAMENTO do config (o `datasource db` do schema não traz `url`),
+      # então a variável precisa existir mesmo sem servidor do outro lado.
+      # Daí a URL de fachada: nada abre conexão com ela.
       - run: pnpm turbo run check-types test --affected
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/nao-conecta
 
   # ── Lint separado e NÃO-bloqueante enquanto a dívida pré-existente não zera ─
   # ~324 diagnósticos herdados (noImgElement, useImportType, noExplicitAny…).
@@ -80,7 +86,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Mesma URL de fachada do job `verify`: o `lint` depende de `db:generate`
+      # pela cadeia do turbo, e o `prisma.config.ts` exige a variável.
       - run: pnpm turbo run lint --affected
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/nao-conecta
 
   # ── Integração: precisa do Postgres de teste ─────────────────────────────
   integration:
@@ -124,7 +134,12 @@ jobs:
           NEXT_PUBLIC_DOMAIN="http://localhost:3000"
           EOF
 
+      # O `.env.test` acima serve à suíte, mas o `db:generate` que o turbo roda
+      # antes lê o AMBIENTE (o `prisma.config.ts` faz `dotenv/config`, que
+      # carrega `.env`, não `.env.test`). Aqui a URL é a real do serviço.
       - run: pnpm turbo run test:integration --affected
+        env:
+          DATABASE_URL: postgresql://docker:docker@localhost:5432/nerp-test?schema=public
 
   # ── E2E: mais pesado (build + browsers do Playwright). Só o que for afetado. ─
   e2e:
