@@ -213,6 +213,11 @@ jobs:
           # nor config.authenticator provided". Chave de fachada: o e2e não
           # chama o Stripe, só precisa o construtor não estourar.
           STRIPE_SECRET_KEY: sk_test_fachada_ci_nao_usar
+          # `next.config.ts` deriva um hostname de `images.remotePatterns` desta
+          # variável, com `?? ""` — sem ela o hostname fica VAZIO e o build morre
+          # no fim, depois de compilar tudo, com "Expected a non-empty string".
+          # Armadilha já documentada no CLAUDE.md (§ Gotchas).
+          NEXT_PUBLIC_S3_BUCKET_CONSTRUCTOR_URL: fachada-ci.example.com
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
