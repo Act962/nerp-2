@@ -110,6 +110,8 @@ interface CatalogListEditorProps {
   activeFolderFromPreview?: string | null;
   // Clique numa pasta do rodapé → a prévia navega até a página daquela pasta.
   onSelectFolder?: (key: string) => void;
+  // Cria uma nova página (chamado pelo "+" do rodapé de pastas).
+  onAddPage?: () => void;
 }
 
 type ParsedSheet = { columns: string[]; rows: Record<string, string>[] };
@@ -172,6 +174,7 @@ export function CatalogListEditor({
   resolvedProducts,
   activeFolderFromPreview,
   onSelectFolder,
+  onAddPage,
 }: CatalogListEditorProps) {
   const list = config.list;
   const items = list?.items ?? [];
@@ -1301,6 +1304,17 @@ export function CatalogListEditor({
               )}
             </div>
           ))}
+          {onAddPage && (
+            <button
+              type="button"
+              onClick={onAddPage}
+              title="Adicionar página"
+              aria-label="Adicionar página"
+              className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          )}
         </div>
       )}
     </div>
