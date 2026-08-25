@@ -17,6 +17,15 @@ env:
   # dentro de um mesmo job, inútil entre jobs/execuções).
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # `--affected` compara com `main` por padrão, mas num checkout de PR essa ref
+  # não existe localmente (só o merge commit) — o turbo avisava "Failed to
+  # resolve base ref 'main'" e caía no fallback de considerar TUDO afetado, o
+  # que anulava o gate barato que este workflow tenta fazer.
+  # Num PR comparamos com o SHA da base; num push, com o commit anterior.
+  # Se nem isso resolver (ex.: primeiro push de uma branch, quando `before` é
+  # só zeros), o turbo volta ao fallback de sempre — que é o comportamento
+  # atual, então o pior caso aqui é empatar.
+  TURBO_SCM_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
 
 jobs:
   # ── Detecta se a mudança toca o desktop (app ou packages que ele consome) ──
@@ -60,8 +69,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       # `db:generate` (prisma generate) roda sozinho: é dependsOn de
-      # check-types e test no turbo.json. Não precisa de banco.
+      # check-types e test no turbo.json. Ele NÃO conecta em banco — mas o
+      # `apps/web/prisma.config.ts` resolve `env("DATABASE_URL")` no
+      # CARREGAMENTO do config (o `datasource db` do schema não traz `url`),
+      # então a variável precisa existir mesmo sem servidor do outro lado.
+      # Daí a URL de fachada: nada abre conexão com ela.
       - run: pnpm turbo run check-types test --affected
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/nao-conecta
 
   # ── Lint separado e NÃO-bloqueante enquanto a dívida pré-existente não zera ─
   # ~324 diagnósticos herdados (noImgElement, useImportType, noExplicitAny…).
@@ -80,7 +95,11 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Mesma URL de fachada do job `verify`: o `lint` depende de `db:generate`
+      # pela cadeia do turbo, e o `prisma.config.ts` exige a variável.
       - run: pnpm turbo run lint --affected
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/nao-conecta
 
   # ── Integração: precisa do Postgres de teste ─────────────────────────────
   integration:
@@ -124,7 +143,12 @@ jobs:
           NEXT_PUBLIC_DOMAIN="http://localhost:3000"
           EOF
 
+      # O `.env.test` acima serve à suíte, mas o `db:generate` que o turbo roda
+      # antes lê o AMBIENTE (o `prisma.config.ts` faz `dotenv/config`, que
+      # carrega `.env`, não `.env.test`). Aqui a URL é a real do serviço.
       - run: pnpm turbo run test:integration --affected
+        env:
+          DATABASE_URL: postgresql://docker:docker@localhost:5432/nerp-test?schema=public
 
   # ── E2E: mais pesado (build + browsers do Playwright). Só o que for afetado. ─
   e2e:
@@ -183,6 +207,17 @@ jobs:
           BETTER_AUTH_URL: http://localhost:3000
           NEXT_PUBLIC_BASE_DOMAIN: localhost:3000
           NEXT_PUBLIC_DOMAIN: http://localhost:3000
+          # `src/lib/stripe.ts` faz `new Stripe(process.env.STRIPE_SECRET_KEY!)`
+          # no escopo do módulo, e o "collect page data" do `next build` importa
+          # a rota do webhook — sem a variável o build morre com "Neither apiKey
+          # nor config.authenticator provided". Chave de fachada: o e2e não
+          # chama o Stripe, só precisa o construtor não estourar.
+          STRIPE_SECRET_KEY: sk_test_fachada_ci_nao_usar
+          # `next.config.ts` deriva um hostname de `images.remotePatterns` desta
+          # variável, com `?? ""` — sem ela o hostname fica VAZIO e o build morre
+          # no fim, depois de compilar tudo, com "Expected a non-empty string".
+          # Armadilha já documentada no CLAUDE.md (§ Gotchas).
+          NEXT_PUBLIC_S3_BUCKET_CONSTRUCTOR_URL: fachada-ci.example.com
 
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
