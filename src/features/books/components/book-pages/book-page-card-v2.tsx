@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { constructUrl } from "@/hooks/use-construct-url";
-import { ChevronDown, ChevronUp, Crop, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Crop, Maximize2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import {
   useDeleteBookPage,
@@ -146,6 +146,23 @@ export function BookPageCardV2({
 
   const removePage = () => deletePage.mutate({ bookId, pageId: page.id });
 
+  // "Caber inteira" da página: enquadra TODAS as fotos em contain (foto inteira,
+  // sem corte) de uma vez — o ajuste é por foto (photoAdjustments), então dispara
+  // uma mutação por item preservando pan/zoom/backdrop.
+  const hasPhotos = page.items.some((it) => it.photoKey);
+  const fitAllContain = () => {
+    for (const item of page.items) {
+      if (!item.photoKey) continue;
+      const current =
+        parseAdjustment(item.adjustment) ?? DEFAULT_PHOTO_ADJUSTMENT;
+      setAdjustment.mutate({
+        pdvPhotoId: item.pdvPhotoId,
+        photoKey: item.photoKey,
+        adjustment: { ...current, objectFit: "contain" },
+      });
+    }
+  };
+
   const isBusy =
     removeItem.isPending || setSlot.isPending || deletePage.isPending;
 
@@ -169,6 +186,20 @@ export function BookPageCardV2({
           )}
         </div>
         <div className="flex items-center gap-1">
+          {hasPhotos && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1"
+              onClick={fitAllContain}
+              disabled={setAdjustment.isPending || isBusy}
+              title="Enquadrar todas as fotos desta página inteiras (sem corte)"
+            >
+              <Maximize2 className="size-4" />
+              Caber inteira
+            </Button>
+          )}
           <Button
             type="button"
             variant="ghost"
