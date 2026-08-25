@@ -47,6 +47,11 @@
             "optional": true
           }
         }
+      },
+      "@hookform/resolvers": {
+        "peerDependencies": {
+          "zod": "*"
+        }
       }
     }
   },
