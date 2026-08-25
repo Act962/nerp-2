@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { memberCan } from "@/lib/permissions";
+import { resyncBooksAfterPhotoChange } from "@/features/books/server/resync-book";
 import { z } from "zod";
 
 // Coordenadora aprova/reprova a foto do promotor (QC antes de entrar no book).
@@ -47,6 +48,9 @@ export const reviewPromotorPhoto = base
         consumedAt: input.status === "APPROVED" ? new Date() : null,
       },
     });
+
+    // Book vivo: aprovar/reprovar reflete nos books do escopo (não enviados).
+    await resyncBooksAfterPhotoChange(context.org.id, [photo.id]);
 
     return { success: true as const, status: input.status };
   });

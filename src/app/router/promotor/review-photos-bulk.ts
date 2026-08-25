@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { memberCan } from "@/lib/permissions";
+import { resyncBooksAfterPhotoChange } from "@/features/books/server/resync-book";
 import { z } from "zod";
 
 // Aprova/reprova VÁRIAS fotos do promotor de uma vez (ação em massa da visão
@@ -45,6 +46,9 @@ export const reviewPromotorPhotosBulk = base
         reviewedAt: reviewing ? new Date() : null,
       },
     });
+
+    // Book vivo: a ação em massa reflete nos books do escopo (não enviados).
+    await resyncBooksAfterPhotoChange(context.org.id, input.photoIds);
 
     return { count: result.count };
   });
