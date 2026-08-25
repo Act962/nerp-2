@@ -2,7 +2,7 @@
 
 > Como levar `feat/desktop` (monorepo + app desktop) para a `main`, que continua single-app e andou 27 commits em paralelo. O nó não é o desktop: é o **lift-and-shift de caminhos** (`src/` → `apps/web/src/`) colidindo com 104 arquivos que a `main` mexeu nesses mesmos caminhos.
 > Feature: raiz do repo · `apps/web` · `packages/*` · `nixpacks.toml` · Coolify/Vercel
-> Criado em: 2026-08-21 · Atualizado em: 2026-08-24
+> Criado em: 2026-08-21 · Atualizado em: 2026-08-25
 > Status: 🟡 Em execução — merge resolvido e validado em `chore/integracao-monorepo`.
 > O PR para a `main` continua sendo decisão **exclusiva e explícita** do dev.
 
@@ -38,7 +38,7 @@ que o desktop em si é aditivo e o conflito é do *rebase de layout*.
 
 ---
 
-## Execucao — 2026-08-24
+## Execucao — 2026-08-24/25
 
 Branch: `chore/integracao-monorepo` (a partir de `feat/desktop`), merge de
 `origin/main` **não commitado** — aguarda revisão do dev.
@@ -64,6 +64,33 @@ lados**; o resto ficou byte-a-byte igual à `main`.
 `prisma/migrations/`, `features/contracts/**`, `trade/contratos/page.tsx` e
 `promocao/[shareToken]/page.tsx`. Um merge dado como "resolvido" sem conferir a
 raiz teria subido sem as migrations da `main`.
+
+### Segunda rodada — 2026-08-25
+
+A `main` andou mais **9 commits / 24 arquivos** (book e catálogo promocional)
+enquanto a integração estava parada. Foi mesclada da mesma forma, e saiu muito
+mais barata: **1 único conflito**, do tipo `file location` — um arquivo novo que
+o `ort` já havia posicionado em `apps/web`. Os outros 23 auto-mesclaram.
+
+Os 24 ficaram **byte-a-byte idênticos à `main`**: o desktop não tocou em nenhum
+deles, então não houve colisão real de conteúdo — só o deslocamento de layout.
+
+Sem migrations, dependências ou env vars novas; o `SCHEMA_VERSION` da `main`
+segue em `v66`, então o `v67` continua cobrindo. Os routers alterados (`book`,
+`promotor`, `pdv-photo`) não são consumidos por `packages/api` — o contrato do
+desktop não muda.
+
+Revalidado por inteiro: check-types + test (10 tasks, 26 testes), integração (22
+testes, com as **159 migrations reaplicadas do zero** num banco recriado) e
+build + e2e (3 testes).
+
+**A lição que ficou:** o barato do segundo merge é enganoso. O custo não está no
+número de commits da `main`, e sim em **quantos diretórios novos** ela criou —
+é neles que a detecção de renome falha e os arquivos ficam para trás na raiz.
+Conferir `ls -d */` na raiz logo após cada merge é o que separa um merge
+correto de um que sobe sem as migrations.
+
+---
 
 ### Decisões desta execução
 
