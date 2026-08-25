@@ -20,6 +20,8 @@ export const addBookPage = base
       // Padrão de página opcional: a página já nasce com esse layout próprio,
       // em vez de seguir o layout do book.
       pageTemplateId: z.string().nullable().optional(),
+      // Insere logo APÓS esta página (renumera as seguintes). Ausente = no fim.
+      afterPageId: z.string().nullable().optional(),
     }),
   )
   .output(z.object({ pdvPhotoId: z.string() }))
@@ -79,13 +81,34 @@ export const addBookPage = base
         }),
       ]);
 
+      // Posição da nova página: logo após `afterPageId` (renumerando as
+      // seguintes), ou no fim. O afterPageId é validado pelo bookId (que já é
+      // da org, pela checagem do book acima).
+      let pageOrder = (lastPage?.order ?? -1) + 1;
+      if (input.afterPageId) {
+        const anchor = await tx.bookPage.findFirst({
+          where: { id: input.afterPageId, bookId: input.bookId },
+          select: { order: true },
+        });
+        if (!anchor) {
+          throw errors.NOT_FOUND({
+            message: "Página de referência não encontrada",
+          });
+        }
+        pageOrder = anchor.order + 1;
+        await tx.bookPage.updateMany({
+          where: { bookId: input.bookId, order: { gte: pageOrder } },
+          data: { order: { increment: 1 } },
+        });
+      }
+
       // Cria a BookPage e um BookItem de slot 0. Layout do template (se veio)
       // fica na BookPage; o BookItem carrega só o vínculo com a foto.
       const page = await tx.bookPage.create({
         data: {
           bookId: input.bookId,
           storeId: input.storeId,
-          order: (lastPage?.order ?? -1) + 1,
+          order: pageOrder,
           ...(pageTemplate
             ? {
                 pageLayout: pageTemplate.layout ?? Prisma.DbNull,

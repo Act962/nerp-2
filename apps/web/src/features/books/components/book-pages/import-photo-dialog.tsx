@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +41,9 @@ interface ImportPhotoDialogProps {
   // Quando true (loja + indústria já conhecidas pela página/book), esconde os
   // seletores de loja/indústria e vai direto pras fotos aprovadas.
   lockSelection?: boolean;
+  // Book atual: marca "já usada" nas fotos que já estão em alguma página dele
+  // e pede confirmação antes de repetir.
+  bookId?: string;
   onPick: (photoKey: string) => void;
 }
 
@@ -51,6 +55,7 @@ export function ImportPhotoDialog({
   defaultStoreId,
   defaultStoreName,
   lockSelection,
+  bookId,
   onPick,
 }: ImportPhotoDialogProps) {
   const [storeId, setStoreId] = useState<string | null>(defaultStoreId ?? null);
@@ -70,6 +75,8 @@ export function ImportPhotoDialog({
   const [storeSearch, setStoreSearch] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [uploading, setUploading] = useState(false);
+  // Foto já usada no book aguardando confirmação de "adicionar mesmo assim".
+  const [pendingReusedKey, setPendingReusedKey] = useState<string | null>(null);
 
   const { stores } = useStores({
     search: useDebouncedValue(storeSearch) || undefined,
@@ -85,6 +92,7 @@ export function ImportPhotoDialog({
     storeId ?? undefined,
     supplierId ?? undefined,
     open && !!storeId,
+    bookId,
   );
 
   const pick = (photoKey: string) => {
@@ -219,8 +227,13 @@ export function ImportPhotoDialog({
                 <button
                   key={photo.id}
                   type="button"
-                  onClick={() => photo.photoKey && pick(photo.photoKey)}
-                  className="aspect-square overflow-hidden rounded-md border transition-shadow hover:ring-2 hover:ring-primary"
+                  onClick={() => {
+                    if (!photo.photoKey) return;
+                    // Já usada neste book: avisa e deixa confirmar.
+                    if (photo.usedInBook) setPendingReusedKey(photo.photoKey);
+                    else pick(photo.photoKey);
+                  }}
+                  className="relative aspect-square overflow-hidden rounded-md border transition-shadow hover:ring-2 hover:ring-primary"
                 >
                   {/* biome-ignore lint/performance/noImgElement: thumbnail de key do R2 */}
                   <img
@@ -229,6 +242,11 @@ export function ImportPhotoDialog({
                     loading="lazy"
                     className="size-full object-cover"
                   />
+                  {photo.usedInBook && (
+                    <span className="absolute inset-x-0 bottom-0 bg-amber-500/90 py-0.5 text-center text-[10px] font-semibold text-white">
+                      Já usada
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -243,6 +261,39 @@ export function ImportPhotoDialog({
           />
         </div>
       </DialogContent>
+
+      <Dialog
+        open={!!pendingReusedKey}
+        onOpenChange={(o) => !o && setPendingReusedKey(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Foto já usada neste book</DialogTitle>
+            <DialogDescription>
+              Essa foto já está em outra página deste book. Deseja adicioná-la
+              mesmo assim?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setPendingReusedKey(null)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={() => {
+                if (pendingReusedKey) pick(pendingReusedKey);
+                setPendingReusedKey(null);
+              }}
+            >
+              Adicionar mesmo assim
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

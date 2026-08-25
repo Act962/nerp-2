@@ -21,7 +21,8 @@ export const listMediaType = base
         kind: input.kind,
         isActive: input.includeInactive ? undefined : true,
       },
-      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      // Favoritos primeiro — o seletor mostra os mais usados no topo.
+      orderBy: [{ isFavorite: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
       select: {
         id: true,
         kind: true,
@@ -32,6 +33,7 @@ export const listMediaType = base
         occupancyRules: true,
         defaultPhotos: true,
         isActive: true,
+        isFavorite: true,
         sortOrder: true,
         isSystemDefault: true,
       },

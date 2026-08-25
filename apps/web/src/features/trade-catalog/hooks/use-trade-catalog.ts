@@ -70,6 +70,17 @@ export function useUpdateMediaType() {
   );
 }
 
+// Favoritar/desfavoritar um tipo de mídia (por org) — reordena o seletor.
+export function useToggleMediaTypeFavorite() {
+  const invalidate = useInvalidate(orpc.mediaType.list.key());
+  return useMutation(
+    orpc.mediaType.toggleFavorite.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useDeleteMediaType() {
   const invalidate = useInvalidate(orpc.mediaType.list.key());
   return useMutation(

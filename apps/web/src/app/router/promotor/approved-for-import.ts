@@ -12,6 +12,9 @@ export const listApprovedForImport = base
     z.object({
       storeId: z.string().optional(),
       supplierId: z.string().optional(),
+      // Quando informado, marca `usedInBook` nas fotos já usadas em qualquer
+      // página deste book — pro picker avisar sobre repetição.
+      bookId: z.string().optional(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -32,10 +35,27 @@ export const listApprovedForImport = base
         capturedAt: true,
         capturedCity: true,
         capturedState: true,
+        mediaTypeId: true,
+        mediaType: { select: { id: true, code: true, name: true } },
         store: { select: { name: true } },
         supplier: { select: { name: true } },
       },
     });
+
+    // Fotos já usadas em alguma página deste book (qualquer página): o picker
+    // marca "já usada" e pede confirmação antes de repetir.
+    const usedInBook = new Set<string>();
+    if (input.bookId) {
+      const used = await prisma.bookItem.findMany({
+        where: {
+          bookId: input.bookId,
+          book: { organizationId: context.org.id },
+          pdvPhotoId: { in: photos.map((p) => p.id) },
+        },
+        select: { pdvPhotoId: true },
+      });
+      for (const item of used) usedInBook.add(item.pdvPhotoId);
+    }
 
     return {
       photos: photos
@@ -48,8 +68,11 @@ export const listApprovedForImport = base
           capturedAt: photo.capturedAt.toISOString(),
           capturedCity: photo.capturedCity,
           capturedState: photo.capturedState,
+          mediaTypeId: photo.mediaTypeId,
+          mediaType: photo.mediaType,
           storeName: photo.store.name,
           supplierName: photo.supplier?.name ?? null,
+          usedInBook: usedInBook.has(photo.id),
         })),
     };
   });

@@ -2906,6 +2906,9 @@ model MediaType {
   basePrice       Decimal?          @db.Decimal(12, 2) // preço padrão da org, sobrescrito por MediaTypePrice por loja
   notionalAreaM2  Float?            @default(1) // área nominal (m²): usada por mídia FLAT, e por qualquer mídia no Catálogo PDV genérico (sem objeto/geometria real associada)
   isActive        Boolean           @default(true)
+  // Favorito da ORG: tipos mais usados aparecem primeiro no seletor de mídia
+  // (ex.: card de aprovação de fotos), sem carregar a lista inteira de cara.
+  isFavorite      Boolean           @default(false)
   sortOrder       Int               @default(0)
   isSystemDefault Boolean           @default(false)
   createdAt       DateTime          @default(now())
