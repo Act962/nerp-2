@@ -38,21 +38,25 @@ export function PublicPromoCatalog({
     () => distributePages(config, finalized),
     [config, finalized],
   );
-  const expired = isOfferExpired(config);
+  // Validade por página: cada página some do link quando o seu prazo vence.
+  const visiblePages = pages
+    .map((pg, i) => ({ pg, i }))
+    .filter(({ pg }) => !isOfferExpired(pg.cfg));
+  const allExpired = pages.length > 0 && visiblePages.length === 0;
 
   return (
     <div className="min-h-dvh bg-neutral-200 dark:bg-neutral-900">
       <div className="mx-auto flex w-full max-w-[620px] flex-col gap-6 p-3 sm:p-6">
         <header className="text-center">
           <h1 className="text-lg font-semibold">{name}</h1>
-          {expired && (
+          {allExpired && (
             <p className="mt-1 text-sm font-medium text-destructive">
               Oferta vencida
             </p>
           )}
         </header>
 
-        {pages.map((pg, i) => (
+        {visiblePages.map(({ pg, i }) => (
           <div
             key={srcPages[i]?.id ?? i}
             className="overflow-hidden rounded-lg shadow-lg"

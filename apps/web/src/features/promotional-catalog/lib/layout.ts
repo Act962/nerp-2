@@ -221,6 +221,7 @@ export function effectivePageConfig(
     styleBlocks: pg.styleBlocks ?? [],
     dynamic: pg.dynamic,
     cardLayout: pg.cardLayout ?? config.cardLayout,
+    offerValidUntil: pg.offerValidUntil ?? config.offerValidUntil,
   };
 }
 

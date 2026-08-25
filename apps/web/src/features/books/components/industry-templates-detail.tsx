@@ -132,7 +132,7 @@ export function IndustryTemplatesDetail({
               ) : (
                 <RefreshCw className="size-3" />
               )}
-              Reaplicar às páginas de fotos
+              Reaplicar às páginas
             </Button>
           ) : undefined
         }
@@ -145,9 +145,9 @@ export function IndustryTemplatesDetail({
         />
         {data.base && (
           <p className="text-xs text-muted-foreground">
-            Editou o padrão base? Clique em “Reaplicar às páginas de fotos” para
-            atualizar o fundo e os logos das páginas já criadas — o arranjo das
-            fotos de cada página é preservado.
+            Editou o padrão base? Clique em “Reaplicar às páginas” para atualizar
+            o fundo e os logos das páginas de fotos, extras e da página final já
+            criadas — o arranjo das fotos de cada página é preservado.
           </p>
         )}
       </Section>

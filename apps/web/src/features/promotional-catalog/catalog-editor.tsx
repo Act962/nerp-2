@@ -216,7 +216,7 @@ const EDITOR_TABS = [
   { value: "layout", label: "Layout", icon: LayoutTemplate },
   { value: "fundo", label: "Fundo", icon: Wallpaper },
   { value: "texto", label: "Texto", icon: Type },
-  { value: "etiqueta", label: "Figurinhas", icon: Sticker },
+  { value: "etiqueta", label: "Elementos", icon: Sticker },
   { value: "estilos", label: "Etiqueta", icon: Tag },
   { value: "padroes-sistema", label: "Padrões", icon: Shapes },
 ] as const;
@@ -479,8 +479,11 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     );
   }, [pages, stores, orgData, session, products]);
 
-  // Oferta vencida → bloqueia compartilhar e mostra aviso no preview.
-  const offerExpired = isOfferExpired(config);
+  // Validade por página: o compartilhamento só é bloqueado quando TODAS as
+  // páginas estão vencidas (cada página tem seu próprio prazo). O aviso no
+  // preview é por página (`pageExpired`, abaixo).
+  const offerExpired =
+    pages.length > 0 && pages.every((p) => isOfferExpired(p));
 
   const [currentPage, setCurrentPage] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -501,8 +504,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const safePage = Math.min(currentPage, totalPages - 1);
   // Prévia da Lista (paginada): página atual + pasta correspondente (rodapé).
   const safePreview = Math.max(0, Math.min(previewPage, totalPages - 1));
-  const previewFolderKey =
-    resolveFolders(config.list)[safePreview]?.key ?? null;
+  // Pasta da prévia = a PÁGINA atual (a Lista organiza por página).
+  const previewFolderKey = pages[safePreview]?.id ?? null;
   // Título dinâmico da prévia: nome da entidade vinculada (loja/produto/…) ou o
   // nome da página (cliente/pasta).
   const previewDyn = dynamicContexts[safePreview];
@@ -624,55 +627,39 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     }
   }, [currentPage, totalPages]);
 
-  // Catálogo de LISTA: cada página segue a sua pasta (list.items) ao vivo.
-  // (1) sincroniza `productIds` da página com os itens ATUAIS da pasta — itens
-  // novos (ex.: "Adicionar linha") entram, removidos saem; (2) reordena as
-  // páginas para casar com a ordem das pastas (prévia × rodapé alinhados).
-  // Preserva todo o resto de cada página. Idempotente.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reage a mudanças de lista/páginas; idempotente pelos guards.
+  // Reconciliador idempotente das páginas. `pages[].productIds` é a FONTE ÚNICA
+  // de qual produto está em qual página (Lista e Página leem daqui). NÃO reordena
+  // nem re-bucketiza por pasta (isso causava a "troca de modo"). Rede de
+  // segurança: item da lista que não está em NENHUMA página vai para a atual.
+  // (Deleção é feita explicitamente nos handlers, então não precisa varrer aqui.)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: idempotente; reage a produtos/lista/páginas.
   useEffect(() => {
-    const folders = resolveFolders(config.list);
-    if (folders.length === 0) return;
     const pgs = config.pages ?? [];
     if (pgs.length === 0) return;
-    const rank = new Map(folders.map((f, i) => [f.key, i]));
-    // Ids que pertencem à LISTA — o que NÃO é da lista numa página é adição
-    // MANUAL (produto do cadastro) e deve ser preservada ao sincronizar.
-    const listItemIds = new Set((config.list?.items ?? []).map((it) => it.id));
-    const folderOf = (pg: (typeof pgs)[number]) => {
-      const ids = pg.productIds ?? [];
-      return folders.find((f) => ids.some((id) => f.itemIds.includes(id)));
-    };
-    // (1) productIds = itens atuais da pasta + adições manuais já existentes na
-    // página (só a 1ª página que casa a pasta, pra não duplicar se dividida).
-    const claimed = new Set<string>();
-    let mutated = false;
-    const synced = pgs.map((pg) => {
-      const f = folderOf(pg);
-      if (!f || claimed.has(f.key)) return pg;
-      claimed.add(f.key);
-      const cur = pg.productIds ?? [];
-      // Preserva produtos adicionados à mão (não são itens da lista).
-      const manual = cur.filter((id) => !listItemIds.has(id));
-      const want = [...f.itemIds, ...manual];
-      const same =
-        cur.length === want.length && cur.every((id, i) => id === want[i]);
-      if (same) return pg;
-      mutated = true;
-      return { ...pg, productIds: want };
+    const knownIds = new Set(products.map((p) => p.id));
+    const placed = new Set<string>();
+    for (const pg of pgs) for (const id of pg.productIds ?? []) placed.add(id);
+    const orphans = (config.list?.items ?? [])
+      .map((it) => it.id)
+      .filter((id) => knownIds.has(id) && !placed.has(id));
+    if (orphans.length === 0) return;
+    setConfig((prev) => {
+      const p = prev.pages ?? [];
+      if (p.length === 0) return prev;
+      const idx = Math.min(safePage, p.length - 1);
+      return {
+        ...prev,
+        pages: p.map((pg, i) => {
+          if (i !== idx) return pg;
+          const cur = pg.productIds ?? [];
+          return {
+            ...pg,
+            productIds: [...cur, ...orphans.filter((id) => !cur.includes(id))],
+          };
+        }),
+      };
     });
-    // (2) reordena pela ordem das pastas.
-    const sorted = synced
-      .map((pg, i) => ({
-        pg,
-        i,
-        r: rank.get(folderOf(pg)?.key ?? "") ?? Number.POSITIVE_INFINITY,
-      }))
-      .sort((a, b) => a.r - b.r || a.i - b.i)
-      .map((x) => x.pg);
-    const reordered = sorted.some((p, i) => p.id !== pgs[i].id);
-    if (mutated || reordered) setConfig((prev) => ({ ...prev, pages: sorted }));
-  }, [config.list, config.pages]);
+  }, [products, config.list, config.pages, safePage]);
 
   // Higiene: produtos da LISTA não devem ter override de preço (o preço vive no
   // item). Remove entradas defasadas de priceOverrides/offerOverrides que apontem
@@ -981,30 +968,31 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const handleConfigChange = (changes: Partial<CatalogConfig>) => {
     setConfig((prev) => {
       const next = applyConfigChange(prev, changes, safePage);
-      // Modo fixado (alguma página tem productIds): produto recém-adicionado é
-      // atribuído à PÁGINA ATUAL (senão cairia na última via fallback).
+      // Produto recém-adicionado é atribuído à PÁGINA ATUAL. Se ainda estiver em
+      // modo automático (nenhuma página explícita), CONGELA a distribuição atual
+      // de cada página primeiro — senão o novo (e os já existentes) cairiam todos
+      // na página 1/última pela capacidade. `pages[].productIds` é a fonte única.
       if (changes.manuallyAddedIds) {
-        const pgs = ensurePages(next);
-        const explicit = pgs.some((p) => p.productIds !== undefined);
-        if (explicit) {
-          const before = new Set(prev.manuallyAddedIds ?? []);
-          const added = changes.manuallyAddedIds.filter(
-            (id) => !before.has(id),
+        const before = new Set(prev.manuallyAddedIds ?? []);
+        const added = changes.manuallyAddedIds.filter((id) => !before.has(id));
+        if (added.length > 0) {
+          const frozen = ensurePages(next).map((p, i) =>
+            p.productIds !== undefined
+              ? p
+              : { ...p, productIds: (pageChunks[i] ?? []).map((pp) => pp.id) },
           );
-          if (added.length > 0) {
-            return {
-              ...next,
-              pages: pgs.map((p, i) => {
-                if (i !== safePage) return p;
-                const cur = p.productIds ?? [];
-                const merged = [
-                  ...cur,
-                  ...added.filter((id) => !cur.includes(id)),
-                ];
-                return { ...p, productIds: merged };
-              }),
-            };
-          }
+          return {
+            ...next,
+            pages: frozen.map((p, i) => {
+              if (i !== safePage) return p;
+              const cur = p.productIds ?? [];
+              const merged = [
+                ...cur,
+                ...added.filter((id) => !cur.includes(id)),
+              ];
+              return { ...p, productIds: merged };
+            }),
+          };
         }
       }
       return next;
@@ -1250,11 +1238,39 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     if (!deleteGroup) return;
     const { pageIndex, groupId } = deleteGroup;
     if (groupId) {
-      // Multi-grupo: remove só este grupo da página.
-      const next = (pages[pageIndex]?.productGroups ?? []).filter(
-        (g) => g.id !== groupId,
+      // Excluir um grupo nomeado: remove o grupo E os produtos dele (exclui os
+      // ids), mantendo os DEMAIS produtos da página. Mesmo comportamento do
+      // botão de lixeira no card "Grupos da página" (removeGroup no painel).
+      const grp = (pages[pageIndex]?.productGroups ?? []).find(
+        (g) => g.id === groupId,
       );
-      handlePageConfigChange(pageIndex, { productGroups: next });
+      const groupIds = grp?.productIds ?? [];
+      const groupSet = new Set(groupIds);
+      setConfig((prev) => ({
+        ...prev,
+        manuallyAddedIds: (prev.manuallyAddedIds ?? []).filter(
+          (id) => !groupSet.has(id),
+        ),
+        excludedProductIds: [
+          ...new Set([...(prev.excludedProductIds ?? []), ...groupIds]),
+        ],
+        pages: ensurePages(prev).map((pg, i) =>
+          i === pageIndex
+            ? {
+                ...pg,
+                productGroups: (pg.productGroups ?? []).filter(
+                  (g) => g.id !== groupId,
+                ),
+                productIds: (pg.productIds ?? []).filter(
+                  (id) => !groupSet.has(id),
+                ),
+                styleBlocks: (pg.styleBlocks ?? []).filter(
+                  (b) => !b.productId || !groupSet.has(b.productId),
+                ),
+              }
+            : pg,
+        ),
+      }));
     } else {
       // Grupo único: remove os produtos DESTA página (esvazia a grade), sem
       // redistribuir para as outras — congela a distribuição e exclui os ids.
@@ -1682,6 +1698,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             selection={selection}
             onSelectionChange={handleSelectionChange}
             editProductRequest={editProductRequest}
+            onEditProductRequest={requestEditProduct}
             addProductSignal={addProductSignal}
             onSaveCardLayout={handleSaveCardLayout}
             onApplyStyleToAllPages={applyStyleToAllPages}
@@ -1704,9 +1721,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               resolvedProducts={products}
               activeFolderFromPreview={previewFolderKey}
               onSelectFolder={(key) => {
-                const idx = resolveFolders(config.list).findIndex(
-                  (f) => f.key === key,
-                );
+                const idx = pages.findIndex((pg) => pg.id === key);
                 if (idx >= 0) setPreviewPage(idx);
               }}
               preview={
@@ -1802,6 +1817,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             <div className="mx-auto flex w-full max-w-[680px] flex-col gap-8">
               {pageChunks.map((prods, i) => {
                 const cfg = configForPage(i);
+                const pageExpired = isOfferExpired(cfg);
                 const locked = pages[i]?.locked ?? false;
                 if (!pageRefs.current[i]) {
                   pageRefs.current[i] = { current: null };
@@ -1933,17 +1949,17 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                               pageH={pageHeightOf(cfg)}
                             />
                           )}
-                          {offerExpired && (
+                          {pageExpired && (
                             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-1 rounded-lg bg-black/70 text-center backdrop-blur-sm">
                               <span className="text-2xl font-bold text-white sm:text-3xl">
                                 Oferta vencida
                               </span>
                               <span className="text-xs text-white/80">
-                                Compartilhamento bloqueado
+                                Some do link público
                               </span>
                             </div>
                           )}
-                          {prods.length === 0 && !offerExpired && (
+                          {prods.length === 0 && !pageExpired && (
                             <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 p-6 text-center">
                               {/* Silhueta de um card de produto (placeholder cinza) */}
                               <div className="flex h-40 w-32 flex-col gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-2">
@@ -2115,7 +2131,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             <DialogTitle>Excluir grupo de produtos?</DialogTitle>
             <DialogDescription>
               {deleteGroup?.groupId
-                ? "O grupo será removido desta página. Remover o último grupo volta a página ao modo de grupo único."
+                ? "O grupo e os produtos dele serão removidos desta página. Os demais produtos da página permanecem."
                 : "Os produtos desta página serão removidos (a grade fica vazia). As demais páginas não são afetadas."}
             </DialogDescription>
           </DialogHeader>

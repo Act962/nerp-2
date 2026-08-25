@@ -80,10 +80,12 @@ export const createIndustryTemplate = base
       if (existing) return { id: existing.id };
     }
 
-    // Padrão base da indústria: as páginas de fotos herdam o chrome dele
-    // (fundo, logos, nome da loja) + slots pra orientação/tamanho pedidos.
+    // Padrão base da indústria (chrome: fundo, logos, nome da loja). PHOTO herda
+    // o chrome + slots; EXTRA e a página final (CLOSING) herdam SÓ o chrome — daí
+    // buscamos o base para todos menos COVER. (Antes só PHOTO buscava, então
+    // extras e página final nasciam sem o padrão base.)
     const baseTemplate =
-      input.kind === "PHOTO"
+      input.kind !== "COVER"
         ? await prisma.bookPageTemplate.findFirst({
             where: {
               organizationId: context.org.id,
@@ -97,23 +99,24 @@ export const createIndustryTemplate = base
     const seededLayout =
       input.kind === "COVER"
         ? buildDefaultCoverLayout()
-        : input.kind === "CLOSING"
-          ? buildDefaultClosingLayout()
-          : baseTemplate
-            ? buildBasePhotoLayout(
-                baseTemplate.layout,
-                input.photoOrientation ?? "PORTRAIT",
-                input.photoSize ?? 1,
-              )
+        : baseTemplate
+          ? buildBasePhotoLayout(
+              baseTemplate.layout,
+              input.photoOrientation ?? "PORTRAIT",
+              input.photoSize ?? 1,
+            )
+          : input.kind === "CLOSING"
+            ? buildDefaultClosingLayout()
             : buildDefaultPhotoPageLayout(
                 input.photoOrientation ?? "PORTRAIT",
                 input.photoSize ?? 1,
               );
 
-    // Página EXTRA é só layout (abertura/divisória/encerramento): nasce sem
-    // slots de foto, só com o chrome (logos, textos, fundo) pra editar.
+    // EXTRA e página final (CLOSING) são só chrome (abertura/divisória/
+    // encerramento): nascem sem slots de foto. Ao herdar do base, removemos os
+    // slots que o buildBasePhotoLayout adicionou.
     const layout =
-      input.kind === "EXTRA"
+      input.kind === "EXTRA" || input.kind === "CLOSING"
         ? seededLayout.filter((el) => el.type !== "photoSlot")
         : seededLayout;
 
@@ -141,12 +144,16 @@ export const createIndustryTemplate = base
     });
     if (clash) name = `${name} (${Date.now().toString().slice(-4)})`;
 
-    // Capa e página final saem no fundo azul-marinho do modelo; páginas de
-    // fotos herdam o fundo do padrão base (se houver), senão branco.
+    // A capa sai no fundo azul-marinho do modelo. Páginas de fotos, extras e a
+    // página final herdam o fundo do padrão base (se houver); sem base, a final
+    // cai no azul-marinho e as demais no branco.
     const background =
-      input.kind === "COVER" || input.kind === "CLOSING"
+      input.kind === "COVER"
         ? DEFAULT_COVER_NAVY_BACKGROUND
-        : (baseTemplate?.background ?? DEFAULT_COVER_BACKGROUND);
+        : (baseTemplate?.background ??
+          (input.kind === "CLOSING"
+            ? DEFAULT_COVER_NAVY_BACKGROUND
+            : DEFAULT_COVER_BACKGROUND));
 
     const created = await prisma.bookPageTemplate.create({
       data: {

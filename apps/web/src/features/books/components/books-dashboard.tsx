@@ -63,6 +63,10 @@ interface BooksDashboardProps {
   onBookFilterChange: (filter: BookFilter | null) => void;
   photoFilter: PromotorPhotoStatus | null;
   onPhotoFilterChange: (filter: PromotorPhotoStatus | null) => void;
+  // Counts de book já no escopo dos filtros Data/Indústria/Loja (calculados na
+  // tela a partir da mesma lista). Os 3 indicadores de book usam estes valores;
+  // os 3 de fotos seguem a fila global do dashboard.
+  bookCounts?: { complete: number; incomplete: number; sent: number };
 }
 
 export function BooksDashboard({
@@ -70,6 +74,7 @@ export function BooksDashboard({
   onBookFilterChange,
   photoFilter,
   onPhotoFilterChange,
+  bookCounts,
 }: BooksDashboardProps) {
   const { metrics, isLoading } = useBookDashboard();
   const { member, isLoading: isMemberLoading } = useCurrentMember();
@@ -89,7 +94,7 @@ export function BooksDashboard({
   const cards: Metric[] = [
     {
       label: "Books completos",
-      value: metrics?.booksComplete ?? 0,
+      value: bookCounts?.complete ?? metrics?.booksComplete ?? 0,
       icon: CheckCircle2,
       tone: "positive",
       onClick: toggleBook("complete"),
@@ -97,7 +102,7 @@ export function BooksDashboard({
     },
     {
       label: "Books incompletos",
-      value: metrics?.booksIncomplete ?? 0,
+      value: bookCounts?.incomplete ?? metrics?.booksIncomplete ?? 0,
       icon: CircleDashed,
       tone: "neutral",
       onClick: toggleBook("incomplete"),
@@ -130,7 +135,7 @@ export function BooksDashboard({
     },
     {
       label: "Books enviados",
-      value: metrics?.booksSent ?? 0,
+      value: bookCounts?.sent ?? metrics?.booksSent ?? 0,
       icon: Send,
       tone: "neutral",
       onClick: toggleBook("sent"),
