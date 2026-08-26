@@ -626,6 +626,11 @@ export function CardFreeEditor({
                       top: `${el.y * 100}%`,
                       width: `${el.w * 100}%`,
                       height: `${el.h * 100}%`,
+                      // A moldura de interação segue o `z` da camada (mesma
+                      // ordem do render visual). Sem isso, um retângulo mandado
+                      // pra "Trás" continuava por cima e capturava os cliques.
+                      // O selecionado sobe pro topo pra acessar alças/excluir.
+                      zIndex: (el.z ?? 0) + (isSel ? 1000 : 0),
                       borderRadius: outlineRadius(el),
                       outline: isSel
                         ? "2px solid var(--color-primary, #2563eb)"
