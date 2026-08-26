@@ -22,15 +22,32 @@ const TRANSPARENT_PIXEL =
   "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=";
 
 const CAPTURE_OPTIONS = {
-  pixelRatio: 1,
   skipFonts: true,
   imagePlaceholder: TRANSPARENT_PIXEL,
   cacheBust: false,
 } as const;
 
+// Alta resolução na exportação: o `pixelRatio` fixo em 1 rasterizava a captura
+// no tamanho de TELA do nó — por isso a qualidade dependia do tamanho da
+// etiqueta/grupo (aumentar o nó "melhorava"). Aqui o pixelRatio é DINÂMICO:
+// mira uma largura de saída alta independentemente do tamanho na tela, então
+// etiquetas pequenas também saem nítidas. Limitado pra não estourar o canvas
+// (navegadores travam perto de ~16k px de lado / muita memória).
+const EXPORT_TARGET_WIDTH = 2400; // px do lado capturado (≈ boa qualidade de impressão)
+const MIN_PIXEL_RATIO = 2;
+const MAX_PIXEL_RATIO = 4;
+
+function pixelRatioFor(el: HTMLElement): number {
+  const width = el.offsetWidth || el.clientWidth || EXPORT_TARGET_WIDTH;
+  return Math.min(
+    MAX_PIXEL_RATIO,
+    Math.max(MIN_PIXEL_RATIO, EXPORT_TARGET_WIDTH / width),
+  );
+}
+
 async function captureEl(el: HTMLDivElement): Promise<string> {
   const { toPng } = await import("html-to-image");
-  return toPng(el, CAPTURE_OPTIONS);
+  return toPng(el, { ...CAPTURE_OPTIONS, pixelRatio: pixelRatioFor(el) });
 }
 
 function triggerDownload(href: string, filename: string) {
@@ -123,8 +140,11 @@ export function useExport({
             reject(new Error(`Falha ao carregar página ${i + 1}`));
         });
 
-        const wMm = pxToMm(img.naturalWidth || img.width);
-        const hMm = pxToMm(img.naturalHeight || img.height);
+        // Tamanho FÍSICO pelo px de layout (offsetWidth), não pela captura
+        // (que agora vem multiplicada pelo pixelRatio). Mantém a página do
+        // mesmo tamanho, com a imagem de alta-res enchendo em DPI maior.
+        const wMm = pxToMm(el.offsetWidth || img.naturalWidth || img.width);
+        const hMm = pxToMm(el.offsetHeight || img.naturalHeight || img.height);
         const orientation = wMm > hMm ? "landscape" : "portrait";
 
         if (!pdf) {
