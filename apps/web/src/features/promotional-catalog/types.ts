@@ -370,7 +370,7 @@ export function makeDynamicOverlay(binding: ImageBinding): Overlay {
 // tamanho). `fontFrac` = tamanho da fonte como fração da altura do card.
 export type CardLayoutElement = {
   id: string;
-  kind: "var" | "shape" | "text";
+  kind: "var" | "shape" | "text" | "image";
   x: number;
   y: number;
   w: number;
@@ -379,6 +379,9 @@ export type CardLayoutElement = {
   z?: number;
   variable?: CardVariable;
   shape?: "rect" | "circle";
+  // Imagem fixa da etiqueta (kind "image"): chave R2 de uma etiqueta da
+  // biblioteca. Diferente da variável "photo", que é a foto do produto.
+  imageKey?: string;
   // Texto fixo (kind "text"): conteúdo digitado (ex.: "UND", "cada", "OFERTA").
   text?: string;
   color?: string;

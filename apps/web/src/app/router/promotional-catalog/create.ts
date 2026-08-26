@@ -3,6 +3,7 @@ import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { assertCanEditCatalog } from "./_require-edit";
 import { DEFAULT_CONFIG } from "./types";
 
 export const createCatalog = base
@@ -28,7 +29,9 @@ export const createCatalog = base
       config: z.unknown(),
     }),
   )
-  .handler(async ({ input, context }) => {
+  .handler(async ({ input, context, errors }) => {
+    await assertCanEditCatalog(context.org.id, context.user.id, errors);
+
     const catalog = await prisma.promotionalCatalog.create({
       data: {
         name: input.name,

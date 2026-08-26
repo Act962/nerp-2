@@ -3,6 +3,7 @@ import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { assertCanEditCatalog } from "./_require-edit";
 import type { CatalogConfig } from "./types";
 
 export const updateCatalog = base
@@ -29,6 +30,8 @@ export const updateCatalog = base
     }),
   )
   .handler(async ({ input, context, errors }) => {
+    await assertCanEditCatalog(context.org.id, context.user.id, errors);
+
     const existing = await prisma.promotionalCatalog.findUnique({
       where: { id: input.id },
     });

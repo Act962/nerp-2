@@ -3,6 +3,7 @@ import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { assertCanEditCatalog } from "./_require-edit";
 
 // Duplica um catálogo (config + miniatura) num novo "Cópia de …" da mesma org.
 export const duplicateCatalog = base
@@ -16,6 +17,8 @@ export const duplicateCatalog = base
   .input(z.object({ id: z.string() }))
   .output(z.object({ id: z.string() }))
   .handler(async ({ input, context, errors }) => {
+    await assertCanEditCatalog(context.org.id, context.user.id, errors);
+
     const source = await prisma.promotionalCatalog.findFirst({
       where: { id: input.id, organizationId: context.org.id },
       select: { name: true, config: true, thumbnail: true },

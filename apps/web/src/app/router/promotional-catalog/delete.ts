@@ -3,6 +3,7 @@ import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { assertCanEditCatalog } from "./_require-edit";
 
 export const deleteCatalog = base
   .use(requireAuthMiddleware)
@@ -15,6 +16,8 @@ export const deleteCatalog = base
   .input(z.object({ id: z.string() }))
   .output(z.object({ success: z.literal(true) }))
   .handler(async ({ input, context, errors }) => {
+    await assertCanEditCatalog(context.org.id, context.user.id, errors);
+
     const existing = await prisma.promotionalCatalog.findUnique({
       where: { id: input.id },
     });

@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import { CatalogCard } from "./components/catalog-card";
 import {
   usePromotionalCatalogs,
+  useCanEditCatalog,
   useCatalogThumbnails,
   useCreateCatalog,
   useDuplicateCatalog,
@@ -28,6 +29,8 @@ export function CatalogList() {
   const [newCatalogName, setNewCatalogName] = useState("");
   const [templateId, setTemplateId] = useState<string | null>(null);
 
+  // Sem a ação de editar, a listagem vira consulta (criar fica desabilitado).
+  const canEdit = useCanEditCatalog();
   const { data: catalogs, isLoading } = usePromotionalCatalogs();
   // Miniaturas em query separada — não bloqueiam a grade (aparecem depois).
   const { data: thumbs } = useCatalogThumbnails();
@@ -64,7 +67,7 @@ export function CatalogList() {
             redes sociais.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
+        <Button onClick={() => setCreateOpen(true)} disabled={!canEdit}>
           <Plus className="h-4 w-4 mr-2" />
           Novo Catálogo
         </Button>
@@ -87,7 +90,7 @@ export function CatalogList() {
               Crie seu primeiro catálogo promocional para começar.
             </p>
           </div>
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)} disabled={!canEdit}>
             <Plus className="h-4 w-4 mr-2" />
             Criar primeiro catálogo
           </Button>

@@ -38,6 +38,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { constructUrl } from "@/hooks/use-construct-url";
+import { useCatalogAssets } from "../hooks/use-catalog";
+import {
   CARD_VARIABLES,
   type CardLayoutElement,
   type CardVariable,
@@ -408,6 +415,11 @@ export function CardFreeEditor({
     setSelectedIds([reais.id, cents.id, und.id]);
   };
 
+  // Biblioteca de etiquetas da org, para o "Inserir → Imagem".
+  const { data: assetsData } = useCatalogAssets();
+  const assets = assetsData ?? [];
+  const [imgPickerOpen, setImgPickerOpen] = useState(false);
+
   const addShape = (shape: "rect" | "circle") =>
     add(
       makeCardElement({
@@ -421,6 +433,31 @@ export function CardFreeEditor({
         radius: shape === "rect" ? 0.06 : 0,
       }),
     );
+
+  // Imagem fixa na etiqueta (biblioteca de etiquetas da org). Entra com a
+  // proporção da imagem, para não nascer esticada.
+  const addImage = (assetKey: string) => {
+    const place = (ar: number) => {
+      const w = 0.3;
+      // `h` é fração da ALTURA do card; converte usando a proporção do card.
+      const h = w / (ar || 1) / (aspect || 1);
+      add(
+        makeCardElement({
+          kind: "image",
+          imageKey: assetKey,
+          x: 0.1,
+          y: 0.1,
+          w,
+          h: Math.min(0.9, Math.max(0.05, h)),
+          z: 1,
+        }),
+      );
+    };
+    const img = new Image();
+    img.onload = () => place(img.naturalWidth / img.naturalHeight || 1);
+    img.onerror = () => place(1);
+    img.src = constructUrl(assetKey);
+  };
 
   const addText = () =>
     add(
@@ -824,6 +861,52 @@ export function CardFreeEditor({
               <Type className="h-4 w-4 shrink-0 text-muted-foreground" />
               <span className="w-full truncate text-center">Texto</span>
             </Button>
+            {/* Imagem fixa (etiqueta da biblioteca da org) para compor o
+                visual — diferente da variável "Foto", que é a do produto. */}
+            <Popover open={imgPickerOpen} onOpenChange={setImgPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-auto flex-col gap-1 px-1 py-1.5 text-[10px] leading-tight"
+                >
+                  <ImageIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="w-full truncate text-center">Imagem</span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-64">
+                <p className="mb-2 text-xs font-medium">
+                  Biblioteca ({assets.length})
+                </p>
+                {assets.length === 0 ? (
+                  <p className="py-4 text-center text-xs text-muted-foreground">
+                    Nenhuma etiqueta ainda. Envie em Elementos → Biblioteca.
+                  </p>
+                ) : (
+                  <div className="grid max-h-56 grid-cols-3 gap-2 overflow-y-auto">
+                    {assets.map((a) => (
+                      <button
+                        key={a.id}
+                        type="button"
+                        title={a.name}
+                        onClick={() => {
+                          addImage(a.key);
+                          setImgPickerOpen(false);
+                        }}
+                        className="aspect-square overflow-hidden rounded-md border bg-[repeating-conic-gradient(#e5e7eb_0_25%,#fff_0_50%)] bg-[length:12px_12px] p-1 hover:ring-2 hover:ring-primary"
+                      >
+                        {/* biome-ignore lint/performance/noImgElement: miniatura da etiqueta */}
+                        <img
+                          src={constructUrl(a.key)}
+                          alt={a.name}
+                          className="h-full w-full object-contain"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
           </div>
           <Button
             type="button"
@@ -875,8 +958,10 @@ export function CardFreeEditor({
                 ? "Forma"
                 : single.kind === "text"
                   ? "Texto fixo"
-                  : (CARD_VARIABLES.find((v) => v.value === single.variable)
-                      ?.label ?? "Elemento")}
+                  : single.kind === "image"
+                    ? "Imagem"
+                    : (CARD_VARIABLES.find((v) => v.value === single.variable)
+                        ?.label ?? "Elemento")}
             </p>
 
             {single.kind === "text" && (
