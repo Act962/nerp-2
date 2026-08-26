@@ -100,7 +100,11 @@ export function CatalogCard({
               alt={name}
               loading="lazy"
               decoding="async"
-              className="h-full w-full object-contain"
+              // `cover` + topo: catálogo quadrado, story e retrato têm
+              // proporções diferentes; com `contain` cada miniatura aparecia
+              // num tamanho, deixando a grade irregular. Ancorar no topo
+              // preserva o cabeçalho do encarte.
+              className="h-full w-full object-cover object-top"
             />
           ) : (
             <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-xs text-muted-foreground">

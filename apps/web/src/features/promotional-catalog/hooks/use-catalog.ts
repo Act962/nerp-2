@@ -14,9 +14,15 @@ export function usePromotionalCatalogs() {
 // Miniaturas em query SEPARADA: a lista aparece na hora e as miniaturas (data
 // URL pesada) preenchem os cards em segundo plano.
 export function useCatalogThumbnails() {
-  return useQuery(
-    orpc.promotionalCatalog.catalogThumbnails.queryOptions({ input: {} }),
-  );
+  return useQuery({
+    ...orpc.promotionalCatalog.catalogThumbnails.queryOptions({ input: {} }),
+    // As miniaturas são data URLs (~30 KB cada) e vêm todas num payload só.
+    // Sem cache, cada volta para a lista rebaixava tudo de novo — é o que
+    // fazia a grade demorar a preencher. A prévia muda pouco; 5 min basta.
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+    refetchOnWindowFocus: false,
+  });
 }
 
 // ── Padrões (presets de estilo) ──────────────────────────────────────────

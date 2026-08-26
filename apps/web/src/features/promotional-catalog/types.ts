@@ -51,7 +51,8 @@ export const DEFAULT_IMAGE_ADJUSTMENT: ImageAdjustment = {
   scale: 1,
   posX: 50,
   posY: 50,
-  fit: "cover",
+  // "Caber" é o enquadramento padrão do catálogo (não corta a foto do produto).
+  fit: "contain",
 };
 
 // Etiqueta posicionada livremente sobre o catálogo (canvas). Coordenadas em px
@@ -793,7 +794,11 @@ export function toTemplateConfig(
 
   // Padrão POR CATEGORIA (sistema): só as chaves daquela fatia.
   if (kind) {
-    const src: Record<string, unknown> = { ...config, cardLayout, templateDynamic };
+    const src: Record<string, unknown> = {
+      ...config,
+      cardLayout,
+      templateDynamic,
+    };
     const slice: Record<string, unknown> = { templateKind: kind };
     for (const key of TEMPLATE_KIND_KEEP[kind])
       if (src[key] !== undefined) slice[key] = src[key];
@@ -869,7 +874,13 @@ export type CatalogListItem = {
   id: string; // id estável da linha = id do produto virtual
   client: string; // agrupa/nomeia a página (quando groupBy = "client")
   productName: string;
+  // Código/EAN da planilha. Quando presente, o casamento com o cadastro é
+  // EXATO por código — é o que garante a foto certa entre variações de um
+  // mesmo nome ("ARROZ X 1KG" vs "ARROZ X 5KG").
+  code?: string;
   productId?: string; // produto do banco casado (referência; opcional)
+  // Como o produto foi casado. "name-prefix" = palpite (mostra selo "conferir").
+  matchSource?: "barcode" | "sku" | "name-exact" | "name-prefix" | "manual";
   thumbnail?: string; // chave R2 do produto casado; "" = mockup
   normalPrice?: number; // "De" (Preço normal)
   offerPrice?: number; // "Por" (Preço da oferta)
@@ -961,7 +972,9 @@ export function virtualProductsFromList(
     return {
       id: it.id,
       name: it.productName,
-      sku: "",
+      // Vazio quando a planilha não trouxe código — igual ao comportamento
+      // anterior. Com código, o card pode exibi-lo via `config.showSku`.
+      sku: it.code ?? "",
       thumbnail: it.thumbnail ?? "",
       salePrice,
       unit: "UN",

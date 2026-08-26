@@ -26,6 +26,9 @@ export const createOfferProducts = base
             name: z.string().min(1),
             salePrice: z.number().min(0),
             costPrice: z.number().min(0).optional(),
+            // Código/EAN da planilha, quando houver: nasce já casável por
+            // código nas próximas importações.
+            barcode: z.string().optional(),
           }),
         )
         .max(500),
@@ -53,7 +56,12 @@ export const createOfferProducts = base
       const p = input.products[i];
       try {
         const created = await createProductForOrg(
-          { name: p.name, costPrice: p.costPrice ?? 0, salePrice: p.salePrice },
+          {
+            name: p.name,
+            costPrice: p.costPrice ?? 0,
+            salePrice: p.salePrice,
+            ...(p.barcode ? { barcode: p.barcode } : {}),
+          },
           { orgId, userId },
         );
         results.push({ index: i, productId: created.id, error: null });

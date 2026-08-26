@@ -4,6 +4,7 @@
 export interface ListField {
   key:
     | "client"
+    | "code"
     | "productName"
     | "normalPrice"
     | "offerPrice"
@@ -24,6 +25,29 @@ export const LIST_FIELDS: ListField[] = [
     required: true,
     hint: "Divide o catálogo — uma página por cliente.",
     aliases: ["cliente", "loja", "clienteloja", "rede", "unidade"],
+  },
+  {
+    key: "code",
+    label: "Código / EAN",
+    required: false,
+    hint: "É o que traz a foto certa — sem ele, casamos só pelo nome.",
+    aliases: [
+      "codigo",
+      "código",
+      "ean",
+      "ean13",
+      "gtin",
+      "codigodebarras",
+      "códigodebarras",
+      "codbarras",
+      "codprod",
+      "codigoproduto",
+      "codigointerno",
+      "sku",
+      "referencia",
+      "referência",
+      "plu",
+    ],
   },
   {
     key: "productName",

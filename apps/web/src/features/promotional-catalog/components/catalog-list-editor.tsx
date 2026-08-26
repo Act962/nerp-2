@@ -65,8 +65,13 @@ import type {
   CatalogProduct,
 } from "../types";
 import { virtualProductsFromList } from "../types";
+import {
+  isScientificNotation,
+  matchKey,
+  normalizeCode,
+} from "../lib/product-match";
 import { ProductNameSearch, type PickedProduct } from "./product-name-search";
-import { ProductPhotoButton } from "./config-panel";
+import { applyProductPrice, ProductPhotoButton } from "./config-panel";
 import { CatalogListWizard, type WizardResult } from "./catalog-list-wizard";
 import {
   useExtractOffersFromFile,
@@ -78,6 +83,7 @@ import {
 // Colunas que podem ser mostradas/ocultadas (Produto é sempre exibido).
 const TOGGLE_COLUMNS = [
   { key: "image", label: "Imagem" },
+  { key: "code", label: "Código" },
   { key: "normalPrice", label: "Preço normal" },
   { key: "offerPrice", label: "Preço oferta" },
   { key: "department", label: "Departamento" },
@@ -306,70 +312,149 @@ export function CatalogListEditor({
     if (changed) setItems(next, true);
   }, [dbThumbs]);
 
-  // Nomes distintos de produtos SEM vínculo com o cadastro (item.productId).
-  const unregisteredNames = useMemo(
-    () => [
-      ...new Set(
-        items
-          .filter((i) => !i.productId && i.productName)
-          .map((i) => i.productName),
-      ),
-    ],
-    [items],
-  );
+  // Produtos distintos SEM vínculo com o cadastro (item.productId).
+  // A identidade é o `matchKey`: com código, é o código; SEM código, é o nome
+  // normalizado — ou seja, planilha sem a coluna "Código" agrupa como sempre.
+  const unregisteredTargets = useMemo(() => {
+    const map = new Map<string, { name: string; code?: string }>();
+    for (const it of items) {
+      if (it.productId || !it.productName) continue;
+      const key = matchKey(it);
+      if (!map.has(key))
+        map.set(key, { name: it.productName, code: it.code || undefined });
+    }
+    return [...map.entries()].map(([key, v]) => ({ key, ...v }));
+  }, [items]);
 
   // ── Cadastrar/casar os produtos novos no banco e vincular as linhas. Dedup
   // por nome: cria 1 produto por nome distinto e vincula TODAS as linhas com
   // aquele nome. MEXE no banco (opt-in, com confirmação). ──
   const registerProducts = async () => {
     setConfirmRegister(false);
-    if (unregisteredNames.length === 0) return;
+    if (unregisteredTargets.length === 0) return;
     setBusy("register");
     try {
-      // 1) Casa com produtos já existentes no cadastro.
+      // 1) Casa com produtos já existentes no cadastro (código → nome).
       const matched = await matchProducts.mutateAsync({
-        names: unregisteredNames,
+        items: unregisteredTargets.map((t) => ({
+          name: t.name,
+          code: t.code,
+        })),
       });
-      const byName = new Map<
+      const byKey = new Map<
         string,
-        { productId: string; thumbnail: string }
+        {
+          productId: string;
+          thumbnail: string;
+          source?: CatalogListItem["matchSource"];
+        }
       >();
       for (const r of matched)
         if (r.productId)
-          byName.set(r.name, {
+          byKey.set(matchKey({ productName: r.name, code: r.code }), {
             productId: r.productId,
             thumbnail: r.thumbnail ?? "",
+            source: r.source ?? undefined,
           });
-      // 2) Cria os que ainda não existem (um por nome).
-      const toCreate = unregisteredNames.filter((n) => !byName.has(n));
+      // 2) Cria os que ainda não existem (um por produto distinto).
+      const toCreate = unregisteredTargets.filter((t) => !byKey.has(t.key));
       if (toCreate.length > 0) {
-        const payload = toCreate.map((name) => {
-          const row = items.find((i) => i.productName === name);
-          return { name, salePrice: row?.normalPrice ?? row?.offerPrice ?? 0 };
+        const payload = toCreate.map((t) => {
+          const row = items.find((i) => matchKey(i) === t.key);
+          return {
+            name: t.name,
+            salePrice: row?.normalPrice ?? row?.offerPrice ?? 0,
+            // `@@unique([organizationId, barcode])`: só manda código válido.
+            ...(normalizeCode(t.code)
+              ? { barcode: normalizeCode(t.code) }
+              : {}),
+          };
         });
         const created = await createProducts.mutateAsync({ products: payload });
         created.forEach((r, i) => {
           if (r.productId)
-            byName.set(toCreate[i], { productId: r.productId, thumbnail: "" });
+            byKey.set(toCreate[i].key, {
+              productId: r.productId,
+              thumbnail: "",
+              source: "manual",
+            });
         });
       }
-      // 3) Vincula TODAS as linhas (por nome) ao produto do cadastro.
+      // 3) Vincula TODAS as linhas do mesmo produto ao registro do cadastro.
       const next = items.map((it) => {
         if (it.productId) return it;
-        const hit = byName.get(it.productName);
+        const hit = byKey.get(matchKey(it));
         if (!hit) return it;
         return {
           ...it,
           productId: hit.productId,
+          ...(hit.source ? { matchSource: hit.source } : {}),
           ...(it.thumbnail ? {} : { thumbnail: hit.thumbnail }),
         };
       });
       setItems(next, true);
       toast.success(
-        `${byName.size} produto(s) cadastrado(s)/vinculado(s) ao banco.`,
+        `${byKey.size} produto(s) cadastrado(s)/vinculado(s) ao banco.`,
       );
     } catch {
       toast.error("Falha ao cadastrar os produtos.");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // ── "Recasar produtos": reconfere o vínculo de cada linha com o cadastro
+  // usando a cascata atual (código → nome exato → prefixo). Só PROPÕE — o
+  // usuário confirma vendo quantas linhas mudariam. Linhas escolhidas à mão
+  // (matchSource "manual") são preservadas. ──
+  const [recheckPlan, setRecheckPlan] = useState<{
+    next: CatalogListItem[];
+    changed: number;
+  } | null>(null);
+
+  const runRecheck = async () => {
+    const targets = new Map<string, { name: string; code?: string }>();
+    for (const it of items) {
+      if (!it.productName || it.matchSource === "manual") continue;
+      const key = matchKey(it);
+      if (!targets.has(key))
+        targets.set(key, { name: it.productName, code: it.code || undefined });
+    }
+    if (targets.size === 0) {
+      toast.info("Nada a recasar.");
+      return;
+    }
+    setBusy("recheck");
+    try {
+      const res = await matchProducts.mutateAsync({
+        items: [...targets.values()],
+      });
+      const byKey = new Map(
+        res.map((r) => [matchKey({ productName: r.name, code: r.code }), r]),
+      );
+      let changed = 0;
+      const next = items.map((it) => {
+        if (it.matchSource === "manual") return it;
+        const hit = byKey.get(matchKey(it));
+        if (!hit?.productId) return it;
+        const sameProduct = it.productId === hit.productId;
+        const sameThumb = (it.thumbnail ?? "") === (hit.thumbnail ?? "");
+        if (sameProduct && sameThumb) return it;
+        changed++;
+        return {
+          ...it,
+          productId: hit.productId,
+          thumbnail: hit.thumbnail ?? "",
+          ...(hit.source ? { matchSource: hit.source } : {}),
+        };
+      });
+      if (changed === 0) {
+        toast.success("Tudo certo — nenhum vínculo precisou mudar.");
+        return;
+      }
+      setRecheckPlan({ next, changed });
+    } catch {
+      toast.error("Falha ao recasar os produtos.");
     } finally {
       setBusy(null);
     }
@@ -469,6 +554,7 @@ export function CatalogListEditor({
         id: uid(),
         client: String(get(row, "client") ?? "").trim() || "Sem cliente",
         productName: String(get(row, "productName") ?? "").trim(),
+        code: String(get(row, "code") ?? "").trim() || undefined,
         normalPrice: toNum(get(row, "normalPrice")),
         offerPrice: toNum(get(row, "offerPrice")),
         department: String(get(row, "department") ?? "").trim() || undefined,
@@ -476,6 +562,16 @@ export function CatalogListEditor({
         endDate: String(get(row, "endDate") ?? "").trim() || undefined,
       }))
       .filter((it) => it.productName);
+    // O Excel guarda EAN longo como número e devolve "7,89E+12" — os dígitos
+    // já se perderam na origem. Avisa em vez de gravar código inútil.
+    const sci = pending.rows.filter((row) =>
+      isScientificNotation(String(get(row, "code") ?? "")),
+    ).length;
+    if (sci > 0) {
+      toast.warning(
+        `${sci} código(s) vieram como "7,89E+12" e serão ignorados. Formate a coluna como Texto no Excel e importe de novo.`,
+      );
+    }
     // Guarda o mapping (contexto de reimport) e manda as novas linhas ao wizard.
     patchList({ mapping });
     setPending(null);
@@ -514,10 +610,14 @@ export function CatalogListEditor({
   // Um produto se repete por cliente/página; o NOME é propriedade do produto, não
   // da linha. Renomear/vincular sincroniza TODAS as páginas do mesmo produto
   // (mesmo productId; ou, se avulso, mesmo nome atual).
+  // Identidade do produto entre linhas: id do cadastro → código → nome.
+  // Sem código, é exatamente o critério anterior (nome).
   const sameProductAs = (ref: CatalogListItem) => (x: CatalogListItem) =>
     ref.productId
       ? x.productId === ref.productId
-      : x.productName === ref.productName;
+      : normalizeCode(ref.code)
+        ? normalizeCode(x.code) === normalizeCode(ref.code)
+        : x.productName === ref.productName;
   const renameProduct = (id: string, name: string) => {
     const ref = items.find((i) => i.id === id);
     if (!ref) return;
@@ -538,6 +638,8 @@ export function CatalogListEditor({
           ...x,
           productName: p.name,
           productId: p.id,
+          // Escolha explícita do usuário: some o selo "conferir".
+          matchSource: "manual",
           thumbnail: p.thumbnail,
         };
         // Preço/departamento variam por loja — só preenche na linha editada.
@@ -724,8 +826,8 @@ export function CatalogListEditor({
           <p className="text-sm text-muted-foreground">
             Isso vai casar com produtos já existentes e{" "}
             <strong>criar no cadastro</strong> os que faltarem —{" "}
-            <strong>{unregisteredNames.length}</strong> produto(s) distinto(s) —
-            e vincular as linhas correspondentes. A ação altera o banco de
+            <strong>{unregisteredTargets.length}</strong> produto(s) distinto(s)
+            — e vincular as linhas correspondentes. A ação altera o banco de
             produtos da sua organização.
           </p>
           <div className="flex items-center justify-end gap-2">
@@ -734,7 +836,38 @@ export function CatalogListEditor({
             </Button>
             <Button onClick={registerProducts}>
               <PackagePlus className="mr-1 h-4 w-4" />
-              Cadastrar {unregisteredNames.length}
+              Cadastrar {unregisteredTargets.length}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmação do "Recasar produtos" (reescreve vínculo/foto das linhas) */}
+      <Dialog
+        open={!!recheckPlan}
+        onOpenChange={(o) => !o && setRecheckPlan(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogTitle>Recasar produtos</DialogTitle>
+          <p className="text-sm text-muted-foreground">
+            <strong>{recheckPlan?.changed ?? 0}</strong> linha(s) mudariam de
+            produto vinculado (e de foto). Linhas que você escolheu à mão são
+            preservadas. Isso <strong>não</strong> altera o cadastro de produtos
+            — só o vínculo desta lista.
+          </p>
+          <div className="flex items-center justify-end gap-2">
+            <Button variant="outline" onClick={() => setRecheckPlan(null)}>
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (recheckPlan) setItems(recheckPlan.next, true);
+                setRecheckPlan(null);
+                toast.success("Vínculos atualizados.");
+              }}
+            >
+              <RefreshCw className="mr-1 h-4 w-4" />
+              Aplicar em {recheckPlan?.changed ?? 0}
             </Button>
           </div>
         </DialogContent>
@@ -926,7 +1059,23 @@ export function CatalogListEditor({
             Atualizar fotos
           </Button>
         )}
-        {unregisteredNames.length > 0 && (
+        {items.length > 0 && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={busy !== null}
+            title="Reconferir o vínculo de cada linha com o cadastro (usa o código quando houver)"
+            onClick={runRecheck}
+          >
+            {busy === "recheck" ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-1 h-4 w-4" />
+            )}
+            Recasar produtos
+          </Button>
+        )}
+        {unregisteredTargets.length > 0 && (
           <Button
             size="sm"
             variant="outline"
@@ -938,7 +1087,7 @@ export function CatalogListEditor({
             ) : (
               <PackagePlus className="mr-1 h-4 w-4" />
             )}
-            Cadastrar novos ({unregisteredNames.length})
+            Cadastrar novos ({unregisteredTargets.length})
           </Button>
         )}
         <Button
@@ -965,6 +1114,9 @@ export function CatalogListEditor({
               <TableRow>
                 {showCol("image") && <TableHead className="w-16" />}
                 <TableHead className="min-w-[220px]">Produto</TableHead>
+                {showCol("code") && (
+                  <TableHead className="w-32">Código</TableHead>
+                )}
                 {showCol("normalPrice") && (
                   <TableHead className="w-28">Preço normal</TableHead>
                 )}
@@ -1053,14 +1205,55 @@ export function CatalogListEditor({
                             </span>
                           </div>
                         </TableCell>
+                        {showCol("code") && (
+                          <TableCell className="p-1 text-xs text-muted-foreground">
+                            {prod.sku || ""}
+                          </TableCell>
+                        )}
+                        {/* Preços do produto do CADASTRO editáveis aqui também:
+                            grava override por-catálogo (priceOverrides /
+                            offerOverrides) — NÃO altera o cadastro/ERP. Mesma
+                            função usada na aba Produtos. */}
                         {showCol("normalPrice") && (
-                          <TableCell className="p-1 text-xs">
-                            {prod.basePrice ?? prod.salePrice}
+                          <TableCell className="p-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={prod.salePrice ?? ""}
+                              onChange={(e) =>
+                                applyProductPrice(
+                                  config,
+                                  onConfigChange,
+                                  prod.id,
+                                  "normal",
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                                )
+                              }
+                              className="h-8"
+                            />
                           </TableCell>
                         )}
                         {showCol("offerPrice") && (
-                          <TableCell className="p-1 text-xs">
-                            {prod.promotionalPrice ?? prod.salePrice}
+                          <TableCell className="p-1">
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={prod.promotionalPrice ?? ""}
+                              onChange={(e) =>
+                                applyProductPrice(
+                                  config,
+                                  onConfigChange,
+                                  prod.id,
+                                  "offer",
+                                  e.target.value === ""
+                                    ? null
+                                    : Number(e.target.value),
+                                )
+                              }
+                              className="h-8"
+                            />
                           </TableCell>
                         )}
                         {showCol("department") && (
@@ -1116,21 +1309,46 @@ export function CatalogListEditor({
                             />
                             <span
                               title={
-                                it.productId
-                                  ? "Vinculado a um produto do cadastro"
-                                  : "Produto avulso (não está no cadastro)"
+                                !it.productId
+                                  ? "Produto avulso (não está no cadastro)"
+                                  : it.matchSource === "name-prefix"
+                                    ? "Casado só pelo começo do nome — confira se a foto é deste produto"
+                                    : "Vinculado a um produto do cadastro"
                               }
                               className={cn(
                                 "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                                it.productId
-                                  ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                                  : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                                it.productId &&
+                                  it.matchSource !== "name-prefix" &&
+                                  "bg-green-500/15 text-green-700 dark:text-green-400",
+                                it.productId &&
+                                  it.matchSource === "name-prefix" &&
+                                  "bg-orange-500/20 text-orange-700 dark:text-orange-400",
+                                !it.productId &&
+                                  "bg-amber-500/15 text-amber-700 dark:text-amber-400",
                               )}
                             >
-                              {it.productId ? "cadastrado" : "novo"}
+                              {!it.productId
+                                ? "novo"
+                                : it.matchSource === "name-prefix"
+                                  ? "conferir"
+                                  : "cadastrado"}
                             </span>
                           </div>
                         </TableCell>
+                        {showCol("code") && (
+                          <TableCell className="p-1">
+                            <Input
+                              value={it.code ?? ""}
+                              onChange={(e) =>
+                                updateItem(it.id, {
+                                  code: e.target.value.trim() || undefined,
+                                })
+                              }
+                              placeholder="EAN"
+                              className="h-8 text-xs"
+                            />
+                          </TableCell>
+                        )}
                         {showCol("normalPrice") && (
                           <TableCell className="p-1">
                             <Input
