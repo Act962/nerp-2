@@ -1,11 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useCurrentMember } from "@/features/members/hooks/use-members";
+import { memberCan } from "@/lib/permissions";
 import { orpc } from "@/lib/orpc";
 import { uploadToR2 } from "@/lib/upload-to-r2";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+
+// Pode ALTERAR catálogos? Abrir é a permissão da página; editar exige a ação
+// `catalogo-promocional-editar`. Enquanto o membro carrega, assume que pode —
+// quem barra de fato é o servidor, em cada mutation; isto aqui só evita
+// mostrar botões que iriam falhar.
+export function useCanEditCatalog(): boolean {
+  const { member, isLoading } = useCurrentMember();
+  if (isLoading || !member) return true;
+  return memberCan(member, "catalogo-promocional-editar");
+}
 
 export function usePromotionalCatalogs() {
   return useQuery(orpc.promotionalCatalog.list.queryOptions({ input: {} }));

@@ -47,6 +47,7 @@ import { CatalogListEditor } from "./components/catalog-list-editor";
 import {
   usePromotionalCatalog,
   useAutosaveCatalog,
+  useCanEditCatalog,
   usePromotionalProducts,
 } from "./hooks/use-catalog";
 import { toast } from "sonner";
@@ -240,6 +241,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   const { data: catalogData, isLoading } = usePromotionalCatalog(catalogId);
   const autosave = useAutosaveCatalog();
+  // Só leitura quando o membro não tem a ação de editar catálogos.
+  const canEdit = useCanEditCatalog();
 
   // Aba ativa (rail) + painel de config aberto/retraído (só no desktop).
   const [activeTab, setActiveTab] = useState<string>("produtos");
@@ -810,6 +813,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   // várias mudanças seguidas num único save em background.
   useEffect(() => {
     if (!hydratedRef.current) return;
+    // Sem permissão de edição o catálogo é só leitura: nem tenta salvar (o
+    // servidor recusaria, e o usuário levaria um erro a cada mexida).
+    if (!canEdit) return;
     if (config === savedConfigRef.current) return; // nada mudou desde o load/save
     setSaveStatus("saving");
     const snapshot = config;
@@ -827,20 +833,21 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     }, 500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  }, [config, canEdit]);
 
   // Miniatura para a lista de catálogos — cara (html-to-image), então roda num
   // debounce longo e separado, só quando a edição estabiliza. Nunca trava o
   // layout: o autosave da config já persistiu tudo antes disso.
   useEffect(() => {
     if (!hydratedRef.current) return;
+    if (!canEdit) return;
     const timer = setTimeout(async () => {
       const thumbnail = await captureThumbnail();
       if (thumbnail) autosave.mutate({ id: catalogId, thumbnail });
     }, 2500);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config]);
+  }, [config, canEdit]);
 
   // Grava um snapshot no histórico quando a config "assenta" (500ms sem novas
   // mudanças) — assim um arraste inteiro vira UM passo de desfazer. Pula quando

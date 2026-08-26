@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { unitLabel } from "@/features/products/lib/units";
 import type { CardLayoutElement, CatalogProduct } from "../../types";
 import { cardImageSrc } from "./image-style";
@@ -50,6 +51,10 @@ interface CardFreeLayoutProps {
   elements: CardLayoutElement[];
   // Data URL da foto (proxy same-origin, para o export com html-to-image).
   thumbSrc?: string;
+  // Data URLs das imagens FIXAS da etiqueta (kind "image"), por chave R2 —
+  // mesma razão do `thumbSrc`: sem elas o html-to-image não embute a imagem
+  // (cross-origin) e ela sai em branco no PNG/PDF.
+  imageSrcs?: Record<string, string>;
   // Estilo da foto (contorno/sombra/fundo) — toggles de IMAGEM do painel.
   photoBox?: CSSProperties;
   // Proporção do card (default 1:1).
@@ -63,6 +68,7 @@ export function CardFreeLayout({
   product,
   elements,
   thumbSrc,
+  imageSrcs,
   photoBox,
   aspectRatio = "1 / 1",
 }: CardFreeLayoutProps) {
@@ -117,6 +123,25 @@ export function CardFreeLayout({
                     : `${(el.radius ?? 0) * h}px`,
               }}
             />
+          );
+        }
+
+        // Imagem FIXA da etiqueta (biblioteca) — não é a foto do produto.
+        if (el.kind === "image") {
+          if (!el.imageKey) return null;
+          const src = imageSrcs?.[el.imageKey] ?? constructUrl(el.imageKey);
+          return (
+            <div
+              key={el.id}
+              style={{
+                ...base,
+                overflow: "hidden",
+                borderRadius: `${(el.radius ?? 0) * h}px`,
+              }}
+            >
+              {/* biome-ignore lint/performance/noImgElement: card exportado via html-to-image */}
+              <img src={src} alt="" className="h-full w-full object-contain" />
+            </div>
           );
         }
 

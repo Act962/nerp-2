@@ -233,6 +233,12 @@ export const ACTION_PERMISSIONS = [
     key: "autorizar-cancelamento",
     label: "Autorizar cancelamento/remoção de item no PDV",
   },
+  {
+    // Sem esta ação, quem tem a página "Catálogo Promocional" abre e só
+    // CONSULTA (criar/editar/excluir bloqueados no servidor).
+    key: "catalogo-promocional-editar",
+    label: "Editar catálogos promocionais",
+  },
 ] as const;
 
 export type ActionPermissionKey = (typeof ACTION_PERMISSIONS)[number]["key"];

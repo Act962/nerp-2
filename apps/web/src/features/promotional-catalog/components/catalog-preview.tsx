@@ -184,6 +184,7 @@ export function renderCard(
           thumbSrc={
             product.thumbnail ? thumbSrcs[product.thumbnail] : undefined
           }
+          imageSrcs={thumbSrcs}
         />
       </div>
     );
@@ -418,10 +419,24 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
     // html-to-image não embute a imagem do R2 no export (CORS) e ela vira o
     // placeholder. Enquanto resolve, o card usa a URL direta (constructUrl).
     const [thumbSrcs, setThumbSrcs] = useState<Record<string, string>>({});
+    // Imagens FIXAS dentro das etiquetas (CardLayoutElement kind "image"), de
+    // todas as origens de cardLayout: global/página, override por produto e
+    // blocos de estilo. Sem isso a imagem some no export (html-to-image não
+    // embute cross-origin).
+    const cardLayoutImageKeys = [
+      ...(config.cardLayout ?? []),
+      ...Object.values(config.cardLayoutOverrides ?? {}).flat(),
+      ...(config.styleBlocks ?? []).flatMap((b) => b.cardLayout ?? []),
+    ]
+      .filter((el) => el.kind === "image")
+      .map((el) => el.imageKey)
+      .filter((k): k is string => !!k);
+
     const thumbKeysSig = [
       ...new Set(
         [
           ...products.map((p) => p.thumbnail),
+          ...cardLayoutImageKeys,
           ...(config.overlays ?? []).map((o) => o.assetKey),
           // Chaves R2 resolvidas de etiquetas dinâmicas (foto da loja / logo da
           // org / foto do produto) — precisam do proxy p/ export CORS-safe. URLs
@@ -1040,6 +1055,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                         ? thumbSrcs[product.thumbnail]
                         : undefined
                     }
+                    imageSrcs={thumbSrcs}
                   />
                 </div>
               );
