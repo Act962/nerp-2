@@ -8,6 +8,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { constructUrl } from "@/hooks/use-construct-url";
@@ -16,6 +23,7 @@ import { uploadToR2 } from "@/lib/upload-to-r2";
 import {
   AlertTriangle,
   ArrowLeft,
+  CalendarRange,
   Check,
   ChevronRight,
   Clock,
@@ -24,6 +32,7 @@ import {
   RotateCcw,
   Stamp,
   Store as StoreIcon,
+  ThumbsUp,
   User,
   X,
 } from "lucide-react";
@@ -31,6 +40,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import {
   type ApprovalGroupBy,
+  type PhotoScope,
   type PromotorPhotoStatus,
   useApplySeal,
   useApprovalGroups,
@@ -47,13 +57,6 @@ import {
   rangeToInstants,
 } from "./date-range-filter";
 
-const FILTERS: { value: PromotorPhotoStatus; label: string }[] = [
-  { value: "PENDING", label: "Pendentes" },
-  { value: "APPROVED", label: "Aprovadas" },
-  { value: "REJECTED", label: "Reprovadas" },
-  { value: "ALL", label: "Todas" },
-];
-
 // Como a fila é organizada no topo. "store" mantém o drill loja→indústria;
 // "promoter" e "supplier" têm um nível só; "photo" é a grade plana com ação
 // em massa.
@@ -64,6 +67,7 @@ const VIEW_MODES: { value: ViewMode; label: string }[] = [
   { value: "promoter", label: "Por promotor" },
   { value: "supplier", label: "Por indústria" },
   { value: "photo", label: "Por foto" },
+  { value: "media", label: "Por mídia" },
 ];
 
 type ApprovalPhoto = ReturnType<typeof usePhotosForApproval>["photos"][number];
@@ -95,7 +99,6 @@ interface PhotosForApprovalListProps {
  */
 export function PhotosForApprovalList({
   status: filter,
-  onStatusChange: setFilter,
 }: PhotosForApprovalListProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("store");
   // Drill do modo "por loja": loja → indústria.
@@ -113,12 +116,16 @@ export function PhotosForApprovalList({
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const dates = rangeToInstants(range);
+  const dateActive = Boolean(range.from || range.to);
 
   // Estamos vendo fotos (vs. a lista de grupos)?
   const showingPhotos =
     viewMode === "photo" ||
     (viewMode === "store" && store !== null && supplier !== null) ||
-    ((viewMode === "promoter" || viewMode === "supplier") && drill !== null);
+    ((viewMode === "promoter" ||
+      viewMode === "supplier" ||
+      viewMode === "media") &&
+      drill !== null);
 
   const clearNav = () => {
     setStore(null);
@@ -144,14 +151,17 @@ export function PhotosForApprovalList({
     groupBy,
   );
 
-  const photoScope =
+  // Em "Por mídia" a mídia vem do drill (o próprio agrupamento é a mídia).
+  const mediaTypeId =
+    viewMode === "media" ? (drill?.id ?? undefined) : undefined;
+  const photoScope: PhotoScope =
     viewMode === "store"
-      ? { storeId: store?.id, supplierId: supplier?.id, ...dates }
+      ? { storeId: store?.id, supplierId: supplier?.id, mediaTypeId, ...dates }
       : viewMode === "promoter"
-        ? { promoterName: drill?.id ?? undefined, ...dates }
+        ? { promoterName: drill?.id ?? undefined, mediaTypeId, ...dates }
         : viewMode === "supplier"
-          ? { supplierId: drill?.id, ...dates }
-          : { ...dates };
+          ? { supplierId: drill?.id, mediaTypeId, ...dates }
+          : { mediaTypeId, ...dates };
 
   const { photos, counts, isLoading, error, refetch } = usePhotosForApproval(
     filter,
@@ -260,25 +270,57 @@ export function PhotosForApprovalList({
 
   return (
     <div className="space-y-4 rounded-xl border p-4">
-      {/* Ver por: organização da fila. */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-sm font-medium text-muted-foreground">
-          Ver por:
-        </span>
-        {VIEW_MODES.map((mode) => (
-          <button
-            key={mode.value}
-            type="button"
-            onClick={() => changeMode(mode.value)}
-            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-              viewMode === mode.value
-                ? "border-primary bg-primary text-primary-foreground"
-                : "hover:bg-accent"
-            }`}
+      {/* Ver por (esquerda) + Filtro por data (canto superior direito). */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">
+            Ver por:
+          </span>
+          <Select
+            value={viewMode}
+            onValueChange={(v) => changeMode(v as ViewMode)}
           >
-            {mode.label}
-          </button>
-        ))}
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {VIEW_MODES.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  {mode.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              title="Filtrar por data"
+            >
+              <CalendarRange className="size-4" />
+              Filtro por data
+              {dateActive && (
+                <span className="size-2 rounded-full bg-primary" />
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-auto">
+            <DateRangeFilter
+              value={range}
+              onChange={(next) => {
+                // Muda o conjunto visível → limpa a seleção pra não aprovar
+                // fotos ocultas.
+                setRange(next);
+                setSelected(new Set());
+              }}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
       {navLabel && (
@@ -303,36 +345,6 @@ export function PhotosForApprovalList({
           </div>
         </div>
       )}
-
-      <div className="flex flex-wrap gap-1.5">
-        {FILTERS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => {
-              setFilter(option.value);
-              setSelected(new Set());
-            }}
-            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-              filter === option.value
-                ? "border-primary bg-primary text-primary-foreground"
-                : "hover:bg-accent"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-
-      <DateRangeFilter
-        value={range}
-        onChange={(next) => {
-          // Muda o conjunto visível → a seleção antiga não corresponde mais ao
-          // que está na tela; limpa pra não aprovar/reprovar fotos ocultas.
-          setRange(next);
-          setSelected(new Set());
-        }}
-      />
 
       {/* Barra de seleção em massa (só na visão "Por foto"). */}
       {selectable && photos.length > 0 && (
@@ -561,6 +573,26 @@ function PhotoCard({
               className="border-white bg-white/90"
             />
           </div>
+        )}
+        {/* "Gostei/Legal": destaque da coordenadora (só faz sentido em fotos
+            pendentes ou aprovadas). Vira filtro no picker "Adicionar foto". */}
+        {(photo.approvalStatus === "PENDING" ||
+          photo.approvalStatus === "APPROVED") && (
+          <button
+            type="button"
+            onClick={() =>
+              updatePhoto.mutate({ id: photo.id, liked: !photo.liked })
+            }
+            aria-pressed={photo.liked}
+            title={photo.liked ? "Remover “Gostei”" : "Marcar como “Gostei”"}
+            className={`absolute right-2 top-2 z-10 flex size-8 items-center justify-center rounded-full shadow-sm transition-colors ${
+              photo.liked
+                ? "bg-primary text-primary-foreground"
+                : "bg-black/50 text-white hover:bg-black/70"
+            }`}
+          >
+            <ThumbsUp className="size-4" />
+          </button>
         )}
         <a
           href={photo.photoKey ? constructUrl(photo.photoKey) : "#"}

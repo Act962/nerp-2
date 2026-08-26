@@ -663,8 +663,8 @@ export function BookPageCard({
           bookId={bookId}
           defaultSupplierId={supplierId ?? null}
           defaultStoreId={item.storeId}
-          onPick={(key) => {
-            addKeyToSlot(importSlot, key);
+          onPick={(photo) => {
+            addKeyToSlot(importSlot, photo.photoKey);
             setImportSlot(null);
           }}
         />

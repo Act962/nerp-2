@@ -22,6 +22,7 @@ export const updatePdvPhoto = base
       code: z.string().nullable().optional(),
       actionValue: z.number().nonnegative().nullable().optional(),
       photos: z.array(z.string()).optional(),
+      liked: z.boolean().optional(),
       photoLayout: z
         .enum(["PATTERN_1", "PATTERN_2", "PATTERN_3", "PATTERN_4"])
         .nullable()

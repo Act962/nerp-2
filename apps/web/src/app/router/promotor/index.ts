@@ -17,6 +17,7 @@ import { reviewPromotorPhoto } from "./review-photo";
 import { reviewPromotorPhotosBulk } from "./review-photos-bulk";
 import { listPhotosForApproval } from "./for-approval";
 import { listApprovedForImport } from "./approved-for-import";
+import { approvedPhotoCountByStore } from "./approved-count-by-store";
 import { listGalleryDrafts } from "./gallery-drafts";
 import { submitGalleryPhotos } from "./submit-gallery-photos";
 
@@ -40,6 +41,7 @@ export const promotorRoutes = {
   approvalGroups: listApprovalGroups,
   applySeal: applyPromotorSeal,
   approvedForImport: listApprovedForImport,
+  approvedCountByStore: approvedPhotoCountByStore,
   galleryDrafts: listGalleryDrafts,
   submitGalleryPhotos: submitGalleryPhotos,
 };

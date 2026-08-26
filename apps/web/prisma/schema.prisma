@@ -3137,6 +3137,8 @@ model PdvPhoto {
   consumedAt         DateTime?
   // Reuso detectado na captura (nunca bloqueia; só alerta a coordenadora).
   possibleReuse      Boolean                @default(false)
+  // "Gostei/Legal": a coordenadora marca fotos de destaque; filtro no picker.
+  liked              Boolean                @default(false)
   reuseOfId          String?
   createdById        String
   createdAt          DateTime               @default(now())

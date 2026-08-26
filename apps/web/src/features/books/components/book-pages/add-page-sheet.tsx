@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/sheet";
 import { Spinner } from "@/components/ui/spinner";
 import { PhotoCaptureInput } from "@/features/pdv-photos/components/photo-capture-input";
+import { useApprovedForImport } from "@/features/promotor/hooks/use-promotor";
 import { useStores, useCreateStore } from "@/features/stores/hooks/use-stores";
 import { useMediaTypes } from "@/features/trade-catalog/hooks/use-trade-catalog";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -38,7 +39,7 @@ import { compressImage } from "@/lib/compress-image";
 import { uploadToR2 } from "@/lib/upload-to-r2";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Check, Store as StoreIcon, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { MAX_PHOTOS } from "./book-page-photo-grid";
 
@@ -90,6 +91,23 @@ export function AddPageSheet({
   const [mediaTypeId, setMediaTypeId] = useState<string | null>(null);
   const [photoKeys, setPhotoKeys] = useState<string[]>([]);
   const [uploadingCount, setUploadingCount] = useState(0);
+
+  // Quantas fotos aprovadas existem por tipo de mídia nesta loja — mostrado no
+  // passo 2 pra orientar a escolha.
+  const { photos: approvedPhotos } = useApprovedForImport(
+    storeId ?? undefined,
+    supplierId ?? undefined,
+    open && step === 2 && !!storeId,
+  );
+  const mediaPhotoCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const photo of approvedPhotos) {
+      if (photo.mediaTypeId) {
+        counts.set(photo.mediaTypeId, (counts.get(photo.mediaTypeId) ?? 0) + 1);
+      }
+    }
+    return counts;
+  }, [approvedPhotos]);
 
   useEffect(() => {
     if (open) return;
@@ -402,10 +420,11 @@ export function AddPageSheet({
               <button
                 key={mediaType.id}
                 type="button"
-                onClick={() => {
-                  setMediaTypeId(mediaType.id);
-                  setStep(3);
-                }}
+                onClick={() =>
+                  setMediaTypeId((cur) =>
+                    cur === mediaType.id ? null : mediaType.id,
+                  )
+                }
                 className={cn(
                   "flex min-h-16 flex-col items-start justify-center gap-0.5 rounded-lg border p-3 text-left transition-colors hover:border-primary",
                   mediaTypeId === mediaType.id && "border-primary bg-primary/5",
@@ -417,19 +436,20 @@ export function AddPageSheet({
                 <span className="text-sm font-medium leading-tight">
                   {mediaType.name}
                 </span>
+                <span className="text-xs text-muted-foreground">
+                  {mediaPhotoCounts.get(mediaType.id) ?? 0} foto(s)
+                </span>
               </button>
             ))}
           </div>
+          {/* Mídia é opcional: sem "Não informar", é só continuar sem escolher. */}
           <Button
             type="button"
-            variant="ghost"
-            className="w-full"
-            onClick={() => {
-              setMediaTypeId(null);
-              setStep(3);
-            }}
+            className="w-full gap-2"
+            onClick={() => setStep(3)}
           >
-            Não informar a mídia
+            <Check className="size-4" />
+            Continuar{mediaTypeId ? "" : " sem tipo de mídia"}
           </Button>
 
           <div className="rounded-lg border p-3">

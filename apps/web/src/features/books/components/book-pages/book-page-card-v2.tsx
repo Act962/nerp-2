@@ -3,12 +3,20 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {
   ChevronDown,
   ChevronUp,
   Crop,
   Images,
+  LayoutTemplate,
   Maximize2,
   Pencil,
   Plus,
@@ -16,6 +24,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import {
+  useChangeBookPageLayout,
   useDeleteBookPage,
   useRemoveBookItem,
   useSetSlotAdjustment,
@@ -33,12 +42,39 @@ import { ImportPhotoDialog } from "./import-photo-dialog";
 import { PhotoAdjustDialog } from "./photo-adjust-dialog";
 import { LayoutPreview, type LayoutLogos } from "../templates/layout-preview";
 import { TradegramMark } from "../tradegram-mark";
-import { useApprovedForImport } from "@/features/promotor/hooks/use-promotor";
 
 // Item de uma página de book no NOVO modelo (BookPage): 1..4 fotos, cada
 // uma vinda de um BookItem cujo pdvPhotoId aponta pra uma captura aprovada
 // distinta. As ações: trocar foto, ajustar enquadramento, excluir foto,
 // excluir página inteira.
+// Os 5 padrões de página (orientação + nº de slots). "Alterar padrão da página"
+// mostra todos menos o atual.
+const PAGE_PATTERNS = [
+  { orientation: "PORTRAIT", size: 1, label: "1 foto vertical" },
+  { orientation: "PORTRAIT", size: 2, label: "2 fotos verticais" },
+  { orientation: "PORTRAIT", size: 3, label: "3 fotos verticais" },
+  { orientation: "LANDSCAPE", size: 1, label: "1 foto horizontal" },
+  { orientation: "LANDSCAPE", size: 2, label: "2 fotos horizontais" },
+] as const;
+
+// Padrão atual da página, inferido dos slots do layout (largura ≥ altura =
+// horizontal). Usado só pra ocultar a opção atual no menu.
+function inferCurrentPattern(
+  layout: unknown,
+): { orientation: "PORTRAIT" | "LANDSCAPE"; size: number } | null {
+  if (!Array.isArray(layout)) return null;
+  const slots = (
+    layout as Array<{ type?: string; width?: number; height?: number }>
+  ).filter((el) => el?.type === "photoSlot");
+  if (slots.length === 0) return null;
+  const first = slots[0];
+  return {
+    orientation:
+      (first.width ?? 0) >= (first.height ?? 0) ? "LANDSCAPE" : "PORTRAIT",
+    size: slots.length,
+  };
+}
+
 export interface BookPageItemV2 {
   id: string; // BookItem.id
   pdvPhotoId: string;
@@ -107,6 +143,8 @@ export function BookPageCardV2({
   const deletePage = useDeleteBookPage();
   const setSlot = useSetSlotPhoto();
   const setAdjustment = useSetSlotAdjustment();
+  const changePattern = useChangeBookPageLayout();
+  const currentPattern = inferCurrentPattern(page.pageLayout);
   const [swapContext, setSwapContext] = useState<{
     slotIndex: number;
     itemId: string | null;
@@ -370,6 +408,44 @@ export function BookPageCardV2({
                   </Button>
                 </div>
               ))}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-7 gap-1"
+                  disabled={isBusy || changePattern.isPending}
+                  title="Trocar a quantidade/orientação dos slots desta página"
+                >
+                  <LayoutTemplate className="size-3.5" />
+                  Alterar padrão da página
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Padrão da página</DropdownMenuLabel>
+                {PAGE_PATTERNS.filter(
+                  (p) =>
+                    !currentPattern ||
+                    p.orientation !== currentPattern.orientation ||
+                    p.size !== currentPattern.size,
+                ).map((p) => (
+                  <DropdownMenuItem
+                    key={`${p.orientation}-${p.size}`}
+                    onClick={() =>
+                      changePattern.mutate({
+                        bookPageId: page.id,
+                        orientation: p.orientation,
+                        size: p.size,
+                      })
+                    }
+                  >
+                    {p.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </CardContent>
@@ -380,11 +456,6 @@ export function BookPageCardV2({
           onOpenChange={(open) => !open && setSwapContext(null)}
           bookId={bookId}
           supplierId={supplierId}
-          supplierName={
-            typeof variableValues.industria === "string"
-              ? variableValues.industria
-              : null
-          }
           storeId={page.storeId ?? ""}
           storeName={page.storeName}
           onPickPdvPhoto={(pdvPhotoId) => {
@@ -506,15 +577,14 @@ function parseAdjustment(raw: unknown): PhotoAdjustment | undefined {
   };
 }
 
-// Wrapper que traduz o photoKey retornado pelo ImportPhotoDialog em
-// pdvPhotoId (o modelo novo salva relação, não string). Usa a mesma query
-// que o dialog já usou pra listar fotos aprovadas — o cliente já cacheou.
+// Wrapper do picker pro slot V2: o ImportPhotoDialog já devolve o pdvPhotoId
+// (id) da foto escolhida — mesmo de outra loja ("Todas as lojas"). Upload
+// direto vem com id null e fica pra futura iteração (criar PdvPhoto novo).
 function SwapPhotoDialog({
   open,
   onOpenChange,
   bookId,
   supplierId,
-  supplierName,
   storeId,
   storeName,
   onPickPdvPhoto,
@@ -523,35 +593,20 @@ function SwapPhotoDialog({
   onOpenChange: (open: boolean) => void;
   bookId: string;
   supplierId: string | null;
-  supplierName: string | null;
   storeId: string;
   storeName: string | null;
   onPickPdvPhoto: (pdvPhotoId: string) => void;
 }) {
-  const { photos } = useApprovedForImport(
-    storeId,
-    supplierId ?? undefined,
-    open,
-    bookId,
-  );
-
   return (
     <ImportPhotoDialog
       open={open}
       onOpenChange={onOpenChange}
       bookId={bookId}
       defaultSupplierId={supplierId}
-      defaultSupplierName={supplierName}
       defaultStoreId={storeId || null}
       defaultStoreName={storeName}
-      lockSelection
-      onPick={(photoKey) => {
-        // Encontra o PdvPhoto correspondente à photoKey escolhida. Se o usuário
-        // subiu uma foto nova (upload direto), não vai bater com nenhum
-        // approvedForImport — nesse caso silenciamos: a troca por upload
-        // externo fica pra futura iteração (envolve criar PdvPhoto novo).
-        const match = photos.find((p) => p.photoKey === photoKey);
-        if (match) onPickPdvPhoto(match.id);
+      onPick={(photo) => {
+        if (photo.id) onPickPdvPhoto(photo.id);
       }}
     />
   );
