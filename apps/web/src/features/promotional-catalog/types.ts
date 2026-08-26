@@ -126,6 +126,10 @@ export type ProductGroup = {
   // `gridRows` são a "Disposição" (colunas × linhas) do grupo.
   bgColor?: string;
   bgOpacity?: number; // 0..100 (%) — transparência do fundo (default 100).
+  // Proporção do grupo: escala TODOS os cards juntos (mesma ideia do
+  // `productGroupScale` do modo grupo-único). Ausente = 1 (sem escala), então
+  // grupos já existentes não mudam de aparência.
+  scale?: number;
   radius?: number; // px — arredondamento dos cantos da região.
   borderColor?: string;
   borderWidth?: number; // px — contorno da região (0 = sem contorno).

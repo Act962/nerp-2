@@ -201,6 +201,10 @@ type Drag =
       base: LayerRect;
       cell: { w: number; h: number };
       scale: number;
+      // Modo proporção (mesma alça, alternada por clique): escala o grupo em
+      // vez de recalcular a grade. `baseScale` é a escala no início do arraste.
+      proportional?: boolean;
+      baseScale?: number;
     }
   | {
       mode: "group-move" | "group-resize";
@@ -498,6 +502,21 @@ export function SelectionLayer({
     } else if (d.mode === "pgroup-resize") {
       const dx = (e.clientX - d.sx) / d.scale;
       const dy = (e.clientY - d.sy) / d.scale;
+      if (Math.abs(e.clientX - d.sx) > 3 || Math.abs(e.clientY - d.sy) > 3) {
+        dragMoved.current = true;
+      }
+      if (d.proportional) {
+        // Proporção: mantém a caixa e a grade; escala TODOS os cards juntos.
+        // Segue o arraste horizontal, igual ao modo grupo-único.
+        const baseScale = d.baseScale ?? 1;
+        const next = baseScale + dx / Math.max(1, d.base.w);
+        const scaleVal = Math.min(
+          5,
+          Math.max(0.2, Math.round(next * 100) / 100),
+        );
+        updateGroup(d.id, { scale: scaleVal });
+        return;
+      }
       const w = Math.max(120, Math.round(d.base.w + dx));
       const h = Math.max(120, Math.round(d.base.h + dy));
       // Auto-grade: colunas/linhas seguem o tamanho da célula fixado no início —
@@ -563,8 +582,12 @@ export function SelectionLayer({
 
   const onPointerUp = () => {
     const d = drag.current;
-    if (d?.mode === "group-resize" && !dragMoved.current) {
-      // Clicar na alça (sem arrastar) alterna dinâmico ↔ proporção.
+    if (
+      (d?.mode === "group-resize" || d?.mode === "pgroup-resize") &&
+      !dragMoved.current
+    ) {
+      // Clicar na alça (sem arrastar) alterna dinâmico ↔ proporção. Vale nos
+      // dois modos: grupo único e grupo nomeado (multi).
       setProportional((v) => !v);
     } else if (d?.mode === "group-move" && !dragMoved.current) {
       // Foi só um clique dentro do grupo → seleciona o alvo (card ou grupo).
@@ -759,6 +782,9 @@ export function SelectionLayer({
   const startPGroupResize = (e: React.PointerEvent, g: ProductGroup) => {
     e.stopPropagation();
     onSelectionChange({ kind: "group", id: g.id });
+    // Sem zerar aqui, um arraste anterior deixaria `dragMoved` ligado e o
+    // clique simples nunca alternaria dinâmico ↔ proporção.
+    dragMoved.current = false;
     beginDrag({
       mode: "pgroup-resize",
       id: g.id,
@@ -770,6 +796,8 @@ export function SelectionLayer({
         h: g.rect.h / Math.max(1, g.gridRows),
       },
       scale: getScale(),
+      proportional,
+      baseScale: g.scale ?? 1,
     });
   };
 
@@ -1196,8 +1224,14 @@ export function SelectionLayer({
                   </button>
                   <button
                     type="button"
-                    title="Redimensionar (ajusta colunas/linhas)"
-                    className="absolute -bottom-2 -right-2 h-4 w-4 rounded-full border-2 border-primary bg-background"
+                    title={
+                      proportional
+                        ? "Proporção: tudo escala junto (clique para dinâmico)"
+                        : "Dinâmico: ajusta colunas/linhas (clique para proporção)"
+                    }
+                    className={`absolute -bottom-2 -right-2 h-4 w-4 rounded-full border-2 border-primary ${
+                      proportional ? "bg-primary" : "bg-background"
+                    }`}
                     style={{ cursor: "nwse-resize" }}
                     onPointerDown={(e) => startPGroupResize(e, g)}
                   />
