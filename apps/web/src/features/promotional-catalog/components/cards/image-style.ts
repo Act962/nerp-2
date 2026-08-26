@@ -24,7 +24,9 @@ export function imageStyleFromAdjust(
   adjust: ImageAdjustment | undefined,
 ): CSSProperties {
   return {
-    objectFit: adjust?.fit ?? "cover",
+    // Padrão "caber" (contain): é o enquadramento usado em todos os produtos.
+    // Preencher (cover) cortava a foto e escondia embalagem/gramatura.
+    objectFit: adjust?.fit ?? "contain",
     objectPosition: adjust ? `${adjust.posX}% ${adjust.posY}%` : undefined,
     transform:
       adjust && adjust.scale !== 1 ? `scale(${adjust.scale})` : undefined,

@@ -145,7 +145,7 @@ const SAMPLE_PRODUCT: CatalogProduct = {
 //   fonte;
 // - produto do CADASTRO → override por-catálogo (priceOverrides = "De";
 //   offerOverrides = "Por"), sem tocar no cadastro/ERP.
-function applyProductPrice(
+export function applyProductPrice(
   config: CatalogConfig,
   onConfigChange: (changes: Partial<CatalogConfig>) => void,
   productId: string,
@@ -1704,6 +1704,30 @@ export function ConfigPanel({
     onConfigChange({ overlays: [...overlays, ov] });
     onSelectionChange?.({ kind: "element", id: ov.id });
   };
+  // Insere uma ETIQUETA da biblioteca no centro da página (clique simples) —
+  // o arrastar continua funcionando e cai onde foi solto. Mantém a proporção
+  // da imagem; se ela falhar ao carregar, cai num quadrado padrão.
+  const addAssetToCenter = (assetKey: string) => {
+    const place = (ar: number) => {
+      const w = 320;
+      const h = Math.round(w / (ar || 1));
+      const ov: Overlay = {
+        id: crypto.randomUUID(),
+        assetKey,
+        x: Math.round(540 - w / 2),
+        y: Math.round(380 - h / 2),
+        w,
+        h,
+        rotation: 0,
+      };
+      onConfigChange({ overlays: [...overlays, ov] });
+      onSelectionChange?.({ kind: "element", id: ov.id });
+    };
+    const img = new Image();
+    img.onload = () => place(img.naturalWidth / img.naturalHeight || 1);
+    img.onerror = () => place(1);
+    img.src = constructUrl(assetKey);
+  };
   const SHAPES: {
     shape: NonNullable<Overlay["shape"]>;
     label: string;
@@ -2734,9 +2758,11 @@ export function ConfigPanel({
                   <div
                     key={a.id}
                     className="group relative aspect-square overflow-hidden rounded-md border bg-[repeating-conic-gradient(#e5e7eb_0_25%,#fff_0_50%)] bg-[length:16px_16px]"
-                    title={`${a.name} — arraste para o catálogo`}
+                    title={`${a.name} — clique para inserir no centro, ou arraste`}
                   >
                     {/* biome-ignore lint/performance/noImgElement: etiqueta arrastável */}
+                    {/* biome-ignore lint/a11y/noStaticElementInteractions: a etiqueta é arrastável e clicável */}
+                    {/* biome-ignore lint/a11y/useKeyWithClickEvents: atalho de mouse; o arrastar segue disponível */}
                     <img
                       src={constructUrl(a.key)}
                       alt={a.name}
@@ -2744,7 +2770,8 @@ export function ConfigPanel({
                       onDragStart={(e) =>
                         e.dataTransfer.setData("text/plain", a.key)
                       }
-                      className="h-full w-full cursor-grab object-contain p-1 active:cursor-grabbing"
+                      onClick={() => addAssetToCenter(a.key)}
+                      className="h-full w-full cursor-pointer object-contain p-1 active:cursor-grabbing"
                     />
                     <Button
                       variant="ghost"

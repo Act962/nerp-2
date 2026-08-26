@@ -40,6 +40,14 @@ import {
 } from "../lib/background-presets";
 import type { CatalogConfig, CatalogListItem } from "../types";
 import { itemFolderKey } from "../types";
+import { matchKey, normalizeCode } from "../lib/product-match";
+
+// Produto do cadastro casado com uma linha da planilha.
+type ProdHit = {
+  productId: string;
+  thumbnail: string;
+  source?: CatalogListItem["matchSource"];
+};
 
 type GroupBy = "client" | "department" | "custom";
 
@@ -133,9 +141,9 @@ export function CatalogListWizard({
   // Produtos
   const matchProducts = useMatchProductsByName();
   const createProducts = useCreateOfferProducts();
-  const [prodMatch, setProdMatch] = useState<
-    Map<string, { productId: string; thumbnail: string } | null>
-  >(new Map());
+  const [prodMatch, setProdMatch] = useState<Map<string, ProdHit | null>>(
+    new Map(),
+  );
   const [createProd, setCreateProd] = useState<Set<string>>(new Set());
   const [prodLoading, setProdLoading] = useState(true);
 
@@ -182,10 +190,18 @@ export function CatalogListWizard({
   // Input <date> guarda "YYYY-MM-DD"; vira "…T23:59" no resultado.
   const [validUntil, setValidUntil] = useState(detected.end ?? "");
 
-  const uniqueProducts = useMemo(
-    () => [...new Set(rows.map((r) => r.productName).filter(Boolean))],
-    [rows],
-  );
+  // Produtos distintos da planilha. A identidade é o `matchKey`: com a coluna
+  // "Código", é o código; sem ela, é o nome — igual ao comportamento anterior.
+  const uniqueTargets = useMemo(() => {
+    const map = new Map<string, { key: string; name: string; code?: string }>();
+    for (const r of rows) {
+      if (!r.productName) continue;
+      const key = matchKey(r);
+      if (!map.has(key))
+        map.set(key, { key, name: r.productName, code: r.code || undefined });
+    }
+    return [...map.values()];
+  }, [rows]);
   const uniqueClients = useMemo(
     () => [...new Set(rows.map((r) => r.client).filter(Boolean))],
     [rows],
@@ -196,25 +212,33 @@ export function CatalogListWizard({
   useEffect(() => {
     (async () => {
       try {
-        const res = await matchProducts.mutateAsync({ names: uniqueProducts });
-        const m = new Map<
-          string,
-          { productId: string; thumbnail: string } | null
-        >();
+        const res = await matchProducts.mutateAsync({
+          items: uniqueTargets.map((t) => ({ name: t.name, code: t.code })),
+        });
+        const m = new Map<string, ProdHit | null>();
         for (const r of res)
           m.set(
-            r.name,
+            matchKey({ productName: r.name, code: r.code }),
             r.productId
-              ? { productId: r.productId, thumbnail: r.thumbnail ?? "" }
+              ? {
+                  productId: r.productId,
+                  thumbnail: r.thumbnail ?? "",
+                  source: r.source ?? undefined,
+                }
               : null,
           );
         setProdMatch(m);
         // Aplica os já encontrados nas linhas (imagem/productId).
         setRows((prev) =>
           prev.map((it) => {
-            const hit = m.get(it.productName);
+            const hit = m.get(matchKey(it));
             return hit
-              ? { ...it, productId: hit.productId, thumbnail: hit.thumbnail }
+              ? {
+                  ...it,
+                  productId: hit.productId,
+                  thumbnail: hit.thumbnail,
+                  ...(hit.source ? { matchSource: hit.source } : {}),
+                }
               : it;
           }),
         );
@@ -236,7 +260,7 @@ export function CatalogListWizard({
     })();
   }, []);
 
-  const newProducts = uniqueProducts.filter((n) => !prodMatch.get(n));
+  const newTargets = uniqueTargets.filter((t) => !prodMatch.get(t.key));
   const newClients = uniqueClients.filter((c) => !storeMatch.get(c));
 
   const maxPerClientCount = useMemo(() => {
@@ -266,46 +290,52 @@ export function CatalogListWizard({
   const next = async () => {
     if (step === 0) {
       // Cria os produtos marcados como novos.
-      const toCreate = newProducts.filter((n) => createProd.has(n));
+      const toCreate = newTargets.filter((t) => createProd.has(t.key));
       if (toCreate.length > 0) {
         setBusy(true);
         try {
-          const payload = toCreate.map((name) => {
-            const row = rows.find((r) => r.productName === name);
+          const payload = toCreate.map((t) => {
+            const row = rows.find((r) => matchKey(r) === t.key);
             return {
-              name,
+              name: t.name,
               salePrice: row?.normalPrice ?? row?.offerPrice ?? 0,
+              // `@@unique([organizationId, barcode])`: só código aproveitável.
+              ...(normalizeCode(t.code)
+                ? { barcode: normalizeCode(t.code) }
+                : {}),
             };
           });
           const res = await createProducts.mutateAsync({ products: payload });
-          const byName = new Map<string, string>();
+          const byKey = new Map<string, string>();
           res.forEach((r, i) => {
-            if (r.productId) byName.set(toCreate[i], r.productId);
+            if (r.productId) byKey.set(toCreate[i].key, r.productId);
           });
           setRows((prev) =>
-            prev.map((it) =>
-              byName.has(it.productName)
-                ? { ...it, productId: byName.get(it.productName) }
-                : it,
-            ),
+            prev.map((it) => {
+              const pid = byKey.get(matchKey(it));
+              return pid
+                ? { ...it, productId: pid, matchSource: "manual" as const }
+                : it;
+            }),
           );
           // Marca como "no cadastro" p/ sair da lista de novos — evita recriar
           // ao voltar e avançar de novo.
           setProdMatch((prev) => {
             const m = new Map(prev);
-            for (const [name, pid] of byName)
-              m.set(name, {
+            for (const [key, pid] of byKey)
+              m.set(key, {
                 productId: pid,
-                thumbnail: m.get(name)?.thumbnail ?? "",
+                thumbnail: m.get(key)?.thumbnail ?? "",
+                source: "manual",
               });
             return m;
           });
           setCreateProd((prev) => {
             const n = new Set(prev);
-            for (const name of byName.keys()) n.delete(name);
+            for (const key of byKey.keys()) n.delete(key);
             return n;
           });
-          toast.success(`${byName.size} produto(s) criado(s) no cadastro.`);
+          toast.success(`${byKey.size} produto(s) criado(s) no cadastro.`);
         } catch {
           toast.error("Falha ao criar produtos.");
         } finally {
@@ -443,11 +473,11 @@ export function CatalogListWizard({
                 <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               ) : (
                 <span className="text-muted-foreground">
-                  {uniqueProducts.length - newProducts.length} encontrados ·{" "}
-                  {newProducts.length} novos
+                  {uniqueTargets.length - newTargets.length} encontrados ·{" "}
+                  {newTargets.length} novos
                 </span>
               )}
-              {!prodLoading && newProducts.length > 0 && (
+              {!prodLoading && newTargets.length > 0 && (
                 <Button
                   type="button"
                   size="sm"
@@ -455,14 +485,14 @@ export function CatalogListWizard({
                   className="ml-auto h-7 gap-1 text-xs"
                   onClick={() =>
                     setCreateProd((prev) =>
-                      newProducts.every((n) => prev.has(n))
+                      newTargets.every((t) => prev.has(t.key))
                         ? new Set()
-                        : new Set(newProducts),
+                        : new Set(newTargets.map((t) => t.key)),
                     )
                   }
                 >
                   <CheckCheck className="h-3.5 w-3.5" />
-                  {newProducts.every((n) => createProd.has(n))
+                  {newTargets.every((t) => createProd.has(t.key))
                     ? "Limpar seleção"
                     : "Selecionar todos"}
                 </Button>
@@ -473,11 +503,12 @@ export function CatalogListWizard({
               preço). Os não marcados aparecem como Etiqueta avulsa.
             </p>
             <div className="flex flex-col divide-y rounded-md border">
-              {uniqueProducts.map((name) => {
-                const hit = prodMatch.get(name);
+              {uniqueTargets.map(({ key, name, code }) => {
+                const hit = prodMatch.get(key);
+                const needsCheck = hit?.source === "name-prefix";
                 return (
                   <div
-                    key={name}
+                    key={key}
                     className="flex items-center gap-2 px-2 py-1.5 text-sm"
                   >
                     {hit ? (
@@ -495,27 +526,43 @@ export function CatalogListWizard({
                       </span>
                     ) : (
                       <Checkbox
-                        checked={createProd.has(name)}
+                        checked={createProd.has(key)}
                         onCheckedChange={(v) =>
                           setCreateProd((prev) => {
                             const n = new Set(prev);
-                            if (v) n.add(name);
-                            else n.delete(name);
+                            if (v) n.add(key);
+                            else n.delete(key);
                             return n;
                           })
                         }
                       />
                     )}
-                    <span className="min-w-0 flex-1 truncate">{name}</span>
+                    <span className="min-w-0 flex-1 truncate">
+                      {name}
+                      {code && (
+                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                          {code}
+                        </span>
+                      )}
+                    </span>
                     <span
+                      title={
+                        needsCheck
+                          ? "Casado só pelo começo do nome — confira a foto depois"
+                          : undefined
+                      }
                       className={cn(
                         "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                        hit
-                          ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                        hit &&
+                          !needsCheck &&
+                          "bg-green-500/15 text-green-700 dark:text-green-400",
+                        needsCheck &&
+                          "bg-orange-500/20 text-orange-700 dark:text-orange-400",
+                        !hit &&
+                          "bg-amber-500/15 text-amber-700 dark:text-amber-400",
                       )}
                     >
-                      {hit ? "no cadastro" : "novo"}
+                      {!hit ? "novo" : needsCheck ? "conferir" : "no cadastro"}
                     </span>
                   </div>
                 );

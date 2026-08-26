@@ -626,11 +626,17 @@ export function CardFreeEditor({
                       top: `${el.y * 100}%`,
                       width: `${el.w * 100}%`,
                       height: `${el.h * 100}%`,
-                      // A moldura de interação segue o `z` da camada (mesma
-                      // ordem do render visual). Sem isso, um retângulo mandado
-                      // pra "Trás" continuava por cima e capturava os cliques.
-                      // O selecionado sobe pro topo pra acessar alças/excluir.
-                      zIndex: (el.z ?? 0) + (isSel ? 1000 : 0),
+                      // A moldura de interação segue o `z` da camada — a MESMA
+                      // ordem do render visual —, que é o que "Trás/Frente"
+                      // controlam. O deslocamento (+100) só mantém tudo
+                      // positivo: com z negativo a moldura ficaria atrás do
+                      // fundo do canvas.
+                      //
+                      // NÃO promover o selecionado para o topo: uma forma que
+                      // cobre a etiqueta inteira passava a engolir os cliques
+                      // assim que era selecionada — e "Trás" não surtia efeito
+                      // enquanto ela seguisse selecionada.
+                      zIndex: 100 + (el.z ?? 0),
                       borderRadius: outlineRadius(el),
                       outline: isSel
                         ? "2px solid var(--color-primary, #2563eb)"
