@@ -21,7 +21,9 @@ export const listApprovalGroups = base
         .default("PENDING"),
       // Dimensão do topo da fila: por loja (com drill loja→indústria), por
       // promotor ou por indústria (nível único → fotos).
-      groupBy: z.enum(["store", "promoter", "supplier"]).default("store"),
+      groupBy: z
+        .enum(["store", "promoter", "supplier", "media"])
+        .default("store"),
       storeId: z.string().optional(),
       ...dateRangeSchema,
     }),
@@ -100,7 +102,7 @@ export const listApprovalGroups = base
 
     // Dimensão efetiva: "por loja" com drill vira "supplier"; senão o próprio
     // groupBy. "promoter" agrupa por nome (PdvPhoto só tem promoterName).
-    const dimension: "store" | "supplier" | "promoter" =
+    const dimension: "store" | "supplier" | "promoter" | "media" =
       input.groupBy === "store"
         ? input.storeId
           ? "supplier"
@@ -140,6 +142,22 @@ export const listApprovalGroups = base
           row._max.capturedAt,
         );
       }
+    } else if (dimension === "media") {
+      const rows = await prisma.pdvPhoto.groupBy({
+        by: ["mediaTypeId", "approvalStatus", "sealMissing"],
+        where,
+        _count: { _all: true },
+        _max: { capturedAt: true },
+      });
+      for (const row of rows) {
+        accumulate(
+          row.mediaTypeId,
+          row.approvalStatus,
+          row.sealMissing,
+          row._count._all,
+          row._max.capturedAt,
+        );
+      }
     } else {
       const rows = await prisma.pdvPhoto.groupBy({
         by: ["storeId", "approvalStatus", "sealMissing"],
@@ -166,17 +184,27 @@ export const listApprovalGroups = base
     // resolvem o nome pela respectiva tabela.
     const names = new Map<string, string>();
     if (dimension !== "promoter" && ids.length > 0) {
-      const records =
-        dimension === "supplier"
-          ? await prisma.supplier.findMany({
-              where: { id: { in: ids }, organizationId: context.org.id },
-              select: { id: true, name: true },
-            })
-          : await prisma.store.findMany({
-              where: { id: { in: ids }, organizationId: context.org.id },
-              select: { id: true, name: true },
-            });
-      for (const record of records) names.set(record.id, record.name);
+      if (dimension === "media") {
+        const records = await prisma.mediaType.findMany({
+          where: { id: { in: ids }, organizationId: context.org.id },
+          select: { id: true, code: true, name: true },
+        });
+        for (const record of records) {
+          names.set(record.id, `${record.code} · ${record.name}`);
+        }
+      } else {
+        const records =
+          dimension === "supplier"
+            ? await prisma.supplier.findMany({
+                where: { id: { in: ids }, organizationId: context.org.id },
+                select: { id: true, name: true },
+              })
+            : await prisma.store.findMany({
+                where: { id: { in: ids }, organizationId: context.org.id },
+                select: { id: true, name: true },
+              });
+        for (const record of records) names.set(record.id, record.name);
+      }
     }
 
     const emptyLabel =
@@ -184,7 +212,9 @@ export const listApprovalGroups = base
         ? "Sem indústria"
         : dimension === "promoter"
           ? "Sem promotor"
-          : "Cliente removido";
+          : dimension === "media"
+            ? "Sem tipo de mídia"
+            : "Cliente removido";
 
     return {
       groups: [...buckets.values()]

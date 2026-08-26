@@ -20,11 +20,12 @@ export type PhotoScope = {
   storeId?: string;
   supplierId?: string | null;
   promoterName?: string;
+  mediaTypeId?: string;
   from?: string;
   to?: string;
 };
 
-export type ApprovalGroupBy = "store" | "promoter" | "supplier";
+export type ApprovalGroupBy = "store" | "promoter" | "supplier" | "media";
 
 export function useMyPhotos(
   status: PromotorPhotoStatus,
@@ -337,6 +338,7 @@ export function usePhotosForApproval(
         storeId: scope?.storeId,
         supplierId: scope?.supplierId,
         promoterName: scope?.promoterName,
+        mediaTypeId: scope?.mediaTypeId,
         from: scope?.from,
         to: scope?.to,
       },
@@ -405,12 +407,32 @@ export function useApprovedForImport(
   // Opcional: marca `usedInBook` nas fotos já usadas neste book (aviso de
   // repetição no picker).
   bookId?: string,
+  // Opcional: só as fotos marcadas com "Gostei".
+  likedOnly?: boolean,
 ) {
   const query = useQuery({
     ...orpc.promotor.approvedForImport.queryOptions({
-      input: { storeId, supplierId, bookId },
+      input: { storeId, supplierId, bookId, likedOnly },
     }),
     enabled,
   });
   return { photos: query.data?.photos ?? [], isLoading: query.isPending };
+}
+
+// Quantas fotos aprovadas cada loja tem para uma indústria — pro seletor de
+// loja do picker mostrar a contagem ao lado de cada loja/cliente.
+export function useApprovedCountByStore(
+  supplierId: string | undefined,
+  enabled: boolean,
+) {
+  const query = useQuery({
+    ...orpc.promotor.approvedCountByStore.queryOptions({
+      input: { supplierId },
+    }),
+    enabled,
+  });
+  const countByStore = new Map(
+    (query.data?.counts ?? []).map((c) => [c.storeId, c.count] as const),
+  );
+  return { countByStore, isLoading: query.isPending };
 }

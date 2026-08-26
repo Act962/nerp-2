@@ -21,6 +21,10 @@ interface BookPagesListV2Props {
   pages: BookPageV2[];
   logos: LayoutLogos;
   variableValues: BookVariableValues;
+  // Número global (1-based) da primeira página desta lista, pra âncora de
+  // scroll do "Ir para página" e pro rótulo "Página X/N" bater com o número.
+  pageNumberStart?: number;
+  totalPages?: number;
 }
 
 export function BookPagesListV2({
@@ -29,6 +33,8 @@ export function BookPagesListV2({
   pages,
   logos,
   variableValues,
+  pageNumberStart,
+  totalPages,
 }: BookPagesListV2Props) {
   const reorder = useReorderBookPages();
   const addPage = useAddBookPage();
@@ -183,25 +189,34 @@ export function BookPagesListV2({
     <div className="space-y-4">
       {reorderControls}
       {pages.map((page, index) => (
-        <BookPageCardV2
+        <div
           key={page.id}
-          bookId={bookId}
-          supplierId={supplierId}
-          page={page}
-          position={index + 1}
-          total={pages.length}
-          logos={logos}
-          variableValues={variableValues}
-          photoNumbers={numbersByPage[index]}
-          onMoveUp={() => move(index, index - 1)}
-          onMoveDown={() => move(index, index + 1)}
-          onInsertAfter={() => {
-            setInsertAfterPageId(page.id);
-            setOpenAddPage(true);
-          }}
-          canMoveUp={index > 0}
-          canMoveDown={index < pages.length - 1}
-        />
+          id={
+            pageNumberStart != null
+              ? `bookpg-${pageNumberStart + index}`
+              : undefined
+          }
+          className="scroll-mt-4"
+        >
+          <BookPageCardV2
+            bookId={bookId}
+            supplierId={supplierId}
+            page={page}
+            position={(pageNumberStart ?? 1) + index}
+            total={totalPages ?? pages.length}
+            logos={logos}
+            variableValues={variableValues}
+            photoNumbers={numbersByPage[index]}
+            onMoveUp={() => move(index, index - 1)}
+            onMoveDown={() => move(index, index + 1)}
+            onInsertAfter={() => {
+              setInsertAfterPageId(page.id);
+              setOpenAddPage(true);
+            }}
+            canMoveUp={index > 0}
+            canMoveDown={index < pages.length - 1}
+          />
+        </div>
       ))}
 
       {addPageButton}

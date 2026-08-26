@@ -57,6 +57,7 @@ export const DEFAULT_MEDIA_TYPES: readonly MediaTypeSeed[] = [
   { kind: "FISICA", code: "PA", name: "Padaria" },
   { kind: "FISICA", code: "HF", name: "Hortifruti" },
   { kind: "FISICA", code: "AG", name: "Adega" },
+  { kind: "FISICA", code: "PE", name: "Ponto Extra" },
   // Mídia digital — cotada por veiculação, não por m² de piso.
   { kind: "DIGITAL", code: "QR", name: "QR Code Map", pricingBasis: "FLAT" },
   { kind: "DIGITAL", code: "TV", name: "TV Corporativa", pricingBasis: "FLAT" },

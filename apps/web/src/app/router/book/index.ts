@@ -12,6 +12,7 @@ import { getDefaultCoverTemplate } from "./get-default-cover-template";
 import { setDefaultCoverTemplate } from "./set-default-cover-template";
 import { listSupplierBrands } from "./list-supplier-brands";
 import { addBookPage } from "./add-page";
+import { changeBookPageLayout } from "./change-page-layout";
 import { updateBookPageLayout } from "./update-page-layout";
 import { updateBookItemLayout } from "./update-item-layout";
 import { listBookTemplates } from "./list-templates";
@@ -26,6 +27,7 @@ import { deleteBookPageTemplate } from "./delete-page-template";
 import { reviewBookItem } from "./review-item";
 import { sendBook } from "./send-book";
 import { bookDashboard } from "./dashboard";
+import { bookApprovalInsights } from "./approval-insights";
 import { duplicateBookPage } from "./duplicate-page";
 import { autoGenerateBook } from "./auto-generate";
 import { autoGeneratePreview } from "./auto-generate-preview";
@@ -58,6 +60,7 @@ export const bookRoutes = {
   setDefaultCoverTemplate: setDefaultCoverTemplate,
   listSupplierBrands: listSupplierBrands,
   addPage: addBookPage,
+  changePageLayout: changeBookPageLayout,
   updatePageLayout: updateBookPageLayout,
   updateItemLayout: updateBookItemLayout,
   listTemplates: listBookTemplates,
@@ -72,6 +75,7 @@ export const bookRoutes = {
   reviewItem: reviewBookItem,
   send: sendBook,
   dashboard: bookDashboard,
+  approvalInsights: bookApprovalInsights,
   duplicatePage: duplicateBookPage,
   autoGenerate: autoGenerateBook,
   autoGeneratePreview: autoGeneratePreview,

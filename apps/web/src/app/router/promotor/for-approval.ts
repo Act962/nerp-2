@@ -21,6 +21,7 @@ export const listPhotosForApproval = base
       storeId: z.string().optional(),
       supplierId: z.string().nullable().optional(),
       promoterName: z.string().optional(),
+      mediaTypeId: z.string().optional(),
       ...dateRangeSchema,
     }),
   )
@@ -46,6 +47,7 @@ export const listPhotosForApproval = base
         ? { supplierId: input.supplierId }
         : {}),
       ...(input.promoterName ? { promoterName: input.promoterName } : {}),
+      ...(input.mediaTypeId ? { mediaTypeId: input.mediaTypeId } : {}),
       ...capturedAtFilter(input.from, input.to),
     };
 
@@ -85,6 +87,7 @@ export const listPhotosForApproval = base
         // Tipo de mídia atual (categorização) — mostrado/editável no card.
         mediaTypeId: true,
         mediaType: { select: { id: true, code: true, name: true } },
+        liked: true,
         store: { select: { name: true } },
         supplier: { select: { id: true, name: true, actionCodeImage: true } },
       },
@@ -117,6 +120,7 @@ export const listPhotosForApproval = base
         possibleReuse: photo.possibleReuse,
         mediaTypeId: photo.mediaTypeId,
         mediaType: photo.mediaType,
+        liked: photo.liked,
         reuseOf: photo.reuseOf
           ? {
               id: photo.reuseOf.id,

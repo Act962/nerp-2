@@ -15,6 +15,8 @@ export const listApprovedForImport = base
       // Quando informado, marca `usedInBook` nas fotos já usadas em qualquer
       // página deste book — pro picker avisar sobre repetição.
       bookId: z.string().optional(),
+      // Só as fotos marcadas com "Gostei" pela coordenadora.
+      likedOnly: z.boolean().optional(),
     }),
   )
   .handler(async ({ input, context }) => {
@@ -25,6 +27,7 @@ export const listApprovedForImport = base
         promoterName: { not: null },
         ...(input.storeId ? { storeId: input.storeId } : {}),
         ...(input.supplierId ? { supplierId: input.supplierId } : {}),
+        ...(input.likedOnly ? { liked: true } : {}),
       },
       orderBy: { capturedAt: "desc" },
       select: {
@@ -37,14 +40,16 @@ export const listApprovedForImport = base
         capturedState: true,
         mediaTypeId: true,
         mediaType: { select: { id: true, code: true, name: true } },
+        liked: true,
         store: { select: { name: true } },
         supplier: { select: { name: true } },
       },
     });
 
-    // Fotos já usadas em alguma página deste book (qualquer página): o picker
-    // marca "já usada" e pede confirmação antes de repetir.
+    // Fotos já usadas em alguma página deste book: o picker mostra "Já usada -
+    // pág. N" (N = ordem da página + 2, pois capa=1 e o conteúdo começa em 2).
     const usedInBook = new Set<string>();
+    const usedInPage = new Map<string, number>();
     if (input.bookId) {
       const used = await prisma.bookItem.findMany({
         where: {
@@ -52,9 +57,14 @@ export const listApprovedForImport = base
           book: { organizationId: context.org.id },
           pdvPhotoId: { in: photos.map((p) => p.id) },
         },
-        select: { pdvPhotoId: true },
+        select: { pdvPhotoId: true, bookPage: { select: { order: true } } },
       });
-      for (const item of used) usedInBook.add(item.pdvPhotoId);
+      for (const item of used) {
+        usedInBook.add(item.pdvPhotoId);
+        if (item.bookPage && !usedInPage.has(item.pdvPhotoId)) {
+          usedInPage.set(item.pdvPhotoId, item.bookPage.order + 2);
+        }
+      }
     }
 
     return {
@@ -70,9 +80,11 @@ export const listApprovedForImport = base
           capturedState: photo.capturedState,
           mediaTypeId: photo.mediaTypeId,
           mediaType: photo.mediaType,
+          liked: photo.liked,
           storeName: photo.store.name,
           supplierName: photo.supplier?.name ?? null,
           usedInBook: usedInBook.has(photo.id),
+          usedInPage: usedInPage.get(photo.id) ?? null,
         })),
     };
   });

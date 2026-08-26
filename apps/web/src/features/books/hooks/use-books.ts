@@ -28,6 +28,24 @@ export function useBookDashboard() {
   return { metrics: query.data, isLoading: query.isPending };
 }
 
+// Doughnut de tipos de mídia + ranking de promotores da aba de aprovação.
+export function useBookApprovalInsights(supplierId?: string) {
+  const query = useQuery(
+    orpc.book.approvalInsights.queryOptions({
+      input: supplierId ? { supplierId } : {},
+    }),
+  );
+  return {
+    mediaDistribution: query.data?.mediaDistribution ?? [],
+    promoterRanking: query.data?.promoterRanking ?? [],
+    promotersWithoutPhotos: query.data?.promotersWithoutPhotos ?? {
+      total: 0,
+      names: [],
+    },
+    isLoading: query.isPending,
+  };
+}
+
 export function useReviewBookItem() {
   const invalidate = useInvalidateBooks();
   return useMutation(
@@ -105,6 +123,21 @@ export function useAddBookPage() {
   return useMutation(
     orpc.book.addPage.mutationOptions({
       onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// Alterar o padrão da página (nº de slots + orientação) — reaproveita as fotos
+// e joga as que sobram em páginas novas logo após.
+export function useChangeBookPageLayout() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.changePageLayout.mutationOptions({
+      onSuccess: () => {
+        toast.success("Padrão da página alterado");
+        invalidate();
+      },
       onError: (error) => toast.error(error.message),
     }),
   );

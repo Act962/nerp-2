@@ -43,6 +43,9 @@ interface BookPagesListProps {
   bookPageLayout?: unknown;
   bookPageBackground?: unknown;
   logos?: { organization?: string | null; supplier?: string | null };
+  // Número global (1-based) da primeira página desta lista, pra âncora de
+  // scroll do "Ir para página" da barra inferior.
+  pageNumberStart?: number;
 }
 
 export function BookPagesList({
@@ -57,6 +60,7 @@ export function BookPagesList({
   bookPageLayout,
   bookPageBackground,
   logos,
+  pageNumberStart,
 }: BookPagesListProps) {
   const addPage = useAddBookPage();
   const duplicatePage = useDuplicateBookPage();
@@ -235,24 +239,33 @@ export function BookPagesList({
         >
           <div className="space-y-4">
             {orderedItems.map((item, index) => (
-              <BookPageCard
+              <div
                 key={item.pdvPhotoId}
-                item={item}
-                periodLabel={periodLabel}
-                position={index + 1}
-                total={orderedItems.length}
-                industryLogo={industryLogo}
-                organizationName={organizationName}
-                bookId={bookId}
-                supplierId={supplierId}
-                supplierName={supplierName ?? null}
-                bookPageLayout={bookPageLayout}
-                bookPageBackground={bookPageBackground}
-                logos={logos}
-                onRemove={() =>
-                  removeItem.mutate({ bookId, pdvPhotoId: item.pdvPhotoId })
+                id={
+                  pageNumberStart != null
+                    ? `bookpg-${pageNumberStart + index}`
+                    : undefined
                 }
-              />
+                className="scroll-mt-4"
+              >
+                <BookPageCard
+                  item={item}
+                  periodLabel={periodLabel}
+                  position={index + 1}
+                  total={orderedItems.length}
+                  industryLogo={industryLogo}
+                  organizationName={organizationName}
+                  bookId={bookId}
+                  supplierId={supplierId}
+                  supplierName={supplierName ?? null}
+                  bookPageLayout={bookPageLayout}
+                  bookPageBackground={bookPageBackground}
+                  logos={logos}
+                  onRemove={() =>
+                    removeItem.mutate({ bookId, pdvPhotoId: item.pdvPhotoId })
+                  }
+                />
+              </div>
             ))}
           </div>
         </SortableContext>
