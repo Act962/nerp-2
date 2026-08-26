@@ -697,6 +697,15 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                             : undefined,
                         gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
                         gridAutoRows: "minmax(min-content, 1fr)",
+                        // Proporção do grupo: escala os cards juntos, ancorada
+                        // no canto superior esquerdo (mesma convenção do modo
+                        // grupo-único). Ausente/1 = sem transform.
+                        ...(g.scale && g.scale !== 1
+                          ? {
+                              transform: `scale(${g.scale})`,
+                              transformOrigin: "top left",
+                            }
+                          : {}),
                       }}
                     >
                       {renderGridChildren(slice, cols, config, thumbSrcs)}
