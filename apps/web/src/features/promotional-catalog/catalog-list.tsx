@@ -36,10 +36,10 @@ export function CatalogList() {
   const { data: thumbs } = useCatalogThumbnails();
   const thumbMap = new Map((thumbs ?? []).map((t) => [t.id, t.thumbnail]));
   const { data: templatesData } = useCatalogTemplates();
-  // "+ Novo catálogo" pode partir de qualquer padrão: da organização + do sistema.
-  const templates = templatesData
-    ? [...templatesData.mine, ...templatesData.system]
-    : undefined;
+  // "+ Novo catálogo" lista SÓ os padrões da organização. Os do sistema são
+  // dezenas e faziam o diálogo crescer sem fim; eles ficam na aba "Padrões"
+  // dentro do editor, que é onde se navega por eles com calma.
+  const templates = templatesData?.mine;
   const createMutation = useCreateCatalog();
   const duplicateMutation = useDuplicateCatalog();
 
@@ -114,7 +114,9 @@ export function CatalogList() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        {/* Altura limitada + rolagem: com muitos padrões o diálogo crescia além
+            da tela e o botão de criar ficava inalcançável. */}
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Novo catálogo</DialogTitle>
           </DialogHeader>
@@ -132,7 +134,7 @@ export function CatalogList() {
 
           {templates && templates.length > 0 && (
             <div className="flex flex-col gap-2">
-              <Label>Começar de um padrão</Label>
+              <Label>Começar de um padrão da organização</Label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"

@@ -14,6 +14,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useStores } from "@/features/stores/hooks/use-stores";
+import { useQuery } from "@tanstack/react-query";
+import { orpc } from "@/lib/orpc";
 import type { CatalogConfig, EntitySource } from "../types";
 import { matchStoreByName } from "../lib/resolve-entity";
 import { ProductNameSearch } from "./product-name-search";
@@ -23,6 +25,7 @@ const TYPE_OPTS: { value: EntitySource; label: string }[] = [
   { value: "org", label: "Organização" },
   { value: "product", label: "Produto" },
   { value: "user", label: "Usuário" },
+  { value: "category", label: "Categoria" },
 ];
 
 // Seção "Página dinâmica" (aba Layout): liga o modo dinâmico da página e escolhe
@@ -46,6 +49,10 @@ export function DynamicPageSection({
   const [storeSearch, setStoreSearch] = useState("");
   const [productName, setProductName] = useState("");
   const { stores } = useStores({ pageSize: 100 });
+  const { data: categoryData } = useQuery(
+    orpc.categories.listAll.queryOptions(),
+  );
+  const categories = categoryData?.categories ?? [];
 
   const autoStore =
     type === "store" && dynamic?.auto !== false && !dynamic?.refId;
@@ -131,6 +138,26 @@ export function DynamicPageSection({
               </SelectContent>
             </Select>
           </div>
+
+          {type === "category" && (
+            <Select
+              value={dynamic?.refId ?? ""}
+              onValueChange={(v) =>
+                onConfigChange({ dynamic: { type: "category", refId: v } })
+              }
+            >
+              <SelectTrigger className="h-7 text-xs">
+                <SelectValue placeholder="Escolha a categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((c) => (
+                  <SelectItem key={c.id} value={c.id} className="text-xs">
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
           {type === "store" && (
             <div className="flex flex-col gap-1.5">

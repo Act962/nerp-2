@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadToR2 } from "@/lib/upload-to-r2";
@@ -52,6 +52,11 @@ import {
   ArrowDownUp,
 } from "lucide-react";
 import { AddProductDialog } from "./add-product-dialog";
+import type { CategoryGroup } from "../lib/apply-category";
+import {
+  removeFromOtherGroups,
+  sliceProductsByGroup,
+} from "../lib/group-slices";
 import { BackgroundProperties } from "./background-properties";
 import {
   useCatalogAssets,
@@ -73,6 +78,9 @@ import {
 import { imageStyleFromAdjust } from "./cards/image-style";
 import { CardFreeLayout } from "./cards/card-free-layout";
 import { CardFreeEditor } from "./card-free-editor";
+import { GroupSettingsFields } from "./group-settings";
+import { LayersPanel } from "./layers-panel";
+import { cardLayoutFromStyle, cardStyleLabel } from "../lib/card-template";
 import { SystemTemplatesPanel } from "./system-templates-panel";
 import { DynamicPageSection } from "./dynamic-page-section";
 import { ImageResizer } from "./image-resizer";
@@ -101,6 +109,7 @@ import {
   type LayerSelection,
   makeDynamicOverlay,
   type Overlay,
+  type ProductGroup,
   toTemplateConfig,
 } from "../types";
 import { ElementProperties } from "./element-properties";
@@ -214,10 +223,19 @@ function PriceStyleThumb({
 // página devem ficar — clicar só pré-visualiza, não aplica nem insere nada.
 function PriceStylesLibrary({
   cardAspect,
+  groups,
+  onApplyStyle,
 }: {
   // Proporção real do card na página — usada nos previews para a etiqueta
   // aparecer COMPLETA (sem o corte de um quadrado forçado).
   cardAspect?: number;
+  // Grupos nomeados da página atual — alvos possíveis do "usar como padrão".
+  groups?: { id: string; name?: string }[];
+  onApplyStyle?: (
+    scope: "group" | "page" | "all",
+    layout: CardLayoutElement[],
+    groupId?: string,
+  ) => void;
 }) {
   const { data, isLoading } = usePriceStyles();
   const deleteStyle = useDeletePriceStyle();
@@ -365,11 +383,59 @@ function PriceStylesLibrary({
               />
             )}
           </div>
-          <p className="text-center text-[12px] text-muted-foreground">
-            Esta biblioteca é só uma <b>referência visual</b> de como as
-            etiquetas da página devem ficar. Monte a etiqueta de cada produto
-            pela aba “Página”.
-          </p>
+          {onApplyStyle && preview ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-[12px] font-medium">
+                Utilizar como padrão em:
+              </p>
+              {(groups ?? []).map((g, i) => (
+                <Button
+                  key={g.id}
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="justify-start text-xs"
+                  onClick={() => {
+                    onApplyStyle("group", preview.layout, g.id);
+                    setPreview(null);
+                  }}
+                >
+                  Grupo “{g.name?.trim() || `Grupo ${i + 1}`}”
+                </Button>
+              ))}
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="flex-1 text-xs"
+                  onClick={() => {
+                    onApplyStyle("page", preview.layout);
+                    setPreview(null);
+                  }}
+                >
+                  Página atual
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 text-xs"
+                  onClick={() => {
+                    onApplyStyle("all", preview.layout);
+                    setPreview(null);
+                  }}
+                >
+                  Todas as páginas
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p className="text-center text-[12px] text-muted-foreground">
+              Esta biblioteca é só uma <b>referência visual</b> de como as
+              etiquetas da página devem ficar. Monte a etiqueta de cada produto
+              pela aba “Página”.
+            </p>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -433,6 +499,7 @@ export function ProductPhotoButton({
   entry = "photo",
   initialElementId,
   onPhotoClick,
+  onOpenStyles,
 }: {
   product: CatalogProduct;
   config: CatalogConfig;
@@ -459,6 +526,9 @@ export function ProductPhotoButton({
   // Clique no thumbnail da foto (aba Produtos): delega ao pai a abertura como
   // "photo" — se ausente, cai no comportamento antigo (abrir o próprio popup).
   onPhotoClick?: () => void;
+  // Abrir a aba "Etiqueta" (padrões salvos). Usado pelo estado vazio do
+  // "Montar Etiqueta" para o dev escolher um padrão em vez de desenhar.
+  onOpenStyles?: () => void;
 }) {
   const [openState, setOpenState] = useState(false);
   // Retângulo EXATO do card na página (frações do fundo) — recorta o fundo dos
@@ -768,6 +838,20 @@ export function ProductPhotoButton({
                   }}
                   onClose={handleCardClose}
                   initialSelectedId={initialElementId}
+                  templateLabel={cardStyleLabel(config.cardStyle)}
+                  onPickSavedStyle={() => {
+                    // Fecha o popup e leva para a aba "Etiqueta", onde ficam os
+                    // padrões salvos (da org e do sistema).
+                    setOpen(false);
+                    onOpenStyles?.();
+                  }}
+                  onSeedFromTemplate={() =>
+                    setCardDraft(
+                      cardLayoutFromStyle(config.cardStyle, {
+                        textColor: config.cardColor,
+                      }),
+                    )
+                  }
                   onEditPhoto={() => setMode("product")}
                   onSetPrice={(which, value) =>
                     applyProductPrice(
@@ -1391,6 +1475,10 @@ interface ConfigPanelProps {
   // Sinal (contador) para abrir o diálogo "Adicionar produto" de fora — ex.: o
   // botão do estado de página vazia. Cada incremento abre o diálogo.
   addProductSignal?: number;
+  // Aplicação por categoria: cria as páginas e adiciona os produtos de uma vez.
+  onApplyCategories?: (groups: CategoryGroup[]) => void;
+  // Capacidade da página atual — a prévia converte produtos em páginas com ela.
+  pageCapacity?: number;
   // Salvar o card livre ("Montar card") com escopo escolhido pelo usuário.
   onSaveCardLayout?: (
     scope: "product" | "page" | "all",
@@ -1399,6 +1487,13 @@ interface ConfigPanelProps {
   ) => void;
   // Aplica a aparência (fundo) da página atual a TODAS as páginas.
   onApplyStyleToAllPages?: () => void;
+  // Aplicar um padrão salvo da biblioteca com escopo: um grupo, a página atual
+  // ou o catálogo inteiro.
+  onApplyStyle?: (
+    scope: "group" | "page" | "all",
+    layout: CardLayoutElement[],
+    groupId?: string,
+  ) => void;
   // Quantidade de páginas (habilita o botão "aplicar a todas").
   pageCount?: number;
   // Nome da página atual (para casar a loja da "Página dinâmica" pelo nome).
@@ -1442,9 +1537,12 @@ export function ConfigPanel({
   onSelectionChange,
   editProductRequest,
   onEditProductRequest,
+  onApplyCategories,
+  pageCapacity,
   addProductSignal,
   onSaveCardLayout,
   onApplyStyleToAllPages,
+  onApplyStyle,
   pageCount = 1,
   pageName = "",
   allPagesDynamic,
@@ -1508,6 +1606,65 @@ export function ConfigPanel({
     (g) => g.productIds !== undefined,
   );
   const [groupsCollapsed, setGroupsCollapsed] = useState(false);
+  // TODOS os grupos da página (nomeados e de capacidade) — é o que o canvas usa
+  // para decidir quem aparece onde.
+  const allGroups = config.productGroups ?? [];
+  // Lista da lateral ORDENADA POR GRUPO, com cabeçalho no primeiro item de cada
+  // um. O `index` original é carregado junto porque mover/selecionar dependem da
+  // posição em `pageProducts`, não da posição nesta lista.
+  // Quantos produtos cada grupo REALMENTE mostra. A contagem anterior usava
+  // `g.productIds.length` — o pertencimento bruto — e mentia quando um id
+  // sobrava no grupo sem o produto estar no catálogo (ex.: excluído por uma
+  // remoção de página). O grupo dizia "24" e não desenhava nada.
+  const renderedByGroup = useMemo(() => {
+    const out = new Map<string, number>();
+    if (allGroups.length === 0) return out;
+    const slices = sliceProductsByGroup(allGroups, pageProducts);
+    allGroups.forEach((g, i) => out.set(g.id, slices[i]?.length ?? 0));
+    return out;
+    // biome-ignore lint/correctness/useExhaustiveDependencies: allGroups vem de config
+  }, [allGroups, pageProducts]);
+
+  // Traz de volta os produtos que sumiram do catálogo mas continuam listados no
+  // grupo. Acontecia quando apagar uma página/grupo excluía os ids globalmente
+  // (corrigido), e é a única forma de reparar um catálogo já afetado.
+  const restaurarOrfaos = (g: ProductGroup) => {
+    const naPagina = new Set(pageProducts.map((p) => p.id));
+    const orfaos = (g.productIds ?? []).filter((id) => !naPagina.has(id));
+    if (orfaos.length === 0) return;
+    const volta = new Set(orfaos);
+    onConfigChange({
+      excludedProductIds: (config.excludedProductIds ?? []).filter(
+        (id) => !volta.has(id),
+      ),
+      manuallyAddedIds: [
+        ...new Set([...(config.manuallyAddedIds ?? []), ...orfaos]),
+      ],
+    });
+  };
+
+  const listRows = useMemo(() => {
+    const flat = pageProducts.map((p, index) => ({
+      p,
+      index,
+      groupId: null as string | null,
+      groupLabel: null as string | null,
+    }));
+    if (allGroups.length === 0) return flat;
+    const indexOf = new Map(pageProducts.map((p, i) => [p.id, i]));
+    const slices = sliceProductsByGroup(allGroups, pageProducts);
+    return slices.flatMap((slice, gi) =>
+      slice.map((p, k) => ({
+        p,
+        index: indexOf.get(p.id) ?? 0,
+        groupId: allGroups[gi].id,
+        // Grupo sem nome ainda assim recebe rótulo: a lateral nunca mostra
+        // produto "solto" quando a página tem grupos.
+        groupLabel: k === 0 ? (allGroups[gi].name ?? `Grupo ${gi + 1}`) : null,
+      })),
+    );
+    // biome-ignore lint/correctness/useExhaustiveDependencies: allGroups vem de config
+  }, [pageProducts, allGroups]);
   // Grupo selecionado → a lista de produtos da "Página" mostra só os dele.
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   // Clicar num grupo nomeado no canvas abre a aba "Página" (roteado no editor) e
@@ -1517,18 +1674,7 @@ export function ConfigPanel({
       setSelectedGroupId(selection.id);
     }
   }, [selection]);
-  const updateGroup = (
-    groupId: string,
-    patch: Partial<{
-      bgColor: string;
-      bgOpacity: number;
-      radius: number;
-      borderColor: string;
-      borderWidth: number;
-      gridCols: number;
-      gridRows: number;
-    }>,
-  ) =>
+  const updateGroup = (groupId: string, patch: Partial<ProductGroup>) =>
     onConfigChange({
       productGroups: (config.productGroups ?? []).map((g) =>
         g.id === groupId ? { ...g, ...patch } : g,
@@ -1586,7 +1732,11 @@ export function ConfigPanel({
       gridCols: cols,
       gridRows: rows,
     };
-    onConfigChange({ productGroups: [...existing, group] });
+    // Os produtos SAEM dos grupos anteriores ao entrar no novo — senão a maçã
+    // ficaria no "Grupo Geral" E no "Hortifruti", e apareceria duas vezes.
+    onConfigChange({
+      productGroups: removeFromOtherGroups([...existing, group], ids, group.id),
+    });
     setSelectedForGroup(new Set());
     lastPickedIndex.current = null;
   };
@@ -1884,6 +2034,40 @@ export function ConfigPanel({
       {/* ── Layout: Identidade / Layout / Cards / Fundo em seções retráteis ── */}
       <TabsContent value="layout" className="flex-1 overflow-y-auto m-0 p-3">
         <div className="flex flex-col gap-2">
+          {/* Título/subtítulo da ARTE. Estes campos existiam na config e eram
+              desenhados na página, mas nunca tiveram controle no editor — dava
+              para receber um título sem ter como tirá-lo. */}
+          <div className="flex flex-col gap-2 rounded-md border p-2.5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="art-title" className="text-[13px]">
+                Título na arte
+              </Label>
+              <Switch
+                id="art-title-on"
+                checked={config.showTitle !== false}
+                onCheckedChange={(v) => onConfigChange({ showTitle: v })}
+              />
+            </div>
+            <Input
+              id="art-title"
+              className="h-9"
+              placeholder="Sem título"
+              value={config.title ?? ""}
+              disabled={config.showTitle === false}
+              onChange={(e) => onConfigChange({ title: e.target.value })}
+            />
+            <Input
+              className="h-9"
+              placeholder="Subtítulo (opcional)"
+              value={config.subtitle ?? ""}
+              disabled={config.showSubtitle === false}
+              onChange={(e) => onConfigChange({ subtitle: e.target.value })}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Vazio = a página não desenha cabeçalho nenhum.
+            </p>
+          </div>
+
           {/* Tamanho da página — sempre visível (sem retração) */}
           <div className="flex flex-col gap-2">
             <Label>Tamanho da página</Label>
@@ -2172,6 +2356,10 @@ export function ConfigPanel({
               onConfigChange={onConfigChange}
               open={addProductOpen}
               onOpenChange={setAddProductOpen}
+              onApplyCategories={onApplyCategories}
+              pageCapacity={pageCapacity}
+              pageProductIds={pageProducts.map((p) => p.id)}
+              defaultGroupId={selectedGroupId}
               onEditProduct={(id) => {
                 // Reusa o mecanismo robusto (nonce) — abre o editor mesmo com o
                 // produto recém-adicionado (evita corrida com a lista).
@@ -2273,7 +2461,7 @@ export function ConfigPanel({
                             style={{ background: g.bgColor ?? "transparent" }}
                           />
                         </PopoverTrigger>
-                        <PopoverContent className="flex w-56 flex-col gap-2 p-3">
+                        <PopoverContent className="flex w-52 flex-col gap-2 p-3">
                           <label className="flex items-center justify-between text-[11px] text-muted-foreground">
                             Cor de fundo
                             <input
@@ -2285,66 +2473,20 @@ export function ConfigPanel({
                               className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                             />
                           </label>
-                          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                            Transparência ({g.bgOpacity ?? 100}%)
-                            <input
-                              type="range"
-                              min={0}
-                              max={100}
-                              value={g.bgOpacity ?? 100}
-                              onChange={(e) =>
-                                updateGroup(g.id, {
-                                  bgOpacity: Number(e.target.value),
-                                })
+                          {g.bgColor && (
+                            <button
+                              type="button"
+                              className="self-start text-[11px] text-muted-foreground underline hover:text-foreground"
+                              onClick={() =>
+                                updateGroup(g.id, { bgColor: undefined })
                               }
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                            Arredondamento ({g.radius ?? 0}px)
-                            <input
-                              type="range"
-                              min={0}
-                              max={80}
-                              value={g.radius ?? 0}
-                              onChange={(e) =>
-                                updateGroup(g.id, {
-                                  radius: Number(e.target.value),
-                                })
-                              }
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                            Contorno ({g.borderWidth ?? 0}px)
-                            <input
-                              type="range"
-                              min={0}
-                              max={20}
-                              value={g.borderWidth ?? 0}
-                              onChange={(e) =>
-                                updateGroup(g.id, {
-                                  borderWidth: Number(e.target.value),
-                                })
-                              }
-                            />
-                          </label>
-                          {(g.borderWidth ?? 0) > 0 && (
-                            <label className="flex items-center justify-between text-[11px] text-muted-foreground">
-                              Cor do contorno
-                              <input
-                                type="color"
-                                value={g.borderColor ?? "#000000"}
-                                onChange={(e) =>
-                                  updateGroup(g.id, {
-                                    borderColor: e.target.value,
-                                  })
-                                }
-                                className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
-                              />
-                            </label>
+                            >
+                              Remover fundo
+                            </button>
                           )}
                         </PopoverContent>
                       </Popover>
-                      {/* Disposição (colunas × linhas) */}
+                      {/* Disposição, tamanho e aparência do grupo */}
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -2352,58 +2494,41 @@ export function ConfigPanel({
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 shrink-0"
-                            title="Disposição (colunas × linhas)"
+                            title="Editar grupo (grade, tamanho e aparência)"
                           >
-                            <LayoutGrid className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-48 p-2">
-                          <p className="mb-2 text-[11px] font-medium text-muted-foreground">
-                            Disposição
-                          </p>
-                          <div className="flex items-center gap-2">
-                            <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
-                              Colunas
-                              <Input
-                                type="number"
-                                min={1}
-                                max={6}
-                                value={g.gridCols}
-                                onChange={(e) =>
-                                  updateGroup(g.id, {
-                                    gridCols: Math.max(
-                                      1,
-                                      Number(e.target.value) || 1,
-                                    ),
-                                  })
-                                }
-                                className="h-7"
-                              />
-                            </div>
-                            <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
-                              Linhas
-                              <Input
-                                type="number"
-                                min={1}
-                                max={20}
-                                value={g.gridRows}
-                                onChange={(e) =>
-                                  updateGroup(g.id, {
-                                    gridRows: Math.max(
-                                      1,
-                                      Number(e.target.value) || 1,
-                                    ),
-                                  })
-                                }
-                                className="h-7"
-                              />
-                            </div>
-                          </div>
+                        <PopoverContent className="max-h-[70vh] w-56 overflow-y-auto p-3">
+                          <GroupSettingsFields
+                            group={g}
+                            onChange={(patch) => updateGroup(g.id, patch)}
+                          />
                         </PopoverContent>
                       </Popover>
-                      <span className="w-5 shrink-0 text-center text-[11px] tabular-nums text-muted-foreground">
-                        {g.productIds?.length ?? 0}
-                      </span>
+                      {(() => {
+                        const mostrados = renderedByGroup.get(g.id) ?? 0;
+                        const orfaos = Math.max(
+                          0,
+                          (g.productIds?.length ?? 0) - mostrados,
+                        );
+                        if (orfaos === 0)
+                          return (
+                            <span className="w-5 shrink-0 text-center text-[11px] tabular-nums text-muted-foreground">
+                              {mostrados}
+                            </span>
+                          );
+                        return (
+                          <button
+                            type="button"
+                            className="shrink-0 rounded px-1 text-[11px] tabular-nums text-amber-600 hover:bg-amber-500/10"
+                            title={`${mostrados} produto(s) aparecem nesta página. Outros ${orfaos} estão no grupo mas foram removidos do catálogo. Clique para trazê-los de volta.`}
+                            onClick={() => restaurarOrfaos(g)}
+                          >
+                            {mostrados} (+{orfaos})
+                          </button>
+                        );
+                      })()}
                       <Button
                         type="button"
                         variant="ghost"
@@ -2428,15 +2553,20 @@ export function ConfigPanel({
             </p>
           )}
           <div className="flex flex-col gap-1 max-h-[calc(100vh-160px)] overflow-y-auto">
-            {pageProducts.map((p, index) => {
-              // Com um grupo selecionado, mostra só os produtos dele (mantém o
-              // `index` do pageProducts para mover/selecionar funcionar).
-              if (selectedGroupId) {
-                const sg = namedGroups.find((g) => g.id === selectedGroupId);
-                if (sg && !sg.productIds?.includes(p.id)) return null;
-              }
+            {listRows.map(({ p, index, groupId, groupLabel }) => {
+              // Com um grupo selecionado, mostra só os produtos dele. O critério
+              // é o MESMO do canvas (`sliceProductsByGroup`): antes daqui usava
+              // só o `productIds` explícito, então um produto recém-adicionado —
+              // que o canvas já desenha dentro do grupo — sumia desta lista.
+              if (selectedGroupId && groupId !== selectedGroupId) return null;
               return (
                 <Fragment key={p.id}>
+                  {groupLabel && !selectedGroupId && (
+                    <div className="mt-2 flex items-center gap-1.5 px-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground first:mt-0">
+                      <Layers className="h-3 w-3" />
+                      {groupLabel}
+                    </div>
+                  )}
                   <div
                     ref={
                       selection?.kind === "card" && selection.id === p.id
@@ -2478,6 +2608,7 @@ export function ConfigPanel({
                         setEditElementId(undefined);
                         setEditingId(p.id);
                       }}
+                      onOpenStyles={() => onActiveTabChange?.("estilos")}
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex items-center gap-1.5">
@@ -2634,80 +2765,9 @@ export function ConfigPanel({
 
       <TabsContent value="etiqueta" className="flex-1 overflow-y-auto m-0 p-4">
         <div className="flex flex-col gap-4">
-          {/* Formas (elementos do Canva) — clique para adicionar à página */}
-          <div className="flex flex-col gap-2">
-            <p className="text-[13px] font-medium text-foreground">Formas</p>
-            <div className="grid grid-cols-4 gap-2">
-              {SHAPES.map(({ shape, label, Icon }) => (
-                <button
-                  key={shape}
-                  type="button"
-                  title={label}
-                  onClick={() => addShape(shape)}
-                  className="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border bg-card/40 text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-foreground"
-                >
-                  <Icon className="h-5 w-5" />
-                  <span className="text-[10px] leading-none">{label}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              A forma nasce no centro da página. Selecione-a para mudar cor,
-              tamanho, contorno e camada.
-            </p>
-          </div>
-
-          {selectedOverlay?.binding && (
-            <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5">
-              <span className="truncate text-[11px] text-muted-foreground">
-                Vinculado a: <b>{entityVarLabel(selectedOverlay.binding)}</b>
-              </span>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="h-6 shrink-0 text-[11px]"
-                onClick={() => updateOverlay({ binding: undefined })}
-              >
-                Desvincular
-              </Button>
-            </div>
-          )}
-          {selectedOverlay && !selectedOverlay.shape && (
-            <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4">
-              <p className="text-[13px] font-medium text-foreground">
-                Redimensionar imagem
-              </p>
-              <ImageResizer
-                src={selectedOverlaySrc}
-                adjust={selectedOverlay.adjust}
-                baseline={OVERLAY_ADJUST_BASELINE}
-                onChange={setOverlayAdjust}
-                onReset={() => updateOverlay({ adjust: undefined })}
-                emptyLabel="Sem imagem"
-                box={{
-                  x: selectedOverlay.x,
-                  y: selectedOverlay.y,
-                  w: selectedOverlay.w,
-                  h: selectedOverlay.h,
-                }}
-                onBoxChange={(b) =>
-                  updateOverlay({ x: b.x, y: b.y, w: b.w, h: b.h })
-                }
-              />
-            </div>
-          )}
-          {selectedOverlay && (
-            <ElementProperties
-              overlay={selectedOverlay}
-              onChange={updateOverlay}
-              onBringForward={() => reorderOverlay(1)}
-              onSendBackward={() => reorderOverlay(-1)}
-              onDelete={deleteOverlay}
-              canForward={selectedOverlayIndex < overlays.length - 1}
-              canBackward={selectedOverlayIndex > 0}
-            />
-          )}
+          {/* Ordem da aba: primeiro o que CRIA (adicionar etiqueta,
+              formas, biblioteca), depois a pilha e, por último, as
+              propriedades — que só existem com algo selecionado. */}
           <div className="flex flex-col gap-2">
             <p className="text-[13px] font-medium text-foreground">
               Adicionar etiqueta
@@ -2789,6 +2849,89 @@ export function ConfigPanel({
             )}
           </div>
         </div>
+        <div className="h-px bg-border" />
+        {/* Formas (elementos do Canva) — clique para adicionar à página */}
+        <div className="flex flex-col gap-2">
+          <p className="text-[13px] font-medium text-foreground">Formas</p>
+          <div className="grid grid-cols-4 gap-2">
+            {SHAPES.map(({ shape, label, Icon }) => (
+              <button
+                key={shape}
+                type="button"
+                title={label}
+                onClick={() => addShape(shape)}
+                className="flex aspect-square flex-col items-center justify-center gap-1 rounded-md border bg-card/40 text-muted-foreground transition-colors hover:border-primary hover:bg-primary/5 hover:text-foreground"
+              >
+                <Icon className="h-5 w-5" />
+                <span className="text-[10px] leading-none">{label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            A forma nasce no centro da página. Selecione-a para mudar cor,
+            tamanho, contorno e camada.
+          </p>
+        </div>
+
+        <div className="h-px bg-border" />
+        <LayersPanel
+          config={config}
+          onConfigChange={onConfigChange}
+          selection={selection}
+          onSelectionChange={onSelectionChange}
+        />
+        <div className="h-px bg-border" />
+        {selectedOverlay?.binding && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5">
+            <span className="truncate text-[11px] text-muted-foreground">
+              Vinculado a: <b>{entityVarLabel(selectedOverlay.binding)}</b>
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-6 shrink-0 text-[11px]"
+              onClick={() => updateOverlay({ binding: undefined })}
+            >
+              Desvincular
+            </Button>
+          </div>
+        )}
+        {selectedOverlay && !selectedOverlay.shape && (
+          <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4">
+            <p className="text-[13px] font-medium text-foreground">
+              Redimensionar imagem
+            </p>
+            <ImageResizer
+              src={selectedOverlaySrc}
+              adjust={selectedOverlay.adjust}
+              baseline={OVERLAY_ADJUST_BASELINE}
+              onChange={setOverlayAdjust}
+              onReset={() => updateOverlay({ adjust: undefined })}
+              emptyLabel="Sem imagem"
+              box={{
+                x: selectedOverlay.x,
+                y: selectedOverlay.y,
+                w: selectedOverlay.w,
+                h: selectedOverlay.h,
+              }}
+              onBoxChange={(b) =>
+                updateOverlay({ x: b.x, y: b.y, w: b.w, h: b.h })
+              }
+            />
+          </div>
+        )}
+        {selectedOverlay && (
+          <ElementProperties
+            overlay={selectedOverlay}
+            onChange={updateOverlay}
+            onBringForward={() => reorderOverlay(1)}
+            onSendBackward={() => reorderOverlay(-1)}
+            onDelete={deleteOverlay}
+            canForward={selectedOverlayIndex < overlays.length - 1}
+            canBackward={selectedOverlayIndex > 0}
+          />
+        )}
       </TabsContent>
 
       {/* ── Estilos: biblioteca de estilos de preço (meus + do sistema) ── */}
@@ -2837,6 +2980,8 @@ export function ConfigPanel({
         </div>
 
         <PriceStylesLibrary
+          groups={namedGroups.map((g) => ({ id: g.id, name: g.name }))}
+          onApplyStyle={onApplyStyle}
           cardAspect={
             config.cardAspectRatio && config.cardAspectRatio > 0
               ? config.cardAspectRatio

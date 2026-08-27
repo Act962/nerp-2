@@ -174,6 +174,13 @@ const RESIZE_HANDLES: ResizeHandle[] = [
 interface CardFreeEditorProps {
   elements: CardLayoutElement[];
   onElementsChange: (elements: CardLayoutElement[]) => void;
+  // Nome do card embutido que a página está usando ("Padrão", "Compacto"…).
+  templateLabel?: string;
+  // Semear a etiqueta a partir desse card embutido. Ausente = não oferece (ex.:
+  // ao editar um estilo salvo, que por definição já tem elementos).
+  onSeedFromTemplate?: () => void;
+  // Abrir a biblioteca de padrões (estilos salvos) para escolher um.
+  onPickSavedStyle?: () => void;
   product: CatalogProduct;
   // Voltar/fechar o editor (botão no canto + também exposto no rodapé do modal).
   onClose?: () => void;
@@ -231,8 +238,13 @@ export function CardFreeEditor({
   pageCrop,
   pageBgConfig,
   pageBackground,
+  templateLabel,
+  onSeedFromTemplate,
+  onPickSavedStyle,
 }: CardFreeEditorProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  // "Começar do zero": esconde o convite sem criar elemento nenhum.
+  const [dismissedEmpty, setDismissedEmpty] = useState(false);
   const [name, setName] = useState("");
   const [scope, setScope] = useState<"USER" | "SYSTEM">("USER");
   const textInputRef = useRef<HTMLInputElement>(null);
@@ -628,6 +640,46 @@ export function CardFreeEditor({
             <ArrowLeft className="h-3.5 w-3.5" />
             Voltar
           </Button>
+        )}
+        {/* Etiqueta ainda não montada. Sem isto o editor abre em branco enquanto
+            a página mostra o card embutido — parece que algo não carregou. */}
+        {elements.length === 0 && !dismissedEmpty && onSeedFromTemplate && (
+          <div className="absolute inset-x-0 bottom-3 z-20 mx-auto flex w-[min(92%,26rem)] flex-col gap-2 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur">
+            <p className="text-xs text-muted-foreground">
+              Esta etiqueta ainda não foi montada. A página está usando o card
+              embutido{templateLabel ? ` "${templateLabel}"` : ""}.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                className="flex-1 text-xs"
+                onClick={onSeedFromTemplate}
+              >
+                Começar do padrão atual
+              </Button>
+              {onPickSavedStyle && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="flex-1 text-xs"
+                  onClick={onPickSavedStyle}
+                >
+                  Escolher um padrão
+                </Button>
+              )}
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="flex-1 text-xs"
+                onClick={() => setDismissedEmpty(true)}
+              >
+                Começar do zero
+              </Button>
+            </div>
+          </div>
         )}
         <div
           className="relative"

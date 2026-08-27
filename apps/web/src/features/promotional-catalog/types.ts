@@ -83,6 +83,11 @@ export type Overlay = {
   borderColor?: string; // cor do contorno; default #000000
   flipH?: boolean; // inverter horizontal
   flipV?: boolean; // inverter vertical
+  // Manda a forma/imagem para TRÁS dos produtos (atrás dos grupos e da grade).
+  // Sem isto, os produtos são sempre desenhados antes dos overlays no DOM e
+  // nenhuma forma conseguia servir de faixa de fundo. Ausente = na frente,
+  // como sempre foi.
+  behindProducts?: boolean;
   // Etiqueta DINÂMICA: quando presente, a imagem resolve de uma entidade da
   // página dinâmica (loja/org/produto/usuário) no render; `assetKey` fica como
   // placeholder/fallback. Ver `lib/resolve-entity.ts`.
@@ -130,6 +135,13 @@ export type ProductGroup = {
   // `productGroupScale` do modo grupo-único). Ausente = 1 (sem escala), então
   // grupos já existentes não mudam de aparência.
   scale?: number;
+  // Espaçamento entre os cards do grupo, em px. Ausente = 16 (o antigo
+  // `gap-4` fixo), então grupos já salvos não mudam de aparência.
+  gap?: number;
+  // Respiro interno em px: afasta os cards da borda do grupo. É o que faz a cor
+  // de fundo aparecer EM VOLTA dos produtos, não só nos vãos entre eles.
+  // Ausente = 0 (como sempre foi).
+  padding?: number;
   radius?: number; // px — arredondamento dos cantos da região.
   borderColor?: string;
   borderWidth?: number; // px — contorno da região (0 = sem contorno).
@@ -264,7 +276,7 @@ export const CARD_VARIABLES: { value: CardVariable; label: string }[] = [
 // Uma página pode ser marcada como DINÂMICA e vinculada a UMA entidade. Os
 // textos/etiquetas com `binding` resolvem os dados dessa entidade no render
 // (editor, export e link público). Ver `lib/resolve-entity.ts`.
-export type EntitySource = "store" | "org" | "product" | "user";
+export type EntitySource = "store" | "org" | "product" | "user" | "category";
 
 // Variáveis de TEXTO por entidade (resolvem uma string).
 export type EntityTextVar =
@@ -281,6 +293,7 @@ export type EntityTextVar =
   | "product.sku"
   | "product.priceActive"
   | "product.unit"
+  | "category.name"
   | "user.name"
   | "user.email"
   | "user.whatsapp";
@@ -324,6 +337,7 @@ export const ENTITY_TEXT_VARS: Record<
     { value: "user.email", label: "E-mail" },
     { value: "user.whatsapp", label: "WhatsApp" },
   ],
+  category: [{ value: "category.name", label: "Nome da categoria" }],
 };
 
 // Rótulos das variáveis de imagem, agrupados por entidade.
@@ -335,6 +349,8 @@ export const ENTITY_IMAGE_VARS: Record<
   org: [{ value: "org.logo", label: "Logo da organização" }],
   product: [{ value: "product.thumbnail", label: "Foto do produto" }],
   user: [{ value: "user.image", label: "Foto do usuário" }],
+  // Categoria não tem imagem própria no cadastro — só o nome.
+  category: [],
 };
 
 // Rótulo legível de uma variável (para "Vinculado a: …" e placeholders).
@@ -997,9 +1013,12 @@ export function virtualProductsFromList(
 }
 
 export const DEFAULT_CONFIG: CatalogConfig = {
-  title: "Promoções",
+  // Sem título por padrão. Nascia com "Promoções", que aparecia impresso na
+  // arte de todo catálogo novo sem ninguém ter pedido — quem quiser um título
+  // digita em Layout e liga o `showTitle`.
+  title: "",
   subtitle: "",
-  showTitle: true,
+  showTitle: false,
   showSubtitle: true,
   pageSize: "square",
   layout: "grid-3",

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { Copy, Move, RotateCw, Trash2 } from "lucide-react";
+import { Copy, Move, Pencil, RotateCw, Trash2 } from "lucide-react";
 import { constructUrl } from "@/hooks/use-construct-url";
 import type {
   CardLayoutElement,
@@ -13,6 +13,13 @@ import type {
   StyleBlock,
   TextElement,
 } from "../types";
+import { sliceProductsByGroup } from "../lib/group-slices";
+import { GroupSettingsFields } from "./group-settings";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { ElementToolbar, type AlignEdge } from "./element-toolbar";
 
 const CANVAS_W = 1080;
@@ -117,6 +124,12 @@ interface SelectionLayerProps {
   pageH: number;
 }
 
+// Famílias que participam do mover em bloco. Grupos de produtos ficam de fora:
+// eles têm regras próprias de grade/capacidade e mover vários juntos
+// embaralharia a distribuição.
+type MoveKind = "overlay" | "text" | "block";
+type MoveOrigin = { kind: MoveKind; id: string; ox: number; oy: number };
+
 type Drag =
   | {
       mode: "move";
@@ -129,13 +142,22 @@ type Drag =
       w: number;
       h: number;
       scale: number;
+      // Demais elementos selecionados com Shift, com a posição de ORIGEM. O
+      // arraste aplica o MESMO deslocamento a todos.
+      others?: MoveOrigin[];
     }
   | {
       mode: "resize";
       id: string;
       sx: number;
+      sy: number;
       ow: number;
+      oh: number;
       ar: number;
+      // Ausente = proporcional (mantém a proporção, comportamento de sempre).
+      // "x" estica só a largura; "y" só a altura — é o que permite virar um
+      // retângulo numa faixa larga, impossível só com o nó proporcional.
+      axis?: "x" | "y";
       scale: number;
     }
   | {
@@ -167,6 +189,7 @@ type Drag =
       w: number;
       h: number;
       scale: number;
+      others?: MoveOrigin[];
     }
   | {
       mode: "block-resize";
@@ -264,12 +287,27 @@ export function SelectionLayer({
   const dragMoved = useRef(false);
   // O que selecionar caso o "arraste para mover" seja, na verdade, só um clique.
   const pendingSelect = useRef<LayerSelection>(null);
+  // Seleção MÚLTIPLA (Shift+clique). Fica separada da `selection` primária de
+  // propósito: as alças de redimensionar, girar e escalar continuam lendo só a
+  // `selection`, então nada do comportamento de resize/escala muda. O conjunto
+  // extra serve APENAS para mover em bloco.
+  const [extra, setExtra] = useState<{ kind: MoveKind; id: string }[]>([]);
+  // Trocar a seleção primária (clique normal) descarta o conjunto extra.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: só reage à seleção primária
+  useEffect(() => {
+    setExtra([]);
+  }, [selection?.kind, selection && "id" in selection ? selection.id : null]);
   const [layerW, setLayerW] = useState(0);
   const [hover, setHover] = useState<LayerSelection>(null);
   const [boxes, setBoxes] = useState<{
     group: Box | null;
     cards: { id: string; box: Box }[];
-  }>({ group: null, cards: [] });
+    // Caixa REAL de cada grupo (id → box). A moldura precisa dela porque o
+    // desenho do grupo diverge do `rect` salvo em dois pontos: o grupo usa
+    // `minHeight` (cresce quando os cards não cabem) e pode ter `scale`
+    // (proporção), que amplia o conteúdo sem mexer no rect.
+    groups: Record<string, Box>;
+  }>({ group: null, cards: [], groups: {} });
   // Guias de alinhamento (estilo Canva) exibidas durante o arraste.
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({
     x: [],
@@ -311,7 +349,7 @@ export function SelectionLayer({
       '[data-role="product-group"]',
     );
     if (!groupEl) {
-      setBoxes({ group: null, cards: [] });
+      setBoxes({ group: null, cards: [], groups: {} });
       return;
     }
     const gr = groupEl.getBoundingClientRect();
@@ -322,23 +360,71 @@ export function SelectionLayer({
       height: gr.height,
     };
     const cards: { id: string; box: Box }[] = [];
-    if (!layoutIsFeatured) {
-      const children = Array.from(groupEl.children) as HTMLElement[];
-      children.forEach((c, i) => {
-        const r = c.getBoundingClientRect();
-        cards.push({
-          id: productIds[i] ?? String(i),
-          box: {
-            left: r.left - lr.left,
-            top: r.top - lr.top,
-            width: r.width,
-            height: r.height,
-          },
-        });
+    // Cards de um contêiner de grade, achatando a fileira centralizada — ela é
+    // um wrapper que envolve os últimos cards e contaria como um card só.
+    const cardsOf = (el: HTMLElement): HTMLElement[] => {
+      // A região do grupo envolve uma grade (`group-grid`); os cards são filhos
+      // DELA. E a fileira centralizada é outro wrapper. Descer nos dois é o que
+      // mantém o clique no produto funcionando.
+      const grade =
+        el.dataset.role === "group-grid"
+          ? el
+          : (el.querySelector<HTMLElement>('[data-role="group-grid"]') ?? el);
+      return (Array.from(grade.children) as HTMLElement[]).flatMap((c) =>
+        c.dataset.role === "last-row"
+          ? (Array.from(c.children) as HTMLElement[])
+          : [c],
+      );
+    };
+    const push = (id: string, el: HTMLElement) => {
+      const r = el.getBoundingClientRect();
+      cards.push({
+        id,
+        box: {
+          left: r.left - lr.left,
+          top: r.top - lr.top,
+          width: r.width,
+          height: r.height,
+        },
       });
+    };
+
+    const groupBoxes: Record<string, Box> = {};
+    if (!layoutIsFeatured) {
+      if (isMulti) {
+        // Multi-grupo: mede CADA grupo e casa os cards com a fatia daquele
+        // grupo. Antes media só o primeiro `[data-role="product-group"]` e
+        // mapeava por `productIds[i]` — o que no multi-grupo não bate, e era o
+        // motivo de o clique no produto não achar card nenhum.
+        const slices = sliceProductsByGroup(
+          productGroups,
+          productIds.map((id) => ({ id })),
+        );
+        productGroups.forEach((g, gi) => {
+          const el = preview.querySelector<HTMLElement>(
+            `[data-group-id="${g.id}"]`,
+          );
+          if (!el) return;
+          const gb = el.getBoundingClientRect();
+          groupBoxes[g.id] = {
+            left: gb.left - lr.left,
+            top: gb.top - lr.top,
+            width: gb.width,
+            height: gb.height,
+          };
+          cardsOf(el).forEach((c, i) => {
+            const id = slices[gi]?.[i]?.id;
+            if (id) push(id, c);
+          });
+        });
+      } else {
+        cardsOf(groupEl).forEach((c, i) => {
+          push(productIds[i] ?? String(i), c);
+        });
+      }
     }
-    setBoxes({ group, cards });
-  }, [previewRef, productIds, layoutIsFeatured]);
+    setBoxes({ group, cards, groups: groupBoxes });
+  }, [previewRef, productIds, layoutIsFeatured, isMulti, productGroups]);
 
   useEffect(() => {
     const el = ref.current;
@@ -452,9 +538,22 @@ export function SelectionLayer({
       setGuides({ x: snap.guidesX, y: snap.guidesY });
       const upd = d.kind === "text" ? updateText : update;
       upd(d.id, { x: snap.x, y: snap.y });
+      // Os demais acompanham pelo deslocamento JÁ ajustado pelo ímã — assim a
+      // distância relativa entre eles não muda quando o arrastado encaixa.
+      moveOthers(d.others, snap.x - d.ox, snap.y - d.oy);
     } else if (d.mode === "resize") {
-      const w = Math.max(24, Math.round(d.ow + (e.clientX - d.sx) / d.scale));
-      update(d.id, { w, h: Math.round(w / d.ar) });
+      if (d.axis === "x") {
+        update(d.id, {
+          w: Math.max(8, Math.round(d.ow + (e.clientX - d.sx) / d.scale)),
+        });
+      } else if (d.axis === "y") {
+        update(d.id, {
+          h: Math.max(8, Math.round(d.oh + (e.clientY - d.sy) / d.scale)),
+        });
+      } else {
+        const w = Math.max(24, Math.round(d.ow + (e.clientX - d.sx) / d.scale));
+        update(d.id, { w, h: Math.round(w / d.ar) });
+      }
     } else if (d.mode === "text-resize") {
       // Escala proporcional (estilo Canva): a fonte cresce/encolhe junto com a
       // caixa, mantendo a proporção — o texto sempre cabe.
@@ -480,6 +579,7 @@ export function SelectionLayer({
       );
       setGuides({ x: snap.guidesX, y: snap.guidesY });
       updateBlock(d.id, { x: snap.x, y: snap.y });
+      moveOthers(d.others, snap.x - d.ox, snap.y - d.oy);
     } else if (d.mode === "block-resize") {
       // Redimensiona livre (largura/altura independentes) — o card livre
       // escala suas fontes pela altura, então cabe em qualquer proporção.
@@ -492,13 +592,21 @@ export function SelectionLayer({
         (Math.atan2(e.clientY - d.cy, e.clientX - d.cx) * 180) / Math.PI;
       updateBlock(d.id, { rotation: Math.round(d.orot + (angle - d.start)) });
     } else if (d.mode === "pgroup-move") {
-      updateGroup(d.id, {
-        rect: {
-          ...d.base,
-          x: Math.round(d.base.x + (e.clientX - d.sx) / d.scale),
-          y: Math.round(d.base.y + (e.clientY - d.sy) / d.scale),
-        },
-      });
+      // Só move depois de sair do limiar de 3px — igual ao grupo único. Sem
+      // isso, um clique com o menor tremor da mão arrastava o grupo, e o clique
+      // simples no card nunca acontecia.
+      if (Math.abs(e.clientX - d.sx) > 3 || Math.abs(e.clientY - d.sy) > 3) {
+        dragMoved.current = true;
+      }
+      if (dragMoved.current) {
+        updateGroup(d.id, {
+          rect: {
+            ...d.base,
+            x: Math.round(d.base.x + (e.clientX - d.sx) / d.scale),
+            y: Math.round(d.base.y + (e.clientY - d.sy) / d.scale),
+          },
+        });
+      }
     } else if (d.mode === "pgroup-resize") {
       const dx = (e.clientX - d.sx) / d.scale;
       const dy = (e.clientY - d.sy) / d.scale;
@@ -589,8 +697,12 @@ export function SelectionLayer({
       // Clicar na alça (sem arrastar) alterna dinâmico ↔ proporção. Vale nos
       // dois modos: grupo único e grupo nomeado (multi).
       setProportional((v) => !v);
-    } else if (d?.mode === "group-move" && !dragMoved.current) {
+    } else if (
+      (d?.mode === "group-move" || d?.mode === "pgroup-move") &&
+      !dragMoved.current
+    ) {
       // Foi só um clique dentro do grupo → seleciona o alvo (card ou grupo).
+      // Vale nos dois modos: grupo único e grupo nomeado.
       onSelectionChange(pendingSelect.current);
     }
     pendingSelect.current = null;
@@ -598,6 +710,50 @@ export function SelectionLayer({
     setGuides({ x: [], y: [] });
     window.removeEventListener("pointermove", onPointerMove);
     window.removeEventListener("pointerup", onPointerUp);
+  };
+
+  // Origem (x/y atuais) dos demais selecionados, excluindo quem está sendo
+  // arrastado. Sem isto o deslocamento em bloco não teria de onde partir.
+  const originsOf = (exceptId: string): MoveOrigin[] =>
+    extra
+      .filter((s) => s.id !== exceptId)
+      .flatMap((sel): MoveOrigin[] => {
+        if (sel.kind === "overlay") {
+          const o = overlays.find((x) => x.id === sel.id);
+          return o ? [{ ...sel, ox: o.x, oy: o.y }] : [];
+        }
+        if (sel.kind === "text") {
+          const t = texts.find((x) => x.id === sel.id);
+          return t ? [{ ...sel, ox: t.x, oy: t.y }] : [];
+        }
+        const b = styleBlocks.find((x) => x.id === sel.id);
+        return b ? [{ ...sel, ox: b.x, oy: b.y }] : [];
+      });
+
+  // Shift+clique: adiciona/remove do conjunto extra e NÃO inicia arraste — o
+  // usuário está montando a seleção, não movendo ainda.
+  const toggleExtra = (kind: MoveKind, id: string): boolean => {
+    setExtra((prev) =>
+      prev.some((s) => s.id === id)
+        ? prev.filter((s) => s.id !== id)
+        : [...prev, { kind, id }],
+    );
+    return true;
+  };
+
+  // Aplica o mesmo deslocamento aos demais selecionados.
+  const moveOthers = (
+    others: MoveOrigin[] | undefined,
+    dx: number,
+    dy: number,
+  ) => {
+    if (!others || others.length === 0) return;
+    for (const o of others) {
+      const patch = { x: Math.round(o.ox + dx), y: Math.round(o.oy + dy) };
+      if (o.kind === "overlay") update(o.id, patch);
+      else if (o.kind === "text") updateText(o.id, patch);
+      else updateBlock(o.id, patch);
+    }
   };
 
   const beginDrag = (d: Drag) => {
@@ -608,11 +764,14 @@ export function SelectionLayer({
 
   const startMove = (e: React.PointerEvent, ov: Overlay) => {
     e.stopPropagation();
-    onSelectionChange({ kind: "element", id: ov.id });
+    if (e.shiftKey) return void toggleExtra("overlay", ov.id);
+    if (!extra.some((s) => s.id === ov.id))
+      onSelectionChange({ kind: "element", id: ov.id });
     buildSnapTargets(ov.id);
     beginDrag({
       mode: "move",
       kind: "overlay",
+      others: originsOf(ov.id),
       id: ov.id,
       sx: e.clientX,
       sy: e.clientY,
@@ -624,15 +783,22 @@ export function SelectionLayer({
     });
   };
 
-  const startResize = (e: React.PointerEvent, ov: Overlay) => {
+  const startResize = (
+    e: React.PointerEvent,
+    ov: Overlay,
+    axis?: "x" | "y",
+  ) => {
     e.stopPropagation();
     onSelectionChange({ kind: "element", id: ov.id });
     beginDrag({
       mode: "resize",
       id: ov.id,
       sx: e.clientX,
+      sy: e.clientY,
       ow: ov.w,
+      oh: ov.h,
       ar: ov.w / ov.h || 1,
+      axis,
       scale: getScale(),
     });
   };
@@ -661,11 +827,14 @@ export function SelectionLayer({
   // ── Textos: mesmos gestos (mover/redimensionar/girar) ──
   const startTextMove = (e: React.PointerEvent, t: TextElement) => {
     e.stopPropagation();
-    onSelectionChange({ kind: "text", id: t.id });
+    if (e.shiftKey) return void toggleExtra("text", t.id);
+    if (!extra.some((s) => s.id === t.id))
+      onSelectionChange({ kind: "text", id: t.id });
     buildSnapTargets(t.id);
     beginDrag({
       mode: "move",
       kind: "text",
+      others: originsOf(t.id),
       id: t.id,
       sx: e.clientX,
       sy: e.clientY,
@@ -716,10 +885,13 @@ export function SelectionLayer({
   // ── Blocos de estilo: mesmos gestos (mover/redimensionar/girar) ──
   const startBlockMove = (e: React.PointerEvent, b: StyleBlock) => {
     e.stopPropagation();
-    onSelectionChange({ kind: "styleBlock", id: b.id });
+    if (e.shiftKey) return void toggleExtra("block", b.id);
+    if (!extra.some((s) => s.id === b.id))
+      onSelectionChange({ kind: "styleBlock", id: b.id });
     buildSnapTargets(b.id);
     beginDrag({
       mode: "block-move",
+      others: originsOf(b.id),
       id: b.id,
       sx: e.clientX,
       sy: e.clientY,
@@ -768,6 +940,15 @@ export function SelectionLayer({
   // ── Grupos de produtos (multi): mover / redimensionar ──
   const startPGroupMove = (e: React.PointerEvent, g: ProductGroup) => {
     e.stopPropagation();
+    // A moldura do grupo cobre os cards e engole o pointerdown, então o clique
+    // nunca chegava ao hit-test da camada: dentro de um grupo, o produto ficava
+    // inclicável. Aqui o alvo é resolvido na hora — arrastar move o grupo,
+    // clicar sem arrastar seleciona o CARD sob o ponteiro (ou o próprio grupo,
+    // se o clique caiu num vão).
+    const hit = hitTest(e.clientX, e.clientY);
+    pendingSelect.current =
+      hit?.kind === "card" ? hit : { kind: "group", id: g.id };
+    dragMoved.current = false;
     onSelectionChange({ kind: "group", id: g.id });
     beginDrag({
       mode: "pgroup-move",
@@ -895,16 +1076,17 @@ export function SelectionLayer({
   const hitTest = (clientX: number, clientY: number): LayerSelection => {
     const layer = ref.current;
     if (!layer) return { kind: "background" };
-    // Modo multi-grupo: a seleção/mover/redimensionar de cada grupo vem das
-    // próprias molduras (divs interativas), não do hit-test do grupo único.
-    if (isMulti) return { kind: "background" };
     const lr = layer.getBoundingClientRect();
     const x = clientX - lr.left;
     const y = clientY - lr.top;
     for (const c of boxes.cards) {
       if (inBox(x, y, c.box)) return { kind: "card", id: c.id };
     }
-    if (boxes.group && inBox(x, y, boxes.group)) return { kind: "group" };
+    // O RETÂNGULO do grupo único não vale no multi-grupo: lá quem trata mover/
+    // redimensionar são as molduras de cada grupo. Os CARDS, porém, valem nos
+    // dois modos — é o que devolve o clique no produto dentro de um grupo.
+    if (!isMulti && boxes.group && inBox(x, y, boxes.group))
+      return { kind: "group" };
     return { kind: "background" };
   };
 
@@ -975,6 +1157,18 @@ export function SelectionLayer({
     kind === "selected"
       ? "2px solid var(--color-primary, #2563eb)"
       : "1.5px dashed color-mix(in srgb, var(--color-primary, #2563eb) 55%, transparent)";
+
+  // Contorno dos co-selecionados: tracejado grosso, diferente do primário —
+  // o primário é quem tem as alças de redimensionar.
+  const extraIds = new Set(extra.map((e) => e.id));
+  const outlineFor = (id: string, selected: boolean, hovered: boolean) =>
+    selected
+      ? outline("selected")
+      : extraIds.has(id)
+        ? "2px dashed var(--color-primary, #2563eb)"
+        : hovered
+          ? outline("hover")
+          : undefined;
 
   const selKind = selection?.kind;
   const selId =
@@ -1162,15 +1356,19 @@ export function SelectionLayer({
         productGroups.map((g, gi) => {
           const selected = selKind === "group" && selId === g.id;
           const hovered = hovKind === "group" && hovId === g.id;
+          // Caixa MEDIDA quando já houve render; o `rect` é só o palpite
+          // inicial. Sem isto a moldura fica menor que os produtos sempre que o
+          // grupo cresce por `minHeight` ou está com proporção (`scale`).
+          const medida = boxes.groups[g.id];
           return (
             <div
               key={g.id}
               className="absolute"
               style={{
-                left: px(g.rect.x),
-                top: px(g.rect.y),
-                width: px(g.rect.w),
-                height: px(g.rect.h),
+                left: medida ? medida.left : px(g.rect.x),
+                top: medida ? medida.top : px(g.rect.y),
+                width: medida ? medida.width : px(g.rect.w),
+                height: medida ? medida.height : px(g.rect.h),
                 outline: selected
                   ? outline("selected")
                   : hovered
@@ -1191,8 +1389,37 @@ export function SelectionLayer({
                     style={{ cursor: "move" }}
                   >
                     <Move className="h-3 w-3" />
-                    Grupo {gi + 1}
+                    {/* Nome do grupo, não o índice: é assim que o dev o
+                        identifica na lateral. Esta etiqueta é da camada de
+                        seleção, ou seja, só do editor — não entra no export nem
+                        no link público. */}
+                    {g.name?.trim() || `Grupo ${gi + 1}`}
                   </span>
+                  {/* Mesmo painel da lateral, aberto aqui no canvas — os
+                      campos vêm de `GroupSettingsFields`, então os dois lugares
+                      nunca divergem. */}
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        title="Editar grupo (grade, tamanho e aparência)"
+                        className="absolute -top-6 right-16 flex items-center gap-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      className="max-h-[70vh] w-56 overflow-y-auto p-3"
+                      onPointerDown={(e) => e.stopPropagation()}
+                    >
+                      <GroupSettingsFields
+                        group={g}
+                        onChange={(patch) => updateGroup(g.id, patch)}
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <button
                     type="button"
                     title="Duplicar grupo"
@@ -1284,11 +1511,11 @@ export function SelectionLayer({
                 transform: ov.rotation
                   ? `rotate(${ov.rotation}deg)`
                   : undefined,
-                outline: selected
-                  ? outline("selected")
-                  : hovKind === "element" && hovId === ov.id
-                    ? outline("hover")
-                    : undefined,
+                outline: outlineFor(
+                  ov.id,
+                  selected,
+                  hovKind === "element" && hovId === ov.id,
+                ),
                 cursor: "move",
               }}
               onPointerEnter={() => setHover({ kind: "element", id: ov.id })}
@@ -1319,8 +1546,25 @@ export function SelectionLayer({
                     type="button"
                     className="absolute -bottom-2 -right-2 h-4 w-4 rounded-sm border-2 border-primary bg-background"
                     style={{ cursor: "nwse-resize" }}
-                    title="Redimensionar"
+                    title="Redimensionar na proporção"
                     onPointerDown={(e) => startResize(e, ov)}
+                  />
+                  {/* Nós LIVRES: o do canto mantém a proporção, estes esticam um
+                      lado só. Sem eles não dava para transformar um retângulo
+                      numa faixa larga ou numa coluna estreita. */}
+                  <button
+                    type="button"
+                    className="absolute -right-2 top-1/2 h-4 w-3 -translate-y-1/2 rounded-sm border-2 border-primary bg-background"
+                    style={{ cursor: "ew-resize" }}
+                    title="Esticar a largura"
+                    onPointerDown={(e) => startResize(e, ov, "x")}
+                  />
+                  <button
+                    type="button"
+                    className="absolute -bottom-2 left-1/2 h-3 w-4 -translate-x-1/2 rounded-sm border-2 border-primary bg-background"
+                    style={{ cursor: "ns-resize" }}
+                    title="Esticar a altura"
+                    onPointerDown={(e) => startResize(e, ov, "y")}
                   />
                 </>
               )}
@@ -1343,11 +1587,11 @@ export function SelectionLayer({
                 width: px(t.w),
                 height: px(t.h),
                 transform: t.rotation ? `rotate(${t.rotation}deg)` : undefined,
-                outline: selected
-                  ? outline("selected")
-                  : hovKind === "text" && hovId === t.id
-                    ? outline("hover")
-                    : undefined,
+                outline: outlineFor(
+                  t.id,
+                  selected,
+                  hovKind === "text" && hovId === t.id,
+                ),
                 cursor: "move",
               }}
               onPointerEnter={() => setHover({ kind: "text", id: t.id })}
@@ -1402,11 +1646,11 @@ export function SelectionLayer({
                 width: px(b.w),
                 height: px(b.h),
                 transform: b.rotation ? `rotate(${b.rotation}deg)` : undefined,
-                outline: selected
-                  ? outline("selected")
-                  : hovKind === "styleBlock" && hovId === b.id
-                    ? outline("hover")
-                    : undefined,
+                outline: outlineFor(
+                  b.id,
+                  selected,
+                  hovKind === "styleBlock" && hovId === b.id,
+                ),
                 cursor: "move",
               }}
               onPointerEnter={() => setHover({ kind: "styleBlock", id: b.id })}

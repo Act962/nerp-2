@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -58,6 +58,10 @@ import { useStores } from "@/features/stores/hooks/use-stores";
 import { useExport } from "./hooks/use-export";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { buildDynamicContext } from "./lib/resolve-entity";
+import { distributeProducts } from "./lib/page-chunks";
+import { nextCopyName } from "./lib/group-slices";
+import { orphanedByPageDelete, productIdsOnPage } from "./lib/page-products";
+import { applyCategoryGroups, type CategoryGroup } from "./lib/apply-category";
 import type {
   CardLayoutElement,
   CatalogConfig,
@@ -227,7 +231,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const allPageRefs = useRef<(HTMLDivElement | null)[]>([]);
   // Layer de exportação (todas as páginas em resolução cheia) — montado só na
   // hora de exportar, para não manter dezenas de previews na memória.
-  const [exportMode, setExportMode] = useState(false);
+  // Faixa de páginas montada no layer de exportação. `null` = layer desmontado.
+  // Era um booleano ("monta TUDO"), o que num catálogo de centenas de páginas
+  // estourava a memória da aba: o export agora monta um lote por vez.
+  const [exportRange, setExportRange] = useState<{
+    from: number;
+    to: number;
+  } | null>(null);
   const exportLayerRef = useRef<HTMLDivElement | null>(null);
   // Um objeto-ref estável por página visível (lista vertical), para o
   // SelectionLayer de cada página medir seu próprio canvas.
@@ -453,6 +463,16 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     enabled: anyDynamic,
   });
   const { data: session } = authClient.useSession();
+  // Categorias da org — servem ao vínculo dinâmico de categoria e ao diálogo
+  // "Adicionar por categoria". Uma query só, compartilhada pelos dois.
+  const { data: categoryData } = useQuery(
+    orpc.categories.listAll.queryOptions(),
+  );
+  const categories = useMemo(
+    () =>
+      (categoryData?.categories ?? []).map((c) => ({ id: c.id, name: c.name })),
+    [categoryData],
+  );
   const dynamicContexts = useMemo(() => {
     const org = orgData?.organization
       ? {
@@ -478,9 +498,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         org,
         sessionUser,
         products,
+        categories,
       }),
     );
-  }, [pages, stores, orgData, session, products]);
+  }, [pages, stores, orgData, session, products, categories]);
 
   // Validade por página: o compartilhamento só é bloqueado quando TODAS as
   // páginas estão vencidas (cada página tem seu próprio prazo). O aviso no
@@ -541,6 +562,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       texts: pg.texts ?? [],
       styleBlocks: pg.styleBlocks ?? [],
       dynamic: pg.dynamic,
+      // Faltava aqui: `offerValidUntil` é PER-PÁGINA, então o painel escrevia na
+      // página e lia o valor GLOBAL — a data parecia não salvar. É a única chave
+      // de PER_PAGE_KEYS que este mapeamento não cobria.
+      offerValidUntil: pg.offerValidUntil ?? config.offerValidUntil,
       // Card efetivo da página: override da página > global.
       cardLayout: pg.cardLayout ?? config.cardLayout,
     };
@@ -563,54 +588,31 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     [products, blockProductIds],
   );
 
-  // Distribui os produtos do grid pelas páginas.
-  const pageChunks = useMemo(() => {
-    // Modo EXPLÍCITO: ao menos uma página tem `productIds` fixados. Cada página
-    // mostra só os seus (na ordem global, respeitando reordenação/sortBy); a
-    // última recolhe os não atribuídos (produtos novos). Inserir/remover página
-    // não mexe nos produtos das outras.
-    const anyExplicit = pages.some((pg) => pg.productIds !== undefined);
-    if (anyExplicit) {
-      const claimed = new Set<string>();
-      for (const pg of pages)
-        for (const id of pg.productIds ?? []) claimed.add(id);
-      return pages.map((pg, i) => {
-        const idSet = new Set(pg.productIds ?? []);
-        let arr = gridProducts.filter((p) => idSet.has(p.id));
-        if (i === pages.length - 1)
-          arr = [...arr, ...gridProducts.filter((p) => !claimed.has(p.id))];
-        return arr;
-      });
-    }
+  // Capacidade de uma página: modo multi-grupo consome a soma das grades dos
+  // grupos (cols×linhas de cada um); modo grupo-único, a Disposição da página.
+  const capacityOf = useCallback(
+    (pg: CatalogPage) =>
+      pg.productGroups && pg.productGroups.length > 0
+        ? pg.productGroups.reduce(
+            (sum, g) => sum + Math.max(1, g.gridCols) * Math.max(1, g.gridRows),
+            0,
+          )
+        : getItemsPerPage(pg.layout, {
+            ...config,
+            layout: pg.layout,
+            gridCols: pg.gridCols ?? config.gridCols,
+            gridRows: pg.gridRows ?? config.gridRows,
+          }),
+    [config],
+  );
 
-    // Modo AUTOMÁTICO (padrão): sequencial por capacidade; a última recebe o
-    // restante. Fase 1: sem seleção por página.
-    const chunks: (typeof products)[] = [];
-    let idx = 0;
-    pages.forEach((pg, i) => {
-      // Modo multi-grupo: a página consome a soma das capacidades dos grupos
-      // (cols×linhas de cada um). Modo grupo-único: capacidade da Disposição.
-      const per =
-        pg.productGroups && pg.productGroups.length > 0
-          ? pg.productGroups.reduce(
-              (sum, g) =>
-                sum + Math.max(1, g.gridCols) * Math.max(1, g.gridRows),
-              0,
-            )
-          : getItemsPerPage(pg.layout, {
-              ...config,
-              layout: pg.layout,
-              gridCols: pg.gridCols ?? config.gridCols,
-              gridRows: pg.gridRows ?? config.gridRows,
-            });
-      const isLast = i === pages.length - 1;
-      chunks.push(
-        isLast ? gridProducts.slice(idx) : gridProducts.slice(idx, idx + per),
-      );
-      idx += per;
-    });
-    return chunks;
-  }, [gridProducts, pages, config]);
+  // Distribui os produtos do grid pelas páginas. A lógica vive em
+  // `lib/page-chunks.ts` — a mesma que o `lib/layout.ts` usa para o link
+  // público e o export, então não há mais duas cópias para manter em sincronia.
+  const pageChunks = useMemo(
+    () => distributeProducts(pages, gridProducts, capacityOf),
+    [gridProducts, pages, capacityOf],
+  );
 
   // Produtos da página atual = os do grid + os ligados aos blocos de estilo
   // desta página (que aparecem pelo bloco). Sem repetição.
@@ -750,7 +752,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   // PNG de UMA página (resolução cheia, 1080px) — para copiar/compartilhar.
   // Monta o layer de exportação sob demanda (e desmonta ao terminar).
   const capturePage = async (index: number): Promise<string> => {
-    await prepareExport();
+    // Só a página pedida: antes isto montava o catálogo INTEIRO para capturar
+    // uma página, o que num catálogo grande é inviável.
+    await prepareExport(index, index + 1);
     try {
       const el = allPageRefs.current[index] ?? previewRef.current;
       if (!el) return "";
@@ -802,11 +806,12 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       await new Promise((r) => setTimeout(r, 120));
     }
   };
-  const prepareExport = async () => {
-    setExportMode(true);
+  // Sem argumentos = todas as páginas (o que todo chamador antigo espera).
+  const prepareExport = async (from?: number, to?: number) => {
+    setExportRange({ from: from ?? 0, to: to ?? totalPages });
     await waitForExportReady();
   };
-  const finishExport = () => setExportMode(false);
+  const finishExport = () => setExportRange(null);
 
   // Autosave da config — leve e ágil (estilo Canva): payload só da config, sem
   // miniatura no caminho crítico e sem invalidar nada. Debounce curto coalesce
@@ -1179,6 +1184,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const handleGroupDuplicate = (
     pageIndex: number,
     source: { rect: LayerRect; gridCols: number; gridRows: number },
+    sourceId?: string,
   ) => {
     const page = pages[pageIndex] ?? pages[0];
     const existing = page?.productGroups ?? [];
@@ -1193,11 +1199,24 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             ...rect,
             y: Math.min(rect.y + rect.h + gap, Math.max(0, pageH - rect.h)),
           };
+    // Duplicar um grupo NOMEADO leva junto o conteúdo: os mesmos produtos, a
+    // aparência e um nome livre ("Hortifruti" → "Hortifruti (2)"). Sem isso o
+    // botão só copiava a região vazia.
+    const origem = sourceId
+      ? existing.find((g) => g.id === sourceId)
+      : undefined;
     const newGroup: ProductGroup = {
+      ...(origem ?? {}),
       id: crypto.randomUUID(),
       rect: nextRect,
       gridCols: source.gridCols,
       gridRows: source.gridRows,
+      ...(origem?.productIds
+        ? {
+            name: nextCopyName(existing, origem.name ?? "Grupo"),
+            productIds: [...origem.productIds],
+          }
+        : {}),
     };
     const nextGroups: ProductGroup[] =
       existing.length > 0
@@ -1253,15 +1272,8 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       );
       const groupIds = grp?.productIds ?? [];
       const groupSet = new Set(groupIds);
-      setConfig((prev) => ({
-        ...prev,
-        manuallyAddedIds: (prev.manuallyAddedIds ?? []).filter(
-          (id) => !groupSet.has(id),
-        ),
-        excludedProductIds: [
-          ...new Set([...(prev.excludedProductIds ?? []), ...groupIds]),
-        ],
-        pages: ensurePages(prev).map((pg, i) =>
+      setConfig((prev) => {
+        const nextPages = ensurePages(prev).map((pg, i) =>
           i === pageIndex
             ? {
                 ...pg,
@@ -1276,8 +1288,24 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                 ),
               }
             : pg,
-        ),
-      }));
+        );
+        // Só sai do catálogo quem não sobrou em NENHUMA página — uma página
+        // duplicada aponta para os mesmos produtos, e excluí-los aqui esvaziaria
+        // a cópia junto.
+        const sobrou = new Set(nextPages.flatMap(productIdsOnPage));
+        const orfaos = groupIds.filter((id) => !sobrou.has(id));
+        const orfaoSet = new Set(orfaos);
+        return {
+          ...prev,
+          manuallyAddedIds: (prev.manuallyAddedIds ?? []).filter(
+            (id) => !orfaoSet.has(id),
+          ),
+          excludedProductIds: [
+            ...new Set([...(prev.excludedProductIds ?? []), ...orfaos]),
+          ],
+          pages: nextPages,
+        };
+      });
     } else {
       // Grupo único: remove os produtos DESTA página (esvazia a grade), sem
       // redistribuir para as outras — congela a distribuição e exclui os ids.
@@ -1287,13 +1315,16 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             ? pg
             : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
         );
-        const removed = frozen[pageIndex];
+        const nextPages = frozen.map((pg, i) =>
+          i === pageIndex
+            ? { ...pg, productIds: [], styleBlocks: [], productGroups: [] }
+            : pg,
+        );
+        // Idem: só exclui o que nenhuma outra página ainda mostra.
+        const sobrou = new Set(nextPages.flatMap(productIdsOnPage));
         const removedIds = [
-          ...(removed?.productIds ?? []),
-          ...(removed?.styleBlocks ?? [])
-            .map((b) => b.productId)
-            .filter((id): id is string => !!id),
-        ];
+          ...new Set(productIdsOnPage(frozen[pageIndex])),
+        ].filter((id) => !sobrou.has(id));
         const removedSet = new Set(removedIds);
         return {
           ...prev,
@@ -1303,9 +1334,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
           excludedProductIds: [
             ...new Set([...(prev.excludedProductIds ?? []), ...removedIds]),
           ],
-          pages: frozen.map((pg, i) =>
-            i === pageIndex ? { ...pg, productIds: [], styleBlocks: [] } : pg,
-          ),
+          pages: nextPages,
         };
       });
     }
@@ -1314,6 +1343,38 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   };
   const updatePages = (updater: (pages: CatalogPage[]) => CatalogPage[]) => {
     setConfig((prev) => ({ ...prev, pages: updater(ensurePages(prev)) }));
+  };
+
+  // Aplicação por CATEGORIA: cria as páginas e adiciona os produtos numa única
+  // mudança de config — ou seja, UM passo de desfazer para o dev voltar atrás
+  // mesmo depois de gerar 400 páginas.
+  const applyCategories = (groups: CategoryGroup[]) => {
+    const frozen = pageChunks.map((prods) => prods.map((p) => p.id));
+    let jumpTo = safePage;
+    setConfig((prev) => {
+      const result = applyCategoryGroups({
+        pages: ensurePages(prev),
+        currentIndex: safePage,
+        groups,
+        frozenProductIds: frozen,
+        capacityOf,
+      });
+      jumpTo = result.firstTouchedIndex;
+      const added = new Set(result.addedIds);
+      return {
+        ...prev,
+        pages: result.pages,
+        manuallyAddedIds: Array.from(
+          new Set([...prev.manuallyAddedIds, ...result.addedIds]),
+        ),
+        // Produto reaplicado deixa de estar excluído — senão ele entraria na
+        // página e sumiria no render, deixando um buraco inexplicável.
+        excludedProductIds: prev.excludedProductIds.filter(
+          (id) => !added.has(id),
+        ),
+      };
+    });
+    return jumpTo;
   };
 
   // FAB "+": adicionar produto à PÁGINA ATUAL. Congela a distribuição (modo
@@ -1402,6 +1463,19 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         locked: false,
         overlays: mode === "full" ? src.overlays.map((o) => ({ ...o })) : [],
         texts: mode === "full" ? (src.texts ?? []).map((t) => ({ ...t })) : [],
+        // "Só o fundo" = fundo e mais nada: sem produtos, sem blocos e SEM os
+        // grupos. O spread de `src` trazia os três.
+        // Em "duplicar tudo" os grupos vêm, mas com id NOVO — o spread deixava
+        // duas páginas com grupos de mesmo id, e a camada de seleção localiza
+        // cada grupo por `data-group-id`.
+        ...(mode === "background"
+          ? { productIds: [], styleBlocks: [], productGroups: [] }
+          : {
+              productGroups: (src.productGroups ?? []).map((g) => ({
+                ...g,
+                id: crypto.randomUUID(),
+              })),
+            }),
       };
       const next = [...pgs];
       next.splice(idx + 1, 0, copy);
@@ -1422,13 +1496,11 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
           ? pg
           : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
       );
-      const removed = frozen[idx];
-      const removedIds = [
-        ...(removed?.productIds ?? []),
-        ...(removed?.styleBlocks ?? [])
-          .map((b) => b.productId)
-          .filter((id): id is string => !!id),
-      ];
+      // Só saem do catálogo os produtos que NENHUMA página restante usa. Uma
+      // página duplicada aponta para os mesmos ids da original (`duplicatePage`
+      // copia `productIds` no spread), e antes daqui apagar uma das cópias
+      // esvaziava as outras.
+      const removedIds = orphanedByPageDelete(frozen, idx);
       const removedSet = new Set(removedIds);
       return {
         ...prev,
@@ -1611,7 +1683,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         com width=1080 para que o scale interno seja 1:1, garantindo que o
         html-to-image capture o canvas no tamanho correto (1080×pageH).
       */}
-      {exportMode && (
+      {exportRange && (
         <div
           ref={exportLayerRef}
           style={{
@@ -1623,19 +1695,26 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
           }}
           aria-hidden
         >
-          {pageChunks.map((prods, i) => (
-            <CatalogPreview
-              key={i}
-              ref={(el) => {
-                allPageRefs.current[i] = el;
-              }}
-              config={configForPage(i)}
-              products={prods}
-              allProducts={products}
-              supplierLogos={selectedSupplierLogos}
-              dynamicContext={dynamicContexts[i]}
-            />
-          ))}
+          {pageChunks
+            .slice(exportRange.from, exportRange.to)
+            .map((prods, offset) => {
+              // Índice ABSOLUTO: o resto do código (e o `allPageRefs`) fala em
+              // número de página do catálogo, não em posição dentro do lote.
+              const i = exportRange.from + offset;
+              return (
+                <CatalogPreview
+                  key={i}
+                  ref={(el) => {
+                    allPageRefs.current[i] = el;
+                  }}
+                  config={configForPage(i)}
+                  products={prods}
+                  allProducts={products}
+                  supplierLogos={selectedSupplierLogos}
+                  dynamicContext={dynamicContexts[i]}
+                />
+              );
+            })}
         </div>
       )}
 
@@ -1706,8 +1785,59 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             onSelectionChange={handleSelectionChange}
             editProductRequest={editProductRequest}
             onEditProductRequest={requestEditProduct}
+            onApplyCategories={(groups) => {
+              // Um único setConfig → um único passo de desfazer. Depois salta
+              // para a primeira página criada: o dev vê o que acabou de gerar
+              // em vez de continuar parado onde estava.
+              const jumpTo = applyCategories(groups);
+              setCurrentPage(jumpTo);
+              const n = groups.reduce((sum, g) => sum + g.ids.length, 0);
+              toast.success(`${n} produto(s) adicionado(s).`, {
+                action: { label: "Desfazer", onClick: () => undo() },
+              });
+            }}
+            pageCapacity={capacityOf(pages[safePage] ?? pages[0])}
             addProductSignal={addProductSignal}
             onSaveCardLayout={handleSaveCardLayout}
+            onApplyStyle={(scope, layout, groupId) => {
+              setConfig((prev) => {
+                const pgs = ensurePages(prev);
+                if (scope === "group") {
+                  // Padrão do grupo = override por PRODUTO dos itens dele. É o
+                  // único nível que o render conhece abaixo da página.
+                  const grp = pgs[safePage]?.productGroups?.find(
+                    (g) => g.id === groupId,
+                  );
+                  const ids = grp?.productIds ?? [];
+                  if (ids.length === 0) return prev;
+                  const overrides = { ...(prev.cardLayoutOverrides ?? {}) };
+                  for (const id of ids) overrides[id] = layout;
+                  return { ...prev, cardLayoutOverrides: overrides };
+                }
+                if (scope === "page") {
+                  // Override de produto venceria o card da página — limpa os
+                  // dos produtos desta página para o padrão realmente valer.
+                  const overrides = { ...(prev.cardLayoutOverrides ?? {}) };
+                  for (const p of pageChunks[safePage] ?? [])
+                    delete overrides[p.id];
+                  return {
+                    ...prev,
+                    cardLayoutOverrides: overrides,
+                    pages: pgs.map((p, i) =>
+                      i === safePage ? { ...p, cardLayout: layout } : p,
+                    ),
+                  };
+                }
+                // "all": card global; zera overrides de produto e de página.
+                return {
+                  ...prev,
+                  cardLayout: layout,
+                  cardLayoutOverrides: {},
+                  pages: pgs.map((p) => ({ ...p, cardLayout: undefined })),
+                };
+              });
+              toast.success("Padrão aplicado.");
+            }}
             onApplyStyleToAllPages={applyStyleToAllPages}
             pageCount={totalPages}
             pageName={pages[safePage]?.name ?? ""}
@@ -1871,6 +2001,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                       onToggleLock={() => toggleLockPage(i)}
                       onDuplicate={(mode) => duplicatePage(i, mode)}
                       onDelete={() => setDeletePageIndex(i)}
+                      hasGroups={(cfg.productGroups ?? []).length > 0}
                     />
                     <div className="relative w-full">
                       {renderFull ? (
@@ -1941,11 +2072,15 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                                         ? (cfg.gridCols ?? 3)
                                         : 3;
                                 const rows = cfg.gridRows ?? 4;
-                                handleGroupDuplicate(i, {
-                                  rect: source.rect,
-                                  gridCols: sourceId ? source.gridCols : cols,
-                                  gridRows: sourceId ? source.gridRows : rows,
-                                });
+                                handleGroupDuplicate(
+                                  i,
+                                  {
+                                    rect: source.rect,
+                                    gridCols: sourceId ? source.gridCols : cols,
+                                    gridRows: sourceId ? source.gridRows : rows,
+                                  },
+                                  sourceId,
+                                );
                               }}
                               onGroupDelete={(groupId) =>
                                 setDeleteGroup({ pageIndex: i, groupId })
@@ -1999,7 +2134,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                                   variant="outline"
                                   onClick={() => {
                                     setCurrentPage(i);
-                                    setActiveTab("layout");
+                                    // Abre a aba "Fundo" — abria "Layout", que
+                                    // não é onde se escolhe o fundo.
+                                    setActiveTab("fundo");
                                     setPanelOpen(true);
                                   }}
                                 >

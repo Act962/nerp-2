@@ -88,10 +88,13 @@ export function CatalogCard({
 
   return (
     <>
-      <Card className="flex flex-col overflow-hidden">
+      {/* `h-full` + rodapé em `mt-auto`: a miniatura já tem proporção fixa, mas
+          o nome pode quebrar em duas linhas e empurrava o rodapé — os cartões da
+          grade ficavam com os botões em alturas diferentes. */}
+      <Card className="flex h-full flex-col overflow-hidden">
         <Link
           href={`/catalogo-promocional/${id}`}
-          className="block aspect-[3/4] bg-muted"
+          className="block aspect-[3/4] shrink-0 bg-muted"
         >
           {thumbnail ? (
             // biome-ignore lint/performance/noImgElement: miniatura em data URL
@@ -173,7 +176,7 @@ export function CatalogCard({
           </DropdownMenu>
         </div>
 
-        <CardFooter className="flex items-center gap-1 p-3 pt-1">
+        <CardFooter className="mt-auto flex items-center gap-1 p-3 pt-1">
           <Button asChild size="sm" className="flex-1">
             <Link href={`/catalogo-promocional/${id}`}>Editar</Link>
           </Button>

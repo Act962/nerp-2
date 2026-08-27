@@ -12,6 +12,7 @@ import { CardFreeLayout } from "./cards/card-free-layout";
 import { imageStyleFromAdjust } from "./cards/image-style";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { constructUrl } from "@/hooks/use-construct-url";
+import { sliceProductsByGroup } from "../lib/group-slices";
 import {
   type DynamicContext,
   resolveEntityImageKey,
@@ -58,13 +59,14 @@ interface CatalogPreviewProps {
 // Desenha uma FORMA (aba "Elementos") dentro do box do overlay. Preenche 100%
 // do box (a posição/rotação/opacidade ficam no wrapper). `frame` é transparente
 // e usa o contorno do wrapper como moldura.
-function renderOverlayShape(shape: NonNullable<Overlay["shape"]>, fill: string) {
+export function renderOverlayShape(
+  shape: NonNullable<Overlay["shape"]>,
+  fill: string,
+) {
   const box = { width: "100%", height: "100%" } as const;
   switch (shape) {
     case "circle":
-      return (
-        <div style={{ ...box, background: fill, borderRadius: "50%" }} />
-      );
+      return <div style={{ ...box, background: fill, borderRadius: "50%" }} />;
     case "rounded":
       return <div style={{ ...box, background: fill, borderRadius: "14%" }} />;
     case "line":
@@ -335,21 +337,27 @@ function renderGridChildren(
   cols: number,
   config: CatalogConfig,
   thumbSrcs: Record<string, string>,
+  // Espaçamento da grade em px — a fileira centralizada precisa do MESMO valor,
+  // senão os órfãos ficam fora do alinhamento das colunas de cima.
+  gap = 16,
 ) {
   const center = config.centerLastRow !== false;
   const rem = products.length % cols;
   const hasTail = center && cols > 1 && rem > 0 && products.length > cols;
   if (!hasTail) return products.map((p) => renderCard(p, config, thumbSrcs));
   const full = products.length - rem;
-  const colW = `calc((100% - ${(cols - 1) * 16}px) / ${cols})`;
+  const colW = `calc((100% - ${(cols - 1) * gap}px) / ${cols})`;
   return [
     ...products.slice(0, full).map((p) => renderCard(p, config, thumbSrcs)),
     <div
       key="__last-row-centered"
+      // Marcado para a camada de seleção conseguir achatar esta fileira ao
+      // medir os cards: sem isso ela conta o wrapper como se fosse UM card.
+      data-role="last-row"
       style={{
         gridColumn: "1 / -1",
         display: "grid",
-        gap: 16,
+        gap,
         gridTemplateColumns: `repeat(${rem}, ${colW})`,
         justifyContent: "center",
       }}
@@ -568,31 +576,63 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               <div
                 style={{
                   position: "absolute",
-                  bottom: Math.round(pageH * 0.03),
+                  // Colado no rodapé: 1% da altura (era 3%).
+                  bottom: Math.round(pageH * 0.01),
                   ...(pickWatermarkCorner(config, pageH) === "left"
-                    ? { left: Math.round(PAGE_W * 0.03) }
-                    : { right: Math.round(PAGE_W * 0.03) }),
-                  width: Math.round(PAGE_W * 0.24),
+                    ? { left: Math.round(PAGE_W * 0.02) }
+                    : { right: Math.round(PAGE_W * 0.02) }),
+                  // Linha única: texto e logo lado a lado. A largura passou a
+                  // ser do CONTEÚDO (o logo tem largura fixa abaixo) — com
+                  // largura fixa no contêiner, os dois não caberiam na mesma
+                  // linha depois da redução.
+                  display: "flex",
+                  alignItems: "center",
+                  gap: Math.round(PAGE_W * 0.005),
                   zIndex: 8,
                   opacity: 0.85,
                   pointerEvents: "none",
                 }}
               >
+                {/* Branco com sombra suave — sem ela o texto some num fundo
+                    claro, que é justamente onde a marca costuma cair. */}
+                <span
+                  style={{
+                    whiteSpace: "nowrap",
+                    color: "#ffffff",
+                    fontSize: Math.round(PAGE_W * 0.008),
+                    fontWeight: 500,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    textShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                  }}
+                >
+                  Desenvolvido por
+                </span>
                 {/* biome-ignore lint/performance/noImgElement: exportado via html-to-image */}
                 <img
                   src="/watermark-orbita.png"
                   alt=""
-                  style={{ width: "100%", height: "auto", display: "block" }}
+                  style={{
+                    // Metade do tamanho anterior (era 24% da largura da página).
+                    width: Math.round(PAGE_W * 0.12),
+                    height: "auto",
+                    display: "block",
+                  }}
                 />
               </div>
             )}
 
             {/* Camada de fundo (por página): cor/degradê + imagem, com
-                transparência. Fica atrás de todo o conteúdo. */}
+                transparência. Fica atrás de todo o conteúdo.
+                `zIndex: -2` abre um degrau ENTRE o fundo e o resto: uma forma
+                marcada como "atrás dos produtos" usa -1 e cai nesse vão. Sem
+                isso ela iria parar embaixo do próprio fundo e sumiria. Todo o
+                resto continua em `auto`, então a ordem de sempre é preservada. */}
             <div
               style={{
                 position: "absolute",
                 inset: 0,
+                zIndex: -2,
                 opacity:
                   config.backgroundOpacity != null
                     ? config.backgroundOpacity / 100
@@ -625,18 +665,22 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                 />
               )}
             </div>
-            {(config.showTitle !== false ||
-              (config.showSubtitle !== false && !!config.subtitle)) && (
+            {/* Título/subtítulo só ocupam espaço quando há TEXTO. Antes, o
+                cabeçalho era desenhado sempre que `showTitle` não fosse
+                explicitamente false — com o campo vazio sobrava um <h2> em
+                branco empurrando o conteúdo para baixo. */}
+            {((config.showTitle !== false && !!config.title?.trim()) ||
+              (config.showSubtitle !== false && !!config.subtitle?.trim())) && (
               <div className="mb-6 text-center shrink-0">
-                {config.showTitle !== false && (
+                {config.showTitle !== false && !!config.title?.trim() && (
                   <h2
                     className="text-2xl font-bold"
                     style={{ color: titleColor }}
                   >
-                    {config.title || "Promoções"}
+                    {config.title}
                   </h2>
                 )}
-                {config.showSubtitle !== false && config.subtitle && (
+                {config.showSubtitle !== false && !!config.subtitle?.trim() && (
                   <p
                     className="text-sm mt-1"
                     style={{ color: titleColor, opacity: 0.7 }}
@@ -652,41 +696,30 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               // próprio) com sua fatia de produtos (auto-split sequencial).
               (() => {
                 const groups = config.productGroups ?? [];
-                // Grupos NOMEADOS mostram os SEUS produtos (por pertencimento);
-                // grupos de capacidade (sem productIds) recebem a fatia dos NÃO
-                // agrupados. O último grupo recolhe qualquer sobra pra nada sumir.
-                const namedIds = new Set(
-                  groups.flatMap((g) => g.productIds ?? []),
-                );
-                const ungrouped = products.filter((p) => !namedIds.has(p.id));
-                let capIdx = 0;
+                // A regra de "quem está em qual grupo" mora em
+                // `lib/group-slices.ts` — a MESMA que a lateral da aba "Página"
+                // usa, para as duas nunca discordarem.
+                const slices = sliceProductsByGroup(groups, products);
                 return groups.map((g, gi) => {
                   const cols = Math.max(1, g.gridCols);
-                  const cap = cols * Math.max(1, g.gridRows);
-                  const isLast = gi === groups.length - 1;
-                  let slice: typeof products;
-                  if (g.productIds && g.productIds.length > 0) {
-                    const set = new Set(g.productIds);
-                    slice = products.filter((p) => set.has(p.id));
-                    if (isLast) slice = [...slice, ...ungrouped];
-                  } else {
-                    slice = isLast
-                      ? ungrouped.slice(capIdx)
-                      : ungrouped.slice(capIdx, capIdx + cap);
-                    capIdx += cap;
-                  }
+                  const slice = slices[gi] ?? [];
                   return (
+                    // Duas camadas de propósito: a de FORA é a região do grupo
+                    // (fundo, contorno, cantos) e a de DENTRO é a grade dos
+                    // cards. Antes era uma div só, então o fundo dependia de como
+                    // a grade se distribuía; agora ele cobre a região inteira,
+                    // até a borda, independente de quantos produtos há.
                     <div
                       key={g.id}
                       data-role="product-group"
                       data-group-id={g.id}
-                      className="grid gap-4"
                       style={{
                         position: "absolute",
                         left: g.rect.x,
                         top: g.rect.y,
                         width: g.rect.w,
                         minHeight: g.rect.h,
+                        boxSizing: "border-box",
                         background: g.bgColor
                           ? hexToRgba(g.bgColor, g.bgOpacity ?? 100)
                           : undefined,
@@ -695,11 +728,8 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                           (g.borderWidth ?? 0) > 0
                             ? `${g.borderWidth}px solid ${g.borderColor ?? "#000000"}`
                             : undefined,
-                        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-                        gridAutoRows: "minmax(min-content, 1fr)",
-                        // Proporção do grupo: escala os cards juntos, ancorada
-                        // no canto superior esquerdo (mesma convenção do modo
-                        // grupo-único). Ausente/1 = sem transform.
+                        // Proporção do grupo: escala tudo junto, ancorada no
+                        // canto superior esquerdo. Ausente/1 = sem transform.
                         ...(g.scale && g.scale !== 1
                           ? {
                               transform: `scale(${g.scale})`,
@@ -708,7 +738,25 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                           : {}),
                       }}
                     >
-                      {renderGridChildren(slice, cols, config, thumbSrcs)}
+                      <div
+                        data-role="group-grid"
+                        className="grid"
+                        style={{
+                          minHeight: "100%",
+                          gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                          gridAutoRows: "minmax(min-content, 1fr)",
+                          gap: g.gap ?? 16,
+                          padding: g.padding ?? 0,
+                        }}
+                      >
+                        {renderGridChildren(
+                          slice,
+                          cols,
+                          config,
+                          thumbSrcs,
+                          g.gap ?? 16,
+                        )}
+                      </div>
                     </div>
                   );
                 });
@@ -913,6 +961,9 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                     top: ov.y,
                     width: ov.w,
                     height: ov.h,
+                    // "Atrás dos produtos": cai no degrau entre o fundo (-2) e
+                    // todo o resto (auto). Ausente = na frente, como sempre.
+                    zIndex: ov.behindProducts ? -1 : undefined,
                     transform: transforms || undefined,
                     opacity: ov.opacity != null ? ov.opacity / 100 : undefined,
                     borderRadius: ov.radius ? ov.radius : undefined,

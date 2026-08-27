@@ -9,11 +9,27 @@ type ExportOptions = {
   totalPages: number;
   catalogName: string;
   pageSize: "square" | "story" | "portrait";
-  // Monta o layer de exportação (todas as páginas) e espera as imagens; e o
-  // desmonta ao terminar — para não manter os previews na memória.
-  prepareExport?: () => Promise<void>;
+  // Monta o layer de exportação e espera as imagens; desmonta ao terminar.
+  // Sem argumentos = todas as páginas; com `from`/`to` = só aquele lote, que é
+  // como o export de catálogo grande evita montar centenas de páginas juntas.
+  prepareExport?: (from?: number, to?: number) => Promise<void>;
   finishExport?: () => void;
 };
+
+// Páginas por lote de exportação. Cada lote é montado, capturado, desmontado —
+// e vira UM arquivo. Dois limites justificam isso: a memória do DOM ao montar
+// as páginas, e o tamanho do arquivo final (cada página vira um PNG de ~2400px
+// de largura, então um catálogo de centenas de páginas passaria de 1 GB num
+// zip/PDF só).
+//
+// Catálogo com até EXPORT_BATCH páginas segue pelo caminho antigo: um arquivo,
+// mesmo nome de sempre.
+const EXPORT_BATCH = 25;
+
+// Rótulo do lote no nome do arquivo: "001-025".
+function batchLabel(from: number, to: number, pad: number): string {
+  return `${String(from + 1).padStart(pad, "0")}-${String(to).padStart(pad, "0")}`;
+}
 
 // 1×1 PNG REALMENTE transparente — fallback para imagens que falham (404/CORS).
 // (O valor antigo era um pixel verde rgba(0,255,0,.5): imagem que não embutia
@@ -87,27 +103,43 @@ export function useExport({
         return;
       }
 
-      await prepareExport?.();
       const { zipSync } = await import("fflate");
-      const files: Record<string, Uint8Array> = {};
       const pad = String(totalPages).length;
+      const emLotes = totalPages > EXPORT_BATCH;
 
-      for (let i = 0; i < totalPages; i++) {
-        const el = allPageRefs.current[i];
-        if (!el) continue;
-        const dataUrl = await captureEl(el);
-        const base64 = dataUrl.split(",")[1] ?? "";
-        files[`${catalogName}-pagina-${String(i + 1).padStart(pad, "0")}.png`] =
-          base64ToBytes(base64);
+      for (let from = 0; from < totalPages; from += EXPORT_BATCH) {
+        const to = Math.min(from + EXPORT_BATCH, totalPages);
+        await prepareExport?.(from, to);
+
+        const files: Record<string, Uint8Array> = {};
+        for (let i = from; i < to; i++) {
+          const el = allPageRefs.current[i];
+          if (!el) continue;
+          const dataUrl = await captureEl(el);
+          const base64 = dataUrl.split(",")[1] ?? "";
+          files[
+            `${catalogName}-pagina-${String(i + 1).padStart(pad, "0")}.png`
+          ] = base64ToBytes(base64);
+        }
+
+        const zipped = zipSync(files, { level: 0 });
+        const blob = new Blob([zipped as BlobPart], {
+          type: "application/zip",
+        });
+        const url = URL.createObjectURL(blob);
+        triggerDownload(
+          url,
+          emLotes
+            ? `${catalogName}-paginas-${batchLabel(from, to, pad)}.zip`
+            : `${catalogName}.zip`,
+        );
+        URL.revokeObjectURL(url);
+
+        // Desmonta o lote ANTES de montar o próximo — é o que mantém o pico de
+        // memória no tamanho de um lote em vez do catálogo inteiro.
+        finishExport?.();
+        if (emLotes) toast.info(`Exportando ${to}/${totalPages} páginas…`);
       }
-
-      const zipped = zipSync(files, { level: 0 });
-      const blob = new Blob([zipped as BlobPart], {
-        type: "application/zip",
-      });
-      const url = URL.createObjectURL(blob);
-      triggerDownload(url, `${catalogName}.zip`);
-      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("Erro ao exportar PNG:", err);
       toast.error("Erro ao gerar PNG. Tente novamente.");
@@ -120,44 +152,61 @@ export function useExport({
   async function exportAsPdf() {
     setIsExporting(true);
     try {
-      await prepareExport?.();
       const { jsPDF } = await import("jspdf");
-
       const pxToMm = (px: number) => px * 0.264583;
-      let pdf: InstanceType<typeof jsPDF> | null = null;
+      const pad = String(totalPages).length;
+      const emLotes = totalPages > EXPORT_BATCH;
 
-      for (let i = 0; i < totalPages; i++) {
-        const el = allPageRefs.current[i];
-        if (!el) continue;
+      for (let from = 0; from < totalPages; from += EXPORT_BATCH) {
+        const to = Math.min(from + EXPORT_BATCH, totalPages);
+        await prepareExport?.(from, to);
 
-        const dataUrl = await captureEl(el);
+        // Um PDF POR LOTE: além da memória do DOM, um único PDF com centenas de
+        // páginas em ~2400px passaria de 1 GB dentro da aba.
+        let pdf: InstanceType<typeof jsPDF> | null = null;
 
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve();
-          img.onerror = () =>
-            reject(new Error(`Falha ao carregar página ${i + 1}`));
-        });
+        for (let i = from; i < to; i++) {
+          const el = allPageRefs.current[i];
+          if (!el) continue;
 
-        // Tamanho FÍSICO pelo px de layout (offsetWidth), não pela captura
-        // (que agora vem multiplicada pelo pixelRatio). Mantém a página do
-        // mesmo tamanho, com a imagem de alta-res enchendo em DPI maior.
-        const wMm = pxToMm(el.offsetWidth || img.naturalWidth || img.width);
-        const hMm = pxToMm(el.offsetHeight || img.naturalHeight || img.height);
-        const orientation = wMm > hMm ? "landscape" : "portrait";
+          const dataUrl = await captureEl(el);
 
-        if (!pdf) {
-          pdf = new jsPDF({ orientation, unit: "mm", format: [wMm, hMm] });
-        } else {
-          pdf.addPage([wMm, hMm], orientation);
+          const img = new Image();
+          img.src = dataUrl;
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => resolve();
+            img.onerror = () =>
+              reject(new Error(`Falha ao carregar página ${i + 1}`));
+          });
+
+          // Tamanho FÍSICO pelo px de layout (offsetWidth), não pela captura
+          // (que agora vem multiplicada pelo pixelRatio). Mantém a página do
+          // mesmo tamanho, com a imagem de alta-res enchendo em DPI maior.
+          const wMm = pxToMm(el.offsetWidth || img.naturalWidth || img.width);
+          const hMm = pxToMm(
+            el.offsetHeight || img.naturalHeight || img.height,
+          );
+          const orientation = wMm > hMm ? "landscape" : "portrait";
+
+          if (!pdf) {
+            pdf = new jsPDF({ orientation, unit: "mm", format: [wMm, hMm] });
+          } else {
+            pdf.addPage([wMm, hMm], orientation);
+          }
+
+          pdf.addImage(dataUrl, "PNG", 0, 0, wMm, hMm);
         }
 
-        pdf.addImage(dataUrl, "PNG", 0, 0, wMm, hMm);
-      }
+        if (pdf) {
+          pdf.save(
+            emLotes
+              ? `${catalogName}-${batchLabel(from, to, pad)}.pdf`
+              : `${catalogName}.pdf`,
+          );
+        }
 
-      if (pdf) {
-        pdf.save(`${catalogName}.pdf`);
+        finishExport?.();
+        if (emLotes) toast.info(`Exportando ${to}/${totalPages} páginas…`);
       }
     } catch (err) {
       console.error("Erro ao exportar PDF:", err);
@@ -172,7 +221,9 @@ export function useExport({
   async function exportPageAsPng(pageIndex: number) {
     setIsExporting(true);
     try {
-      await prepareExport?.();
+      // Só a página pedida — montar o catálogo inteiro para capturar uma
+      // página é desperdício, e inviável num catálogo grande.
+      await prepareExport?.(pageIndex, pageIndex + 1);
       const el = allPageRefs.current[pageIndex];
       if (!el) {
         toast.error("Página não encontrada.");
@@ -196,7 +247,9 @@ export function useExport({
   async function printPage(pageIndex: number) {
     setIsExporting(true);
     try {
-      await prepareExport?.();
+      // Só a página pedida — montar o catálogo inteiro para capturar uma
+      // página é desperdício, e inviável num catálogo grande.
+      await prepareExport?.(pageIndex, pageIndex + 1);
       const el = allPageRefs.current[pageIndex];
       if (!el) {
         toast.error("Página não encontrada.");
@@ -247,7 +300,9 @@ export function useExport({
   async function exportPageAsPdf(pageIndex: number) {
     setIsExporting(true);
     try {
-      await prepareExport?.();
+      // Só a página pedida — montar o catálogo inteiro para capturar uma
+      // página é desperdício, e inviável num catálogo grande.
+      await prepareExport?.(pageIndex, pageIndex + 1);
       const el = allPageRefs.current[pageIndex];
       if (!el) {
         toast.error("Página não encontrada.");

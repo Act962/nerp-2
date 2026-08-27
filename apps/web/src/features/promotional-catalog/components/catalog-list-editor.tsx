@@ -8,7 +8,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import {
@@ -71,6 +71,7 @@ import {
   normalizeCode,
 } from "../lib/product-match";
 import { ProductNameSearch, type PickedProduct } from "./product-name-search";
+import { groupIdByProduct, removeFromOtherGroups } from "../lib/group-slices";
 import { applyProductPrice, ProductPhotoButton } from "./config-panel";
 import { CatalogListWizard, type WizardResult } from "./catalog-list-wizard";
 import {
@@ -162,6 +163,11 @@ function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+// Teto de upload da aba "Lista". O servidor corta em ~8,5 MB
+// (`base64.max(12_000_000)` em `extract-offers-from-file.ts`), então subir este
+// número aqui sem mexer lá só troca uma rejeição silenciosa por um erro 400.
+const MAX_UPLOAD_MB = 8;
 
 // Máx. de produtos por página = maior nº de itens de um mesmo cliente.
 function maxPerClient(items: CatalogListItem[]): number {
@@ -462,7 +468,20 @@ export function CatalogListEditor({
 
   // ── Importar arquivo (planilha → mapeamento; PDF/imagem → IA). ADICIONA à
   // lista existente (não substitui) — botão "Adicionar nova planilha". ──
-  const onDrop = async (accepted: File[]) => {
+  const onDrop = async (accepted: File[], rejected: FileRejection[] = []) => {
+    // Sem isto o arquivo grande demais some SEM MENSAGEM: o dropzone manda a
+    // rejeição por este segundo argumento, que era ignorado. Foi o que fez um
+    // encarte de 108 MB "não acontecer nada" ao ser solto aqui.
+    const rej = rejected[0];
+    if (rej) {
+      const tooBig = rej.errors.some((e) => e.code === "file-too-large");
+      toast.error(
+        tooBig
+          ? `Arquivo grande demais (máx. ${MAX_UPLOAD_MB} MB). Para um encarte extenso, use uma planilha ou divida o PDF.`
+          : "Formato não aceito. Envie .xlsx, .csv, .pdf ou .jpg.",
+      );
+      return;
+    }
     const file = accepted[0];
     if (!file) return;
     const isSheet =
@@ -519,7 +538,7 @@ export function CatalogListEditor({
     noKeyboard: true,
     multiple: false,
     maxFiles: 1,
-    maxSize: 8 * 1024 * 1024,
+    maxSize: MAX_UPLOAD_MB * 1024 * 1024,
     accept: {
       "text/csv": [".csv"],
       "application/vnd.ms-excel": [".csv", ".xls"],
@@ -766,14 +785,60 @@ export function CatalogListEditor({
       })
       .filter((r): r is Row => r != null);
     if (activeGroups.length === 0) return rows;
+    // Mesma regra do canvas e da aba "Página" (`sliceProductsByGroup`): antes
+    // daqui a Lista casava por `productIds` cru, então um produto que o canvas
+    // desenha dentro do grupo pela regra da sobra ficava sem divisória e ia
+    // parar no fim da tabela.
+    const dono = groupIdByProduct(
+      activeGroups,
+      rows.map((r) => ({ id: r.id })),
+    );
+    const ordem = new Map(activeGroups.map((g, i) => [g.id, i]));
     const rankOf = (id: string) => {
-      const i = activeGroups.findIndex((g) => g.productIds?.includes(id));
+      const gid = dono.get(id);
+      const i = gid ? (ordem.get(gid) ?? -1) : -1;
       return i < 0 ? Number.POSITIVE_INFINITY : i;
     };
     return [...rows].sort((a, b) => rankOf(a.id) - rankOf(b.id));
   }, [visibleIds, listItemById, productById, activeGroups]);
-  const groupNameOf = (id: string) =>
-    activeGroups.find((g) => g.productIds?.includes(id))?.name;
+  // Move a linha para um grupo — mesma semântica do seletor da aba "Página":
+  // entra no escolhido e SAI dos demais, senão apareceria em dois lugares.
+  const setRowGroup = (rowId: string, groupId: string) => {
+    const grupos = config.productGroups ?? [];
+    if (grupos.length === 0) return;
+    const comOId = grupos.map((g) =>
+      g.id === groupId && g.productIds !== undefined
+        ? { ...g, productIds: [...new Set([...g.productIds, rowId])] }
+        : g,
+    );
+    onConfigChange({
+      productGroups: groupId
+        ? removeFromOtherGroups(comOId, [rowId], groupId)
+        : grupos.map((g) =>
+            g.productIds
+              ? { ...g, productIds: g.productIds.filter((x) => x !== rowId) }
+              : g,
+          ),
+    });
+  };
+
+  // Grupo que EXIBE cada linha — idem: mesma regra do canvas.
+  const groupOwner = useMemo(
+    () =>
+      groupIdByProduct(
+        activeGroups,
+        visibleIds.map((id) => ({ id })),
+      ),
+    [activeGroups, visibleIds],
+  );
+  const groupNameOf = (id: string) => {
+    const gid = groupOwner.get(id);
+    if (!gid) return undefined;
+    const i = activeGroups.findIndex((g) => g.id === gid);
+    if (i < 0) return undefined;
+    // Grupo sem nome ainda recebe rótulo — a divisória nunca some.
+    return activeGroups[i].name?.trim() || `Grupo ${i + 1}`;
+  };
 
   // ── Render: SEMPRE a tabela (vazia ou não) + modal de mapeamento ──
   let lastClient = "";
@@ -1153,9 +1218,10 @@ export function CatalogListEditor({
                 const showClientDivider = it ? it.client !== lastClient : false;
                 if (it) lastClient = it.client;
                 // Divisor por GRUPO (nome do grupo + os produtos dele abaixo).
-                const gId =
-                  activeGroups.find((g) => g.productIds?.includes(row.id))
-                    ?.id ?? "__none__";
+                // Mesma regra do canvas (`groupOwner`), não o `productIds` cru:
+                // senão uma linha exibida no grupo pela regra da sobra abriria
+                // um divisor "Sem grupo" no meio da tabela.
+                const gId = groupOwner.get(row.id) ?? "__none__";
                 const showGroupDivider =
                   activeGroups.length > 0 && gId !== lastGroupId;
                 lastGroupId = gId;
@@ -1263,17 +1329,39 @@ export function CatalogListEditor({
                         )}
                         {showCol("client") && <TableCell className="p-1" />}
                         <TableCell className="p-1">
-                          {prod && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-8 w-8 text-destructive"
-                              title="Remover da página"
-                              onClick={() => removeManual(prod.id)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                          <div className="flex items-center justify-end gap-1">
+                            {/* Grupo da linha — o mesmo seletor da aba
+                                "Página". Antes a Lista só mostrava a divisória,
+                                sem como mudar o grupo sem sair da aba. */}
+                            {activeGroups.length > 0 && (
+                              <select
+                                value={groupOwner.get(row.id) ?? ""}
+                                onChange={(e) =>
+                                  setRowGroup(row.id, e.target.value)
+                                }
+                                title="Grupo do produto"
+                                className="h-7 max-w-[104px] rounded-md border bg-background px-1 text-[11px] text-muted-foreground"
+                              >
+                                <option value="">Sem grupo</option>
+                                {activeGroups.map((g, i) => (
+                                  <option key={g.id} value={g.id}>
+                                    {g.name?.trim() || `Grupo ${i + 1}`}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {prod && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-destructive"
+                                title="Remover da página"
+                                onClick={() => removeManual(prod.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ) : it ? (
