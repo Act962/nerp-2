@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -608,6 +609,32 @@ export function EditProductForm() {
                       />
                     )}
                   />
+                </div>
+
+                {/* Status no ERP — SOMENTE LEITURA. Quem manda nele é o
+                    Oracle: um switch editável mentiria, porque o próximo sync
+                    desfaria a edição. É informação, não controle. */}
+                <div className="rounded-md border bg-muted/30 p-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm">Status no ERP</span>
+                    {product.erpActive === null ||
+                    product.erpActive === undefined ? (
+                      <Badge variant="secondary">Nunca sincronizado</Badge>
+                    ) : product.erpActive ? (
+                      <Badge className="bg-green-500 text-green-50">
+                        Ativo no ERP
+                      </Badge>
+                    ) : (
+                      <Badge variant="destructive">Inativo no ERP</Badge>
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {product.erpSyncedAt
+                      ? `Código ${product.erpCode ?? "—"} · sincronizado em ${new Date(
+                          product.erpSyncedAt,
+                        ).toLocaleString("pt-BR")}`
+                      : "Vem do cadastro do ERP; não é editável aqui."}
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between">

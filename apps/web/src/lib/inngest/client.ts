@@ -183,6 +183,14 @@ export const shopperPriceChanged = eventType("shopper/price.changed", {
 export type ErpSyncRequestedData = {
   organizationId: string;
   windowDays?: number;
+  // Sincronizar também o CADASTRO DE PRODUTOS. Fora por padrão: o cron de 15
+  // minutos cuida de vendas, e ler milhares de produtos nessa cadência seria
+  // desperdício. Ligado na passada diária e no botão "Sincronizar agora".
+  syncProducts?: boolean;
+  /** Conta o que o sync de produtos faria, sem gravar. */
+  dryRunProducts?: boolean;
+  /** Cria no cadastro local o que só existe no ERP. Ver `syncErpProducts`. */
+  createProducts?: boolean;
 };
 
 export const erpSyncRequested = eventType("erp/sync.requested", {

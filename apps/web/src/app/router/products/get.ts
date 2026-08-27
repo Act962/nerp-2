@@ -37,6 +37,11 @@ const productOutputSchema = z.object({
   isActive: z.boolean(),
   isFeatured: z.boolean(),
   trackStock: z.boolean(),
+  // Espelho do ERP — somente leitura na UI. `null` = nunca sincronizado, que é
+  // diferente de "inativo no ERP" (`false`).
+  erpActive: z.boolean().nullable(),
+  erpCode: z.string().nullable(),
+  erpSyncedAt: z.date().nullable(),
   prepTimeMinutes: z.number().nullable(),
   supplierId: z.string().nullable(),
   // Cadastro fiscal (Fase B) — todos opcionais.

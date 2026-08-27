@@ -25,8 +25,12 @@ export function useRunErpSync() {
   const queryClient = useQueryClient();
   return useMutation(
     orpc.erpSync.run.mutationOptions({
-      onSuccess: () => {
-        toast.success("Sincronização iniciada");
+      onSuccess: (_data, variables) => {
+        toast.success(
+          variables.dryRunProducts
+            ? "Simulação iniciada — nada será gravado"
+            : "Sincronização iniciada",
+        );
         // O status muda primeiro (vira "sincronizando"); o ranking só depois que
         // o job terminar, mas invalidar os dois deixa a tela reagir sozinha.
         queryClient.invalidateQueries({ queryKey: orpc.erpSync.key() });

@@ -1,3 +1,4 @@
+import z from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
@@ -7,6 +8,38 @@ import prisma from "@/lib/db";
 // morreu sem limpar `syncStartedAt`. Sem esse corte o botão ficaria desabilitado
 // para sempre.
 const SYNC_STUCK_AFTER_MS = 15 * 60 * 1000;
+
+/**
+ * O relatório é `Json` no banco, então pode ser qualquer coisa — inclusive uma
+ * versão antiga do formato. Valida antes de mandar para a tela: um campo a
+ * menos aqui viraria "undefined" no meio de uma contagem.
+ */
+const productSyncReportSchema = z.object({
+  read: z.number(),
+  updated: z.number(),
+  created: z.number(),
+  skippedNoBarcode: z.number(),
+  skippedInvalidBarcode: z.number(),
+  createSkipped: z.number(),
+  duplicatesInSource: z.number(),
+  failed: z.number(),
+  dryRun: z.boolean(),
+});
+
+function parseProductSyncReport(
+  raw: unknown,
+  at: Date | null,
+  dryRun: boolean | null,
+) {
+  const parsed = productSyncReportSchema.safeParse(raw);
+  if (!parsed.success || !at) return null;
+  return {
+    ...parsed.data,
+    at: at.toISOString(),
+    // A coluna é a fonte: o JSON pode ser de um formato anterior.
+    dryRun: dryRun ?? parsed.data.dryRun,
+  };
+}
 
 export const getErpSyncStatus = base
   .use(requireAuthMiddleware)
@@ -26,6 +59,9 @@ export const getErpSyncStatus = base
         syncStartedAt: true,
         lastSyncAt: true,
         lastSyncError: true,
+        productSyncAt: true,
+        productSyncDryRun: true,
+        productSyncReport: true,
       },
     });
 
@@ -63,5 +99,10 @@ export const getErpSyncStatus = base
       activeSellers: sellers,
       factRows: facts,
       lastFactDate: lastFact?.date.toISOString().slice(0, 10) ?? null,
+      productSync: parseProductSyncReport(
+        connection.productSyncReport,
+        connection.productSyncAt,
+        connection.productSyncDryRun,
+      ),
     };
   });

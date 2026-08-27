@@ -27,6 +27,16 @@ export const runErpSyncNow = base
     z.object({
       // Janela maior para recuperar mudança tardia sem esperar a passada noturna.
       windowDays: z.number().int().min(1).max(365).optional(),
+      // O botão manual TAMBÉM sincroniza o cadastro de produtos: quem clica ali
+      // quer o espelho em dia, não só as vendas. Default true.
+      syncProducts: z.boolean().default(true),
+      // Relatório: conta o que o sync de produtos faria, sem gravar. Criar
+      // produto é irreversível na prática, então vale rodar assim primeiro.
+      dryRunProducts: z.boolean().optional(),
+      // Traz para o cadastro local o que só existe no ERP. Default DESLIGADO: o
+      // cadastro do Oracle é bem maior que o de venda, então isso é um backfill
+      // deliberado, não algo que uma sincronização de rotina deva fazer.
+      createProducts: z.boolean().default(false),
     }),
   )
   .handler(async ({ input, context, errors }) => {
@@ -65,6 +75,9 @@ export const runErpSyncNow = base
         erpSyncRequested.create({
           organizationId: context.org.id,
           windowDays: input.windowDays,
+          syncProducts: input.syncProducts,
+          dryRunProducts: input.dryRunProducts,
+          createProducts: input.createProducts,
         }),
       );
     } catch (error) {
