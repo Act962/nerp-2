@@ -1,7 +1,19 @@
 "use client";
 
 import { useState, useDeferredValue, useEffect } from "react";
-import { Plus, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Plus,
+  Search,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  ShoppingBag,
+  Trash2,
+  X,
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,6 +62,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // Página pequena: nunca despeja a lista inteira de produtos no diálogo.
 const PAGE_SIZE = 8;
 
+type SortKey = "name-asc" | "name-desc" | "price-asc" | "price-desc" | "recent";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  "name-asc": "Nome (A-Z)",
+  "name-desc": "Nome (Z-A)",
+  "price-asc": "Menor preço",
+  "price-desc": "Maior preço",
+  recent: "Mais recentes",
+};
+
 interface AddProductDialogProps {
   config: CatalogConfig;
   onConfigChange: (changes: Partial<CatalogConfig>) => void;
@@ -87,6 +109,9 @@ interface AddProductRowProps {
     name: string;
     sku: string;
     salePrice: number;
+    promotionalPrice: number | null;
+    currentStock: number;
+    trackStock: boolean;
     image: string;
   };
   added: boolean;
@@ -94,6 +119,10 @@ interface AddProductRowProps {
   // Modo "vincular" (bloco de estilo): sempre permite escolher, mesmo que o
   // produto já esteja no catálogo — o clique (re)liga o produto ao bloco.
   binding: boolean;
+  // Multisseleção. Ausente = linha sem caixa de marcação (modo vincular, em que
+  // escolher vários não faz sentido).
+  selected?: boolean;
+  onToggleSelected?: (id: string) => void;
   onAdd: (id: string, prices: { de: number; por: number | null }) => void;
   // Clique na foto → abre o editor (opcional). Ausente = foto não clicável.
   onEditPhoto?: (
@@ -102,17 +131,33 @@ interface AddProductRowProps {
   ) => void;
 }
 
-// Linha do produto na busca: "De R$ / Por R$" editáveis para adição rápida.
+const brl = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
+
+// Linha do produto na busca.
+//
+// Os preços aparecem prontos ("De" riscado, valor em destaque, tarja de
+// promoção) e viram campos ao clicar. A edição já existia e continua ali: ela é
+// o que permite fixar um preço só para este catálogo na hora de adicionar —
+// esconder atrás de um clique tira o ruído de duas caixas de texto por linha
+// sem tirar o recurso.
 function AddProductRow({
   product,
   added,
   saving,
   binding,
+  selected,
+  onToggleSelected,
   onAdd,
   onEditPhoto,
 }: AddProductRowProps) {
   const [de, setDe] = useState<string>(String(product.salePrice));
-  const [por, setPor] = useState<string>("");
+  const [por, setPor] = useState<string>(
+    product.promotionalPrice != null ? String(product.promotionalPrice) : "",
+  );
+  const [editing, setEditing] = useState(false);
 
   const prices = () => ({
     de: Number(de),
@@ -128,13 +173,30 @@ function AddProductRow({
       : constructUrl(product.image)
     : null;
 
+  const promo = product.promotionalPrice;
+  const temPromo = promo != null && promo > 0 && promo < product.salePrice;
+  const emEstoque = !product.trackStock || product.currentStock > 0;
+
   return (
-    <div className="flex flex-col gap-1.5 rounded px-2 py-2 hover:bg-muted">
-      <div className="flex items-center justify-between gap-2">
+    <div
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border p-2.5 transition-colors",
+        selected ? "border-primary/50 bg-primary/5" : "hover:bg-muted/50",
+      )}
+    >
+      <div className="flex items-center gap-3">
+        {onToggleSelected && (
+          <Checkbox
+            checked={!!selected}
+            onCheckedChange={() => onToggleSelected(product.id)}
+            aria-label={`Selecionar ${product.name}`}
+            className="shrink-0"
+          />
+        )}
         {/* Preview da foto — clique abre o editor do produto (como na Página) */}
         <button
           type="button"
-          className="relative size-11 shrink-0 overflow-hidden rounded-md border bg-muted"
+          className="relative size-14 shrink-0 overflow-hidden rounded-md border bg-background"
           title={onEditPhoto ? "Editar produto (foto/etiqueta)" : product.name}
           disabled={!onEditPhoto}
           onClick={() => onEditPhoto?.(product.id, prices())}
@@ -150,26 +212,69 @@ function AddProductRow({
             <ImageIcon className="absolute inset-0 m-auto h-4 w-4 text-muted-foreground/50" />
           )}
         </button>
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span className="truncate text-sm">{product.name}</span>
-          <span className="text-xs text-muted-foreground">
-            {product.sku || "sem SKU"}
-          </span>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="truncate font-medium text-sm">{product.name}</span>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-muted-foreground text-xs">
+              SKU: {product.sku || "—"}
+            </span>
+            <Badge
+              variant="outline"
+              className={cn(
+                "px-1.5 py-0 font-normal text-[10px]",
+                emEstoque
+                  ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                  : "border-amber-500/40 text-amber-600 dark:text-amber-400",
+              )}
+            >
+              {emEstoque ? "Em estoque" : "Sem estoque"}
+            </Badge>
+          </div>
         </div>
+
+        {/* Preços: leitura por padrão, clique abre a edição. */}
+        <button
+          type="button"
+          className="flex shrink-0 flex-col items-end rounded px-1.5 py-1 text-right hover:bg-muted"
+          title="Ajustar os preços deste catálogo"
+          onClick={() => setEditing((v) => !v)}
+        >
+          {temPromo && (
+            <span className="text-muted-foreground text-xs line-through">
+              De {brl.format(product.salePrice)}
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <span className="font-semibold text-sm tabular-nums">
+              {brl.format(temPromo ? (promo as number) : product.salePrice)}
+            </span>
+            {temPromo && (
+              <Badge
+                variant="secondary"
+                className="px-1.5 py-0 font-normal text-[10px]"
+              >
+                promo
+              </Badge>
+            )}
+          </span>
+        </button>
+
         <Button
           type="button"
-          variant={isAdded ? "secondary" : "outline"}
+          variant={isAdded ? "secondary" : "default"}
           size="sm"
-          className="ml-2 shrink-0"
+          className="shrink-0 gap-1.5"
           disabled={isAdded || saving}
           onClick={submit}
         >
+          {!isAdded && <Plus className="h-4 w-4" />}
           {isAdded ? "Adicionado" : "Adicionar"}
         </Button>
       </div>
 
-      {!isAdded && (
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+      {editing && !isAdded && (
+        <div className="flex items-center gap-3 border-t pt-2 text-muted-foreground text-xs">
           <span className="flex items-center gap-1">
             De R$
             <Input
@@ -193,6 +298,9 @@ function AddProductRow({
               onChange={(e) => setPor(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && submit()}
             />
+          </span>
+          <span className="text-[11px]">
+            "De" vale só neste catálogo; "Por" grava no cadastro do produto.
           </span>
         </div>
       )}
@@ -231,19 +339,36 @@ export function AddProductDialog({
   const setFilter = (patch: Partial<NonNullable<ProductFilters>>) =>
     setFilters((f) => ({ ...f, ...patch }));
   const nFiltros = activeFilterCount(filters);
-  // Resumo fora do popover: sem ele, o dev liga um filtro, o produto some da
-  // busca e parece que o cadastro está errado.
-  const resumoFiltros = [
-    filters.onlyActive ? "só ativos" : null,
-    filters.withImage ? "com foto" : null,
-    filters.withPromotion ? "com promoção" : null,
-    filters.inOnlineCatalog ? "no catálogo online" : null,
-    filters.minPrice !== undefined || filters.maxPrice !== undefined
-      ? `R$ ${filters.minPrice ?? 0}–${filters.maxPrice ?? "∞"}`
-      : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // Fichas fora do popover: sem elas, o dev liga um filtro, o produto some da
+  // busca e parece que o cadastro está errado. Cada uma desliga o seu filtro no
+  // lugar — antes era um texto corrido, que dizia o que estava ligado mas
+  // obrigava a reabrir o popover para desligar.
+  const fichasFiltro: { label: string; clear: () => void }[] = [];
+  if (filters.onlyActive)
+    fichasFiltro.push({
+      label: "Só ativos",
+      clear: () => setFilter({ onlyActive: false }),
+    });
+  if (filters.withImage)
+    fichasFiltro.push({
+      label: "Com foto",
+      clear: () => setFilter({ withImage: false }),
+    });
+  if (filters.withPromotion)
+    fichasFiltro.push({
+      label: "Com promoção",
+      clear: () => setFilter({ withPromotion: false }),
+    });
+  if (filters.inOnlineCatalog)
+    fichasFiltro.push({
+      label: "No catálogo online",
+      clear: () => setFilter({ inOnlineCatalog: false }),
+    });
+  if (filters.minPrice !== undefined || filters.maxPrice !== undefined)
+    fichasFiltro.push({
+      label: `R$ ${filters.minPrice ?? 0}–${filters.maxPrice ?? "∞"}`,
+      clear: () => setFilter({ minPrice: undefined, maxPrice: undefined }),
+    });
   // Grupo de destino do produto adicionado. Começa no grupo selecionado na
   // página; sem seleção, no último — que é o que o render já fazia sozinho.
   const gruposNomeados = (config.productGroups ?? []).filter(
@@ -258,6 +383,19 @@ export function AddProductDialog({
   const deferredSearch = useDeferredValue(search);
   // Filtro por categoria (slug). "" = todas.
   const [categorySlug, setCategorySlug] = useState<string>("");
+  const [sort, setSort] = useState<SortKey>("name-asc");
+  // Guarda o produto inteiro, não só o id: a seleção sobrevive à troca de
+  // página, e ao adicionar em lote é preciso o preço de quem já saiu da tela.
+  const [selected, setSelected] = useState<
+    Map<string, { id: string; salePrice: number }>
+  >(new Map());
+  const toggleSelected = (id: string, salePrice: number) =>
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (next.has(id)) next.delete(id);
+      else next.set(id, { id, salePrice });
+      return next;
+    });
   const priceMutation = useUpdateProductPrice();
   const { cursor, pageIndex, hasPrevious, goNext, goPrevious, reset } =
     useCursorPagination();
@@ -272,7 +410,7 @@ export function AddProductDialog({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset ao mudar busca/categoria/abrir
   useEffect(() => {
     reset();
-  }, [deferredSearch, categorySlug, filters, open, reset]);
+  }, [deferredSearch, categorySlug, filters, sort, open, reset]);
 
   const { data, isLoading, isFetching } = useQuery(
     orpc.products.list.queryOptions({
@@ -282,6 +420,7 @@ export function AddProductDialog({
         search: deferredSearch || undefined,
         category: categorySlug ? [categorySlug] : undefined,
         filters,
+        sort,
         cursor,
       },
       enabled: open,
@@ -313,15 +452,29 @@ export function AddProductDialog({
   const alreadyAdded = new Set(config.manuallyAddedIds);
   const excludedSet = new Set(config.excludedProductIds);
 
-  const handleAdd = (
-    id: string,
-    salePrice: number,
-    prices: { de: number; por: number | null },
-  ) => {
+  interface AddEntry {
+    id: string;
+    salePrice: number;
+    prices: { de: number; por: number | null };
+  }
+
+  /**
+   * Monta UMA mudança de config para todos os produtos de uma vez.
+   *
+   * Chamar `onConfigChange` em laço não funcionaria: cada chamada parte do
+   * `config` que veio por prop, que só é atualizado no render seguinte — o
+   * último produto apagaria os anteriores.
+   */
+  const buildAddChanges = (entries: AddEntry[]): Partial<CatalogConfig> => {
+    const ids = entries.map((e) => e.id);
     const changes: Partial<CatalogConfig> = {
       // Set evita id duplicado ao re-adicionar um produto que era fantasma.
-      manuallyAddedIds: Array.from(new Set([...config.manuallyAddedIds, id])),
-      excludedProductIds: config.excludedProductIds.filter((eid) => eid !== id),
+      manuallyAddedIds: Array.from(
+        new Set([...config.manuallyAddedIds, ...ids]),
+      ),
+      excludedProductIds: config.excludedProductIds.filter(
+        (eid) => !ids.includes(eid),
+      ),
     };
 
     const grupos = config.productGroups ?? [];
@@ -331,7 +484,7 @@ export function AddProductDialog({
       // "Hortifruti", "Mercearia" etc., e cada recorte tira do Geral.
       changes.productGroups = [
         buildGeneralGroup({
-          productIds: [...new Set([...pageProductIds, id])],
+          productIds: [...new Set([...pageProductIds, ...ids])],
           gridCols: config.gridCols ?? 3,
           gridRows: config.gridRows ?? 4,
           region: config.productGroup,
@@ -351,30 +504,54 @@ export function AddProductDialog({
       changes.productGroups = removeFromOtherGroups(
         grupos.map((g) =>
           g.id === grupoDestino && g.productIds !== undefined
-            ? { ...g, productIds: [...new Set([...g.productIds, id])] }
+            ? { ...g, productIds: [...new Set([...g.productIds, ...ids])] }
             : g,
         ),
-        [id],
+        ids,
         grupoDestino,
       );
     } else {
-      // Sem grupo nomeado elegível: mantém a regra de sobra de sempre.
-      const adopted = withProductAdopted(grupos, id);
-      if (adopted) changes.productGroups = adopted;
+      // Sem grupo nomeado elegível: mantém a regra de sobra de sempre, produto
+      // a produto, encadeando o resultado de cada adoção na próxima.
+      let atual = grupos;
+      let mudou = false;
+      for (const id of ids) {
+        const adopted = withProductAdopted(atual, id);
+        if (adopted) {
+          atual = adopted;
+          mudou = true;
+        }
+      }
+      if (mudou) changes.productGroups = atual;
     }
 
     // "De": preço normal exibido SÓ neste catálogo (override), só se mudou.
-    if (
-      Number.isFinite(prices.de) &&
-      prices.de > 0 &&
-      prices.de !== salePrice
-    ) {
+    const overrides: Record<string, number> = {};
+    for (const e of entries) {
+      if (
+        Number.isFinite(e.prices.de) &&
+        e.prices.de > 0 &&
+        e.prices.de !== e.salePrice
+      ) {
+        overrides[e.id] = e.prices.de;
+      }
+    }
+    if (Object.keys(overrides).length > 0) {
       changes.priceOverrides = {
         ...(config.priceOverrides ?? {}),
-        [id]: prices.de,
+        ...overrides,
       };
     }
-    onConfigChange(changes);
+
+    return changes;
+  };
+
+  const handleAdd = (
+    id: string,
+    salePrice: number,
+    prices: { de: number; por: number | null },
+  ) => {
+    onConfigChange(buildAddChanges([{ id, salePrice, prices }]));
 
     // "Por": preço promocional — grava no cadastro (produto).
     if (prices.por != null && Number.isFinite(prices.por) && prices.por > 0) {
@@ -386,6 +563,24 @@ export function AddProductDialog({
       onPicked(id);
       setOpen(false);
     }
+  };
+
+  /**
+   * Adiciona todos os selecionados numa tacada.
+   *
+   * Usa o preço de venda de cada um, sem override: a seleção múltipla existe
+   * para velocidade, e pedir "De/Por" de 30 produtos anularia o ganho. Quem
+   * precisa ajustar preço adiciona aquele produto pela linha.
+   */
+  const handleAddSelected = () => {
+    const entries = [...selected.values()].map((p) => ({
+      id: p.id,
+      salePrice: p.salePrice,
+      prices: { de: p.salePrice, por: null },
+    }));
+    if (entries.length === 0) return;
+    onConfigChange(buildAddChanges(entries));
+    setSelected(new Map());
   };
 
   // Clique na foto: garante o produto no catálogo e abre o editor dele (aba
@@ -423,41 +618,55 @@ export function AddProductDialog({
           ele a partir do breakpoint `sm`. */}
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>{title ?? "Adicionar produto ao catálogo"}</DialogTitle>
+          <DialogTitle className="flex items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+              <ShoppingBag className="size-5" />
+            </span>
+            {title ?? "Adicionar produto ao catálogo"}
+          </DialogTitle>
         </DialogHeader>
         {/* Destino: com grupos nomeados, o produto vai para o grupo ESCOLHIDO
             em vez de cair sempre no último. Vale para a busca e para a
             aplicação por categoria. */}
         {gruposNomeados.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 text-xs text-muted-foreground">
-              Adicionar no grupo
+          <div className="flex items-center gap-3">
+            <span className="shrink-0 text-muted-foreground text-sm">
+              Grupo
             </span>
-            <select
+            <Select
               value={grupoDestino ?? ""}
-              onChange={(e) => setTargetGroupId(e.target.value || null)}
-              className="h-8 flex-1 rounded-md border bg-background px-2 text-xs"
+              onValueChange={(v) => setTargetGroupId(v || null)}
             >
-              {gruposNomeados.map((g, i) => (
-                <option key={g.id} value={g.id}>
-                  {g.name?.trim() || `Grupo ${i + 1}`}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="flex-1">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {gruposNomeados.map((g, i) => (
+                  <SelectItem key={g.id} value={g.id}>
+                    <span className="flex items-center gap-2">
+                      {/* A cor do grupo é a mesma da página — é assim que se
+                          reconhece o destino sem ler o nome. */}
+                      <span
+                        className="size-2.5 shrink-0 rounded-full border"
+                        style={{ background: g.bgColor ?? "transparent" }}
+                      />
+                      {g.name?.trim() || `Grupo ${i + 1}`}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-        {resumoFiltros && (
-          <p className="text-[11px] text-muted-foreground">
-            Filtros ativos: <b>{resumoFiltros}</b>
-          </p>
         )}
         <Tabs defaultValue="busca" className="flex flex-col gap-4">
           {onApplyCategories && (
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="busca" className="text-xs">
+            <TabsList className="grid h-10 w-full grid-cols-2">
+              <TabsTrigger value="busca" className="gap-1.5">
+                <Search className="size-4" />
                 Buscar produto
               </TabsTrigger>
-              <TabsTrigger value="categoria" className="text-xs">
+              <TabsTrigger value="categoria" className="gap-1.5">
+                <LayoutGrid className="size-4" />
                 Por categoria
               </TabsTrigger>
             </TabsList>
@@ -465,9 +674,9 @@ export function AddProductDialog({
           <TabsContent value="busca" className="mt-0 flex flex-col gap-4">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-5 text-muted-foreground" />
                 <Input
-                  className="pl-8"
+                  className="h-11 pl-10 text-base"
                   placeholder="Buscar por nome, SKU ou código de barras..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
@@ -476,7 +685,7 @@ export function AddProductDialog({
               </div>
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" className="shrink-0 gap-1.5">
+                  <Button variant="outline" className="h-11 shrink-0 gap-1.5">
                     <SlidersHorizontal className="h-4 w-4" />
                     Filtros
                     {nFiltros > 0 && (
@@ -564,7 +773,7 @@ export function AddProductDialog({
                       variant="ghost"
                       size="sm"
                       className="self-start text-xs"
-                      onClick={() => setFilters({ onlyActive: true })}
+                      onClick={() => setFilters({})}
                     >
                       Limpar filtros
                     </Button>
@@ -573,32 +782,58 @@ export function AddProductDialog({
               </Popover>
             </div>
 
-            {/* Filtro por categoria + adicionar a categoria inteira */}
+            {/* Categoria à esquerda, filtros ligados à direita: quem estreitou a
+                busca vê o motivo na mesma linha em que escolhe a categoria. */}
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <span className="shrink-0 text-xs text-muted-foreground">
-                  Categoria
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <Select
                   value={categorySlug || "__all__"}
                   onValueChange={(v) =>
                     setCategorySlug(v === "__all__" ? "" : v)
                   }
                 >
-                  <SelectTrigger className="h-8 flex-1 text-xs">
+                  <SelectTrigger className="w-56">
                     <SelectValue placeholder="Todas as categorias" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="__all__" className="text-xs">
-                      Todas as categorias
-                    </SelectItem>
+                    <SelectItem value="__all__">Todas as categorias</SelectItem>
                     {categories.map((c) => (
-                      <SelectItem key={c.id} value={c.slug} className="text-xs">
+                      <SelectItem key={c.id} value={c.slug}>
                         {c.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+
+                {fichasFiltro.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-muted-foreground text-xs">
+                      Filtros ativos:
+                    </span>
+                    {fichasFiltro.map((f) => (
+                      <button
+                        key={f.label}
+                        type="button"
+                        onClick={f.clear}
+                        className="flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pr-1.5 pl-2 text-primary text-xs hover:bg-primary/20"
+                        title={`Remover o filtro "${f.label}"`}
+                      >
+                        {f.label}
+                        <X className="size-3" />
+                      </button>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1 px-2 text-xs"
+                      onClick={() => setFilters({})}
+                    >
+                      <Trash2 className="size-3.5" />
+                      Limpar filtros
+                    </Button>
+                  </div>
+                )}
               </div>
               {categorySlug && (
                 <div className="flex items-center justify-between rounded-md border px-2 py-1.5">
@@ -614,10 +849,43 @@ export function AddProductDialog({
               )}
             </div>
 
+            {/* Quantos resultados + ordenação. O total ficava escondido junto da
+                paginação, no rodapé: quem filtrava não via o efeito sem rolar
+                a lista até o fim. */}
+            {data && (
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+                <span className="text-muted-foreground text-sm">
+                  <b className="text-foreground">{data.totalCount}</b> produto
+                  {data.totalCount !== 1 ? "s" : ""} encontrado
+                  {data.totalCount !== 1 ? "s" : ""}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground text-xs">
+                    Ordenar por
+                  </span>
+                  <Select
+                    value={sort}
+                    onValueChange={(v) => setSort(v as SortKey)}
+                  >
+                    <SelectTrigger className="h-8 w-40 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
+                        <SelectItem key={k} value={k} className="text-xs">
+                          {SORT_LABELS[k]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {/* `pr-1` reserva o lugar da barra de rolagem: sem isso as linhas
                 encostam na borda direita quando a lista cresce, e o respiro fica
                 diferente do dos outros lados. */}
-            <div className="flex max-h-96 flex-col gap-1 overflow-y-auto pr-1">
+            <div className="flex max-h-96 flex-col gap-2 overflow-y-auto pr-1">
               {isLoading && (
                 <p className="py-4 text-center text-sm text-muted-foreground">
                   Buscando...
@@ -638,6 +906,14 @@ export function AddProductDialog({
                     added={isAdded}
                     saving={priceMutation.isPending}
                     binding={!!onPicked}
+                    selected={selected.has(p.id)}
+                    onToggleSelected={
+                      // Modo vincular escolhe UM produto — marcar vários ali não
+                      // levaria a lugar nenhum.
+                      onPicked || isAdded
+                        ? undefined
+                        : (id) => toggleSelected(id, p.salePrice)
+                    }
                     onAdd={(id, prices) => handleAdd(id, p.salePrice, prices)}
                     onEditPhoto={
                       handleEditPhoto
@@ -651,15 +927,42 @@ export function AddProductDialog({
             </div>
 
             {data && data.totalCount > 0 && (
-              <div className="flex items-center justify-between gap-2 border-t pt-3">
-                <span className="text-xs text-muted-foreground">
-                  Página {pageIndex} de {totalPages}
-                  <span className="ml-1.5 opacity-60">
-                    ({data.totalCount} produto{data.totalCount !== 1 ? "s" : ""}
-                    )
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3">
+                {/* A contagem de selecionados fica à esquerda, no lugar do total
+                    que subiu para o cabeçalho. A seleção atravessa páginas, então
+                    ela precisa aparecer mesmo quando a página atual não tem
+                    nenhum marcado. */}
+                {selected.size > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-primary text-sm">
+                      {selected.size} produto{selected.size !== 1 ? "s" : ""}{" "}
+                      selecionado{selected.size !== 1 ? "s" : ""}
+                    </span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={handleAddSelected}
+                    >
+                      <Plus className="size-4" />
+                      Adicionar selecionados
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setSelected(new Map())}
+                    >
+                      Limpar
+                    </Button>
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-sm">
+                    0 produtos selecionados
                   </span>
-                </span>
-                <div className="flex items-center gap-1">
+                )}
+                <div className="flex items-center gap-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -669,6 +972,9 @@ export function AddProductDialog({
                     <ChevronLeft className="h-4 w-4" />
                     <span className="hidden sm:inline">Anterior</span>
                   </Button>
+                  <span className="text-muted-foreground text-xs">
+                    Página {pageIndex} de {totalPages}
+                  </span>
                   <Button
                     variant="outline"
                     size="sm"

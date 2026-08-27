@@ -4,9 +4,20 @@ import {
   productFilterWhere,
 } from "../promotional-catalog/_product-filters";
 import { z } from "zod";
+import type { Prisma } from "@/generated/prisma/client";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+
+type SortKey = "name-asc" | "name-desc" | "price-asc" | "price-desc" | "recent";
+
+const ORDER_BY: Record<SortKey, Prisma.ProductOrderByWithRelationInput[]> = {
+  "name-asc": [{ name: "asc" }, { id: "desc" }],
+  "name-desc": [{ name: "desc" }, { id: "desc" }],
+  "price-asc": [{ salePrice: "asc" }, { id: "desc" }],
+  "price-desc": [{ salePrice: "desc" }, { id: "desc" }],
+  recent: [{ createdAt: "desc" }, { id: "desc" }],
+};
 
 export const listProducts = base
   .use(requireAuthMiddleware)
@@ -34,6 +45,11 @@ export const listProducts = base
       // Um default de "só ativos" no servidor esconderia inativos da tela de
       // Produtos, que usa esta mesma procedure.
       filters: productFilterSchema,
+      // Ordenação da lista. SEM default: quem não manda nada continua recebendo
+      // nome A-Z, que é a ordem que a tela de Produtos sempre teve.
+      sort: z
+        .enum(["name-asc", "name-desc", "price-asc", "price-desc", "recent"])
+        .optional(),
     }),
   )
   .output(
@@ -46,6 +62,8 @@ export const listProducts = base
           barcode: z.string(),
           category: z.string(),
           salePrice: z.number(),
+          // Preço promocional do cadastro. `null` = sem promoção.
+          promotionalPrice: z.number().nullable(),
           costPrice: z.number(),
           currentStock: z.number(),
           minStock: z.number(),
@@ -127,6 +145,7 @@ export const listProducts = base
               },
             },
             salePrice: true,
+            promotionalPrice: true,
             costPrice: true,
             currentStock: true,
             minStock: true,
@@ -143,7 +162,10 @@ export const listProducts = base
             cursor: { id: input.cursor },
             skip: 1,
           }),
-          orderBy: [{ name: "asc" }, { id: "desc" }],
+          // O `id` fecha toda ordenação: a paginação é por cursor de `id`, e sem
+          // um critério único no fim duas linhas empatadas podem trocar de lugar
+          // entre uma página e outra — item repetido numa, sumido na outra.
+          orderBy: ORDER_BY[input.sort ?? "name-asc"],
           where,
         }),
         prisma.product.count({ where }),
@@ -160,6 +182,7 @@ export const listProducts = base
         barcode: product.barcode ?? "",
         category: product.category?.name ?? "",
         salePrice: product.salePrice.toNumber(),
+        promotionalPrice: product.promotionalPrice?.toNumber() ?? null,
         costPrice: product.costPrice.toNumber(),
         currentStock: product.currentStock.toNumber(),
         minStock: product.minStock.toNumber(),
