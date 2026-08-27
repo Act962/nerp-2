@@ -262,6 +262,13 @@ export function CatalogListWizard({
 
   const newTargets = uniqueTargets.filter((t) => !prodMatch.get(t.key));
   const newClients = uniqueClients.filter((c) => !storeMatch.get(c));
+  // Nem todo encarte é dividido por loja. Quando não é, o campo "cliente" acaba
+  // recebendo qualquer coluna que o extrator achou — no relato, os números de
+  // SKU viraram nome de loja. Aqui o passo pode ser dispensado por inteiro.
+  const [semLoja, setSemLoja] = useState(false);
+  // Valor só de dígitos/pontuação quase nunca é nome de loja — é código.
+  const pareceCodigo = (c: string) => /^[\d\s.,;:/-]+$/.test(c.trim());
+  const clientesSuspeitos = uniqueClients.filter(pareceCodigo);
 
   const maxPerClientCount = useMemo(() => {
     const counts = new Map<string, number>();
@@ -606,48 +613,86 @@ export function CatalogListWizard({
                 </Button>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Marque as lojas NOVAS para cadastrar no banco (precisa de
-              permissão de lojas). As não marcadas viram só o nome da página.
-            </p>
-            <div className="flex flex-col divide-y rounded-md border">
-              {uniqueClients.map((c) => {
-                const exists = !!storeMatch.get(c);
-                return (
-                  <div
-                    key={c}
-                    className="flex items-center gap-2 px-2 py-1.5 text-sm"
-                  >
-                    {exists ? (
-                      <Check className="h-4 w-4 text-green-600" />
-                    ) : (
-                      <Checkbox
-                        checked={createSt.has(c)}
-                        onCheckedChange={(v) =>
-                          setCreateSt((prev) => {
-                            const n = new Set(prev);
-                            if (v) n.add(c);
-                            else n.delete(c);
-                            return n;
-                          })
-                        }
-                      />
-                    )}
-                    <span className="min-w-0 flex-1 truncate">{c}</span>
-                    <span
-                      className={cn(
-                        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
-                        exists
-                          ? "bg-green-500/15 text-green-700 dark:text-green-400"
-                          : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-                      )}
+            <label className="flex items-start gap-2 rounded-md border p-2.5 text-xs">
+              <input
+                type="checkbox"
+                checked={semLoja}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setSemLoja(on);
+                  setCreateSt(new Set());
+                  // Zera o cliente das linhas: sem loja, todas caem numa pasta
+                  // só e o agrupamento por cliente deixa de fazer sentido.
+                  if (on) {
+                    setRows((prev) =>
+                      prev.map((r) => ({ ...r, client: "Sem cliente" })),
+                    );
+                    setGroupBy((g) => (g === "client" ? "department" : g));
+                  }
+                }}
+                className="mt-0.5 h-4 w-4 accent-primary"
+              />
+              <span>
+                <b>Este catálogo não é dividido por loja.</b> Marque quando o
+                encarte não tem clientes — as páginas passam a ser agrupadas por
+                departamento e nenhuma loja é cadastrada.
+              </span>
+            </label>
+
+            {!semLoja && clientesSuspeitos.length > 0 && (
+              <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[11px]">
+                {clientesSuspeitos.length} valor(es) parecem <b>código</b>, não
+                nome de loja (ex.: “{clientesSuspeitos[0]}”). Se o encarte não
+                tem lojas, marque a opção acima.
+              </p>
+            )}
+
+            {!semLoja && (
+              <p className="text-xs text-muted-foreground">
+                Marque as lojas NOVAS para cadastrar no banco (precisa de
+                permissão de lojas). As não marcadas viram só o nome da página.
+              </p>
+            )}
+            {!semLoja && (
+              <div className="flex flex-col divide-y rounded-md border">
+                {uniqueClients.map((c) => {
+                  const exists = !!storeMatch.get(c);
+                  return (
+                    <div
+                      key={c}
+                      className="flex items-center gap-2 px-2 py-1.5 text-sm"
                     >
-                      {exists ? "cadastrada" : "nova"}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+                      {exists ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Checkbox
+                          checked={createSt.has(c)}
+                          onCheckedChange={(v) =>
+                            setCreateSt((prev) => {
+                              const n = new Set(prev);
+                              if (v) n.add(c);
+                              else n.delete(c);
+                              return n;
+                            })
+                          }
+                        />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{c}</span>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium",
+                          exists
+                            ? "bg-green-500/15 text-green-700 dark:text-green-400"
+                            : "bg-amber-500/15 text-amber-700 dark:text-amber-400",
+                        )}
+                      >
+                        {exists ? "cadastrada" : "nova"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 

@@ -63,6 +63,8 @@ interface PageToolbarProps {
   onMovePrev: () => void;
   onMoveNext: () => void;
   onAddPage: () => void;
+  // A página tem grupos de produtos? Com grupos, a disposição é de cada grupo.
+  hasGroups?: boolean;
   onToggleLock: () => void;
   onDuplicate: (mode: "full" | "background") => void;
   onDelete: () => void;
@@ -87,6 +89,7 @@ export function PageToolbar({
   onMovePrev,
   onMoveNext,
   onAddPage,
+  hasGroups,
   onToggleLock,
   onDuplicate,
   onDelete,
@@ -123,60 +126,70 @@ export function PageToolbar({
 
       <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />
 
-      {/* Disposição (layout da página) */}
-      <div className="flex shrink-0 items-center gap-1">
-        <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
-        <Select
-          value={layout}
-          onValueChange={(v) => onLayoutChange(v as CatalogConfig["layout"])}
-        >
-          <SelectTrigger
-            className="h-7 w-auto shrink-0 gap-1 px-2 text-xs"
-            title="Disposição"
-          >
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {LAYOUT_OPTS.map((o) => (
-              <SelectItem key={o.value} value={o.value} className="text-xs">
-                {o.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Disposição da PÁGINA — só quando a página ainda não tem grupo de
+          produtos. Com grupos, quem manda na arrumação é a disposição de CADA
+          grupo (aba "Página" > Grupos da página): a página inteira deixa de ter
+          uma grade única, e manter o controle aqui só confundiria.
+          Numa página sem grupo ele continua sendo o único jeito de mudar o
+          layout, por isso não foi removido de vez. */}
+      {!hasGroups && (
+        <>
+          <div className="flex shrink-0 items-center gap-1">
+            <LayoutGrid className="h-3.5 w-3.5 text-muted-foreground" />
+            <Select
+              value={layout}
+              onValueChange={(v) =>
+                onLayoutChange(v as CatalogConfig["layout"])
+              }
+            >
+              <SelectTrigger
+                className="h-7 w-auto shrink-0 gap-1 px-2 text-xs"
+                title="Disposição"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LAYOUT_OPTS.map((o) => (
+                  <SelectItem key={o.value} value={o.value} className="text-xs">
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-      {/* Colunas × Linhas quando a Disposição é personalizada */}
-      {layout === "custom" && (
-        <div className="flex shrink-0 items-center gap-1">
-          <Input
-            type="number"
-            min={1}
-            max={8}
-            value={gridCols}
-            onChange={(e) =>
-              onGridColsChange(
-                Math.min(8, Math.max(1, Number(e.target.value) || 1)),
-              )
-            }
-            className="h-7 w-12 shrink-0 px-1.5 text-xs"
-            title="Colunas"
-          />
-          <span className="text-xs text-muted-foreground">×</span>
-          <Input
-            type="number"
-            min={1}
-            max={12}
-            value={gridRows}
-            onChange={(e) =>
-              onGridRowsChange(
-                Math.min(12, Math.max(1, Number(e.target.value) || 1)),
-              )
-            }
-            className="h-7 w-12 shrink-0 px-1.5 text-xs"
-            title="Linhas"
-          />
-        </div>
+          {layout === "custom" && (
+            <div className="flex shrink-0 items-center gap-1">
+              <Input
+                type="number"
+                min={1}
+                max={8}
+                value={gridCols}
+                onChange={(e) =>
+                  onGridColsChange(
+                    Math.min(8, Math.max(1, Number(e.target.value) || 1)),
+                  )
+                }
+                className="h-7 w-12 shrink-0 px-1.5 text-xs"
+                title="Colunas"
+              />
+              <span className="text-xs text-muted-foreground">×</span>
+              <Input
+                type="number"
+                min={1}
+                max={12}
+                value={gridRows}
+                onChange={(e) =>
+                  onGridRowsChange(
+                    Math.min(12, Math.max(1, Number(e.target.value) || 1)),
+                  )
+                }
+                className="h-7 w-12 shrink-0 px-1.5 text-xs"
+                title="Linhas"
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* Ações da página empurradas para o canto superior DIREITO (a Ordenação

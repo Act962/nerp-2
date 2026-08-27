@@ -35,7 +35,8 @@ export type CatalogConfig = {
 };
 
 export const DEFAULT_CONFIG: CatalogConfig = {
-  title: "Promoções",
+  // Sem título por padrão — espelha o default do cliente.
+  title: "",
   subtitle: "",
   layout: "grid-3",
   cardStyle: "standard",

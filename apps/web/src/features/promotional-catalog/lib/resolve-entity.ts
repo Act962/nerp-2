@@ -41,6 +41,7 @@ export type DynamicContext = {
     whatsapp: string | null;
     image: string | null;
   };
+  category?: { name: string };
 };
 
 // Texto de uma variável. `null` quando a entidade/fatia não está disponível —
@@ -78,6 +79,8 @@ export function resolveEntityText(
         : null;
     case "product.unit":
       return ctx.product ? unitLabel(ctx.product.unit) : null;
+    case "category.name":
+      return ctx.category?.name ?? null;
     case "user.name":
       return ctx.user?.name ?? null;
     case "user.email":
@@ -136,6 +139,7 @@ export function buildDynamicContext(
     org?: DynamicContext["org"] | null;
     sessionUser?: DynamicContext["user"] | null;
     products: CatalogProduct[];
+    categories?: { id: string; name: string }[];
   },
 ): DynamicContext {
   if (!dynamic) return {};
@@ -151,6 +155,13 @@ export function buildDynamicContext(
       ctx.product = sources.products.find((p) => p.id === dynamic.refId);
   } else if (dynamic.type === "user") {
     if (sources.sessionUser) ctx.user = sources.sessionUser;
+  } else if (dynamic.type === "category") {
+    // Sempre por `refId` — diferente de `store`, não há casamento pelo nome da
+    // página: o nome traz o sufixo do lote ("BEBIDAS 2") e não bateria.
+    const hit = dynamic.refId
+      ? sources.categories?.find((c) => c.id === dynamic.refId)
+      : undefined;
+    if (hit) ctx.category = { name: hit.name };
   }
   return ctx;
 }

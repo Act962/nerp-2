@@ -1,10 +1,14 @@
 import type { CatalogConfig, CatalogProduct } from "../types";
 import { ensurePages } from "../types";
+import { distributeProducts } from "./page-chunks";
 
 // Distribuição de páginas do Catálogo Promocional — versão PURA, para render fora
-// do editor (ex.: página pública por link). Espelha a lógica de `catalog-editor.tsx`
-// (configForPage / pageChunks / gridProducts / blockProductIds). MANTER EM SINCRONIA
-// com o editor: se a distribuição mudar lá, atualizar aqui.
+// do editor (ex.: página pública por link).
+//
+// A distribuição em si mora em `page-chunks.ts` e é a MESMA que o editor usa —
+// antes havia duas cópias com um aviso de "manter em sincronia", que é o tipo de
+// acordo que uma hora alguém quebra. Aqui ficam só as medidas de página e a
+// capacidade por layout, que de fato diferem do editor.
 
 export const PAGE_W = 1080;
 export const PAGE_H_VALUES: Record<CatalogConfig["pageSize"], number> = {
@@ -240,43 +244,19 @@ export function distributePages(
       if (b.productId) blockIds.add(b.productId);
   const gridProducts = products.filter((p) => !blockIds.has(p.id));
 
-  let chunks: CatalogProduct[][];
-  const anyExplicit = pages.some((pg) => pg.productIds !== undefined);
-  if (anyExplicit) {
-    const claimed = new Set<string>();
-    for (const pg of pages)
-      for (const id of pg.productIds ?? []) claimed.add(id);
-    chunks = pages.map((pg, i) => {
-      const idSet = new Set(pg.productIds ?? []);
-      let arr = gridProducts.filter((p) => idSet.has(p.id));
-      if (i === pages.length - 1)
-        arr = [...arr, ...gridProducts.filter((p) => !claimed.has(p.id))];
-      return arr;
-    });
-  } else {
-    chunks = [];
-    let idx = 0;
-    pages.forEach((pg, i) => {
-      const per =
-        pg.productGroups && pg.productGroups.length > 0
-          ? pg.productGroups.reduce(
-              (sum, g) =>
-                sum + Math.max(1, g.gridCols) * Math.max(1, g.gridRows),
-              0,
-            )
-          : getItemsPerPage(pg.layout, config.pageSize, {
-              ...config,
-              layout: pg.layout,
-              gridCols: pg.gridCols ?? config.gridCols,
-              gridRows: pg.gridRows ?? config.gridRows,
-            });
-      const isLast = i === pages.length - 1;
-      chunks.push(
-        isLast ? gridProducts.slice(idx) : gridProducts.slice(idx, idx + per),
-      );
-      idx += per;
-    });
-  }
+  const chunks = distributeProducts(pages, gridProducts, (pg) =>
+    pg.productGroups && pg.productGroups.length > 0
+      ? pg.productGroups.reduce(
+          (sum, g) => sum + Math.max(1, g.gridCols) * Math.max(1, g.gridRows),
+          0,
+        )
+      : getItemsPerPage(pg.layout, config.pageSize, {
+          ...config,
+          layout: pg.layout,
+          gridCols: pg.gridCols ?? config.gridCols,
+          gridRows: pg.gridRows ?? config.gridRows,
+        }),
+  );
 
   return pages.map((_, i) => ({
     cfg: effectivePageConfig(config, i),

@@ -124,6 +124,12 @@ export const publicGetCatalog = base
         } else if (dyn.type === "product" && dyn.refId) {
           const p = products.find((pr) => pr.id === dyn.refId);
           if (p) ctx.product = p;
+        } else if (dyn.type === "category" && dyn.refId) {
+          const cat = await prisma.category.findFirst({
+            where: { id: dyn.refId, organizationId: catalog.organizationId },
+            select: { name: true },
+          });
+          if (cat) ctx.category = { name: cat.name };
         }
         dynamicEntities[pg.id] = ctx;
       }

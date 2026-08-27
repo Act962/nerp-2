@@ -207,6 +207,20 @@ export function ElementProperties({
             Trás
           </Button>
         </div>
+        {/* Frente/Trás só reordenam entre ELEMENTOS. Os produtos são desenhados
+            numa camada própria, antes deles — para uma forma virar faixa de
+            fundo é preciso mandá-la para trás dos produtos explicitamente. */}
+        <Button
+          size="sm"
+          variant={overlay.behindProducts ? "default" : "outline"}
+          className="h-8 w-full gap-1"
+          onClick={() => onChange({ behindProducts: !overlay.behindProducts })}
+        >
+          <SendToBack className="h-4 w-4" />
+          {overlay.behindProducts
+            ? "Atrás dos produtos"
+            : "Enviar para trás dos produtos"}
+        </Button>
       </div>
     </div>
   );
