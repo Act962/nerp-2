@@ -59,9 +59,15 @@ import { useExport } from "./hooks/use-export";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { buildDynamicContext } from "./lib/resolve-entity";
 import { distributeProducts } from "./lib/page-chunks";
-import { nextCopyName } from "./lib/group-slices";
+import { nextCopyName, sliceProductsByGroup } from "./lib/group-slices";
 import { orphanedByPageDelete, productIdsOnPage } from "./lib/page-products";
 import { applyCategoryGroups, type CategoryGroup } from "./lib/apply-category";
+import {
+  type ClipboardData,
+  collectClipboard,
+  countClipboard,
+  pasteIntoPage,
+} from "./lib/clipboard";
 import type {
   CardLayoutElement,
   CatalogConfig,
@@ -70,6 +76,10 @@ import type {
   LayerSelection,
   ProductGroup,
 } from "./types";
+
+// Deslocamento do "colar" na MESMA página, em px do canvas 1080: sem ele a
+// cópia nasce exatamente sobre o original e parece que nada aconteceu.
+const PASTE_OFFSET = 24;
 import {
   DEFAULT_CONFIG,
   PER_PAGE_KEYS,
@@ -514,6 +524,14 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const [shareOpen, setShareOpen] = useState(false);
   // Camada selecionada no canvas (Fundo/Grupo/Card/Elemento).
   const [selection, setSelection] = useState<LayerSelection>(null);
+  // Seleção múltipla espelhada da camada de seleção (Shift+clique).
+  const [extraSelection, setExtraSelection] = useState<
+    { kind: "overlay" | "text" | "block"; id: string }[]
+  >([]);
+  // Área de transferência do editor. Fica AQUI e não na camada de seleção
+  // porque a camada é montada por página e some ao trocar de página — que é
+  // exatamente quando o conteúdo copiado precisa continuar existindo.
+  const [clipboard, setClipboard] = useState<ClipboardData | null>(null);
 
   // Histórico de edições (desfazer/refazer, estilo Canva). Guarda snapshots da
   // config; grava quando a edição "assenta" (debounce) para agrupar arrastes.
@@ -898,6 +916,48 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     }));
     setConfig(next);
   };
+  const copySelection = () => {
+    const pg = pages[safePage];
+    if (!pg || !selection) return;
+    const data = collectClipboard(pg, selection, extraSelection);
+    if (!data) return;
+    setClipboard(data);
+    const n = countClipboard(data);
+    toast.success(n === 1 ? "1 elemento copiado" : `${n} elementos copiados`);
+  };
+
+  const pasteClipboard = () => {
+    if (!clipboard) return;
+    setConfig((prev) => {
+      const { pages: next, pastedProductIds } = pasteIntoPage({
+        pages: ensurePages(prev),
+        index: safePage,
+        data: clipboard,
+        frozenProductIds: pageChunks.map((c) => c.map((p) => p.id)),
+        newId: () => crypto.randomUUID(),
+        offset: PASTE_OFFSET,
+      });
+      const changes: Partial<CatalogConfig> = { pages: next };
+      // O produto colado tem que estar no catálogo, senão a página o referencia
+      // e o render não o encontra.
+      if (pastedProductIds.length > 0) {
+        changes.manuallyAddedIds = [
+          ...new Set([...prev.manuallyAddedIds, ...pastedProductIds]),
+        ];
+        changes.excludedProductIds = prev.excludedProductIds.filter(
+          (id) => !pastedProductIds.includes(id),
+        );
+      }
+      return { ...prev, ...changes };
+    });
+    toast.success("Colado nesta página");
+  };
+
+  const copyRef = useRef(copySelection);
+  const pasteRef = useRef(pasteClipboard);
+  copyRef.current = copySelection;
+  pasteRef.current = pasteClipboard;
+
   // Atalhos Ctrl/Cmd+Z (desfazer) e Shift+Ctrl/Cmd+Z / Ctrl+Y (refazer). Usa
   // refs para sempre chamar a versão mais recente sem re-registrar o listener.
   const undoRef = useRef(undo);
@@ -925,6 +985,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       } else if (key === "y") {
         e.preventDefault();
         redoRef.current();
+      } else if (key === "c") {
+        copyRef.current();
+      } else if (key === "v") {
+        pasteRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -1139,9 +1203,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   // Salvar o card livre ("Montar card") com escopo escolhido pelo usuário.
   const handleSaveCardLayout = (
-    scope: "product" | "page" | "all",
+    scope: "product" | "page" | "group" | "all",
     layout: CardLayoutElement[],
     productId: string,
+    groupId?: string | null,
   ) => {
     setConfig((prev) => {
       if (scope === "product") {
@@ -1154,6 +1219,27 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         };
       }
       const pgs = ensurePages(prev);
+      if (scope === "group") {
+        // Etiqueta do grupo = override por PRODUTO dos itens dele. É o único
+        // nível que o render conhece abaixo da página — mesma solução do
+        // "Aplicar padrão ao grupo".
+        //
+        // Os membros saem de `sliceProductsByGroup`, o MESMO critério do canvas
+        // e da lateral: um produto recém-adicionado ainda não está no
+        // `productIds` do grupo, mas já é desenhado dentro dele. Ler só o
+        // `productIds` deixaria justamente o produto recém-adicionado de fora.
+        const groups = pgs[safePage]?.productGroups ?? [];
+        const gi = groups.findIndex((g) => g.id === groupId);
+        if (gi < 0) return prev;
+        const membros = sliceProductsByGroup(
+          groups,
+          pageChunks[safePage] ?? [],
+        )[gi];
+        if (!membros || membros.length === 0) return prev;
+        const overrides = { ...(prev.cardLayoutOverrides ?? {}) };
+        for (const m of membros) overrides[m.id] = layout;
+        return { ...prev, cardLayoutOverrides: overrides };
+      }
       if (scope === "page") {
         // Só esta página; remove o override deste produto p/ o card da página valer.
         const overrides = { ...(prev.cardLayoutOverrides ?? {}) };
@@ -2029,6 +2115,11 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                                 setCurrentPage(i);
                                 handleSelectionChange(next);
                               }}
+                              onExtraChange={
+                                currentPage === i
+                                  ? setExtraSelection
+                                  : undefined
+                              }
                               onEditProduct={(productId, opts) => {
                                 setCurrentPage(i);
                                 requestEditProduct(productId, opts);

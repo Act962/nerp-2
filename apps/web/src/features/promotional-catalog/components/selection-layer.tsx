@@ -74,6 +74,10 @@ interface SelectionLayerProps {
   styleBlocks: StyleBlock[];
   selection: LayerSelection;
   onSelectionChange: (s: LayerSelection) => void;
+  // Espelha a seleção MÚLTIPLA para o pai. O copiar/colar vive no editor (é ele
+  // que sabe a página de destino), e sem isto o Ctrl+C só levaria o item
+  // primário, ignorando tudo que foi marcado com Shift.
+  onExtraChange?: (extra: { kind: MoveKind; id: string }[]) => void;
   // Duplo clique num card na página → abre o popup do produto. Sem elemento
   // atingido → "Montar Etiqueta" (entry "label"); numa variável foto → "Editar
   // produto" (entry "photo"); numa variável de preço/texto → "Montar Etiqueta"
@@ -259,6 +263,7 @@ export function SelectionLayer({
   styleBlocks,
   selection,
   onSelectionChange,
+  onExtraChange,
   onEditProduct,
   cardLayoutFor,
   onOverlaysChange,
@@ -297,6 +302,13 @@ export function SelectionLayer({
   useEffect(() => {
     setExtra([]);
   }, [selection?.kind, selection && "id" in selection ? selection.id : null]);
+  // Ref para o callback: em dependência direta ele mudaria a cada render do pai
+  // e o efeito viraria laço.
+  const extraCbRef = useRef(onExtraChange);
+  extraCbRef.current = onExtraChange;
+  useEffect(() => {
+    extraCbRef.current?.(extra);
+  }, [extra]);
   const [layerW, setLayerW] = useState(0);
   const [hover, setHover] = useState<LayerSelection>(null);
   const [boxes, setBoxes] = useState<{

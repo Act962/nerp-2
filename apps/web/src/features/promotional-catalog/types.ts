@@ -45,6 +45,10 @@ export type ImageAdjustment = {
   posX: number;
   posY: number;
   fit: "cover" | "contain";
+  // Giro da foto em graus. OPCIONAL e ausente por padrão: sem isto todo
+  // catálogo já salvo mudaria de aparência. Só o enquadramento gira — a foto
+  // no cadastro do produto continua intacta.
+  rotation?: number;
 };
 
 export const DEFAULT_IMAGE_ADJUSTMENT: ImageAdjustment = {

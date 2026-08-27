@@ -154,10 +154,25 @@ export function applyCategoryGroups({
           id: `page-cat-${insertAt}-${uid}`,
           name: `${group.name} ${seq}`,
           locked: false,
-          // Só o layout e o fundo são herdados: etiquetas, textos e blocos da
-          // página-molde não fazem sentido repetidos em 40 páginas novas.
-          overlays: [],
-          texts: [],
+          // Herda do molde o layout, o fundo e os elementos DINÂMICOS — os
+          // estáticos ficam. É a mesma regra de `toTemplateConfig` ("estáticos
+          // ficam de fora: é conteúdo"), e é ela que faz o título da categoria
+          // aparecer sozinho nas 50 páginas: cada uma nasce com o seu próprio
+          // `dynamic`, então o mesmo texto resolve um nome diferente em cada.
+          // Um texto estático repetido 40 vezes continua sendo lixo.
+          //
+          // Id novo por página: dois elementos de mesmo id em páginas
+          // diferentes fazem a camada de seleção editar o errado — foi
+          // exatamente o que aconteceu com os grupos em `duplicatePage`.
+          // Derivado (não aleatório) para o módulo continuar puro e testável.
+          overlays: (template.overlays ?? [])
+            .filter((o) => o.binding)
+            .map((o) => ({ ...o, id: `${o.id}-c${uid}` })),
+          texts: (template.texts ?? [])
+            .filter((t) => t.binding)
+            .map((t) => ({ ...t, id: `${t.id}-c${uid}` })),
+          // Bloco de estilo aponta para UM produto (`productId`): repetido nas
+          // páginas novas mostraria o mesmo produto em todas elas.
           styleBlocks: [],
           productIds: slice,
           ...(group.id
