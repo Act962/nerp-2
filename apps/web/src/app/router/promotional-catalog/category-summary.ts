@@ -3,6 +3,7 @@ import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { productFilterSchema, productFilterWhere } from "./_product-filters";
 
 // Rótulo do balde de produtos sem categoria. `id`/`slug` nulos distinguem do
 // caso "categoria chamada Sem categoria" cadastrada de verdade.
@@ -24,6 +25,9 @@ export const catalogCategorySummary = base
   .input(
     z.object({
       excludeIds: z.array(z.string()).default([]),
+      // Mesmos filtros da aba de busca — sem isto, "restam 80" contaria
+      // produtos que a busca esconde, e as duas abas voltariam a discordar.
+      filters: productFilterSchema,
     }),
   )
   .output(
@@ -39,10 +43,13 @@ export const catalogCategorySummary = base
     ),
   )
   .handler(async ({ input, context }) => {
+    // Sem filtros, mantém o comportamento anterior (só ativos).
     const orgWhere = {
       organizationId: context.org.id,
-      isActive: true,
-    } as const;
+      ...(input.filters
+        ? productFilterWhere(input.filters)
+        : { isActive: true }),
+    };
 
     const [totals, remaining, categories] = await Promise.all([
       prisma.product.groupBy({

@@ -14,6 +14,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { SlidersHorizontal } from "lucide-react";
+import {
+  activeFilterCount,
+  type ProductFilters,
+} from "@/app/router/promotional-catalog/_product-filters";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -212,6 +222,28 @@ export function AddProductDialog({
     if (openProp === undefined) setOpenState(o);
   };
   const [search, setSearch] = useState("");
+  // Filtros do diálogo. `onlyActive` nasce LIGADO: a aba por categoria já
+  // filtrava ativos, e a busca não — as duas metades do mesmo diálogo
+  // discordavam sobre o que existe.
+  const [filters, setFilters] = useState<NonNullable<ProductFilters>>({
+    onlyActive: true,
+  });
+  const setFilter = (patch: Partial<NonNullable<ProductFilters>>) =>
+    setFilters((f) => ({ ...f, ...patch }));
+  const nFiltros = activeFilterCount(filters);
+  // Resumo fora do popover: sem ele, o dev liga um filtro, o produto some da
+  // busca e parece que o cadastro está errado.
+  const resumoFiltros = [
+    filters.onlyActive ? "só ativos" : null,
+    filters.withImage ? "com foto" : null,
+    filters.withPromotion ? "com promoção" : null,
+    filters.inOnlineCatalog ? "no catálogo online" : null,
+    filters.minPrice !== undefined || filters.maxPrice !== undefined
+      ? `R$ ${filters.minPrice ?? 0}–${filters.maxPrice ?? "∞"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
   // Grupo de destino do produto adicionado. Começa no grupo selecionado na
   // página; sem seleção, no último — que é o que o render já fazia sozinho.
   const gruposNomeados = (config.productGroups ?? []).filter(
@@ -240,7 +272,7 @@ export function AddProductDialog({
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset ao mudar busca/categoria/abrir
   useEffect(() => {
     reset();
-  }, [deferredSearch, categorySlug, open, reset]);
+  }, [deferredSearch, categorySlug, filters, open, reset]);
 
   const { data, isLoading, isFetching } = useQuery(
     orpc.products.list.queryOptions({
@@ -249,6 +281,7 @@ export function AddProductDialog({
         // `search` casa nome OU SKU OU código de barras (EAN).
         search: deferredSearch || undefined,
         category: categorySlug ? [categorySlug] : undefined,
+        filters,
         cursor,
       },
       enabled: open,
@@ -413,6 +446,11 @@ export function AddProductDialog({
             </select>
           </div>
         )}
+        {resumoFiltros && (
+          <p className="text-[11px] text-muted-foreground">
+            Filtros ativos: <b>{resumoFiltros}</b>
+          </p>
+        )}
         <Tabs defaultValue="busca" className="flex flex-col gap-4">
           {onApplyCategories && (
             <TabsList className="grid w-full grid-cols-2">
@@ -425,15 +463,114 @@ export function AddProductDialog({
             </TabsList>
           )}
           <TabsContent value="busca" className="mt-0 flex flex-col gap-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                placeholder="Buscar por nome, SKU ou código de barras..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                autoFocus
-              />
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  className="pl-8"
+                  placeholder="Buscar por nome, SKU ou código de barras..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="shrink-0 gap-1.5">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Filtros
+                    {nFiltros > 0 && (
+                      <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+                        {nFiltros}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-72 p-3">
+                  <div className="flex flex-col gap-3">
+                    {/* A chave é INVERTIDA de propósito: o padrão é só ativos,
+                        então o controle é "incluir inativos". */}
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      Incluir produtos inativos
+                      <Switch
+                        checked={!filters.onlyActive}
+                        onCheckedChange={(v) => setFilter({ onlyActive: !v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      Somente com foto
+                      <Switch
+                        checked={!!filters.withImage}
+                        onCheckedChange={(v) => setFilter({ withImage: v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      Somente com preço promocional
+                      <Switch
+                        checked={!!filters.withPromotion}
+                        onCheckedChange={(v) => setFilter({ withPromotion: v })}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs">
+                      Somente no Catálogo Online
+                      <Switch
+                        checked={!!filters.inOnlineCatalog}
+                        onCheckedChange={(v) =>
+                          setFilter({ inOnlineCatalog: v })
+                        }
+                      />
+                    </div>
+                    <div className="h-px bg-border" />
+                    <div className="flex items-end gap-2">
+                      <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+                        Preço de
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="h-8"
+                          value={filters.minPrice ?? ""}
+                          onChange={(e) =>
+                            setFilter({
+                              minPrice:
+                                e.target.value === ""
+                                  ? undefined
+                                  : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
+                        até
+                        <Input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="h-8"
+                          value={filters.maxPrice ?? ""}
+                          onChange={(e) =>
+                            setFilter({
+                              maxPrice:
+                                e.target.value === ""
+                                  ? undefined
+                                  : Number(e.target.value),
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="self-start text-xs"
+                      onClick={() => setFilters({ onlyActive: true })}
+                    >
+                      Limpar filtros
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
 
             {/* Filtro por categoria + adicionar a categoria inteira */}
@@ -549,6 +686,7 @@ export function AddProductDialog({
             <TabsContent value="categoria" className="mt-0">
               <AddByCategory
                 excludeIds={config.manuallyAddedIds}
+                filters={filters}
                 pageCapacity={pageCapacity ?? 12}
                 onApply={onApplyCategories}
                 onDone={() => setOpen(false)}

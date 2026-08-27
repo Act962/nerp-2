@@ -1,4 +1,8 @@
 import prisma from "@/lib/db";
+import {
+  productFilterSchema,
+  productFilterWhere,
+} from "../promotional-catalog/_product-filters";
 import { z } from "zod";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
@@ -25,6 +29,11 @@ export const listProducts = base
       dateEnd: z.date().optional(),
       cursor: z.string().optional(),
       limit: z.number(),
+      // Filtros do diálogo do Catálogo Promocional. TODOS opcionais e SEM
+      // default aqui: quem não manda nada recebe o mesmo resultado de sempre.
+      // Um default de "só ativos" no servidor esconderia inativos da tela de
+      // Produtos, que usa esta mesma procedure.
+      filters: productFilterSchema,
     }),
   )
   .output(
@@ -60,6 +69,7 @@ export const listProducts = base
     try {
       const where = {
         organizationId: context.org.id,
+        ...productFilterWhere(input.filters),
         ...(input.category && {
           category: {
             slug: {
