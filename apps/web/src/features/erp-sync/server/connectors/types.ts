@@ -30,6 +30,23 @@ export interface ExternalSellerDTO {
   isActive: boolean;
 }
 
+/**
+ * Cadastro de produto no ERP de origem.
+ *
+ * `isActive` aqui é o status DO ERP — separado do `isActive` do NERP, que é
+ * "disponível para venda" e continua sendo decisão do usuário.
+ */
+export interface ExternalProductDTO {
+  /** Código do produto no ERP (CODPROD no Winthor). */
+  externalCode: string;
+  name: string;
+  /** Código de barras — é a chave de casamento com o cadastro local. */
+  barcode: string | null;
+  unit: string | null;
+  salePrice: number | null;
+  isActive: boolean;
+}
+
 export interface SalesFactDTO {
   /** Dia da venda, normalizado para 00:00 UTC. */
   date: Date;

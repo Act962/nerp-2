@@ -7,6 +7,7 @@ import {
   Database,
   FileText,
   HardDrive,
+  PackagePlus,
   Pause,
   Play,
   RefreshCw,
@@ -59,6 +60,150 @@ function StatusBadge({
     <Badge variant="outline" className={s.className}>
       {s.label}
     </Badge>
+  );
+}
+
+const nf = new Intl.NumberFormat("pt-BR");
+
+interface ProductSyncReportView {
+  at: string;
+  dryRun: boolean;
+  read: number;
+  updated: number;
+  created: number;
+  createSkipped: number;
+  skippedNoBarcode: number;
+  skippedInvalidBarcode: number;
+  duplicatesInSource: number;
+  failed: number;
+}
+
+/**
+ * Cadastro de produtos do ERP.
+ *
+ * Separado das vendas porque a decisão é outra: atualizar status é rotina e roda
+ * sozinho; trazer produto que só existe no ERP é irreversível na prática e
+ * precisa de alguém olhando o número antes. Daí a simulação vir primeiro.
+ */
+function ProductSyncSection({
+  report,
+  busy,
+  onSimulate,
+  onBackfill,
+}: {
+  report: ProductSyncReportView | null;
+  busy: boolean;
+  onSimulate: () => void;
+  onBackfill: () => void;
+}) {
+  const stats: { label: string; value: number; hint?: string }[] = report
+    ? [
+        { label: "Lidos no ERP", value: report.read },
+        { label: "Status atualizado", value: report.updated },
+        {
+          label: report.dryRun ? "Seriam criados" : "Criados",
+          value: report.created,
+        },
+      ]
+    : [];
+  if (report) {
+    if (report.createSkipped > 0)
+      stats.push({
+        label: "Não criados",
+        value: report.createSkipped,
+        hint: "só existem no ERP; a criação estava desligada nesta passada",
+      });
+    if (report.skippedNoBarcode > 0)
+      stats.push({
+        label: "Sem código de barras",
+        value: report.skippedNoBarcode,
+        hint: "sem código não há como casar nem criar com segurança",
+      });
+    if (report.skippedInvalidBarcode > 0)
+      stats.push({
+        label: "Com código interno",
+        value: report.skippedInvalidBarcode,
+        hint: "o ERP repete o código do produto no campo do código de barras",
+      });
+    if (report.duplicatesInSource > 0)
+      stats.push({
+        label: "Repetidos na origem",
+        value: report.duplicatesInSource,
+      });
+    if (report.failed > 0)
+      stats.push({ label: "Falhas", value: report.failed });
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div>
+        <h3 className="font-medium text-sm">Cadastro de produtos</h3>
+        <p className="text-muted-foreground text-sm">
+          A passada diária atualiza o status de quem já está cadastrado aqui.
+          Trazer os que só existem no ERP é uma decisão à parte — simule antes
+          para ver o tamanho.
+        </p>
+      </div>
+
+      {report && (
+        <div className="rounded-lg border p-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              variant="outline"
+              className={
+                report.dryRun
+                  ? "border-amber-500/40 text-amber-600 dark:text-amber-400"
+                  : "border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+              }
+            >
+              {report.dryRun ? "Simulação — nada gravado" : "Gravado"}
+            </Badge>
+            <span className="text-muted-foreground text-xs">
+              {formatDistanceToNow(new Date(report.at), {
+                addSuffix: true,
+                locale: ptBR,
+              })}
+            </span>
+          </div>
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+            {stats.map((stat) => (
+              <div key={stat.label} className="flex flex-col gap-0.5">
+                <dt className="text-muted-foreground text-xs">{stat.label}</dt>
+                <dd className="font-medium tabular-nums">
+                  {nf.format(stat.value)}
+                </dd>
+                {stat.hint && (
+                  <p className="text-muted-foreground text-xs">{stat.hint}</p>
+                )}
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-2"
+          disabled={busy}
+          onClick={onSimulate}
+        >
+          <FileText className="size-4" />
+          Simular
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="gap-2"
+          disabled={busy}
+          onClick={onBackfill}
+        >
+          <PackagePlus className="size-4" />
+          Trazer os que faltam
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -214,6 +359,32 @@ export function IntegracoesPage() {
                       Remover
                     </Button>
                   </div>
+
+                  <Separator />
+
+                  <ProductSyncSection
+                    report={status?.configured ? status.productSync : null}
+                    busy={
+                      runSync.isPending ||
+                      isPaused ||
+                      Boolean(status?.configured && status.isSyncing)
+                    }
+                    onSimulate={() =>
+                      runSync.mutate({
+                        dryRunProducts: true,
+                        createProducts: true,
+                      })
+                    }
+                    onBackfill={() => {
+                      if (
+                        window.confirm(
+                          "Trazer para o cadastro os produtos que só existem no ERP?\n\nIsso cria produtos de verdade e não tem desfazer em massa. Simule antes e confira o número.",
+                        )
+                      ) {
+                        runSync.mutate({ createProducts: true });
+                      }
+                    }}
+                  />
                 </>
               )}
             </CardContent>

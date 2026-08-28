@@ -655,6 +655,13 @@ model Product {
   // do catálogo (ex.: só vende presencial), ou vice-versa. Default true
   // pra não esconder o catálogo existente após a migration.
   showInCatalog    Boolean         @default(true)
+  // Espelho do cadastro no ERP de origem (Oracle/Winthor), escrito só pelo
+  // sync. NULO = nunca sincronizado — distinto de "inativo no ERP", que é
+  // `false`. Separado do `isActive` de propósito: o de cima é decisão do
+  // usuário ("disponível para venda"), este é fato do ERP.
+  erpActive        Boolean?
+  erpCode          String? // CODPROD no Winthor
+  erpSyncedAt      DateTime?
   // KDS - tempo médio de preparo (min) usado no painel da cozinha
   prepTimeMinutes  Int?
   // Timestamps
@@ -687,6 +694,7 @@ model Product {
   // string vazia CONFLITA, por isso a migration normaliza "" para NULL.
   @@unique([organizationId, barcode])
   @@index([organizationId])
+  @@index([organizationId, erpActive])
   @@index([categoryId])
   @@index([organizationId, brandId])
   @@index([isActive])
@@ -3698,6 +3706,12 @@ model ErpConnection {
   syncStartedAt    DateTime?
   lastSyncAt       DateTime?
   lastSyncError    String?
+  // Resultado da última passada no CADASTRO de produtos (`ProductSyncReport`).
+  // O relatório do modo simulação também cai aqui — `productSyncDryRun` separa
+  // os dois, e é a simulação que o administrador lê antes de mandar criar.
+  productSyncAt      DateTime?
+  productSyncDryRun  Boolean?
+  productSyncReport  Json?
   createdAt        DateTime            @default(now())
   updatedAt        DateTime            @updatedAt
 

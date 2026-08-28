@@ -3,6 +3,7 @@ import {
   listOrganizationsForSync,
   runErpSync,
 } from "@/features/erp-sync/server/run-erp-sync";
+import { syncErpProducts } from "@/features/erp-sync/server/sync-products";
 import { deliver } from "@/lib/sync-deliver";
 import { runProductImport } from "@/features/products/server/import-runner";
 import { runSupplierImport } from "@/features/supplier/server/supplier-import-runner";
@@ -380,7 +381,12 @@ export const erpSyncDeepSchedule = inngest.createFunction(
     await step.sendEvent(
       "dispatch",
       organizationIds.map((organizationId) =>
-        erpSyncRequested.create({ organizationId, windowDays: 90 }),
+        erpSyncRequested.create({
+          organizationId,
+          windowDays: 90,
+          // Uma vez por dia: cadastro de produto muda pouco.
+          syncProducts: true,
+        }),
       ),
     );
     return { dispatched: organizationIds.length };
@@ -402,8 +408,45 @@ export const erpSyncRun = inngest.createFunction(
     concurrency: { key: "event.data.organizationId", limit: 1 },
   },
   async ({ event, step }) => {
-    const { organizationId, windowDays } = event.data;
-    return step.run("sync", () => runErpSync(organizationId, { windowDays }));
+    const {
+      organizationId,
+      windowDays,
+      syncProducts,
+      dryRunProducts,
+      createProducts,
+    } = event.data;
+    // Simulação NÃO mexe em venda. O botão promete que nada é gravado, e o sync
+    // de vendas grava — rodá-lo aqui faria da palavra "simular" uma mentira.
+    const sales = dryRunProducts
+      ? null
+      : await step.run("sync", () =>
+          runErpSync(organizationId, { windowDays }),
+        );
+    if (!syncProducts) return sales;
+    // Passo SEPARADO de propósito: o cadastro de produtos é longo e uma falha
+    // ali não pode invalidar o sync de vendas que já concluiu — `step.run`
+    // memoiza o anterior, então um retry não o reexecuta.
+    const products = await step.run("sync-products", () =>
+      syncErpProducts(organizationId, {
+        dryRun: dryRunProducts,
+        // Nunca criado por conta própria numa passada automática: só quando o
+        // evento pede. Ver a nota em `syncErpProducts`.
+        createMissing: createProducts,
+      }),
+    );
+    if (dryRunProducts) {
+      // Quem normalmente apaga a marca de "sincronizando" é o `runErpSync`, e a
+      // simulação não passa por ele. Sem isto a conexão ficaria travada em
+      // "sincronizando" até o corte de 15 minutos, com os botões desabilitados.
+      await step.run("clear-sync-flag", async () => {
+        await prisma.erpConnection.update({
+          where: { organizationId },
+          data: { syncStartedAt: null },
+        });
+        return null;
+      });
+    }
+    return { ...sales, products };
   },
 );
 
