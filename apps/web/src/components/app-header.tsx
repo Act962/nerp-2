@@ -9,6 +9,7 @@ import { PdvHeaderInfo } from "@/features/sales/components/novo/pdv-header-info"
 import { PdvHeaderClock } from "@/features/sales/components/novo/pdv-header-clock";
 import { SidebarTrigger, useSidebar } from "./ui/sidebar";
 import { ModeToggle } from "./mode-toggle";
+import { ScannerQrButton } from "@/features/scanner/components/scanner-qr-button";
 import { FullscreenToggle } from "./fullscreen-toggle";
 
 // No PDV (tela cheia) a busca global do topo só distrai — a busca de produto
@@ -81,6 +82,7 @@ export function AppHeader() {
       <div className="flex items-center gap-2 md:gap-4">
         {isPdv && <PdvHeaderClock />}
         {isPdv && <PdvHeaderActions />}
+        <ScannerQrButton />
         <FullscreenToggle />
         <ModeToggle />
       </div>

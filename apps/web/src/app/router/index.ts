@@ -5,6 +5,7 @@ import { desktopReleaseRoutes } from "./desktop-release";
 import { productsRoutes } from "./products";
 import { catalogSettingsRouter } from "./catalog";
 import { stockRoutes } from "./stock";
+import { scannerRoutes } from "./scanner";
 import { inventoryRoutes } from "./inventory";
 import { checkoutRouter } from "./checkout";
 import { dashboardRoutes } from "./dashboard";
@@ -71,6 +72,7 @@ export const router = {
   categories: categoryRoutes,
   catalogSettings: catalogSettingsRouter,
   stocks: stockRoutes,
+  scanner: scannerRoutes,
   inventory: inventoryRoutes,
   org: orgRoutes,
   checkout: checkoutRouter,

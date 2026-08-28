@@ -42,6 +42,7 @@ import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
 import { toReceiptOrg } from "@/features/receipt-designer/lib/org-receipt";
 import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
+import { useScannerStream } from "@/features/scanner/hooks/use-scanner";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { orpc } from "@/lib/orpc";
@@ -213,6 +214,16 @@ export default function CreateSalePage({
   // Bipe vai DIRETO para a busca exata por código. Antes ele só preenchia o
   // campo de busca, o que disparava uma consulta textual ao servidor por
   // caractere e só resolvia o produto no Enter — era a lentidão relatada.
+  // Celular pareado: o código lido lá entra pelo MESMO caminho do leitor de
+  // balcão, então promoção, estoque e pesável valem igual.
+  const scannerToken = usePdvUiStore((state) => state.scannerToken);
+  useScannerStream(scannerToken, (code) => {
+    void (async () => {
+      if (await tryScan(code)) return;
+      toast.error(`Código não encontrado: ${code}`);
+    })();
+  });
+
   useBarcodeScan(true, (barcode) => {
     void (async () => {
       if (await tryScan(barcode)) return;

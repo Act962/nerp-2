@@ -56,6 +56,8 @@ model User {
   inventoryCounts     InventoryCount[]     @relation("InventoryCountCreatedBy")
   inventoryCountItems InventoryCountItem[] @relation("InventoryCountItemCountedBy")
 
+  scannerPairings ScannerPairing[] @relation("ScannerPairingCreatedBy")
+
   @@index([email])
   @@map("user")
 }
@@ -206,6 +208,7 @@ model Organization {
   purchases                 Purchase[]
   stockMovements            StockMovement[]
   inventoryCounts           InventoryCount[]
+  scannerPairings           ScannerPairing[]
   inventoryCountItems       InventoryCountItem[]
   kitchenColumns            KitchenColumn[]
   kitchenOrders             KitchenOrder[]
@@ -889,6 +892,58 @@ model InventoryCountItem {
   @@index([organizationId])
   @@index([countId])
   @@map("inventory_count_items")
+}
+
+enum ScannerPairingStatus {
+  PENDING // QR gerado, celular ainda não abriu
+  ACTIVE // celular pareado e lendo
+  REVOKED // encerrado pelo operador
+}
+
+// Pareamento do celular como leitor de código de barras do PDV.
+//
+// O QR na tela do PDV carrega o `token`. Quem abre vira leitor daquele
+// terminal — sem digitar senha, que é o que torna o recurso usável no balcão.
+// Em troca, a janela é curta e o uso é único: o token vale poucos minutos e,
+// depois de reivindicado, não pareia um segundo aparelho.
+model ScannerPairing {
+  id             String               @id @default(cuid())
+  organizationId String
+  token          String               @unique
+  createdById    String
+  status         ScannerPairingStatus @default(PENDING)
+  claimedAt      DateTime?
+  /**
+   * Último sinal do celular — a tela do PDV mostra se ainda está vivo.
+   */
+  lastSeenAt     DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime             @default(now())
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation("ScannerPairingCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  scans        ScannerScan[]
+
+  @@index([organizationId, status])
+  @@map("scanner_pairings")
+}
+
+// Um código lido no celular, aguardando o PDV consumir.
+//
+// Persistido em vez de trafegado só em memória: o PDV pode estar recarregando
+// no instante da leitura, e um código perdido no balcão significa item que não
+// entrou na venda.
+model ScannerScan {
+  id         String    @id @default(cuid())
+  pairingId  String
+  code       String
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  pairing ScannerPairing @relation(fields: [pairingId], references: [id], onDelete: Cascade)
+
+  @@index([pairingId, consumedAt])
+  @@map("scanner_scans")
 }
 
 model StockMovement {
