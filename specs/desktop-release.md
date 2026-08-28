@@ -36,11 +36,18 @@ pnpm --filter @nerp/desktop release:win
 
 # 2) publicar no bucket + atualizar o manifesto que a página lê
 cd apps/web
-npx tsx scripts/publish-desktop-release.ts \
-  --file "../desktop/src-tauri/target/release/bundle/nsis/NERP Caixa_0.1.0_x64-setup.exe" \
-  --version 0.1.0 \
-  --notes "Primeira versão pública de testes."
+cp scripts/subir-release-r2.example.ts scripts/subir-release-r2.ts   # só na 1ª vez
+# cole as credenciais do R2 de produção no arquivo, ajuste versão/notas/arquivos
+pnpm release:desktop
 ```
+
+As credenciais ficam **coladas à mão** em `scripts/subir-release-r2.ts`, que é
+ignorado pelo git (molde versionado: `subir-release-r2.example.ts`). Não vêm do
+`.env` de propósito: o `.env` de quem desenvolve aponta para o bucket
+`nasaex-test`, e publicar com ele grava o instalador onde o servidor de produção
+não lê — a página fica em "Nenhuma versão publicada" sem nenhum erro para
+explicar. Por isso o script nasce com `SIMULAR = true` e imprime bucket e
+domínio de destino antes de qualquer envio.
 
 O script calcula tamanho e SHA-256 do próprio arquivo enviado (os dois campos
 mais fáceis de errar à mão, e justamente os que o cliente usa para conferir o

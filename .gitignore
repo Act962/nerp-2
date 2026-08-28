@@ -62,6 +62,10 @@ next-env.d.ts
 # WASM do leitor de código de barras — copiado de node_modules em dev/build
 **/public/wasm
 
+# Script local de publicacao do release do desktop: contem as credenciais do R2
+# coladas a mao. O molde versionado e subir-release-r2.example.ts.
+apps/web/scripts/subir-release-r2.ts
+
 # vite / desktop build
 dist
 

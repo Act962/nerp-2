@@ -15,7 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "prisma db seed",
-    "inngest:dev": "npx inngest-cli dev -p 8299"
+    "inngest:dev": "npx inngest-cli dev -p 8299",
+    "release:desktop": "tsx scripts/subir-release-r2.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.965.0",

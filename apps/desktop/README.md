@@ -60,11 +60,20 @@ Publicar (upload no R2 + manifesto que a página `/aplicativos` do web lê):
 
 ```bash
 cd ../web
-npx tsx scripts/publish-desktop-release.ts \
-  --file "../desktop/src-tauri/target/release/bundle/nsis/NERP Caixa_0.1.0_x64-setup.exe" \
-  --version 0.1.0 \
-  --notes "Primeira versão pública de testes."
+cp scripts/subir-release-r2.example.ts scripts/subir-release-r2.ts
+# abra o arquivo, cole as credenciais do R2 de PRODUÇÃO e ajuste versão/notas
+pnpm release:desktop
 ```
+
+`subir-release-r2.ts` é ignorado pelo git — as credenciais não saem da máquina
+de quem publica. Ele nasce com `SIMULAR = true`: a primeira rodada imprime
+bucket, domínio de destino e o manifesto que seria gravado, **sem enviar nada**.
+Confira e só então mude para `false`.
+
+O `publicHost` tem de ser exatamente o mesmo valor que o servidor de produção
+usa em `NEXT_PUBLIC_S3_BUCKET_CONSTRUCTOR_URL` — é dele que o servidor deriva
+onde procurar o manifesto. Divergiu, a página fica em "Nenhuma versão publicada"
+e não aparece erro nenhum para explicar.
 
 Bumpar versão exige mexer em **dois** arquivos: `package.json` e
 `src-tauri/tauri.conf.json`. Detalhes e o que ainda falta (assinatura de código,
