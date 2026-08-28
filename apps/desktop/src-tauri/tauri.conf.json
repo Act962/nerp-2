@@ -27,6 +27,12 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "NASA Sistemas",
+    "copyright": "© NASA Sistemas. Todos os direitos reservados.",
+    "category": "Business",
+    "homepage": "https://nerp.nasaex.com",
+    "shortDescription": "Frente de caixa do NERP, com venda offline.",
+    "longDescription": "NERP Caixa — frente de caixa do ERP NERP. Pareia o terminal com a organização, mantém o catálogo local e registra vendas mesmo sem internet, sincronizando quando a conexão volta.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -38,7 +44,10 @@
       "nsis": {
         "installerIcon": "icons/icon.ico",
         "headerImage": "icons/installer-header.bmp",
-        "sidebarImage": "icons/installer-sidebar.bmp"
+        "sidebarImage": "icons/installer-sidebar.bmp",
+        "languages": ["PortugueseBR"],
+        "displayLanguageSelector": false,
+        "installMode": "both"
       }
     }
   }

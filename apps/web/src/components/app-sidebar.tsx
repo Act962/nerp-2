@@ -40,6 +40,7 @@ import {
   Map as MapIcon,
   MapPinned,
   Megaphone,
+  MonitorDown,
   MonitorPlay,
   Package,
   Plug,
@@ -401,6 +402,14 @@ const navigation: NavItem[] = [
         href: "/vendedor",
         icon: MapPinned,
         permission: "vendedor",
+      },
+      {
+        // Download do NERP Caixa (Tauri) — o único app que se INSTALA na
+        // máquina, os outros abrem no navegador do celular.
+        name: "Aplicativos offline",
+        href: "/aplicativos",
+        icon: MonitorDown,
+        permission: "aplicativos",
       },
     ],
   },
