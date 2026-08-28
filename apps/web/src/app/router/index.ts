@@ -1,6 +1,7 @@
 import { categoryRoutes } from "./category";
 import { orgRoutes } from "./org";
 import { deviceRoutes } from "./device";
+import { desktopReleaseRoutes } from "./desktop-release";
 import { productsRoutes } from "./products";
 import { catalogSettingsRouter } from "./catalog";
 import { stockRoutes } from "./stock";
@@ -130,4 +131,5 @@ export const router = {
   orgDashboard: orgDashboardRoutes,
   precos: precosRoutes,
   device: deviceRoutes,
+  desktopRelease: desktopReleaseRoutes,
 };

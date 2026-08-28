@@ -192,6 +192,11 @@ export const PAGE_PERMISSIONS = [
     href: "/integracoes",
   },
   {
+    key: "aplicativos",
+    label: "Aplicativos offline (download)",
+    href: "/aplicativos",
+  },
+  {
     key: "configuracoes",
     label: "Configurações",
     href: "/configuracoes",

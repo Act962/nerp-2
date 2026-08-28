@@ -41,6 +41,10 @@ yarn-error.log*
 .env*
 # ...menos os moldes de exemplo, que são versionados de propósito
 !**/.env*.example
+# ...e menos a URL de produção do desktop: ela é assada em build-time e não
+# é segredo. Versionada para que o instalador de release não dependa de
+# alguém lembrar de exportar a variável (já gerou build apontando p/ localhost).
+!apps/desktop/.env.production
 
 # vercel
 .vercel

@@ -11,7 +11,8 @@
     "check-types": "tsc --noEmit",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "release:win": "tauri build --bundles nsis,msi"
   },
   "dependencies": {
     "@nerp/api": "workspace:*",

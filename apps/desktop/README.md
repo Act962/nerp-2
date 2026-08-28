@@ -31,14 +31,44 @@ Os ícones já estão gerados em `icons/` (regerar com `tauri icon <logo.png>`).
 ```bash
 pnpm --filter @nerp/desktop tauri:dev     # janela nativa em dev (HMR do Vite)
 pnpm --filter @nerp/desktop tauri:build   # release + instalador por SO
+pnpm --filter @nerp/desktop release:win   # idem, só nsis + msi (o que se publica)
 ```
 
-O `tauri:build` produz, no Windows:
+O build produz, no Windows:
 - `src-tauri/target/release/bundle/msi/NERP Caixa_<versão>_x64_en-US.msi`
 - `src-tauri/target/release/bundle/nsis/NERP Caixa_<versão>_x64-setup.exe`
 
-Em produção, `DESKTOP_ALLOWED_ORIGINS` no backend precisa incluir a origem do
-Tauri (`tauri://localhost` no macOS/Linux, `https://tauri.localhost` no Windows).
+As origens da webview do Tauri (`tauri://localhost`, `http(s)://tauri.localhost`)
+são **embutidas** na allowlist do backend (`apps/web/src/lib/desktop-cors.ts`) —
+não precisam entrar no `DESKTOP_ALLOWED_ORIGINS`. Essa variável só existe para
+origens extras, como o `http://localhost:5173` do modo web em dev.
+
+## Build de release e publicação
+
+A URL do backend é assada em build-time. O release usa `.env.production`
+(versionado, com `https://nerp.nasaex.com`), e o `vite.config.ts` **quebra o
+build de produção** se a variável sumir ou apontar para localhost — foi assim
+que um instalador já saiu apontando para `localhost:3000`.
+
+Para um build contra outro servidor, a variável na linha de comando vence:
+
+```bash
+VITE_NERP_API_URL="https://homolog.exemplo.com" pnpm --filter @nerp/desktop release:win
+```
+
+Publicar (upload no R2 + manifesto que a página `/aplicativos` do web lê):
+
+```bash
+cd ../web
+npx tsx scripts/publish-desktop-release.ts \
+  --file "../desktop/src-tauri/target/release/bundle/nsis/NERP Caixa_0.1.0_x64-setup.exe" \
+  --version 0.1.0 \
+  --notes "Primeira versão pública de testes."
+```
+
+Bumpar versão exige mexer em **dois** arquivos: `package.json` e
+`src-tauri/tauri.conf.json`. Detalhes e o que ainda falta (assinatura de código,
+auto-update): `specs/desktop-release.md`.
 
 ## Estrutura
 
