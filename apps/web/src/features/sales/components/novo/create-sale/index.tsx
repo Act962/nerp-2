@@ -43,6 +43,7 @@ import { toReceiptOrg } from "@/features/receipt-designer/lib/org-receipt";
 import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { orpc } from "@/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -186,6 +187,10 @@ export default function CreateSalePage({
     reset();
   };
 
+  // 200ms: rápido o bastante para não parecer travado ao digitar, longo o
+  // bastante para uma palavra inteira virar uma consulta só.
+  const debouncedSearch = useDebouncedValue(searchTerm, 200);
+
   const {
     hasNextPage,
     data: products,
@@ -198,14 +203,22 @@ export default function CreateSalePage({
     limit: 9,
     category: selectedCategory ? [selectedCategory] : undefined,
     // Busca no SERVIDOR (não só na página carregada): produtos fora das 12
-    // primeiras também aparecem.
-    search: searchTerm.trim() || undefined,
+    // primeiras também aparecem. DEBOUNCED: sem isso é uma consulta por tecla
+    // digitada, e um código de 13 dígitos virava 13 consultas.
+    search: debouncedSearch.trim() || undefined,
   });
 
   const mutation = useMutationCreateSale();
 
+  // Bipe vai DIRETO para a busca exata por código. Antes ele só preenchia o
+  // campo de busca, o que disparava uma consulta textual ao servidor por
+  // caractere e só resolvia o produto no Enter — era a lentidão relatada.
   useBarcodeScan(true, (barcode) => {
-    setSearchTerm(barcode);
+    void (async () => {
+      if (await tryScan(barcode)) return;
+      // Não é código conhecido: cai na busca, que é o comportamento antigo.
+      setSearchTerm(barcode);
+    })();
   });
 
   const filteredProducts = products
