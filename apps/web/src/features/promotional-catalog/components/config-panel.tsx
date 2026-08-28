@@ -500,14 +500,17 @@ export function ProductPhotoButton({
   initialElementId,
   onPhotoClick,
   onOpenStyles,
+  cardGroupId,
+  cardGroupName,
 }: {
   product: CatalogProduct;
   config: CatalogConfig;
   onConfigChange: (changes: Partial<CatalogConfig>) => void;
   onSaveCardLayout?: (
-    scope: "product" | "page" | "all",
+    scope: "product" | "page" | "group" | "all",
     layout: CardLayoutElement[],
     productId: string,
+    groupId?: string | null,
   ) => void;
   // Modo controlado (Fase 5): abrir o popup da foto ao clicar no card no canvas.
   open?: boolean;
@@ -529,6 +532,11 @@ export function ProductPhotoButton({
   // Abrir a aba "Etiqueta" (padrões salvos). Usado pelo estado vazio do
   // "Montar Etiqueta" para o dev escolher um padrão em vez de desenhar.
   onOpenStyles?: () => void;
+  // Grupo a que este produto pertence NA PÁGINA. Ausente = produto fora de
+  // grupo, e o "Salvar só nesse grupo" nem aparece: seria um botão que não
+  // teria em quem aplicar.
+  cardGroupId?: string | null;
+  cardGroupName?: string | null;
 }) {
   const [openState, setOpenState] = useState(false);
   // Retângulo EXATO do card na página (frações do fundo) — recorta o fundo dos
@@ -598,8 +606,8 @@ export function ProductPhotoButton({
   const [confirmLeave, setConfirmLeave] = useState<"editor" | "modal" | null>(
     null,
   );
-  const saveCardScope = (scope: "product" | "page" | "all") => {
-    onSaveCardLayout?.(scope, cardDraft, product.id);
+  const saveCardScope = (scope: "product" | "page" | "group" | "all") => {
+    onSaveCardLayout?.(scope, cardDraft, product.id, cardGroupId);
     savedCardRef.current = JSON.stringify(cardDraft);
     setOpen(false);
   };
@@ -629,7 +637,8 @@ export function ProductPhotoButton({
     (adjust.scale !== 1 ||
       adjust.posX !== 50 ||
       adjust.posY !== 50 ||
-      adjust.fit !== "cover");
+      adjust.fit !== "cover" ||
+      !!adjust.rotation);
   const setAdjust = (patch: Partial<ImageAdjustment>) =>
     onConfigChange({
       imageAdjustments: {
@@ -889,6 +898,17 @@ export function ProductPhotoButton({
                 >
                   Alterar só essa página
                 </Button>
+                {cardGroupName && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={!cardDirty}
+                    onClick={() => saveCardScope("group")}
+                  >
+                    Salvar só nesse grupo
+                  </Button>
+                )}
                 <Button
                   type="button"
                   size="sm"
@@ -1481,9 +1501,10 @@ interface ConfigPanelProps {
   pageCapacity?: number;
   // Salvar o card livre ("Montar card") com escopo escolhido pelo usuário.
   onSaveCardLayout?: (
-    scope: "product" | "page" | "all",
+    scope: "product" | "page" | "group" | "all",
     layout: CardLayoutElement[],
     productId: string,
+    groupId?: string | null,
   ) => void;
   // Aplica a aparência (fundo) da página atual a TODAS as páginas.
   onApplyStyleToAllPages?: () => void;
@@ -2609,6 +2630,13 @@ export function ConfigPanel({
                         setEditingId(p.id);
                       }}
                       onOpenStyles={() => onActiveTabChange?.("estilos")}
+                      cardGroupId={groupId}
+                      cardGroupName={
+                        groupId
+                          ? (allGroups.find((g) => g.id === groupId)?.name ??
+                            "grupo")
+                          : null
+                      }
                     />
                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                       <div className="flex items-center gap-1.5">

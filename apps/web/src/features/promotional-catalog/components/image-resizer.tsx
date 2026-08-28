@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Minus, Plus, RotateCcw } from "lucide-react";
+import { Minus, Plus, RotateCcw, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { DEFAULT_IMAGE_ADJUSTMENT, type ImageAdjustment } from "../types";
@@ -81,7 +81,10 @@ export function ImageResizer({
     adj.scale !== baseline.scale ||
     adj.posX !== baseline.posX ||
     adj.posY !== baseline.posY ||
-    adj.fit !== baseline.fit;
+    adj.fit !== baseline.fit ||
+    // Sem isto uma foto SÓ girada não conta como ajustada, e o "Restaurar"
+    // não aparece para desfazer o giro.
+    (adj.rotation ?? 0) !== (baseline.rotation ?? 0);
 
   const hasBox = !!box && !!onBoxChange;
 
@@ -284,6 +287,27 @@ export function ImageResizer({
         >
           <Plus className="h-3 w-3" />
         </Button>
+        <span className="mx-1 h-4 w-px bg-border" />
+        {/* Giro em passos de 90°: foto deitada é o caso real, e ângulo livre
+            num botão só levaria a produto torto sem querer. O ângulo fino fica
+            em "Posições", junto dos outros ajustes finos. */}
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-7 w-7"
+          title="Girar 90°"
+          onClick={() =>
+            onChange({ rotation: (((adj.rotation ?? 0) + 90) % 360) as number })
+          }
+        >
+          <RotateCw className="h-3 w-3" />
+        </Button>
+        {!!adj.rotation && (
+          <span className="w-9 text-center text-[11px] tabular-nums">
+            {adj.rotation}°
+          </span>
+        )}
         <span className="mx-1 h-4 w-px bg-border" />
         <Button
           type="button"

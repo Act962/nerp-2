@@ -103,9 +103,10 @@ interface CatalogListEditorProps {
   onGenerate: (override?: CatalogConfig) => void;
   // Salvar o card ("Montar card") — reusa o mesmo fluxo do "Editar produto".
   onSaveCardLayout?: (
-    scope: "product" | "page" | "all",
+    scope: "product" | "page" | "group" | "all",
     layout: CardLayoutElement[],
     productId: string,
+    groupId?: string | null,
   ) => void;
   // Preview do catálogo (25% à direita, entre a barra "Gerar catálogo" e as
   // pastas). Montado pelo editor pai, que tem as páginas/produtos resolvidos.

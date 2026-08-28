@@ -20,6 +20,16 @@ export function cardImageSrc(
 // Traduz o ajuste (redimensionar/cortar) da foto do produto em estilo CSS
 // aplicado à <Image fill>: `fit` define preencher/caber, `posX/posY` a parte
 // visível, `scale` amplia (corta ao ampliar, dentro do overflow-hidden do box).
+function transformFromAdjust(
+  adjust: ImageAdjustment | undefined,
+): string | undefined {
+  if (!adjust) return undefined;
+  const partes: string[] = [];
+  if (adjust.scale !== 1) partes.push(`scale(${adjust.scale})`);
+  if (adjust.rotation) partes.push(`rotate(${adjust.rotation}deg)`);
+  return partes.length > 0 ? partes.join(" ") : undefined;
+}
+
 export function imageStyleFromAdjust(
   adjust: ImageAdjustment | undefined,
 ): CSSProperties {
@@ -28,7 +38,8 @@ export function imageStyleFromAdjust(
     // Preencher (cover) cortava a foto e escondia embalagem/gramatura.
     objectFit: adjust?.fit ?? "contain",
     objectPosition: adjust ? `${adjust.posX}% ${adjust.posY}%` : undefined,
-    transform:
-      adjust && adjust.scale !== 1 ? `scale(${adjust.scale})` : undefined,
+    // Zoom e giro na MESMA transformação: dois `transform` no mesmo elemento se
+    // sobrescrevem, e o segundo apagaria o primeiro.
+    transform: transformFromAdjust(adjust),
   };
 }

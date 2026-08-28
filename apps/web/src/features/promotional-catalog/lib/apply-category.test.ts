@@ -231,3 +231,56 @@ describe("previewPageCount", () => {
     expect(previewPageCount([5686], 12)).toBe(474);
   });
 });
+
+describe("elementos do molde nas páginas novas", () => {
+  const TEXTO_FIXO = { id: "t-fixo", text: "Ofertas de agosto" };
+  const TEXTO_DINAMICO = {
+    id: "t-cat",
+    text: "CATEGORIA",
+    binding: { source: "category", variable: "name" },
+  };
+
+  const molde = (over: Partial<CatalogPage> = {}) =>
+    page({
+      texts: [TEXTO_FIXO, TEXTO_DINAMICO] as CatalogPage["texts"],
+      ...over,
+    });
+
+  it("texto DINÂMICO acompanha; estático não", () => {
+    // Sem isto o dev teria que inserir o título da categoria à mão em cada uma
+    // das páginas criadas — o caso real eram 50.
+    const r = run([molde({ productIds: ids(12) })], [BEBIDAS(24)]);
+    const novas = r.pages.slice(1);
+    expect(novas.length).toBeGreaterThan(0);
+    for (const pg of novas) {
+      expect(pg.texts?.map((t) => t.text)).toEqual(["CATEGORIA"]);
+    }
+  });
+
+  it("cada página nova recebe o texto com id PRÓPRIO", () => {
+    // Id repetido faria a camada de seleção editar o texto da página errada —
+    // o mesmo problema que os grupos tiveram em `duplicatePage`.
+    const r = run([molde({ productIds: ids(12) })], [BEBIDAS(36)]);
+    const idsTexto = r.pages
+      .slice(1)
+      .flatMap((pg) => (pg.texts ?? []).map((t) => t.id));
+    expect(idsTexto.length).toBe(new Set(idsTexto).size);
+    expect(idsTexto).not.toContain("t-cat");
+  });
+
+  it("bloco de estilo NÃO acompanha", () => {
+    // Ele aponta para um produto só; repetido mostraria o mesmo item em todas.
+    const r = run(
+      [
+        molde({
+          productIds: ids(12),
+          styleBlocks: [
+            { id: "b1", productId: "x" },
+          ] as CatalogPage["styleBlocks"],
+        }),
+      ],
+      [BEBIDAS(24)],
+    );
+    for (const pg of r.pages.slice(1)) expect(pg.styleBlocks).toEqual([]);
+  });
+});
