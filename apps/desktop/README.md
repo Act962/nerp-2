@@ -31,14 +31,53 @@ Os ícones já estão gerados em `icons/` (regerar com `tauri icon <logo.png>`).
 ```bash
 pnpm --filter @nerp/desktop tauri:dev     # janela nativa em dev (HMR do Vite)
 pnpm --filter @nerp/desktop tauri:build   # release + instalador por SO
+pnpm --filter @nerp/desktop release:win   # idem, só nsis + msi (o que se publica)
 ```
 
-O `tauri:build` produz, no Windows:
+O build produz, no Windows:
 - `src-tauri/target/release/bundle/msi/NERP Caixa_<versão>_x64_en-US.msi`
 - `src-tauri/target/release/bundle/nsis/NERP Caixa_<versão>_x64-setup.exe`
 
-Em produção, `DESKTOP_ALLOWED_ORIGINS` no backend precisa incluir a origem do
-Tauri (`tauri://localhost` no macOS/Linux, `https://tauri.localhost` no Windows).
+As origens da webview do Tauri (`tauri://localhost`, `http(s)://tauri.localhost`)
+são **embutidas** na allowlist do backend (`apps/web/src/lib/desktop-cors.ts`) —
+não precisam entrar no `DESKTOP_ALLOWED_ORIGINS`. Essa variável só existe para
+origens extras, como o `http://localhost:5173` do modo web em dev.
+
+## Build de release e publicação
+
+A URL do backend é assada em build-time. O release usa `.env.production`
+(versionado, com `https://nerp.nasaex.com`), e o `vite.config.ts` **quebra o
+build de produção** se a variável sumir ou apontar para localhost — foi assim
+que um instalador já saiu apontando para `localhost:3000`.
+
+Para um build contra outro servidor, a variável na linha de comando vence:
+
+```bash
+VITE_NERP_API_URL="https://homolog.exemplo.com" pnpm --filter @nerp/desktop release:win
+```
+
+Publicar (upload no R2 + manifesto que a página `/aplicativos` do web lê):
+
+```bash
+cd ../web
+cp scripts/subir-release-r2.example.ts scripts/subir-release-r2.ts
+# abra o arquivo, cole as credenciais do R2 de PRODUÇÃO e ajuste versão/notas
+pnpm release:desktop
+```
+
+`subir-release-r2.ts` é ignorado pelo git — as credenciais não saem da máquina
+de quem publica. Ele nasce com `SIMULAR = true`: a primeira rodada imprime
+bucket, domínio de destino e o manifesto que seria gravado, **sem enviar nada**.
+Confira e só então mude para `false`.
+
+O `publicHost` tem de ser exatamente o mesmo valor que o servidor de produção
+usa em `NEXT_PUBLIC_S3_BUCKET_CONSTRUCTOR_URL` — é dele que o servidor deriva
+onde procurar o manifesto. Divergiu, a página fica em "Nenhuma versão publicada"
+e não aparece erro nenhum para explicar.
+
+Bumpar versão exige mexer em **dois** arquivos: `package.json` e
+`src-tauri/tauri.conf.json`. Detalhes e o que ainda falta (assinatura de código,
+auto-update): `specs/desktop-release.md`.
 
 ## Estrutura
 

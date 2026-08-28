@@ -79,6 +79,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/integracoes") ||
     pathname.startsWith("/colaboradores") ||
     pathname.startsWith("/padroes") ||
+    pathname.startsWith("/aplicativos") ||
     // Página de autorização de cancelamento aberta no celular do supervisor.
     pathname.startsWith("/autorizar")
   ) {
