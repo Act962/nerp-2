@@ -5,6 +5,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { assertCanEditCatalog } from "./_require-edit";
 import { UNCATEGORIZED_LABEL } from "./category-summary";
+import { productFilterSchema, productFilterWhere } from "./_product-filters";
 
 // Ids dos produtos que ainda cabem no catálogo, AGRUPADOS por categoria.
 //
@@ -31,6 +32,9 @@ export const catalogCategoryAvailableIds = base
       excludeIds: z.array(z.string()).default([]),
       // Ausente = tudo o que restar. Presente = teto POR categoria.
       limit: z.number().int().positive().optional(),
+      // Idem `categorySummary`: aplicar produto tem que respeitar o mesmo
+      // filtro que contou o "restam N".
+      filters: productFilterSchema,
     }),
   )
   .output(
@@ -82,7 +86,9 @@ export const catalogCategoryAvailableIds = base
     const rows = await prisma.product.findMany({
       where: {
         organizationId: context.org.id,
-        isActive: true,
+        ...(input.filters
+          ? productFilterWhere(input.filters)
+          : { isActive: true }),
         ...(input.excludeIds.length > 0 && {
           id: { notIn: input.excludeIds },
         }),

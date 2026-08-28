@@ -11,6 +11,8 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { orpc } from "@/lib/orpc";
 import type { CategoryGroup } from "../lib/apply-category";
+import type { ProductFilters } from "@/app/router/promotional-catalog/_product-filters";
+import { normalizeName } from "../lib/product-match";
 import { previewPageCount } from "../lib/apply-category";
 
 // Acima disto a aplicação avisa antes de seguir. Não é um teto: é só o ponto a
@@ -28,6 +30,9 @@ type CategoryRow = {
 interface AddByCategoryProps {
   // Produtos já no catálogo — o que define o "restam N" de cada categoria.
   excludeIds: string[];
+  // Mesmos filtros da aba de busca: sem eles, o "restam N" contaria produtos
+  // que a busca esconde e as duas abas voltariam a discordar.
+  filters?: ProductFilters;
   // Capacidade da página atual (ex.: 12), para converter produtos em páginas.
   pageCapacity: number;
   onApply: (groups: CategoryGroup[]) => void;
@@ -36,6 +41,7 @@ interface AddByCategoryProps {
 
 export function AddByCategory({
   excludeIds,
+  filters,
   pageCapacity,
   onApply,
   onDone,
@@ -46,16 +52,26 @@ export function AddByCategory({
   const [limitMode, setLimitMode] = useState<"all" | "count">("all");
   const [count, setCount] = useState(String(pageCapacity));
   const [confirming, setConfirming] = useState(false);
+  // Busca LOCAL: a lista inteira já veio do `categorySummary`, então filtrar
+  // aqui não custa uma ida nova ao servidor.
+  const [busca, setBusca] = useState("");
 
   const summary = useQuery(
     orpc.promotionalCatalog.categorySummary.queryOptions({
-      input: { excludeIds },
+      input: { excludeIds, filters },
     }),
   );
   const rows: CategoryRow[] = useMemo(() => summary.data ?? [], [summary.data]);
   const keyOf = (r: CategoryRow) => r.slug ?? "__none__";
 
-  const available = rows.filter((r) => r.remaining > 0);
+  // `normalizeName` tira acento e caixa — buscar "hortifruti" acha "HORTIFRUTI".
+  const alvo = normalizeName(busca);
+  const visiveis = alvo
+    ? rows.filter((r) => normalizeName(r.name).includes(alvo))
+    : rows;
+  // "Selecionar todas" marca só o que está VISÍVEL: marcar categoria escondida
+  // pelo filtro seria surpresa, já que a busca serve justamente para restringir.
+  const available = visiveis.filter((r) => r.remaining > 0);
   const allSelected =
     available.length > 0 && available.every((r) => selected.has(keyOf(r)));
 
@@ -86,6 +102,7 @@ export function AddByCategory({
         keys: chosen.map((r) => r.slug),
         excludeIds,
         limit: perCategory,
+        filters,
       }),
     onSuccess: (data) => {
       if (data.groups.length === 0) {
@@ -128,18 +145,27 @@ export function AddByCategory({
         </Button>
       </div>
 
+      <Input
+        placeholder="Buscar categoria…"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        className="h-8 text-xs"
+      />
+
       <ScrollArea className="h-[240px] rounded-md border">
         {summary.isLoading ? (
           <div className="flex h-[240px] items-center justify-center">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
-        ) : rows.length === 0 ? (
+        ) : visiveis.length === 0 ? (
           <p className="p-4 text-center text-xs text-muted-foreground">
-            Nenhum produto ativo cadastrado.
+            {rows.length === 0
+              ? "Nenhum produto encontrado com os filtros atuais."
+              : `Nenhuma categoria com “${busca}”.`}
           </p>
         ) : (
           <div className="flex flex-col">
-            {rows.map((r) => {
+            {visiveis.map((r) => {
               const key = keyOf(r);
               const esgotada = r.remaining === 0;
               return (
