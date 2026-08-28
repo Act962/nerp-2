@@ -1,11 +1,19 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { type NextRequest, NextResponse } from "next/server";
 import { S3 } from "@/lib/s3-client";
+import { isSensitiveObjectKey } from "@/lib/s3-object-guard";
 
 export async function GET(request: NextRequest) {
   const key = request.nextUrl.searchParams.get("key");
   if (!key) {
     return new NextResponse("Missing key", { status: 400 });
+  }
+
+  // Esta rota não tem sessão (serve vitrine e catálogo público), então tudo
+  // que for material criptográfico é recusado antes de tocar o bucket. Cobre
+  // os certificados A1 que a rota antiga de upload gravou aqui.
+  if (isSensitiveObjectKey(key)) {
+    return new NextResponse("Forbidden", { status: 403 });
   }
 
   try {

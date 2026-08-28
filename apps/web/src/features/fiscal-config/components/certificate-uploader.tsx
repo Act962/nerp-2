@@ -2,125 +2,200 @@
 
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { FileCheck, Loader2, ShieldCheck, Upload } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertTriangle,
+  FileCheck,
+  Loader2,
+  ShieldCheck,
+  Upload,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
+import { useUploadCertificate } from "../hooks/use-fiscal-config";
+
+/**
+ * Envio do certificado A1.
+ *
+ * O arquivo vai para o servidor junto com a senha, numa procedure só: sem a
+ * senha não dá para abrir o .pfx, e sem abrir não dá para conferir validade e
+ * CNPJ. O upload direto por presigned URL (que este componente usava) não
+ * conseguia validar nada e deixava o certificado no bucket público.
+ */
 
 interface CertificateUploaderProps {
-  currentFilename?: string | null;
-  currentKey?: string | null;
-  onUploaded: (payload: { key: string; filename: string }) => void;
+  hasCertificate: boolean;
+  filename?: string | null;
+  expiresAt?: string | null;
+  /** Certificado ainda no bucket público antigo — precisa ser reenviado. */
+  legacyStorage?: boolean;
+  /** Sem CNPJ salvo não há como validar o titular. */
+  disabledReason?: string | null;
 }
 
-// Sobe o .pfx via presigned URL (mesma rota /api/s3/upload que já usamos).
-// A rota agora aceita application/x-pkcs12; devolve `key` que gravamos no
-// banco. Este componente NUNCA lê o conteúdo — o parsing do certificado (data
-// de expiração) fica pra Fase B (precisa de openssl no server ou uma lib como
-// node-forge).
 export function CertificateUploader({
-  currentFilename,
-  currentKey,
-  onUploaded,
+  hasCertificate,
+  filename,
+  expiresAt,
+  legacyStorage = false,
+  disabledReason,
 }: CertificateUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [password, setPassword] = useState("");
+  const upload = useUploadCertificate();
 
-  async function handleFile(file: File) {
-    if (!file.name.toLowerCase().endsWith(".pfx")) {
-      toast.error("Envie um arquivo .pfx (certificado digital A1)");
-      return;
-    }
-    setUploading(true);
-    try {
-      // O navegador não conhece o MIME de .pfx em muitos SOs — mandamos
-      // explicitamente pra a whitelist do server aceitar.
-      const contentType = file.type || "application/x-pkcs12";
-      const res = await fetch("/api/s3/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          contentType,
-          size: file.size,
-          isImage: false,
-        }),
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? "Falha ao obter URL de upload");
-      }
-      const { presignedUrl, key } = await res.json();
-      const put = await fetch(presignedUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": contentType },
-      });
-      if (!put.ok) throw new Error("Falha ao enviar arquivo");
-      onUploaded({ key, filename: file.name });
-      toast.success("Certificado enviado");
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Falha no upload do certificado",
-      );
-    } finally {
-      setUploading(false);
-    }
+  const blocked = !!disabledReason;
+
+  async function send() {
+    if (!file || !password) return;
+    const contentBase64 = await fileToBase64(file);
+    upload.mutate(
+      { filename: file.name, contentBase64, password },
+      {
+        onSuccess: () => {
+          setFile(null);
+          setPassword("");
+        },
+      },
+    );
   }
 
-  const hasCurrent = !!currentKey;
-
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <input
         ref={inputRef}
         type="file"
-        accept=".pfx,application/x-pkcs12,application/pkcs12"
+        accept=".pfx,.p12,application/x-pkcs12,application/pkcs12"
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
-          if (file) handleFile(file);
+          const picked = e.target.files?.[0];
           e.target.value = "";
+          if (!picked) return;
+          if (!/\.(pfx|p12)$/i.test(picked.name)) {
+            toast.error("Envie um arquivo .pfx ou .p12 (certificado A1)");
+            return;
+          }
+          setFile(picked);
         }}
       />
-      {hasCurrent ? (
+
+      {hasCertificate && !file ? (
         <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/30 px-3 py-2 text-sm">
           <div className="flex min-w-0 items-center gap-2">
             <ShieldCheck className="size-4 shrink-0 text-emerald-600" />
-            <span className="truncate">
-              {currentFilename ?? "certificado.pfx"}
-            </span>
+            <div className="min-w-0">
+              <span className="block truncate">
+                {filename ?? "certificado.pfx"}
+              </span>
+              {expiresAt && (
+                <span className="text-xs text-muted-foreground">
+                  Válido até {new Date(expiresAt).toLocaleDateString("pt-BR")}
+                </span>
+              )}
+            </div>
           </div>
           <Button
             type="button"
             variant="outline"
             size="sm"
+            disabled={blocked}
             onClick={() => inputRef.current?.click()}
-            disabled={uploading}
           >
-            {uploading ? (
+            <Upload className="mr-1 size-4" />
+            Trocar
+          </Button>
+        </div>
+      ) : null}
+
+      {!hasCertificate && !file ? (
+        <button
+          type="button"
+          className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground transition-colors hover:bg-muted/50 disabled:cursor-not-allowed disabled:opacity-60"
+          onClick={() => inputRef.current?.click()}
+          disabled={blocked}
+        >
+          <FileCheck className="size-5" />
+          Enviar certificado A1 (.pfx)
+        </button>
+      ) : null}
+
+      {file ? (
+        <div className="flex flex-col gap-3 rounded-md border p-3">
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="truncate">{file.name}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7"
+              onClick={() => {
+                setFile(null);
+                setPassword("");
+              }}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="pfx-password" className="text-xs">
+              Senha do certificado
+            </Label>
+            <Input
+              id="pfx-password"
+              type="password"
+              autoComplete="off"
+              value={password}
+              placeholder="Necessária para validar e usar o certificado"
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void send();
+                }
+              }}
+            />
+          </div>
+          <Button
+            type="button"
+            size="sm"
+            className="self-end"
+            disabled={!password || upload.isPending}
+            onClick={() => void send()}
+          >
+            {upload.isPending ? (
               <Loader2 className="mr-1 size-4 animate-spin" />
             ) : (
               <Upload className="mr-1 size-4" />
             )}
-            Trocar
+            {upload.isPending ? "Validando..." : "Enviar e validar"}
           </Button>
         </div>
-      ) : (
-        <button
-          type="button"
-          className="flex flex-col items-center justify-center gap-2 rounded-md border border-dashed px-4 py-6 text-sm text-muted-foreground transition-colors hover:bg-muted/50"
-          onClick={() => inputRef.current?.click()}
-          disabled={uploading}
-        >
-          {uploading ? (
-            <Loader2 className="size-5 animate-spin" />
-          ) : (
-            <FileCheck className="size-5" />
-          )}
-          {uploading ? "Enviando..." : "Enviar certificado A1 (.pfx)"}
-        </button>
-      )}
+      ) : null}
+
+      {blocked ? (
+        <p className="text-xs text-muted-foreground">{disabledReason}</p>
+      ) : null}
+
+      {legacyStorage ? (
+        <p className="flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-500">
+          <AlertTriangle className="mt-px size-3.5 shrink-0" />
+          Este certificado foi enviado para o armazenamento antigo, que não era
+          privado. Reenvie o arquivo antes de emitir e apague o objeto antigo no
+          bucket de imagens.
+        </p>
+      ) : null}
     </div>
   );
+}
+
+/** Converte em base64 sem estourar a pilha (`btoa` + spread quebra em arquivo grande). */
+async function fileToBase64(file: File): Promise<string> {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK)
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  return btoa(binary);
 }

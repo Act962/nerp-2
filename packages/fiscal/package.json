@@ -1,0 +1,22 @@
+{
+  "name": "@nerp/fiscal",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "biome check",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.2.0",
+    "@brasil-fiscal/core": "^1.6.0",
+    "@brasil-fiscal/nfe": "^2.0.7",
+    "@nerp/typescript-config": "workspace:*",
+    "typescript": "^5",
+    "vitest": "^3.2.4"
+  }
+}

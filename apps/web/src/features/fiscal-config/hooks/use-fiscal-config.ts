@@ -24,6 +24,29 @@ export function useSaveFiscalConfig() {
   );
 }
 
+/**
+ * Envia o .pfx + senha. Diferente do `upsert`, esta mutation grava sozinha
+ * (arquivo, validade e senha cifrada), então invalida a config no sucesso.
+ */
+export function useUploadCertificate() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.fiscalConfig.uploadCertificate.mutationOptions({
+      onSuccess: (data) => {
+        toast.success(
+          `Certificado de ${data.subjectName} válido até ${new Date(
+            data.expiresAt,
+          ).toLocaleDateString("pt-BR")}`,
+        );
+        queryClient.invalidateQueries({
+          queryKey: orpc.fiscalConfig.get.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message, { duration: 8000 }),
+    }),
+  );
+}
+
 export function useTestSefaz() {
   return useMutation(
     orpc.fiscalConfig.testSefaz.mutationOptions({
