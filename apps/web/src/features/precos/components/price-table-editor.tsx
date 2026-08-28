@@ -40,6 +40,7 @@ import { useProducts } from "@/features/products/hooks/use-products";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { Percent, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { CategoryDiscountsCard } from "./category-discounts-card";
 import {
   useDeletePriceList,
   useDeleteProductPrice,
@@ -90,101 +91,101 @@ export function PriceTableEditor({ priceList }: { priceList: PriceListRow }) {
   }, [tiers]);
 
   return (
-    <Card>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <CardTitle>{priceList.name}</CardTitle>
-          {priceList.isDefault && (
-            <Badge variant="secondary">padrão</Badge>
-          )}
-          {!priceList.isActive && (
-            <Badge variant="outline">inativa</Badge>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <AddTierDialog priceListId={priceList.id} />
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="sm">
-                Opções
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-64 space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span>Ativa</span>
-                <Switch
-                  checked={priceList.isActive}
-                  onCheckedChange={(v) =>
-                    update.mutate({ id: priceList.id, isActive: v })
-                  }
-                />
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span>Padrão da org</span>
-                <Switch
-                  checked={priceList.isDefault}
-                  onCheckedChange={(v) =>
-                    update.mutate({ id: priceList.id, isDefault: v })
-                  }
-                />
-              </div>
-              {!priceList.isDefault && (
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="w-full"
-                  onClick={() => del.mutate({ id: priceList.id })}
-                  disabled={del.isPending}
-                >
-                  Excluir tabela
-                </Button>
-              )}
-            </PopoverContent>
-          </Popover>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading && <Spinner />}
-        {!isLoading && byProduct.length === 0 && (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Nenhuma faixa cadastrada nesta tabela. Adicione a primeira em
-            "+ Adicionar faixa".
-          </p>
-        )}
-        {byProduct.length > 0 && (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead>Preço base</TableHead>
-                  <TableHead>A partir de</TableHead>
-                  <TableHead>Modo</TableHead>
-                  <TableHead>Valor</TableHead>
-                  <TableHead>Preço final</TableHead>
-                  <TableHead />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {byProduct.map(([productId, group]) =>
-                  group.rows
-                    .sort((a, b) => a.minQuantity - b.minQuantity)
-                    .map((row, i) => (
-                      <TierRow
-                        key={row.id}
-                        row={row}
-                        showProduct={i === 0}
-                        productName={group.productName}
-                        productSalePrice={group.productSalePrice}
-                      />
-                    )),
-                )}
-              </TableBody>
-            </Table>
+    <div className="flex flex-col gap-6">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-2">
+            <CardTitle>{priceList.name}</CardTitle>
+            {priceList.isDefault && <Badge variant="secondary">padrão</Badge>}
+            {!priceList.isActive && <Badge variant="outline">inativa</Badge>}
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <div className="flex items-center gap-2">
+            <AddTierDialog priceListId={priceList.id} />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm">
+                  Opções
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-64 space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span>Ativa</span>
+                  <Switch
+                    checked={priceList.isActive}
+                    onCheckedChange={(v) =>
+                      update.mutate({ id: priceList.id, isActive: v })
+                    }
+                  />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span>Padrão da org</span>
+                  <Switch
+                    checked={priceList.isDefault}
+                    onCheckedChange={(v) =>
+                      update.mutate({ id: priceList.id, isDefault: v })
+                    }
+                  />
+                </div>
+                {!priceList.isDefault && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    className="w-full"
+                    onClick={() => del.mutate({ id: priceList.id })}
+                    disabled={del.isPending}
+                  >
+                    Excluir tabela
+                  </Button>
+                )}
+              </PopoverContent>
+            </Popover>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {isLoading && <Spinner />}
+          {!isLoading && byProduct.length === 0 && (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Nenhuma faixa cadastrada nesta tabela. Adicione a primeira em "+
+              Adicionar faixa".
+            </p>
+          )}
+          {byProduct.length > 0 && (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Produto</TableHead>
+                    <TableHead>Preço base</TableHead>
+                    <TableHead>A partir de</TableHead>
+                    <TableHead>Modo</TableHead>
+                    <TableHead>Valor</TableHead>
+                    <TableHead>Preço final</TableHead>
+                    <TableHead />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {byProduct.map(([productId, group]) =>
+                    group.rows
+                      .sort((a, b) => a.minQuantity - b.minQuantity)
+                      .map((row, i) => (
+                        <TierRow
+                          key={row.id}
+                          row={row}
+                          showProduct={i === 0}
+                          productName={group.productName}
+                          productSalePrice={group.productSalePrice}
+                        />
+                      )),
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <CategoryDiscountsCard priceListId={priceList.id} />
+    </div>
   );
 }
 
@@ -208,19 +209,19 @@ function TierRow({
   const del = useDeleteProductPrice();
   const finalPrice =
     row.pricingMode === "FIXED"
-      ? row.unitPrice ?? 0
+      ? (row.unitPrice ?? 0)
       : Math.round(
           productSalePrice * (1 - (row.percentDiscount ?? 0) / 100) * 100,
         ) / 100;
   return (
     <TableRow>
-      <TableCell className={showProduct ? "font-medium" : "text-muted-foreground"}>
+      <TableCell
+        className={showProduct ? "font-medium" : "text-muted-foreground"}
+      >
         {showProduct ? productName : ""}
       </TableCell>
       <TableCell>
-        {showProduct
-          ? `R$ ${currencyFormatter(productSalePrice)}`
-          : ""}
+        {showProduct ? `R$ ${currencyFormatter(productSalePrice)}` : ""}
       </TableCell>
       <TableCell>{row.minQuantity} un</TableCell>
       <TableCell>

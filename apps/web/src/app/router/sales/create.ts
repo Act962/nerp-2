@@ -4,6 +4,7 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { resolveManyPrices } from "@/features/precos/server/resolve-price";
+import { createSaleFinanceEntries } from "@/features/financeiro/server/sale-entries";
 import z from "zod";
 
 export const createSale = base
@@ -79,7 +80,13 @@ export const createSale = base
         id: { in: input.items.map((item) => item.productId) },
         organizationId: orgId,
       },
-      select: { id: true, currentStock: true, trackStock: true },
+      select: {
+        id: true,
+        currentStock: true,
+        trackStock: true,
+        // Base do CMV lançado no Financeiro.
+        costPrice: true,
+      },
     });
     const productById = new Map(
       products.map((product) => [product.id, product]),
@@ -98,7 +105,8 @@ export const createSale = base
     // Isso fecha o vazamento de preço antigo (o client mandava o `unitPrice`
     // e a gente confiava). O total/subtotal enviados servem só de sanity —
     // se divergirem do resolvido, aborta.
-    let effectivePriceListId: string | null | undefined = input.priceListId ?? undefined;
+    let effectivePriceListId: string | null | undefined =
+      input.priceListId ?? undefined;
     if (input.priceListId === undefined && input.customerId) {
       const cust = await prisma.customer.findFirst({
         where: { id: input.customerId, organizationId: orgId },
@@ -109,7 +117,10 @@ export const createSale = base
     const resolved = await resolveManyPrices({
       organizationId: orgId,
       priceListId: effectivePriceListId,
-      items: input.items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      items: input.items.map((i) => ({
+        productId: i.productId,
+        quantity: i.quantity,
+      })),
     });
     const resolvedPriceByProduct = new Map(
       resolved.map((r, i) => [`${r.productId}:${i}`, r.unitPrice] as const),
@@ -234,6 +245,28 @@ export const createSale = base
             description: `Venda #${sale.saleNumber}`,
             createdById: context.user.id,
           },
+        });
+      }
+
+      // Financeiro: a venda vira receita (uma linha por forma de pagamento) e
+      // custo (CMV). Sem isto, nada do PDV aparece no DRE/DRO/fluxo de caixa —
+      // era o que acontecia até aqui. Só venda CONCLUÍDA lança: pendente de
+      // aprovação ainda pode não virar receita.
+      if (input.status === "COMPLETED") {
+        const cmv = input.items.reduce((sum, item) => {
+          const product = productById.get(item.productId);
+          return sum + Number(product?.costPrice ?? 0) * item.quantity;
+        }, 0);
+
+        await createSaleFinanceEntries(tx, {
+          organizationId: orgId,
+          saleId: sale.id,
+          createdById: context.user.id,
+          saleNumber: sale.saleNumber,
+          saleDate: new Date(),
+          payments: input.payments,
+          total: computedTotal,
+          cmv,
         });
       }
 

@@ -4,6 +4,7 @@ import { deviceRoutes } from "./device";
 import { productsRoutes } from "./products";
 import { catalogSettingsRouter } from "./catalog";
 import { stockRoutes } from "./stock";
+import { inventoryRoutes } from "./inventory";
 import { checkoutRouter } from "./checkout";
 import { dashboardRoutes } from "./dashboard";
 import { customerRoutes } from "./customer";
@@ -69,6 +70,7 @@ export const router = {
   categories: categoryRoutes,
   catalogSettings: catalogSettingsRouter,
   stocks: stockRoutes,
+  inventory: inventoryRoutes,
   org: orgRoutes,
   checkout: checkoutRouter,
   dashboard: dashboardRoutes,

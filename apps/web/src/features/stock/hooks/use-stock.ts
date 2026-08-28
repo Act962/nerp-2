@@ -25,7 +25,7 @@ export const useStock = ({
         dateInit,
         dateEnd,
       },
-    })
+    }),
   );
   return {
     data: stock?.moviments ?? [],

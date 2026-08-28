@@ -5,6 +5,7 @@ import { requireAuth, currentOrganization } from "@/lib/auth-utils";
 import { ModalProvider } from "@/components/providers/modal-provider";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { AppHeader } from "@/components/app-header";
+import { NewVersionBanner } from "@/components/new-version-banner";
 import { ShellContent } from "@/components/shell-content";
 import { EmptyOrganization } from "@/components/empty-organization";
 
@@ -26,6 +27,7 @@ export default async function Layout({
           header. Só aparece no /vendas/novo (o próprio componente decide). */}
       <PdvMediaPanel />
       <div className="flex flex-1 flex-col overflow-hidden">
+        <NewVersionBanner />
         <AppHeader />
         <main className="flex-1 overflow-y-auto">
           {org ? (

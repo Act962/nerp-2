@@ -9,16 +9,15 @@ import type {
   ReceiptPaper,
   ReceiptSaleData,
 } from "../lib/types";
+import { PAPER_MM } from "../lib/paper";
 import { buildVariables, resolveVariables } from "../lib/variables";
 
-// Largura de "papel" em px para a tela/impressão (aprox. do físico a 96dpi).
-const PAPER_WIDTH_PX: Record<ReceiptPaper, number> = {
-  MM80: 288,
-  MM58: 210,
-  A4: 640,
-};
-
 const SIZE_PX: Record<BlockSize, number> = { sm: 11, md: 13, lg: 16 };
+
+// Altura FIXA do logo (não max-height): reserva a caixa mesmo antes da imagem
+// carregar, senão a altura medida para o @page sai curta e o cupom é cortado.
+// Também impede que um logo alto coma a bobina inteira.
+const LOGO_PX: Record<BlockSize, number> = { sm: 32, md: 48, lg: 64 };
 
 function alignClass(align: BlockAlign) {
   return align === "center"
@@ -68,6 +67,7 @@ function BlockView({
               src={data.org.logoUrl}
               alt={data.org.name}
               className="inline-block max-w-[60%] object-contain"
+              style={{ height: LOGO_PX[block.size] }}
             />
           ) : (
             <div className="font-bold" style={{ fontSize: SIZE_PX.lg }}>
@@ -236,12 +236,15 @@ export function ReceiptRender({
     <div
       className={className}
       style={{
-        width: PAPER_WIDTH_PX[paper],
+        // Em mm, não px: a bobina é física. Com px o Chrome aplica a escala
+        // "ajustar à área de impressão" e o cupom sai reduzido ou cortado.
+        width: `${PAPER_MM[paper].content}mm`,
         maxWidth: "100%",
+        margin: "0 auto",
         fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
         color: "#000",
         background: "#fff",
-        padding: paper === "A4" ? 24 : 12,
+        padding: paper === "A4" ? 24 : "8px 0",
         lineHeight: 1.35,
       }}
     >

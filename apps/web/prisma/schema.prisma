@@ -53,6 +53,9 @@ model User {
   createdPaymentEntries    PaymentEntry[]          @relation("PaymentEntryCreatedBy")
   googleDriveConnections   GoogleDriveConnection[]
 
+  inventoryCounts     InventoryCount[]     @relation("InventoryCountCreatedBy")
+  inventoryCountItems InventoryCountItem[] @relation("InventoryCountItemCountedBy")
+
   @@index([email])
   @@map("user")
 }
@@ -202,6 +205,8 @@ model Organization {
   cancellationRequests      CancellationRequest[]
   purchases                 Purchase[]
   stockMovements            StockMovement[]
+  inventoryCounts           InventoryCount[]
+  inventoryCountItems       InventoryCountItem[]
   kitchenColumns            KitchenColumn[]
   kitchenOrders             KitchenOrder[]
   kitchenOrderEvents        KitchenOrderEvent[]
@@ -285,6 +290,7 @@ model Organization {
   googleDriveConnections    GoogleDriveConnection[]
   // Tabelas de preço (Varejo/Atacado/Revendedor + customizadas)
   priceLists                PriceList[]
+  priceCategoryDiscounts    PriceListCategoryDiscount[]
   productPrices             ProductPrice[]
 
   @@index([slug])
@@ -539,29 +545,30 @@ model CatalogSettings {
 // ============================================
 
 model Category {
-  id             String       @id @default(cuid())
+  id             String                      @id @default(cuid())
   organizationId String
   name           String
   slug           String
   description    String?
   image          String?
-  order          Int          @default(0)
-  isActive       Boolean      @default(true)
+  order          Int                         @default(0)
+  isActive       Boolean                     @default(true)
   // Hierarquia (categoria pai)
   parentId       String?
-  parent         Category?    @relation("SubCategories", fields: [parentId], references: [id], onDelete: Cascade)
-  children       Category[]   @relation("SubCategories")
+  parent         Category?                   @relation("SubCategories", fields: [parentId], references: [id], onDelete: Cascade)
+  children       Category[]                  @relation("SubCategories")
   // Estrutura mercadológica: 0=Categoria 1=Sub-Categoria 2=Segmento 3=Sub-Segmento.
   // `path` é materialized path de ids ("catA/subB/segC") — resolve "todos os
   // descendentes de X" com um startsWith, sem CTE recursiva. Derivados de
   // parentId; mantidos por backfill e na escrita.
-  level          Int          @default(0)
+  level          Int                         @default(0)
   path           String?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
-  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   products       Product[]
   planograms     Planogram[]
+  priceDiscounts PriceListCategoryDiscount[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -587,103 +594,110 @@ enum ProductUnit {
 }
 
 model Product {
-  id               String          @id @default(cuid())
-  organizationId   String
-  categoryId       String?
+  id                  String               @id @default(cuid())
+  organizationId      String
+  categoryId          String?
   // Informações básicas
-  name             String
-  slug             String
-  description      String?         @db.Text
-  sku              String? // Código interno
-  barcode          String? // Código de barras
+  name                String
+  slug                String
+  description         String?              @db.Text
+  sku                 String? // Código interno
+  barcode             String? // Código de barras
   // Preços
-  costPrice        Decimal         @default(0) @db.Decimal(10, 2)
-  salePrice        Decimal         @db.Decimal(10, 2)
-  promotionalPrice Decimal?        @db.Decimal(10, 2)
+  costPrice           Decimal              @default(0) @db.Decimal(10, 2)
+  salePrice           Decimal              @db.Decimal(10, 2)
+  promotionalPrice    Decimal?             @db.Decimal(10, 2)
+  // Desconto promocional do produto: global (vale em qualquer tabela de
+  // preços) e com janela de vigência. Fora da janela o preço volta sozinho ao
+  // salePrice na resolução — não existe job para "desligar" a promoção.
+  discountPercent     Decimal?             @db.Decimal(5, 2)
+  discountStartsAt    DateTime?
+  discountEndsAt      DateTime?
   // Estoque
-  unit             ProductUnit     @default(UN)
-  currentStock     Decimal         @default(0) @db.Decimal(10, 3)
-  minStock         Decimal         @default(0) @db.Decimal(10, 3)
-  maxStock         Decimal?        @db.Decimal(10, 3)
+  unit                ProductUnit          @default(UN)
+  currentStock        Decimal              @default(0) @db.Decimal(10, 3)
+  minStock            Decimal              @default(0) @db.Decimal(10, 3)
+  maxStock            Decimal?             @db.Decimal(10, 3)
   // Imagens
-  images           String[] // Array de URLs
+  images              String[] // Array de URLs
   // default "" para viabilizar gravação em massa (createMany/COPY na importação):
   // sem isso qualquer linha de planilha sem imagem quebra o lote inteiro.
-  thumbnail        String          @default("") // chave R2 da thumbnail
+  thumbnail           String               @default("") // chave R2 da thumbnail
   // Dimensões e peso — LEGADO: sem unidade declarada em nenhuma camada (schema,
   // formulário ou importador), então os dados existentes misturam cm e m.
   // NÃO usar em planograma; usar os campos *Mm abaixo.
-  weight           Decimal?        @db.Decimal(10, 3)
-  length           Decimal?        @db.Decimal(10, 2)
-  width            Decimal?        @db.Decimal(10, 2)
-  height           Decimal?        @db.Decimal(10, 2)
+  weight              Decimal?             @db.Decimal(10, 3)
+  length              Decimal?             @db.Decimal(10, 2)
+  width               Decimal?             @db.Decimal(10, 2)
+  height              Decimal?             @db.Decimal(10, 2)
   // Dimensões para planograma — milímetro INTEIRO de propósito: somar dezenas de
   // larguras em float acumula deriva; em mm é exato, e casa com a precisão de
   // uma trena. Medem a UNIDADE DE VENDA (o que fica na frente da gôndola).
-  widthMm          Int?
-  heightMm         Int?
-  depthMm          Int?
-  grossWeightG     Int?
+  widthMm             Int?
+  heightMm            Int?
+  depthMm             Int?
+  grossWeightG        Int?
   // Embalagem secundária (a caixa) — necessária para "prateleira de caixaria".
-  packQty          Int?
-  packWidthMm      Int?
-  packHeightMm     Int?
-  packDepthMm      Int?
-  brandId          String?
+  packQty             Int?
+  packWidthMm         Int?
+  packHeightMm        Int?
+  packDepthMm         Int?
+  brandId             String?
   // Cadastro fiscal (NFCe/NFe). Editado em Produtos → aba Fiscal. Usado
   // para emissão em Fase B; opcional aqui porque só é obrigatório quando
   // a venda vira nota fiscal.
-  ncm              String?
-  cest             String? // Código Especificador ST (7 dígitos, sem pontuação)
-  cfop             String? // padrão para venda dentro do estado (ex.: "5102")
-  origem           String?         @default("0") // 0=Nacional, 1=Estrangeira DI, 2=Estrangeira mercado interno...
-  cstIcms          String? // ex.: "00", "40", "41", "60", "102" (Simples)
-  cstPis           String? // ex.: "01", "07", "49"
-  cstCofins        String? // ex.: "01", "07", "49"
-  aliqIcms         Decimal?        @db.Decimal(5, 2) // alíquota ICMS (%), opcional
-  aliqPis          Decimal?        @db.Decimal(5, 2)
-  aliqCofins       Decimal?        @db.Decimal(5, 2)
+  ncm                 String?
+  cest                String? // Código Especificador ST (7 dígitos, sem pontuação)
+  cfop                String? // padrão para venda dentro do estado (ex.: "5102")
+  origem              String?              @default("0") // 0=Nacional, 1=Estrangeira DI, 2=Estrangeira mercado interno...
+  cstIcms             String? // ex.: "00", "40", "41", "60", "102" (Simples)
+  cstPis              String? // ex.: "01", "07", "49"
+  cstCofins           String? // ex.: "01", "07", "49"
+  aliqIcms            Decimal?             @db.Decimal(5, 2) // alíquota ICMS (%), opcional
+  aliqPis             Decimal?             @db.Decimal(5, 2)
+  aliqCofins          Decimal?             @db.Decimal(5, 2)
   // Reforma tributária (NT 2025.002 IBS/CBS). Campos livres agora — quando a
   // reforma entrar (2026+), Focus/provedor manda o cClassTrib atualizado.
-  cClassTrib       String?
+  cClassTrib          String?
   // Controle
-  isActive         Boolean         @default(true)
-  isFeatured       Boolean         @default(false)
-  trackStock       Boolean         @default(true)
+  isActive            Boolean              @default(true)
+  isFeatured          Boolean              @default(false)
+  trackStock          Boolean              @default(true)
   // Visibilidade no Catálogo Online (storefront público). Independente do
   // `isActive`: um produto pode estar ativo no ERP (venda balcão) e oculto
   // do catálogo (ex.: só vende presencial), ou vice-versa. Default true
   // pra não esconder o catálogo existente após a migration.
-  showInCatalog    Boolean         @default(true)
+  showInCatalog       Boolean              @default(true)
   // Espelho do cadastro no ERP de origem (Oracle/Winthor), escrito só pelo
   // sync. NULO = nunca sincronizado — distinto de "inativo no ERP", que é
   // `false`. Separado do `isActive` de propósito: o de cima é decisão do
   // usuário ("disponível para venda"), este é fato do ERP.
-  erpActive        Boolean?
-  erpCode          String? // CODPROD no Winthor
-  erpSyncedAt      DateTime?
+  erpActive           Boolean?
+  erpCode             String? // CODPROD no Winthor
+  erpSyncedAt         DateTime?
   // KDS - tempo médio de preparo (min) usado no painel da cozinha
-  prepTimeMinutes  Int?
+  prepTimeMinutes     Int?
   // Timestamps
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  createdById      String
-  supplierId       String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  createdById         String
+  supplierId          String?
   // Relações
-  organization     Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category         Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  supplier         Supplier?       @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  brand            Brand?          @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  createdBy        User            @relation("CreatedProducts", fields: [createdById], references: [id])
-  saleItems        SaleItem[]
-  purchaseItems    PurchaseItem[]
-  stockMovements   StockMovement[]
-  kitchenOrders    KitchenOrder[]
-  planogramItems   PlanogramItem[]
-  favorites        Favorite[]
-  storeProducts    StoreProduct[]
-  batches          ProductBatch[]
-  productPrices    ProductPrice[]
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category            Category?            @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  supplier            Supplier?            @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  brand               Brand?               @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  createdBy           User                 @relation("CreatedProducts", fields: [createdById], references: [id])
+  saleItems           SaleItem[]
+  purchaseItems       PurchaseItem[]
+  stockMovements      StockMovement[]
+  inventoryCountItems InventoryCountItem[]
+  kitchenOrders       KitchenOrder[]
+  planogramItems      PlanogramItem[]
+  favorites           Favorite[]
+  storeProducts       StoreProduct[]
+  batches             ProductBatch[]
+  productPrices       ProductPrice[]
 
   @@unique([organizationId, slug])
   // @@unique([organizationId, sku])
@@ -729,11 +743,12 @@ model PriceList {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  productPrices  ProductPrice[]
-  customers      Customer[]
-  catalogUsers   CatalogUser[]
-  sales          Sale[]
+  organization      Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  productPrices     ProductPrice[]
+  categoryDiscounts PriceListCategoryDiscount[]
+  customers         Customer[]
+  catalogUsers      CatalogUser[]
+  sales             Sale[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -768,6 +783,37 @@ model ProductPrice {
   @@map("product_prices")
 }
 
+// Desconto percentual aplicado a UMA CATEGORIA inteira dentro de uma tabela de
+// preços ("20% em Hortifruti até domingo"). É regra, não preço materializado:
+// produto cadastrado depois já nasce com o desconto, e no fim da vigência o
+// preço volta sozinho — nada a reverter.
+//
+// Vale também para as subcategorias, via `Category.path`: um desconto em
+// "Hortifruti" alcança "Hortifruti/Frutas". Quando mais de um nível da árvore
+// tem desconto, a resolução usa o MAIS ESPECÍFICO (o mais profundo).
+model PriceListCategoryDiscount {
+  id              String    @id @default(cuid())
+  organizationId  String
+  priceListId     String
+  categoryId      String
+  percentDiscount Decimal   @db.Decimal(5, 2)
+  // Vazio = vale desde já. O fim é obrigatório para nenhuma promoção ficar
+  // valendo para sempre por esquecimento.
+  startsAt        DateTime?
+  endsAt          DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  priceList    PriceList    @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  category     Category     @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, categoryId])
+  @@index([organizationId])
+  @@index([priceListId, endsAt])
+  @@map("price_list_category_discounts")
+}
+
 // ============================================
 // ESTOQUE - MOVIMENTAÇÕES
 // ============================================
@@ -781,6 +827,68 @@ enum MovementType {
   AJUSTE // Ajuste de inventário
   TRANSFERENCIA // Transferência entre locais
   PERDA // Perda/Quebra
+}
+
+enum InventoryCountStatus {
+  OPEN // em contagem
+  APPLIED // divergências lançadas no estoque
+  CANCELLED // descartada sem lançar
+}
+
+// Sessão de contagem de inventário.
+//
+// Existe porque contar uma loja não cabe numa sentada: o operador conta um
+// corredor, para, e retoma depois — de outro aparelho, se precisar. A sessão
+// vive no servidor justamente para a contagem não morrer com a aba.
+model InventoryCount {
+  id             String               @id @default(cuid())
+  organizationId String
+  name           String
+  status         InventoryCountStatus @default(OPEN)
+  // Contagem CEGA: o operador não vê o saldo do sistema enquanto conta. Sem
+  // isso a tendência é confirmar o número da tela em vez de contar a
+  // prateleira, e o inventário vira carimbo.
+  blind          Boolean              @default(true)
+  notes          String?
+  createdById    String?
+  startedAt      DateTime             @default(now())
+  appliedAt      DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User?                @relation("InventoryCountCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  items        InventoryCountItem[]
+
+  @@index([organizationId, status])
+  @@map("inventory_counts")
+}
+
+// Uma linha contada. Recontar o mesmo produto ATUALIZA a linha (é observação
+// nova, não segunda contagem), por isso o único por (contagem, produto).
+model InventoryCountItem {
+  id              String   @id @default(cuid())
+  organizationId  String
+  countId         String
+  productId       String
+  countedQuantity Decimal  @db.Decimal(10, 3)
+  // Saldo do sistema CONGELADO no instante da contagem. Sem congelar, a
+  // divergência mudaria sozinha quando alguém vendesse o item durante o
+  // inventário — e o relatório mentiria sobre o que foi observado.
+  systemQuantity  Decimal  @db.Decimal(10, 3)
+  countedById     String?
+  countedAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  count        InventoryCount @relation(fields: [countId], references: [id], onDelete: Cascade)
+  product      Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  countedBy    User?          @relation("InventoryCountItemCountedBy", fields: [countedById], references: [id], onDelete: SetNull)
+
+  @@unique([countId, productId])
+  @@index([organizationId])
+  @@index([countId])
+  @@map("inventory_count_items")
 }
 
 model StockMovement {
@@ -987,51 +1095,53 @@ enum PaymentMethod {
 }
 
 model Sale {
-  id             String          @id @default(cuid())
-  organizationId String
-  customerId     String?
+  id                String          @id @default(cuid())
+  organizationId    String
+  customerId        String?
   // Numeração
-  invoiceNumber  String? // Número da nota fiscal
-  saleNumber     Int // Número sequencial da venda
+  invoiceNumber     String? // Número da nota fiscal
+  saleNumber        Int // Número sequencial da venda
   // Idempotência do replay offline (uuid v7 gerado no device). Único: reenviar
   // a mesma venda não duplica — o handler devolve a venda já criada.
-  clientOperationId String? @unique
+  clientOperationId String?         @unique
   // Sessão de caixa em que a venda foi registrada (opcional: preserva vendas
   // históricas e vendas não-PDV).
-  cashSessionId  String?
+  cashSessionId     String?
   // Tabela de preço usada na resolução do server (auditoria/relatório).
   // Pode ser null pra vendas antigas antes desta feature.
-  priceListId    String?
+  priceListId       String?
   // Status
-  status         SaleStatus      @default(DRAFT)
+  status            SaleStatus      @default(DRAFT)
   // Valores
-  subtotal       Decimal         @db.Decimal(10, 2)
-  discount       Decimal         @default(0) @db.Decimal(10, 2)
-  shipping       Decimal         @default(0) @db.Decimal(10, 2)
-  total          Decimal         @db.Decimal(10, 2)
+  subtotal          Decimal         @db.Decimal(10, 2)
+  discount          Decimal         @default(0) @db.Decimal(10, 2)
+  shipping          Decimal         @default(0) @db.Decimal(10, 2)
+  total             Decimal         @db.Decimal(10, 2)
   // Pagamento
-  paymentMethod  PaymentMethod?
-  paidAt         DateTime?
+  paymentMethod     PaymentMethod?
+  paidAt            DateTime?
   // Observações
-  notes          String?         @db.Text
+  notes             String?         @db.Text
   // Timestamps
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  completedAt    DateTime?
-  cancelledAt    DateTime?
-  createdById    String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  completedAt       DateTime?
+  cancelledAt       DateTime?
+  createdById       String?
   // Relações
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer       Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  createdBy      User?           @relation("CreatedSales", fields: [createdById], references: [id])
-  cashSession    CashSession?    @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
-  priceList      PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
-  items          SaleItem[]
-  payments       SalePayment[]
-  stockMovements StockMovement[]
-  transactions   Transaction[]
-  cashMovements  CashMovement[]
-  fiscalDocument FiscalDocument?
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy         User?           @relation("CreatedSales", fields: [createdById], references: [id])
+  cashSession       CashSession?    @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+  priceList         PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  items             SaleItem[]
+  payments          SalePayment[]
+  stockMovements    StockMovement[]
+  transactions      Transaction[]
+  cashMovements     CashMovement[]
+  fiscalDocument    FiscalDocument?
+
+  financeEntries PaymentEntry[] @relation("SaleFinanceEntries")
 
   @@unique([organizationId, saleNumber])
   @@index([organizationId])
@@ -1136,12 +1246,12 @@ model CashMovement {
   sessionId         String
   clientOperationId String?          @unique // idempotência do replay (sangria/suprimento/fechamento)
   type              CashMovementType
-  amount         Decimal          @db.Decimal(10, 2) // sempre positivo; a direção vem do tipo
-  paymentMethod  PaymentMethod? // só VENDA em DINHEIRO afeta a gaveta física
-  saleId         String?
-  description    String?
-  createdAt      DateTime         @default(now())
-  createdById    String
+  amount            Decimal          @db.Decimal(10, 2) // sempre positivo; a direção vem do tipo
+  paymentMethod     PaymentMethod? // só VENDA em DINHEIRO afeta a gaveta física
+  saleId            String?
+  description       String?
+  createdAt         DateTime         @default(now())
+  createdById       String
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   session      CashSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
@@ -2844,34 +2954,34 @@ model MapObject {
 // Cada negociação é um registro imutável — reabrir cria uma nova, preservando o
 // histórico em vez de sobrescrever (diferente dos campos soltos em properties).
 model SpaceNegotiation {
-  id                String            @id @default(cuid())
-  organizationId    String
-  mapObjectId       String
-  supplierId        String? // Indústria
-  brandId           String?
-  negotiationTypeId String?
-  distributor       String?
-  startDate         DateTime?
-  endDate           DateTime?
-  amount            Decimal?          @db.Decimal(12, 2)
-  status            NegotiationStatus @default(RASCUNHO)
-  notes             String?           @db.Text
+  id                  String            @id @default(cuid())
+  organizationId      String
+  mapObjectId         String
+  supplierId          String? // Indústria
+  brandId             String?
+  negotiationTypeId   String?
+  distributor         String?
+  startDate           DateTime?
+  endDate             DateTime?
+  amount              Decimal?          @db.Decimal(12, 2)
+  status              NegotiationStatus @default(RASCUNHO)
+  notes               String?           @db.Text
   // Contrato: null = só negociação; setado quando vira contrato de 1a classe.
   contractStatus      ContractStatus?
   contractBilling     ContractBilling?
   contractActivatedAt DateTime?
   contractDocumentUrl String?
-  createdById       String
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  createdById         String
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
 
-  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  mapObject       MapObject        @relation(fields: [mapObjectId], references: [id], onDelete: Cascade)
-  supplier        Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
-  brand           Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
-  negotiationType NegotiationType? @relation(fields: [negotiationTypeId], references: [id], onDelete: SetNull)
-  createdBy       User             @relation("CreatedSpaceNegotiations", fields: [createdById], references: [id])
-  financeiroEntries PaymentEntry[] @relation("SpaceContractEntries")
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  mapObject         MapObject        @relation(fields: [mapObjectId], references: [id], onDelete: Cascade)
+  supplier          Supplier?        @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  brand             Brand?           @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  negotiationType   NegotiationType? @relation(fields: [negotiationTypeId], references: [id], onDelete: SetNull)
+  createdBy         User             @relation("CreatedSpaceNegotiations", fields: [createdById], references: [id])
+  financeiroEntries PaymentEntry[]   @relation("SpaceContractEntries")
 
   @@index([organizationId])
   @@index([mapObjectId, createdAt(sort: Desc)])
@@ -3693,27 +3803,27 @@ enum ErpConnectionStatus {
 // Uma origem de venda por organização — é o que torna `resolveSalesConnector`
 // determinístico e evita dois "vendido" concorrentes no ranking.
 model ErpConnection {
-  id               String              @id @default(cuid())
-  organizationId   String              @unique
-  kind             ErpConnectionKind   @default(NATIVE)
-  status           ErpConnectionStatus @default(ACTIVE)
+  id                String              @id @default(cuid())
+  organizationId    String              @unique
+  kind              ErpConnectionKind   @default(NATIVE)
+  status            ErpConnectionStatus @default(ACTIVE)
   // Credenciais + schema do ERP, cifrados com AES-256-GCM (mesmo cofre do S2S,
   // `src/lib/nasa-s2s-crypto.ts`). NATIVE não usa. Nunca sai para o client.
-  configCiphertext String?
+  configCiphertext  String?
   // Marcado ao disparar o sync e limpo ao terminar. `status` continua sendo
   // saúde da conexão, não etapa — misturar os dois esconderia um ERROR atrás de
   // um "sincronizando". Sync travado se reconhece por `syncStartedAt` antigo.
-  syncStartedAt    DateTime?
-  lastSyncAt       DateTime?
-  lastSyncError    String?
+  syncStartedAt     DateTime?
+  lastSyncAt        DateTime?
+  lastSyncError     String?
   // Resultado da última passada no CADASTRO de produtos (`ProductSyncReport`).
   // O relatório do modo simulação também cai aqui — `productSyncDryRun` separa
   // os dois, e é a simulação que o administrador lê antes de mandar criar.
-  productSyncAt      DateTime?
-  productSyncDryRun  Boolean?
-  productSyncReport  Json?
-  createdAt        DateTime            @default(now())
-  updatedAt        DateTime            @updatedAt
+  productSyncAt     DateTime?
+  productSyncDryRun Boolean?
+  productSyncReport Json?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
@@ -4453,12 +4563,18 @@ model PaymentEntry {
   notes          String?
   attachmentUrl  String?              @map("attachment_url")
 
-  categoryId   String? @map("category_id")
-  costCenterId String? @map("cost_center_id")
-  contactId    String? @map("contact_id")
-  accountId    String? @map("account_id")
+  categoryId         String? @map("category_id")
+  costCenterId       String? @map("cost_center_id")
+  contactId          String? @map("contact_id")
+  accountId          String? @map("account_id")
   // Recebível gerado por um contrato de espaço (TradeGram).
   spaceNegotiationId String? @map("space_negotiation_id")
+  // Lançamento gerado por uma VENDA do PDV. `saleEntryKey` discrimina as
+  // linhas de uma mesma venda ("pag-0", "pag-1", "cmv") e, junto com o
+  // `saleId`, garante idempotência: reprocessar a venda não duplica o
+  // financeiro.
+  saleId             String? @map("sale_id")
+  saleEntryKey       String? @map("sale_entry_key")
 
   // Parcelamento
   installmentTotal   Int?    @map("installment_total")
@@ -4473,15 +4589,20 @@ model PaymentEntry {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  category     PaymentCategory?    @relation(fields: [categoryId], references: [id])
-  costCenter   PaymentCostCenter?  @relation(fields: [costCenterId], references: [id])
-  contact      PaymentContact?     @relation(fields: [contactId], references: [id])
-  account      PaymentBankAccount? @relation(fields: [accountId], references: [id])
-  spaceNegotiation SpaceNegotiation? @relation("SpaceContractEntries", fields: [spaceNegotiationId], references: [id], onDelete: SetNull)
-  createdBy    User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  category         PaymentCategory?    @relation(fields: [categoryId], references: [id])
+  costCenter       PaymentCostCenter?  @relation(fields: [costCenterId], references: [id])
+  contact          PaymentContact?     @relation(fields: [contactId], references: [id])
+  account          PaymentBankAccount? @relation(fields: [accountId], references: [id])
+  spaceNegotiation SpaceNegotiation?   @relation("SpaceContractEntries", fields: [spaceNegotiationId], references: [id], onDelete: SetNull)
+  // SetNull e não Cascade: apagar uma venda não pode varrer o histórico
+  // financeiro que já foi conciliado.
+  sale             Sale?               @relation("SaleFinanceEntries", fields: [saleId], references: [id], onDelete: SetNull)
+  createdBy        User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
+  @@unique([saleId, saleEntryKey])
   @@index([organizationId])
+  @@index([saleId])
   @@index([type])
   @@index([status])
   @@index([dueDate])

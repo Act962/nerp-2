@@ -3,24 +3,34 @@
 // devolve o `unitPrice` que deve entrar no `SaleItem`. Nunca aceitamos preço
 // do cliente cegamente (era o padrão antigo — vazamento).
 //
-// Ordem de decisão:
+// Ordem de decisão — MAIS ESPECÍFICO VENCE:
 //   1. Se `priceListId` é nulo → usa a `PriceList.isDefault` da org.
-//   2. Procura a maior faixa (`minQuantity <= qty`) desse produto na tabela.
-//   3. FIXED           → `unitPrice` da faixa.
-//      PERCENT_DISCOUNT → `salePrice * (1 − percentDiscount/100)`.
-//   4. Sem faixa na tabela → cai no `salePrice` do produto.
+//   2. Faixa do produto na tabela (`minQuantity <= qty`, a maior):
+//      FIXED → `unitPrice` da faixa. PERCENT_DISCOUNT → % sobre `salePrice`.
+//      Preço negociado com o cliente prevalece sobre promoção geral.
+//   3. Desconto promocional do produto, se vigente (% sobre `salePrice`).
+//   4. Desconto da categoria naquela tabela, se vigente — incluindo herança
+//      para subcategorias, vencendo o nível mais profundo.
+//   5. Nada disso → `salePrice` do produto.
+//
+// A vigência é decidida aqui, na leitura. Não há job para ligar ou desligar
+// promoção: passou da data, o preço volta sozinho.
 
 import prisma from "@/lib/db";
 import type { PrismaClient } from "@/generated/prisma/client";
 
-export type PriceResolvedFrom = "tier-fixed" | "tier-percent" | "product";
+import {
+  decide,
+  EMPTY_PRICING,
+  type CategoryDiscount,
+  type ProductPricing,
+  type ResolvedPrice,
+} from "../discount-rules";
 
-export interface ResolvedPrice {
-  unitPrice: number;
-  appliedDiscountPercent: number | null;
-  resolvedFrom: PriceResolvedFrom;
-  priceListId: string | null;
-}
+export type {
+  PriceResolvedFrom,
+  ResolvedPrice,
+} from "../discount-rules";
 
 export interface ResolvePriceArgs {
   organizationId: string;
@@ -29,16 +39,17 @@ export interface ResolvePriceArgs {
   /** Tabela do cliente. Null → cai na default da org. */
   priceListId?: string | null;
   /**
-   * Opcional: quando o chamador já tem o `salePrice` em mãos (ex.: batch),
-   * evita um `product.findUnique` a mais.
+   * Opcional: quando o chamador já tem o `salePrice` em mãos, evita reler essa
+   * coluna. Os campos de desconto ainda são buscados — sem eles a promoção
+   * simplesmente não sairia.
    */
   productSalePrice?: number;
   /** Cliente Prisma (permite reuso em transactions). */
-  tx?: PrismaClient | Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
+  tx?:
+    | PrismaClient
+    | Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 }
 
-// Cache in-request só do salePrice, pra `resolveMany` não bater no DB N vezes
-// pelo mesmo produto quando o carrinho tem várias linhas dele.
 type Client = ResolvePriceArgs["tx"] extends infer T ? T : never;
 
 async function loadDefaultPriceListId(
@@ -51,38 +62,95 @@ async function loadDefaultPriceListId(
   });
   return defaultList?.id ?? null;
 }
+async function loadProductPricing(
+  client: PrismaClient,
+  organizationId: string,
+  productIds: string[],
+): Promise<Map<string, ProductPricing>> {
+  const rows = await client.product.findMany({
+    where: { id: { in: productIds }, organizationId },
+    select: {
+      id: true,
+      salePrice: true,
+      discountPercent: true,
+      discountStartsAt: true,
+      discountEndsAt: true,
+      categoryId: true,
+      category: { select: { path: true } },
+    },
+  });
+  return new Map(
+    rows.map((row) => [
+      row.id,
+      {
+        salePrice: Number(row.salePrice),
+        discountPercent:
+          row.discountPercent === null ? null : Number(row.discountPercent),
+        discountStartsAt: row.discountStartsAt,
+        discountEndsAt: row.discountEndsAt,
+        categoryId: row.categoryId,
+        categoryPath: row.category?.path ?? null,
+      },
+    ]),
+  );
+}
+/**
+ * Descontos de categoria VIGENTES da tabela. Carregados de uma vez (são poucos
+ * por tabela) e casados em memória contra a árvore de cada produto — evita uma
+ * consulta por linha do carrinho.
+ */
+async function loadCategoryDiscounts(
+  client: PrismaClient,
+  organizationId: string,
+  priceListId: string,
+  now: Date,
+): Promise<CategoryDiscount[]> {
+  const rows = await client.priceListCategoryDiscount.findMany({
+    where: {
+      organizationId,
+      priceListId,
+      endsAt: { gte: now },
+      OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+    },
+    select: { categoryId: true, percentDiscount: true },
+  });
+  return rows.map((row) => ({
+    categoryId: row.categoryId,
+    percentDiscount: Number(row.percentDiscount),
+  }));
+}
 
 export async function resolvePrice(
   args: ResolvePriceArgs,
 ): Promise<ResolvedPrice> {
   const client = (args.tx ?? prisma) as PrismaClient;
   const { organizationId, productId } = args;
-  const quantity = Number.isFinite(args.quantity) && args.quantity > 0
-    ? args.quantity
-    : 1;
+  const now = new Date();
+  const quantity =
+    Number.isFinite(args.quantity) && args.quantity > 0 ? args.quantity : 1;
 
   const priceListId = args.priceListId
     ? args.priceListId
     : await loadDefaultPriceListId(client, organizationId);
 
-  // salePrice do produto: base para o modo PERCENT e fallback quando não há faixa.
-  const salePrice = args.productSalePrice
-    ?? Number(
-      (
-        await client.product.findFirst({
-          where: { id: productId, organizationId },
-          select: { salePrice: true },
-        })
-      )?.salePrice ?? 0,
-    );
+  const loaded = await loadProductPricing(client, organizationId, [productId]);
+  const pricing: ProductPricing = {
+    ...(loaded.get(productId) ?? EMPTY_PRICING),
+    // O chamador pode ter o salePrice em mãos; os demais campos vêm do banco.
+    ...(args.productSalePrice !== undefined
+      ? { salePrice: args.productSalePrice }
+      : {}),
+  };
 
   if (!priceListId) {
-    return {
-      unitPrice: salePrice,
-      appliedDiscountPercent: null,
-      resolvedFrom: "product",
+    // Sem tabela ainda cabe promoção: o desconto do produto é global.
+    return decide({
+      pricing,
+      tier: null,
+      categoryDiscounts: [],
       priceListId: null,
-    };
+      now,
+    });
   }
 
   const tier = await client.productPrice.findFirst({
@@ -96,35 +164,11 @@ export async function resolvePrice(
     select: { pricingMode: true, unitPrice: true, percentDiscount: true },
   });
 
-  if (!tier) {
-    return {
-      unitPrice: salePrice,
-      appliedDiscountPercent: null,
-      resolvedFrom: "product",
-      priceListId,
-    };
-  }
+  const categoryDiscounts = tier
+    ? []
+    : await loadCategoryDiscounts(client, organizationId, priceListId, now);
 
-  if (tier.pricingMode === "PERCENT_DISCOUNT") {
-    const percent = Number(tier.percentDiscount ?? 0);
-    // arredonda a 2 casas para casar com Decimal(10,2) no snapshot
-    const raw = salePrice * (1 - percent / 100);
-    const unitPrice = Math.round(raw * 100) / 100;
-    return {
-      unitPrice,
-      appliedDiscountPercent: percent,
-      resolvedFrom: "tier-percent",
-      priceListId,
-    };
-  }
-
-  // FIXED
-  return {
-    unitPrice: Number(tier.unitPrice ?? salePrice),
-    appliedDiscountPercent: null,
-    resolvedFrom: "tier-fixed",
-    priceListId,
-  };
+  return decide({ pricing, tier, categoryDiscounts, priceListId, now });
 }
 
 export interface ResolveManyItem {
@@ -135,45 +179,60 @@ export interface ResolveManyItem {
 /**
  * Resolve preço de várias linhas de uma vez — usado pelo PDV pra re-precificar
  * o carrinho quando o cliente muda, e pelos handlers de venda pra evitar N
- * roundtrips. Uma única leitura de `salePrice` por produto distinto.
+ * roundtrips. Uma leitura por produto distinto e UMA dos descontos de
+ * categoria, independente do tamanho do carrinho.
  */
-export async function resolveManyPrices(
-  args: {
-    organizationId: string;
-    priceListId?: string | null;
-    items: ResolveManyItem[];
-    tx?: ResolvePriceArgs["tx"];
-  },
-): Promise<Array<ResolvedPrice & { productId: string; quantity: number }>> {
+export async function resolveManyPrices(args: {
+  organizationId: string;
+  priceListId?: string | null;
+  items: ResolveManyItem[];
+  tx?: ResolvePriceArgs["tx"];
+}): Promise<Array<ResolvedPrice & { productId: string; quantity: number }>> {
   const client = (args.tx ?? prisma) as PrismaClient;
   const uniqueIds = Array.from(new Set(args.items.map((i) => i.productId)));
   if (uniqueIds.length === 0) return [];
 
-  const salePrices = await client.product.findMany({
-    where: { id: { in: uniqueIds }, organizationId: args.organizationId },
-    select: { id: true, salePrice: true },
-  });
-  const salePriceById = new Map(
-    salePrices.map((p) => [p.id, Number(p.salePrice)]),
+  const now = new Date();
+  const pricingById = await loadProductPricing(
+    client,
+    args.organizationId,
+    uniqueIds,
   );
 
   const priceListId = args.priceListId
     ? args.priceListId
     : await loadDefaultPriceListId(client, args.organizationId);
 
+  const categoryDiscounts = priceListId
+    ? await loadCategoryDiscounts(client, args.organizationId, priceListId, now)
+    : [];
+
   const results: Array<
     ResolvedPrice & { productId: string; quantity: number }
   > = [];
   for (const item of args.items) {
-    const resolved = await resolvePrice({
-      organizationId: args.organizationId,
+    const pricing = pricingById.get(item.productId) ?? EMPTY_PRICING;
+    const quantity =
+      Number.isFinite(item.quantity) && item.quantity > 0 ? item.quantity : 1;
+
+    const tier = priceListId
+      ? await client.productPrice.findFirst({
+          where: {
+            organizationId: args.organizationId,
+            productId: item.productId,
+            priceListId,
+            minQuantity: { lte: Math.floor(quantity) },
+          },
+          orderBy: { minQuantity: "desc" },
+          select: { pricingMode: true, unitPrice: true, percentDiscount: true },
+        })
+      : null;
+
+    results.push({
+      ...decide({ pricing, tier, categoryDiscounts, priceListId, now }),
       productId: item.productId,
       quantity: item.quantity,
-      priceListId,
-      productSalePrice: salePriceById.get(item.productId) ?? 0,
-      tx: client,
     });
-    results.push({ ...resolved, productId: item.productId, quantity: item.quantity });
   }
   return results;
 }

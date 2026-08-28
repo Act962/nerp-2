@@ -6,6 +6,9 @@ import { listProductPrices } from "./list-product-prices";
 import { setProductPrice } from "./set-product-price";
 import { deleteProductPrice } from "./delete-product-price";
 import { resolveManyPricesProcedure } from "./resolve-many";
+import { listCategoryDiscounts } from "./list-category-discounts";
+import { setCategoryDiscount } from "./set-category-discount";
+import { deleteCategoryDiscount } from "./delete-category-discount";
 
 export const precosRoutes = {
   list: listPriceLists,
@@ -16,4 +19,7 @@ export const precosRoutes = {
   setProductPrice,
   deleteProductPrice,
   resolveMany: resolveManyPricesProcedure,
+  listCategoryDiscounts,
+  setCategoryDiscount,
+  deleteCategoryDiscount,
 };

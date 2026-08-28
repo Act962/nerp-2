@@ -26,6 +26,7 @@ import { SAMPLE_DATA } from "../lib/presets";
 import type {
   ReceiptBlock,
   ReceiptPaper,
+  ReceiptSaleData,
   ReceiptTemplate,
   ReceiptType,
 } from "../lib/types";
@@ -42,7 +43,14 @@ import {
 const PAPER_OPTIONS: ReceiptPaper[] = ["MM80", "MM58", "A4"];
 const TYPE_OPTIONS: ReceiptType[] = ["NAO_FISCAL", "FISCAL", "ORCAMENTO"];
 
-export function ReceiptDesigner() {
+export function ReceiptDesigner({ org }: { org?: ReceiptSaleData["org"] }) {
+  // Venda fictícia, identidade real: o operador calibra o cupom vendo a própria
+  // marca, não "Minha Loja LTDA".
+  const previewData = useMemo<ReceiptSaleData>(
+    () => (org ? { ...SAMPLE_DATA, org } : SAMPLE_DATA),
+    [org],
+  );
+
   const { data, isLoading } = useReceiptTemplates();
   const templates = useMemo(() => data?.templates ?? [], [data]);
   const update = useUpdateReceiptTemplate();
@@ -217,7 +225,7 @@ export function ReceiptDesigner() {
           {selected ? (
             <ReceiptRender
               blocks={blocks}
-              data={SAMPLE_DATA}
+              data={previewData}
               paper={paper}
               className="shadow-lg"
             />
@@ -230,7 +238,7 @@ export function ReceiptDesigner() {
       </div>
 
       {selected && (
-        <ReceiptPrintArea blocks={blocks} data={SAMPLE_DATA} paper={paper} />
+        <ReceiptPrintArea blocks={blocks} data={previewData} paper={paper} />
       )}
     </div>
   );

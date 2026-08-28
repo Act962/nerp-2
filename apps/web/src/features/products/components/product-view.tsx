@@ -70,9 +70,6 @@ export function ProductView({ history }: { history: StockHistory[] }) {
   const { onOpen } = useProductModal();
 
   const stockStatus = getStockStatus(product.currentStock, product.minStock);
-  const margin =
-    ((product.salePrice - product.costPrice) / product.costPrice) * 100;
-
   const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat("pt-BR", {
       day: "2-digit",

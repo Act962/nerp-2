@@ -90,3 +90,42 @@ export function useDeleteProductPrice() {
     }),
   );
 }
+
+export function useCategoryDiscounts(priceListId: string | undefined) {
+  return useQuery(
+    orpc.precos.listCategoryDiscounts.queryOptions({
+      input: { priceListId: priceListId ?? "" },
+      enabled: Boolean(priceListId),
+    }),
+  );
+}
+
+export function useSetCategoryDiscount() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.precos.setCategoryDiscount.mutationOptions({
+      onSuccess: () => {
+        toast.success("Desconto da categoria salvo");
+        queryClient.invalidateQueries({
+          queryKey: orpc.precos.listCategoryDiscounts.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteCategoryDiscount() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.precos.deleteCategoryDiscount.mutationOptions({
+      onSuccess: () => {
+        toast.success("Desconto removido");
+        queryClient.invalidateQueries({
+          queryKey: orpc.precos.listCategoryDiscounts.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

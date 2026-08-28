@@ -5,6 +5,7 @@ import { AccountsTab } from "./accounts-tab";
 import { CashflowTab } from "./cashflow-tab";
 import { CategoriesTab } from "./categories-tab";
 import { ContactsTab } from "./contacts-tab";
+import { CostCentersTab } from "./cost-centers-tab";
 import { DashboardTab } from "./dashboard-tab";
 import { DreTab } from "./dre-tab";
 import { DroTab } from "./dro-tab";
@@ -21,6 +22,7 @@ export function FinanceiroPage() {
         <TabsTrigger value="dro">DRO</TabsTrigger>
         <TabsTrigger value="accounts">Contas</TabsTrigger>
         <TabsTrigger value="categories">Categorias</TabsTrigger>
+        <TabsTrigger value="cost-centers">Centros de Custo</TabsTrigger>
         <TabsTrigger value="contacts">Contatos</TabsTrigger>
       </TabsList>
       <TabsContent value="dashboard" className="mt-6">
@@ -43,6 +45,9 @@ export function FinanceiroPage() {
       </TabsContent>
       <TabsContent value="categories" className="mt-6">
         <CategoriesTab />
+      </TabsContent>
+      <TabsContent value="cost-centers" className="mt-6">
+        <CostCentersTab />
       </TabsContent>
       <TabsContent value="contacts" className="mt-6">
         <ContactsTab />
