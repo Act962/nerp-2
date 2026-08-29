@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ImageIcon, Plus, Upload } from "lucide-react";
 import Link from "next/link";
@@ -35,6 +36,18 @@ export function ProductsContainer() {
 
   const categorySlugs = category?.split(",").map((c) => c.trim());
   const trimmedSearch = search?.trim() || undefined;
+  // Com filtro ativo, `totalCount` deixa de ser "quantos existem" e passa a ser
+  // "quantos casaram". Mostrar "3 produtos" durante uma busca faria parecer que
+  // só há 3 cadastrados, então o rótulo muda junto.
+  const filtrando = Boolean(
+    trimmedSearch ||
+      categorySlugs?.length ||
+      sku ||
+      minValue ||
+      maxValue ||
+      dateInit ||
+      dateEnd,
+  );
   const {
     data: products,
     nextCursor,
@@ -63,9 +76,19 @@ export function ProductsContainer() {
           as ações saíam da tela. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
-          <h3 className="font-semibold text-lg max-sm:sr-only">
-            Lista de Produtos
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-lg max-sm:sr-only">
+              Lista de Produtos
+            </h3>
+            {typeof totalCount === "number" && (
+              <Badge variant="secondary" className="shrink-0">
+                {totalCount}{" "}
+                {filtrando
+                  ? "encontrado" + (totalCount === 1 ? "" : "s")
+                  : "produto" + (totalCount === 1 ? "" : "s")}
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground max-sm:hidden">
             Gerencie seu catálogo de produtos
           </p>
