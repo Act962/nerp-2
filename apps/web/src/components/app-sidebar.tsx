@@ -892,9 +892,9 @@ function OrgMenu() {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
             >
               {isLoadingOrg ? (
-                <Skeleton className="size-8 aspect-square rounded-lg" />
+                <Skeleton className="size-8 aspect-square shrink-0 rounded-lg" />
               ) : organizationActive?.logo ? (
-                <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border">
+                <div className="flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
                   <OrgLogo
                     logo={organizationActive.logo}
                     name={organizationActive.name ?? "Logo"}
@@ -902,7 +902,7 @@ function OrgMenu() {
                   />
                 </div>
               ) : (
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg">
                   <GalleryVerticalEnd className="size-4" />
                 </div>
               )}

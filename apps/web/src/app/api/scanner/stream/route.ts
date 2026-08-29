@@ -51,6 +51,18 @@ export async function GET(request: Request) {
         );
       };
 
+      // Descarta o que ficou pendente ANTES desta conexão.
+      //
+      // O celular continua enviando mesmo com o PDV fechado ou em outra tela.
+      // Sem esta limpeza, tudo isso seria entregue de uma vez ao reconectar —
+      // e itens bipados durante o atendimento anterior cairiam na venda
+      // seguinte, na conta do cliente errado. O pareamento é um canal AO VIVO:
+      // o que não foi consumido na hora não vale mais.
+      await prisma.scannerScan.updateMany({
+        where: { pairingId: pairing.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
+
       send("ready", { ok: true });
 
       const startedAt = Date.now();
