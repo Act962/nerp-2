@@ -127,8 +127,8 @@ export function ListMovements({ members }: ListMovementsProps) {
       <TabsContent value={typeFilter} className="space-y-4">
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="relative w-full sm:flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por produto ou SKU..."
@@ -137,8 +137,12 @@ export function ListMovements({ members }: ListMovementsProps) {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <CalendarFilter />
-              <FilterMoviments members={members} />
+              {/* Secundários dividem UMA linha no celular; soltos viravam
+                faixas cheias e comiam altura. */}
+              <div className="flex items-center gap-2 sm:contents">
+                <CalendarFilter />
+                <FilterMoviments members={members} />
+              </div>
             </div>
           </CardHeader>
           <CardContent>

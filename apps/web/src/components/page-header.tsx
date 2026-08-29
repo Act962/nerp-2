@@ -20,8 +20,16 @@ export function PageHeader({ title, description, children }: PageHeaderProps) {
         )}
       </div>
       {children && (
-        // `flex-wrap`: três botões de ação não cabem numa linha de 430px.
-        <div className="flex flex-wrap items-center gap-2">{children}</div>
+        // No celular cada ação ocupa metade da linha e a última estica para
+        // preencher: com três botões sai 2 em cima e 1 inteiro embaixo, em vez
+        // de 2 + 1 solto e desalinhado.
+        <div
+          className={
+            "flex flex-wrap items-center gap-2 max-sm:[&>*]:min-w-[calc(50%-0.25rem)] max-sm:[&>*]:flex-1"
+          }
+        >
+          {children}
+        </div>
       )}
     </div>
   );

@@ -69,7 +69,11 @@ export function ProductsContainer() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div
+          className={
+            "flex flex-wrap items-center gap-2 max-sm:[&>*]:min-w-[calc(50%-0.25rem)] max-sm:[&>*]:flex-1"
+          }
+        >
           <Button size={"sm"} variant={"outline"} asChild>
             <Link href={"/produtos/importar"}>
               <Upload className="size-4" />

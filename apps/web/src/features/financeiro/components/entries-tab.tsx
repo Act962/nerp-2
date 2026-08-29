@@ -109,7 +109,8 @@ export function EntriesTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-xs">
+        {/* `max-w-xs` prendia a busca em 320px; no celular ela usa tudo. */}
+        <div className="relative w-full sm:max-w-xs">
           <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}

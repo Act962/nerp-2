@@ -230,8 +230,10 @@ export function ProductsTable({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-4">
-          <InputGroup>
+        {/* No celular a busca fica com a linha inteira: dividindo espaço com os
+            botões ela ficava com 52% da tela, e o texto digitado não cabia. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <InputGroup className="w-full">
             <InputGroupAddon>
               <Search className="size-4" />
             </InputGroupAddon>
@@ -247,10 +249,14 @@ export function ProductsTable({
               </InputGroupAddon>
             )}
           </InputGroup>
-          <CalendarFilter>
-            <span className="hidden sm:block">Calendário</span>
-          </CalendarFilter>
-          <FilterProducts categories={categories} />
+          {/* Os dois secundários dividem UMA linha no celular. Soltos, viravam
+              duas faixas cheias e comiam altura sem ganhar nada. */}
+          <div className="flex items-center gap-2 sm:contents">
+            <CalendarFilter>
+              <span className="hidden sm:block">Calendário</span>
+            </CalendarFilter>
+            <FilterProducts categories={categories} />
+          </div>
         </div>
       </CardHeader>
       <CardContent>
