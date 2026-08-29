@@ -436,7 +436,7 @@ export function ProductsTable({
                 );
                 return (
                   <TableRow key={product.id}>
-                    <TableCell data-label="0 } onCheckedChange={toggleSelectAll} />">
+                    <TableCell>
                       <Checkbox
                         checked={selectedProducts.includes(product.id)}
                         onCheckedChange={() => toggleSelect(product.id)}

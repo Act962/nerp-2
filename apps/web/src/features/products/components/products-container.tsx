@@ -56,15 +56,18 @@ export function ProductsContainer() {
 
   return (
     <div className="px-4 mt-8 space-y-4">
-      <div className="flex items-center justify-between">
-        <div className="space-y-1">
+      {/* Empilha no celular: lado a lado, os três botões somavam 438px numa
+          tela de 331px — o título era espremido em quatro palavras por linha e
+          as ações saíam da tela. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-1">
           <h3 className="font-semibold text-lg">Lista de Produtos</h3>
           <p className="text-sm text-muted-foreground">
             Gerencie seu catálogo de produtos
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button size={"sm"} variant={"outline"} asChild>
             <Link href={"/produtos/importar"}>
               <Upload className="size-4" />

@@ -61,7 +61,7 @@ export function TradeInterestsInbox() {
   return (
     <div className="space-y-4">
       <Tabs value={tab} onValueChange={(value) => setTab(value as typeof tab)}>
-        <TabsList className="flex-wrap">
+        <TabsList className="h-auto flex-wrap justify-start">
           <TabsTrigger value="ALL">Todos ({counts?.total ?? 0})</TabsTrigger>
           <TabsTrigger value="NOVO">Novos ({counts?.novo ?? 0})</TabsTrigger>
           <TabsTrigger value="EM_CONTATO">

@@ -14,7 +14,7 @@ import { EntriesTab } from "./entries-tab";
 export function FinanceiroPage() {
   return (
     <Tabs defaultValue="dashboard" className="w-full">
-      <TabsList className="flex-wrap">
+      <TabsList className="h-auto w-full flex-wrap justify-start">
         <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
         <TabsTrigger value="entries">Lançamentos</TabsTrigger>
         <TabsTrigger value="cashflow">Fluxo de Caixa</TabsTrigger>

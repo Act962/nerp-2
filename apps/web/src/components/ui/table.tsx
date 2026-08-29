@@ -29,6 +29,10 @@ const STACKED_ON_MOBILE = [
   "[&_td[data-label]]:max-sm:before:text-xs",
   "[&_td[data-label]]:max-sm:before:font-medium",
   "[&_td[data-label]]:max-sm:before:text-muted-foreground",
+  // Sem isto, valor longo (descrição de lançamento, nome de produto) estoura a
+  // largura do cartão em vez de quebrar. O rótulo não encolhe; o valor sim.
+  "[&_td]:max-sm:min-w-0 [&_td]:max-sm:text-right",
+  "[&_td]:max-sm:break-words [&_td]:max-sm:whitespace-normal",
 ].join(" ");
 
 function Table({
