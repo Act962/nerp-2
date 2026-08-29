@@ -80,8 +80,11 @@ export function ListMovements({ members }: ListMovementsProps) {
   const [dateInit] = useQueryState("date_init");
   const [dateEnd] = useQueryState("date_end");
   const [users] = useQueryState("users");
+  // Vem do atalho de estoque na lista de produtos.
+  const [produto] = useQueryState("produto");
 
   const { data, isStockLoading } = useStock({
+    productId: produto ?? undefined,
     limit: 100,
     offset: 1,
     userIds: users?.split(",").map((user) => user.trim()),

@@ -7,9 +7,11 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import placeholder from "@/assets/background-default-image.svg";
+import { ProductPhotoDialog } from "./product-photo-dialog";
 
 import { Button } from "@/components/ui/button";
 import {
+  Boxes,
   Copy,
   Eye,
   MoreVertical,
@@ -126,6 +128,11 @@ export function ProductsTable({
   // Se o container não controlar, cai num fallback local (comportamento antigo:
   // filtra só a página). Preferir sempre a versão controlada.
   const [internalSearch, setInternalSearch] = useState("");
+  const [fotoDe, setFotoDe] = useState<{
+    id: string;
+    name: string;
+    image: string;
+  } | null>(null);
   const searchTerm = searchValue ?? internalSearch;
   const setSearchTerm = onSearchChange ?? setInternalSearch;
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -450,13 +457,25 @@ export function ProductsTable({
                     </TableCell>
                     <TableCell data-label="Produto">
                       <div className="flex items-center gap-3">
-                        <Image
-                          src={product.image || placeholder}
-                          alt={product.name}
-                          width={40}
-                          height={40}
-                          className="rounded-md"
-                        />
+                        {/* Foto clicável: cadastrar/trocar imagem sem sair da
+                            lista, que é onde se percebe que ela falta. */}
+                        <button
+                          type="button"
+                          onClick={() => setFotoDe(product)}
+                          className="shrink-0 rounded-md ring-offset-background transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          title="Cadastrar ou trocar a foto"
+                        >
+                          <Image
+                            src={product.image || placeholder}
+                            alt={product.name}
+                            width={40}
+                            height={40}
+                            className="rounded-md"
+                          />
+                          <span className="sr-only">
+                            Cadastrar foto de {product.name}
+                          </span>
+                        </button>
                         <div>
                           <div className="font-medium">{product.name}</div>
                           <div className="text-xs text-muted-foreground">
@@ -494,44 +513,64 @@ export function ProductsTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <Link href={`/produtos/${product.id}`}>
-                            <DropdownMenuItem>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Ver detalhes
-                            </DropdownMenuItem>
-                          </Link>
-                          <Link href={`/produtos/${product.id}/editar`}>
-                            <DropdownMenuItem>
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Editar
-                            </DropdownMenuItem>
-                          </Link>
-                          <DropdownMenuItem
-                            onClick={() => onDuplicate(product.id)}
-                            className="cursor-pointer"
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Atalho para as movimentações DESTE produto: filtra por
+                          id, não por nome, senão "Arroz 1kg" traria junto
+                          "Arroz 5kg". */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          title="Ver movimentações de estoque"
+                        >
+                          <Link
+                            href={`/estoque/movimentacoes?produto=${product.id}`}
                           >
-                            <Copy className="h-4 w-4 mr-2" />
-                            Duplicar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive cursor-pointer"
-                            onClick={() => {
-                              onOpen(product);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <Boxes className="h-4 w-4" />
+                            <span className="sr-only">
+                              Movimentações de {product.name}
+                            </span>
+                          </Link>
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <Link href={`/produtos/${product.id}`}>
+                              <DropdownMenuItem>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver detalhes
+                              </DropdownMenuItem>
+                            </Link>
+                            <Link href={`/produtos/${product.id}/editar`}>
+                              <DropdownMenuItem>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                            </Link>
+                            <DropdownMenuItem
+                              onClick={() => onDuplicate(product.id)}
+                              className="cursor-pointer"
+                            >
+                              <Copy className="h-4 w-4 mr-2" />
+                              Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive cursor-pointer"
+                              onClick={() => {
+                                onOpen(product);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -564,6 +603,10 @@ export function ProductsTable({
           </div>
         </div>
       </CardContent>
+      <ProductPhotoDialog
+        produto={fotoDe}
+        onOpenChange={(aberto) => !aberto && setFotoDe(null)}
+      />
     </Card>
   );
 }

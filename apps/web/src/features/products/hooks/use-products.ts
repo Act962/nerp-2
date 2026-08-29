@@ -130,3 +130,39 @@ export const useBulkUpdateProducts = () => {
     }),
   );
 };
+
+export function useSetProductThumbnail() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.products.setThumbnail.mutationOptions({
+      onSuccess: () => {
+        toast.success("Foto salva");
+        queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.products.gapsSummary.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useRemoveProductBackground() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.products.removeBackground.mutationOptions({
+      onSuccess: (result) => {
+        // `applied: false` não é erro — o motor achou o fundo pouco confiável e
+        // preservou a foto original de propósito. Dizer "pronto" aqui faria o
+        // usuário achar que deu certo e seguir com a imagem intacta.
+        if (result.applied) toast.success("Fundo removido");
+        else
+          toast.warning(result.reason ?? "Não consegui recortar com segurança");
+        queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

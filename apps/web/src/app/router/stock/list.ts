@@ -16,6 +16,8 @@ export const listStock = base
   .input(
     z.object({
       name: z.string().optional(),
+      /** Movimentações de UM produto — usado pelo atalho na lista de produtos. */
+      productId: z.string().optional(),
       offset: z.number().min(0).default(0),
       limit: z.number().min(1).max(100).default(10),
       userIds: z.array(z.string()).optional(),
@@ -56,6 +58,7 @@ export const listStock = base
       take: input.limit,
       where: {
         organizationId: context.org.id,
+        ...(input.productId && { productId: input.productId }),
         createdBy: {
           id: {
             in: input.userIds,

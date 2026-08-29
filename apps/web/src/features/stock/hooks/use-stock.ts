@@ -7,6 +7,7 @@ interface UseStockProps {
   offset: number;
   dateInit?: Date;
   dateEnd?: Date;
+  productId?: string;
 }
 
 export const useStock = ({
@@ -15,6 +16,7 @@ export const useStock = ({
   offset,
   dateInit,
   dateEnd,
+  productId,
 }: UseStockProps) => {
   const { data: stock, isLoading } = useQuery(
     orpc.stocks.list.queryOptions({
@@ -24,6 +26,7 @@ export const useStock = ({
         offset,
         dateInit,
         dateEnd,
+        productId,
       },
     }),
   );
