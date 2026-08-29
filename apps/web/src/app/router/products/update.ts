@@ -6,6 +6,14 @@ import { ProductUnit } from "@/generated/prisma/enums";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { inngest, shopperPriceChanged } from "@/lib/inngest/client";
 
+// `undefined` mantém o valor gravado; `null` limpa. Sem a distinção, salvar o
+// produto sem mexer no desconto apagaria a promoção.
+function toDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined || value === null) return value;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
 export const updateProduct = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
@@ -15,59 +23,88 @@ export const updateProduct = base
     tags: ["products"],
   })
   .input(
-    z.object({
-      // Informações básicas
-      id: z.string(),
-      name: z.string().min(1).optional(),
-      categoryId: z.string().optional(),
-      description: z.string().optional(),
-      sku: z.string().optional(),
-      barcode: z.string().optional(),
-      unit: z.enum(ProductUnit).default(ProductUnit.UN).optional(),
+    z
+      .object({
+        // Informações básicas
+        id: z.string(),
+        name: z.string().min(1).optional(),
+        categoryId: z.string().optional(),
+        description: z.string().optional(),
+        sku: z.string().optional(),
+        barcode: z.string().optional(),
+        unit: z.enum(ProductUnit).default(ProductUnit.UN).optional(),
 
-      // Preços
-      costPrice: z.number().min(0).optional(),
-      salePrice: z.number().min(0).optional(),
-      promotionalPrice: z.number().optional(),
+        // Preços
+        costPrice: z.number().min(0).optional(),
+        salePrice: z.number().min(0).optional(),
+        promotionalPrice: z.number().optional(),
 
-      minStock: z.number().default(0),
-      maxStock: z.number().optional(),
-      location: z.string().optional(),
+        // Desconto promocional (global, com vigência). Datas em ISO; `null`
+        // limpa o campo, `undefined` mantém o que está gravado.
+        discountPercent: z.number().min(0).max(100).nullable().optional(),
+        discountStartsAt: z.string().nullable().optional(),
+        discountEndsAt: z.string().nullable().optional(),
 
-      // Imagens
-      images: z.array(z.string()).default([]),
-      thumbnail: z.string().optional(),
+        minStock: z.number().default(0),
+        maxStock: z.number().optional(),
+        location: z.string().optional(),
 
-      // Dimensões e peso
-      weight: z.number().optional(),
-      length: z.number().optional(),
-      width: z.number().optional(),
-      height: z.number().optional(),
+        // Imagens
+        images: z.array(z.string()).default([]),
+        thumbnail: z.string().optional(),
 
-      // Controle
-      isActive: z.boolean().default(true),
-      isFeatured: z.boolean().default(false),
-      trackStock: z.boolean().default(true),
-      allowNegative: z.boolean().default(false),
+        // Dimensões e peso
+        weight: z.number().optional(),
+        length: z.number().optional(),
+        width: z.number().optional(),
+        height: z.number().optional(),
 
-      // KDS — tempo médio de preparo (min)
-      prepTimeMinutes: z.number().int().positive().nullable().optional(),
+        // Controle
+        isActive: z.boolean().default(true),
+        isFeatured: z.boolean().default(false),
+        trackStock: z.boolean().default(true),
+        allowNegative: z.boolean().default(false),
 
-      supplierId: z.string().nullable().optional(),
+        // KDS — tempo médio de preparo (min)
+        prepTimeMinutes: z.number().int().positive().nullable().optional(),
 
-      // Cadastro fiscal (Fase B). Todos opcionais.
-      ncm: z.string().nullable().optional(),
-      cest: z.string().nullable().optional(),
-      cfop: z.string().nullable().optional(),
-      origem: z.string().nullable().optional(),
-      cstIcms: z.string().nullable().optional(),
-      cstPis: z.string().nullable().optional(),
-      cstCofins: z.string().nullable().optional(),
-      aliqIcms: z.number().nullable().optional(),
-      aliqPis: z.number().nullable().optional(),
-      aliqCofins: z.number().nullable().optional(),
-      cClassTrib: z.string().nullable().optional(),
-    }),
+        supplierId: z.string().nullable().optional(),
+
+        // Cadastro fiscal (Fase B). Todos opcionais.
+        ncm: z.string().nullable().optional(),
+        cest: z.string().nullable().optional(),
+        cfop: z.string().nullable().optional(),
+        origem: z.string().nullable().optional(),
+        cstIcms: z.string().nullable().optional(),
+        cstPis: z.string().nullable().optional(),
+        cstCofins: z.string().nullable().optional(),
+        aliqIcms: z.number().nullable().optional(),
+        aliqPis: z.number().nullable().optional(),
+        aliqCofins: z.number().nullable().optional(),
+        cClassTrib: z.string().nullable().optional(),
+      })
+      // Promoção sem fim vira preço permanente por esquecimento — foi o que a
+      // validade veio evitar.
+      .refine(
+        (data) =>
+          !data.discountPercent ||
+          data.discountPercent <= 0 ||
+          !!data.discountEndsAt,
+        {
+          message: "Informe até quando o desconto vale",
+          path: ["discountEndsAt"],
+        },
+      )
+      .refine(
+        (data) =>
+          !data.discountStartsAt ||
+          !data.discountEndsAt ||
+          new Date(data.discountStartsAt) <= new Date(data.discountEndsAt),
+        {
+          message: "O início não pode ser depois do fim",
+          path: ["discountEndsAt"],
+        },
+      ),
   )
   .output(
     z.object({
@@ -76,10 +113,13 @@ export const updateProduct = base
       slug: z.string(),
     }),
   )
-  .handler(async ({ input, errors }) => {
-    const productExists = await prisma.product.findUnique({
+  .handler(async ({ input, context, errors }) => {
+    // `findFirst` com organizationId, não `findUnique` por id: sem o filtro,
+    // qualquer usuário autenticado editaria produto de outra org (IDOR).
+    const productExists = await prisma.product.findFirst({
       where: {
         id: input.id,
+        organizationId: context.org.id,
       },
     });
 
@@ -104,6 +144,9 @@ export const updateProduct = base
         costPrice: input.costPrice,
         salePrice: input.salePrice,
         promotionalPrice: input.promotionalPrice,
+        discountPercent: input.discountPercent,
+        discountStartsAt: toDate(input.discountStartsAt),
+        discountEndsAt: toDate(input.discountEndsAt),
         minStock: input.minStock,
         maxStock: input.maxStock,
         images: input.images,

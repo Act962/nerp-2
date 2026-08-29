@@ -14,6 +14,10 @@ import {
 import { parseWeighedBarcode } from "@/features/pdv-weighed/weighed-barcode";
 import { WeighedConfigDialog } from "@/features/pdv-weighed/components/weighed-config-dialog";
 import { usePdvUiStore } from "@/features/sales/pdv-ui-store";
+import {
+  recoverableItems,
+  usePdvCartStore,
+} from "@/features/sales/pdv-cart-store";
 import { PendingOrdersDialog } from "../pending-orders-dialog";
 import {
   CancelAuthDialog,
@@ -35,9 +39,12 @@ import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
 import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
 // CaixaInfoBar (nome/caixa/relógio) foi movida pro app-header — libera
 // altura vertical na tela de venda. Ver PdvHeaderInfo/PdvHeaderClock.
+import { toReceiptOrg } from "@/features/receipt-designer/lib/org-receipt";
 import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
+import { useScannerStream } from "@/features/scanner/hooks/use-scanner";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { orpc } from "@/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -90,10 +97,14 @@ type ViewMode = "grid" | "list";
 export default function CreateSalePage({
   orgLogo,
   orgName,
+  receiptOrg,
   requireCancelAuth = false,
 }: {
   orgLogo?: string | null;
   orgName?: string | null;
+  // Cabeçalho do cupom (razão social, CNPJ, endereço, telefone, logo) vindo do
+  // banco — sem isso o cupom não fiscal sai sem identificação da loja.
+  receiptOrg?: ReceiptSaleData["org"];
   requireCancelAuth?: boolean;
 }) {
   const form = useForm<SaleFormData>({
@@ -130,9 +141,7 @@ export default function CreateSalePage({
   // Payload de hidratação vindo da aprovação de pedido do catálogo online.
   // Quando setado, popula o carrinho e limpa (consumo único).
   const hydratePayload = usePdvUiStore((state) => state.hydratePayload);
-  const setHydratePayload = usePdvUiStore(
-    (state) => state.setHydratePayload,
-  );
+  const setHydratePayload = usePdvUiStore((state) => state.setHydratePayload);
 
   // Dialogs
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
@@ -148,6 +157,7 @@ export default function CreateSalePage({
   } | null>(null);
   const [completedReceipt, setCompletedReceipt] =
     useState<ReceiptSaleData | null>(null);
+  const [autoPrintReceipt, setAutoPrintReceipt] = useState(false);
 
   const cartItems = form.watch("cartItems");
   const discount = form.watch("discount");
@@ -178,6 +188,10 @@ export default function CreateSalePage({
     reset();
   };
 
+  // 200ms: rápido o bastante para não parecer travado ao digitar, longo o
+  // bastante para uma palavra inteira virar uma consulta só.
+  const debouncedSearch = useDebouncedValue(searchTerm, 200);
+
   const {
     hasNextPage,
     data: products,
@@ -190,14 +204,32 @@ export default function CreateSalePage({
     limit: 9,
     category: selectedCategory ? [selectedCategory] : undefined,
     // Busca no SERVIDOR (não só na página carregada): produtos fora das 12
-    // primeiras também aparecem.
-    search: searchTerm.trim() || undefined,
+    // primeiras também aparecem. DEBOUNCED: sem isso é uma consulta por tecla
+    // digitada, e um código de 13 dígitos virava 13 consultas.
+    search: debouncedSearch.trim() || undefined,
   });
 
   const mutation = useMutationCreateSale();
 
+  // Bipe vai DIRETO para a busca exata por código. Antes ele só preenchia o
+  // campo de busca, o que disparava uma consulta textual ao servidor por
+  // caractere e só resolvia o produto no Enter — era a lentidão relatada.
+  // Celular pareado: o código lido lá entra pelo MESMO caminho do leitor de
+  // balcão, então promoção, estoque e pesável valem igual.
+  const scannerToken = usePdvUiStore((state) => state.scannerToken);
+  useScannerStream(scannerToken, (code) => {
+    void (async () => {
+      if (await tryScan(code)) return;
+      toast.error(`Código não encontrado: ${code}`);
+    })();
+  });
+
   useBarcodeScan(true, (barcode) => {
-    setSearchTerm(barcode);
+    void (async () => {
+      if (await tryScan(barcode)) return;
+      // Não é código conhecido: cai na busca, que é o comportamento antigo.
+      setSearchTerm(barcode);
+    })();
   });
 
   const filteredProducts = products
@@ -478,8 +510,32 @@ export default function CreateSalePage({
     );
   };
 
+  const saveCart = usePdvCartStore((state) => state.save);
+  const clearPersistedCart = usePdvCartStore((state) => state.clear);
+
+  // Espelho do carrinho fora da memória do React: se a tela morrer no meio da
+  // venda (crash, deploy trocando os chunks, aba recarregada sem querer), o
+  // operador não recomeça a passar os itens.
+  useEffect(() => {
+    saveCart(cartItems ?? []);
+  }, [cartItems, saveCart]);
+
+  // Recuperação: só quando o form está vazio (não atropela venda em curso) e
+  // só uma vez por montagem.
+  const cartRestoredRef = useRef(false);
+  useEffect(() => {
+    if (cartRestoredRef.current) return;
+    cartRestoredRef.current = true;
+    if (form.getValues("cartItems").length > 0) return;
+    const recuperados = recoverableItems(usePdvCartStore.getState());
+    if (recuperados.length === 0) return;
+    form.setValue("cartItems", recuperados, { shouldDirty: false });
+    toast.info("Carrinho recuperado de antes do recarregamento");
+  }, [form]);
+
   const clearCart = () => {
     form.reset();
+    clearPersistedCart();
   };
 
   // Antifraude: quando a org exige autorização, remover item ou reduzir
@@ -630,7 +686,7 @@ export default function CreateSalePage({
             invoiceGenerated: data.generateInvoice,
           });
           setCompletedReceipt({
-            org: { name: "" },
+            org: receiptOrg ?? toReceiptOrg({ name: orgName, logo: orgLogo }),
             sale: {
               number: sale.saleNumber,
               date: new Date().toISOString(),
@@ -647,6 +703,7 @@ export default function CreateSalePage({
             amountPaid: data.amountPaid,
             change: data.change,
           });
+          setAutoPrintReceipt(data.printReceipt);
           clearCart();
           setPaymentDialogOpen(false);
           setCompletedDialogOpen(true);
@@ -797,6 +854,7 @@ export default function CreateSalePage({
         onOpenChange={setCompletedDialogOpen}
         sale={completedSale}
         receiptData={completedReceipt}
+        autoPrint={autoPrintReceipt}
         onNewSale={() => {}}
         onPrintInvoice={() => {}}
       />

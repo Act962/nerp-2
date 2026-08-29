@@ -15,6 +15,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -46,6 +47,8 @@ import {
   Plug,
   Plus,
   Receipt,
+  ClipboardList,
+  QrCode,
   ScanBarcode,
   Settings,
   ShoppingCart,
@@ -168,6 +171,11 @@ const navigation: NavItem[] = [
         icon: Receipt,
         permission: "cupom-designer",
       },
+      {
+        name: "Leitor de Código",
+        href: "/vendas/leitor",
+        icon: QrCode,
+      },
     ],
   },
   {
@@ -186,6 +194,16 @@ const navigation: NavItem[] = [
         name: "Movimentações",
         href: "/estoque/movimentacoes",
         icon: TrendingUp,
+      },
+      {
+        name: "Coletor",
+        href: "/estoque/coletor",
+        icon: ScanBarcode,
+      },
+      {
+        name: "Inventários",
+        href: "/estoque/inventarios",
+        icon: ClipboardList,
       },
     ],
   },
@@ -521,7 +539,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible={fullscreenEditor ? "offcanvas" : "icon"}>
       <SidebarHeader>
-        <OrgMenu />
+        {/* Recolher de dentro do próprio menu, como no editor de catálogo: com
+            a sidebar aberta no celular ela cobre a tela inteira, e o botão que
+            a abriu fica embaixo dela. Sem isto, só tocando fora. */}
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <OrgMenu />
+          </div>
+          <SidebarTrigger className="shrink-0 group-data-[collapsible=icon]:hidden" />
+        </div>
       </SidebarHeader>
       <SidebarContent className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <SidebarGroup>
@@ -866,9 +892,9 @@ function OrgMenu() {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
             >
               {isLoadingOrg ? (
-                <Skeleton className="size-8 aspect-square rounded-lg" />
+                <Skeleton className="size-8 aspect-square shrink-0 rounded-lg" />
               ) : organizationActive?.logo ? (
-                <div className="flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg border">
+                <div className="flex aspect-square size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border">
                   <OrgLogo
                     logo={organizationActive.logo}
                     name={organizationActive.name ?? "Logo"}
@@ -876,7 +902,7 @@ function OrgMenu() {
                   />
                 </div>
               ) : (
-                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
+                <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-lg">
                   <GalleryVerticalEnd className="size-4" />
                 </div>
               )}

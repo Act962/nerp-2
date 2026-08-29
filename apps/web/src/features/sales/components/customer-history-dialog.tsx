@@ -172,7 +172,9 @@ export function CustomerHistoryDialog({
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-4 gap-2">
+        {/* Quatro KPIs a 375px dariam ~85px cada — ilegível. Duas linhas
+            de dois no celular, quatro em linha a partir do sm. */}
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <KpiCard
             icon={<ShoppingBag className="size-4" />}
             label="Vendas"

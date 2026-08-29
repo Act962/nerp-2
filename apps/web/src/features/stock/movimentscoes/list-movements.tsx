@@ -80,8 +80,11 @@ export function ListMovements({ members }: ListMovementsProps) {
   const [dateInit] = useQueryState("date_init");
   const [dateEnd] = useQueryState("date_end");
   const [users] = useQueryState("users");
+  // Vem do atalho de estoque na lista de produtos.
+  const [produto] = useQueryState("produto");
 
   const { data, isStockLoading } = useStock({
+    productId: produto ?? undefined,
     limit: 100,
     offset: 1,
     userIds: users?.split(",").map((user) => user.trim()),
@@ -127,8 +130,8 @@ export function ListMovements({ members }: ListMovementsProps) {
       <TabsContent value={typeFilter} className="space-y-4">
         <Card>
           <CardHeader>
-            <div className="flex items-center gap-4">
-              <div className="relative flex-1">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+              <div className="relative w-full sm:flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Buscar por produto ou SKU..."
@@ -137,13 +140,17 @@ export function ListMovements({ members }: ListMovementsProps) {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <CalendarFilter />
-              <FilterMoviments members={members} />
+              {/* Secundários dividem UMA linha no celular; soltos viravam
+                faixas cheias e comiam altura. */}
+              <div className="flex items-center gap-2 sm:contents">
+                <CalendarFilter />
+                <FilterMoviments members={members} />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
-              <Table>
+              <Table stacked>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tipo</TableHead>
@@ -189,13 +196,13 @@ export function ListMovements({ members }: ListMovementsProps) {
                       const Icon = config.icon;
                       return (
                         <TableRow key={movement.id}>
-                          <TableCell>
+                          <TableCell data-label="Tipo">
                             <Badge className={config.className}>
                               <Icon className="h-3 w-3 mr-1" />
                               {config.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Produto">
                             <div>
                               <div className="font-medium">
                                 {movement.product.name}
@@ -205,7 +212,10 @@ export function ListMovements({ members }: ListMovementsProps) {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell
+                            data-label="Quantidade"
+                            className="text-center"
+                          >
                             <span
                               className={`font-semibold ${
                                 movement.quantity > 0
@@ -217,23 +227,32 @@ export function ListMovements({ members }: ListMovementsProps) {
                               {movement.quantity} un
                             </span>
                           </TableCell>
-                          <TableCell className="text-center font-medium">
+                          <TableCell
+                            data-label="Estoque Anterior"
+                            className="text-center font-medium"
+                          >
                             {movement.previousStock} un
                           </TableCell>
-                          <TableCell className="text-center font-semibold">
+                          <TableCell
+                            data-label="Novo Estoque"
+                            className="text-center font-semibold"
+                          >
                             {movement.newStock} un
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell data-label="Data/Hora" className="text-sm">
                             {formatDate(movement.createdAt.toString())}
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell data-label="Usuário" className="text-sm">
                             {movement.user.name.split(" ")[0]}{" "}
                             {movement.user.name.split(" ")[1]}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                          <TableCell
+                            data-label="Observações"
+                            className="text-sm text-muted-foreground max-w-xs truncate"
+                          >
                             {movement.notes || "N/A"}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Ações">
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
@@ -258,7 +277,9 @@ export function ListMovements({ members }: ListMovementsProps) {
               </Table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
+            {/* Empilha no celular: lado a lado, a contagem mais os três botões
+                pediam 309px numa faixa de 273px e o "Próximo" saía da tela. */}
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
                 Mostrando {filteredMovements.length} de {data.length}{" "}
                 movimentações

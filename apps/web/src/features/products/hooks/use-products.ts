@@ -1,3 +1,4 @@
+import type { MissingField } from "@/features/products/lib/missing-filters";
 import { orpc } from "@/lib/orpc";
 import {
   keepPreviousData,
@@ -18,6 +19,8 @@ interface UseProductsProps {
   dateEnd?: Date;
   cursor?: string;
   limit?: number;
+  /** Lacuna de cadastro vinda dos cards do painel. */
+  missing?: MissingField;
 }
 
 export function useProducts({
@@ -31,6 +34,7 @@ export function useProducts({
   maxValue,
   dateInit,
   dateEnd,
+  missing,
 }: UseProductsProps) {
   const { data, isLoading } = useQuery(
     orpc.products.list.queryOptions({
@@ -45,6 +49,7 @@ export function useProducts({
         dateEnd,
         cursor,
         limit,
+        missing,
       },
       // Mantém os resultados anteriores durante o refetch (busca por
       // digitação): a grade não pisca a cada tecla.
@@ -125,3 +130,39 @@ export const useBulkUpdateProducts = () => {
     }),
   );
 };
+
+export function useSetProductThumbnail() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.products.setThumbnail.mutationOptions({
+      onSuccess: () => {
+        toast.success("Foto salva");
+        queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
+        queryClient.invalidateQueries({
+          queryKey: orpc.products.gapsSummary.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useRemoveProductBackground() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.products.removeBackground.mutationOptions({
+      onSuccess: (result) => {
+        // `applied: false` não é erro — o motor achou o fundo pouco confiável e
+        // preservou a foto original de propósito. Dizer "pronto" aqui faria o
+        // usuário achar que deu certo e seguir com a imagem intacta.
+        if (result.applied) toast.success("Fundo removido");
+        else
+          toast.warning(result.reason ?? "Não consegui recortar com segurança");
+        queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

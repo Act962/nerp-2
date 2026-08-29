@@ -1,5 +1,9 @@
+-- Idempotente: este schema já existe em bancos que o receberam à mão, sem a
+-- linha correspondente no _prisma_migrations. As guardas deixam o
+-- `migrate deploy` registrar a migração sem tentar recriar o que já está lá.
+
 -- CreateTable
-CREATE TABLE "devices" (
+CREATE TABLE IF NOT EXISTS "devices" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
@@ -16,7 +20,7 @@ CREATE TABLE "devices" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "devices_tokenHash_key" ON "devices"("tokenHash");
+CREATE UNIQUE INDEX IF NOT EXISTS "devices_tokenHash_key" ON "devices"("tokenHash");
 
 -- CreateIndex
-CREATE INDEX "devices_organizationId_idx" ON "devices"("organizationId");
+CREATE INDEX IF NOT EXISTS "devices_organizationId_idx" ON "devices"("organizationId");

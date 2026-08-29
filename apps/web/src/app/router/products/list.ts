@@ -3,6 +3,10 @@ import {
   productFilterSchema,
   productFilterWhere,
 } from "../promotional-catalog/_product-filters";
+import {
+  MISSING_FIELDS,
+  missingWhere,
+} from "@/features/products/lib/missing-filters";
 import { z } from "zod";
 import type { Prisma } from "@/generated/prisma/client";
 import { base } from "@/app/middlewares/base";
@@ -40,6 +44,9 @@ export const listProducts = base
       dateEnd: z.date().optional(),
       cursor: z.string().optional(),
       limit: z.number(),
+      // Lacuna de cadastro vinda dos cards do painel. Mesma definição que a
+      // contagem usa, para o número do card bater com a lista.
+      missing: z.enum(MISSING_FIELDS).optional(),
       // Filtros do diálogo do Catálogo Promocional. TODOS opcionais e SEM
       // default aqui: quem não manda nada recebe o mesmo resultado de sempre.
       // Um default de "só ativos" no servidor esconderia inativos da tela de
@@ -88,6 +95,9 @@ export const listProducts = base
       const where = {
         organizationId: context.org.id,
         ...productFilterWhere(input.filters),
+        // Em `AND` e não espalhado: alguns filtros de lacuna usam `OR`, que
+        // sobrescreveria o `OR` da busca por texto se fosse no mesmo nível.
+        ...(input.missing && { AND: [missingWhere(input.missing)] }),
         ...(input.category && {
           category: {
             slug: {

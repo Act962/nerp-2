@@ -59,6 +59,7 @@ export const listProductPrices = base
       minQuantity: r.minQuantity,
       pricingMode: r.pricingMode,
       unitPrice: r.unitPrice != null ? Number(r.unitPrice) : null,
-      percentDiscount: r.percentDiscount != null ? Number(r.percentDiscount) : null,
+      percentDiscount:
+        r.percentDiscount != null ? Number(r.percentDiscount) : null,
     }));
   });

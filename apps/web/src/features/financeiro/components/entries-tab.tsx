@@ -109,7 +109,8 @@ export function EntriesTab() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-xs">
+        {/* `max-w-xs` prendia a busca em 320px; no celular ela usa tudo. */}
+        <div className="relative w-full sm:max-w-xs">
           <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={searchInput}
@@ -165,7 +166,7 @@ export function EntriesTab() {
       </div>
 
       <div className="rounded-lg border">
-        <Table>
+        <Table stacked>
           <TableHeader>
             <TableRow>
               <TableHead>Descrição</TableHead>
@@ -203,7 +204,7 @@ export function EntriesTab() {
                   entry.status !== "PAID" && entry.status !== "CANCELLED";
                 return (
                   <TableRow key={entry.id}>
-                    <TableCell className="font-medium">
+                    <TableCell data-label="Descrição" className="font-medium">
                       <span
                         className={cn(
                           "mr-2 inline-block size-2 rounded-full align-middle",
@@ -214,13 +215,20 @@ export function EntriesTab() {
                       />
                       {entry.description}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell
+                      data-label="Contato"
+                      className="text-muted-foreground"
+                    >
                       {entry.contactName ?? "—"}
                     </TableCell>
-                    <TableCell className="text-muted-foreground">
+                    <TableCell
+                      data-label="Categoria"
+                      className="text-muted-foreground"
+                    >
                       {entry.categoryName ?? "—"}
                     </TableCell>
                     <TableCell
+                      data-label="Vencimento"
                       className={cn(
                         entry.overdue && "font-medium text-destructive",
                       )}
@@ -228,6 +236,7 @@ export function EntriesTab() {
                       {formatDate(entry.dueDate)}
                     </TableCell>
                     <TableCell
+                      data-label="Valor"
                       className={cn(
                         "text-right font-medium tabular-nums",
                         entry.type === "RECEIVABLE"
@@ -237,10 +246,13 @@ export function EntriesTab() {
                     >
                       {formatCents(entry.amount)}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                    <TableCell
+                      data-label="Pago"
+                      className="text-right tabular-nums text-muted-foreground"
+                    >
                       {formatCents(entry.paidAmount)}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Status">
                       <Badge
                         variant={statusBadgeVariant(
                           entry.status,

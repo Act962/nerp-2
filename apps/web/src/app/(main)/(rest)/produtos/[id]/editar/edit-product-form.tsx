@@ -25,6 +25,9 @@ import { Switch } from "@/components/ui/switch";
 import { useCategory } from "@/context/category/hooks/use-categories";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { FiscalFields } from "@/features/products/components/fiscal-fields";
+import { PriceMetrics } from "@/features/products/components/price-metrics";
+import { formatBRL } from "@/utils/currency-formatter";
+import { toDateInput, toIsoEnd, toIsoStart } from "@/utils/date-input";
 import { ProductUnit } from "@/generated/prisma/enums";
 import { orpc } from "@/lib/orpc";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -33,11 +36,10 @@ import {
   useQueryClient,
   useSuspenseQuery,
 } from "@tanstack/react-query";
-import { ArrowLeft, Plus, Save } from "lucide-react";
+import { ArrowLeft, Percent, Plus, Save } from "lucide-react";
 import { CreateStockMovimentModal } from "@/components/modals/stock/create-stock-moviment-modal";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo } from "react";
 import { Controller, useForm, type Resolver } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -57,49 +59,66 @@ const unitLabels: Record<ProductUnit, string> = {
   DZ: "Dúzia",
 };
 
-const productSchema = z.object({
-  name: z.string().min(1, "Nome é obrigatório"),
-  categoryId: z.string().optional(),
-  description: z.string().optional(),
-  sku: z.string().optional(),
-  barcode: z.string().optional(),
-  unit: z.enum(ProductUnit).optional(),
-  costPrice: z.coerce.number().min(0, "Preço de custo deve ser positivo"),
-  salePrice: z.coerce.number().min(0, "Preço de venda deve ser positivo"),
-  minStock: z.coerce.number().min(0, "Estoque mínimo deve ser positivo"),
-  isActive: z.boolean(),
-  trackStock: z.boolean(),
-  showOnCatalog: z.boolean(),
-  thumbnail: z.string().optional(),
-  prepTimeMinutes: z.coerce
-    .number()
-    .int()
-    .positive()
-    .optional()
-    .or(z.literal(NaN).transform(() => undefined)),
-  supplierId: z.string().optional(),
-  // Cadastro fiscal (Fase B) — opcionais.
-  ncm: z.string().optional(),
-  cest: z.string().optional(),
-  cfop: z.string().optional(),
-  origem: z.string().optional(),
-  cstIcms: z.string().optional(),
-  cstPis: z.string().optional(),
-  cstCofins: z.string().optional(),
-  aliqIcms: z.coerce
-    .number()
-    .optional()
-    .or(z.literal(NaN).transform(() => undefined)),
-  aliqPis: z.coerce
-    .number()
-    .optional()
-    .or(z.literal(NaN).transform(() => undefined)),
-  aliqCofins: z.coerce
-    .number()
-    .optional()
-    .or(z.literal(NaN).transform(() => undefined)),
-  cClassTrib: z.string().optional(),
-});
+const productSchema = z
+  .object({
+    name: z.string().min(1, "Nome é obrigatório"),
+    categoryId: z.string().optional(),
+    description: z.string().optional(),
+    sku: z.string().optional(),
+    barcode: z.string().optional(),
+    unit: z.enum(ProductUnit).optional(),
+    costPrice: z.coerce.number().min(0, "Preço de custo deve ser positivo"),
+    salePrice: z.coerce.number().min(0, "Preço de venda deve ser positivo"),
+    // Desconto promocional: percentual + janela. Datas no formato do
+    // `<input type="date">`; a conversão para instante acontece no submit.
+    discountPercent: z.coerce
+      .number()
+      .min(0, "Desconto não pode ser negativo")
+      .max(100, "Desconto não pode passar de 100%")
+      .optional()
+      .or(z.literal(NaN).transform(() => undefined)),
+    discountStartsAt: z.string().optional(),
+    discountEndsAt: z.string().optional(),
+    minStock: z.coerce.number().min(0, "Estoque mínimo deve ser positivo"),
+    isActive: z.boolean(),
+    trackStock: z.boolean(),
+    showOnCatalog: z.boolean(),
+    thumbnail: z.string().optional(),
+    prepTimeMinutes: z.coerce
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .or(z.literal(NaN).transform(() => undefined)),
+    supplierId: z.string().optional(),
+    // Cadastro fiscal (Fase B) — opcionais.
+    ncm: z.string().optional(),
+    cest: z.string().optional(),
+    cfop: z.string().optional(),
+    origem: z.string().optional(),
+    cstIcms: z.string().optional(),
+    cstPis: z.string().optional(),
+    cstCofins: z.string().optional(),
+    aliqIcms: z.coerce
+      .number()
+      .optional()
+      .or(z.literal(NaN).transform(() => undefined)),
+    aliqPis: z.coerce
+      .number()
+      .optional()
+      .or(z.literal(NaN).transform(() => undefined)),
+    aliqCofins: z.coerce
+      .number()
+      .optional()
+      .or(z.literal(NaN).transform(() => undefined)),
+    cClassTrib: z.string().optional(),
+  })
+  // Promoção sem prazo vira preço permanente por esquecimento — a validade
+  // existe justamente para isso.
+  .refine((data) => !data.discountPercent || Boolean(data.discountEndsAt), {
+    message: "Informe até quando o desconto vale",
+    path: ["discountEndsAt"],
+  });
 
 type ProductFormValues = z.infer<typeof productSchema>;
 
@@ -151,6 +170,9 @@ export function EditProductForm() {
       unit: product.unit || "UN",
       costPrice: product.costPrice,
       salePrice: product.salePrice,
+      discountPercent: product.discountPercent ?? undefined,
+      discountStartsAt: toDateInput(product.discountStartsAt),
+      discountEndsAt: toDateInput(product.discountEndsAt),
       minStock: product.minStock,
       thumbnail: product.thumbnail,
       isActive: product.isActive,
@@ -177,16 +199,13 @@ export function EditProductForm() {
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = form;
 
   const costPrice = watch("costPrice");
   const salePrice = watch("salePrice");
-
-  const margin = useMemo(() => {
-    if (!costPrice || costPrice <= 0) return 0;
-    return ((salePrice - costPrice) / costPrice) * 100;
-  }, [costPrice, salePrice]);
+  const discountPercent = Number(watch("discountPercent")) || 0;
 
   const onSubmit = async (data: ProductFormValues) => {
     updateProductMutation.mutate({
@@ -194,6 +213,16 @@ export function EditProductForm() {
       ...data,
       isFeatured: data.showOnCatalog,
       supplierId: data.supplierId || null,
+      // Sem percentual, manda null nos três: é assim que se REMOVE uma
+      // promoção pelo formulário.
+      discountPercent: data.discountPercent ?? null,
+      discountStartsAt: data.discountPercent
+        ? toIsoStart(data.discountStartsAt ?? "")
+        : null,
+      discountEndsAt:
+        data.discountPercent && data.discountEndsAt
+          ? toIsoEnd(data.discountEndsAt)
+          : null,
     });
   };
 
@@ -452,7 +481,7 @@ export function EditProductForm() {
                 <CardTitle>Preços e Estoque</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="costPrice">
                       Preço de Custo <span className="text-destructive">*</span>
@@ -487,15 +516,88 @@ export function EditProductForm() {
                       </p>
                     )}
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="margin">Margem de Lucro</Label>
-                    <Input
-                      id="margin"
-                      type="number"
-                      value={margin.toFixed(2)}
-                      disabled
-                    />
+                </div>
+
+                <PriceMetrics
+                  costPrice={Number(costPrice) || 0}
+                  salePrice={Number(salePrice) || 0}
+                  onSalePriceChange={(value) =>
+                    setValue("salePrice", value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    })
+                  }
+                />
+
+                <div className="rounded-lg border p-4">
+                  <div className="mb-1 flex items-center gap-2">
+                    <Percent className="size-4 text-muted-foreground" />
+                    <h3 className="text-sm font-medium">
+                      Desconto promocional
+                    </h3>
                   </div>
+                  <p className="mb-4 text-xs text-muted-foreground">
+                    Vale em todas as tabelas de preço. Passada a data, o preço
+                    volta sozinho ao normal.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="discountPercent">Desconto (%)</Label>
+                      <Input
+                        id="discountPercent"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="100"
+                        placeholder="0"
+                        {...register("discountPercent")}
+                        aria-invalid={!!errors.discountPercent}
+                      />
+                      {errors.discountPercent && (
+                        <p className="text-sm text-destructive">
+                          {errors.discountPercent.message}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="discountStartsAt">
+                        Início (opcional)
+                      </Label>
+                      <Input
+                        id="discountStartsAt"
+                        type="date"
+                        {...register("discountStartsAt")}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="discountEndsAt">Vale até</Label>
+                      <Input
+                        id="discountEndsAt"
+                        type="date"
+                        {...register("discountEndsAt")}
+                        aria-invalid={!!errors.discountEndsAt}
+                      />
+                      {errors.discountEndsAt && (
+                        <p className="text-sm text-destructive">
+                          {errors.discountEndsAt.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  {discountPercent > 0 && (
+                    <p className="mt-3 text-sm">
+                      Preço com desconto:{" "}
+                      <span className="font-semibold tabular-nums">
+                        {formatBRL(
+                          Math.round(
+                            (Number(salePrice) || 0) *
+                              (1 - discountPercent / 100) *
+                              100,
+                          ) / 100,
+                        )}
+                      </span>
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-3">

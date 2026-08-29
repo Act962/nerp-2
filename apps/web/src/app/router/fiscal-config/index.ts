@@ -4,12 +4,24 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { hasFullAccess } from "@/lib/permissions";
 import {
+  CertificateError,
+  isExpired,
+  matchesCnpj,
+  parsePfx,
+} from "@/lib/fiscal/certificate";
+import {
   decryptString,
   encryptString,
   maskSecret,
 } from "@/lib/fiscal/encryption";
 import { pingFocus } from "@/lib/fiscal/focus-nfe";
 import { SEFAZ_PI, pingSefazNfce } from "@/lib/fiscal/sefaz-pi";
+import {
+  FISCAL_KEY_PREFIX,
+  certificateObjectKey,
+  deleteFiscalObject,
+  putFiscalObject,
+} from "@/lib/fiscal/storage";
 import { z } from "zod";
 
 const p = base.use(requireAuthMiddleware).use(requireOrgMiddleware);
@@ -57,13 +69,23 @@ const configOutput = z.object({
   zipCode: z.string().nullable(),
   fiscalPhone: z.string().nullable(),
   fiscalEmail: z.string().nullable(),
-  certificateKey: z.string().nullable(),
+  // A `certificateKey` NÃO sai daqui: com ela na mão o client conseguia baixar
+  // o .pfx direto do bucket. O client só precisa saber SE existe certificado.
+  hasCertificate: z.boolean(),
   certificateFilename: z.string().nullable(),
   certificateExpiresAt: z.string().nullable(),
+  // Certificado ainda apontando para o bucket público antigo: precisa ser
+  // reenviado antes de qualquer emissão.
+  certificateStorageLegacy: z.boolean(),
   // Segredos: NUNCA voltam em texto claro. Só uma máscara ("•••• 1234")
   // indicando que estão preenchidos.
+  //
+  // A senha do certificado é a exceção: nem máscara. Token de provedor com os
+  // 4 últimos à mostra ajuda a conferir qual credencial está gravada; senha de
+  // certificado com 4 caracteres à mostra é só encurtar a busca de quem tentar
+  // adivinhá-la, e ninguém mais consulta esse campo desde que o upload passou
+  // a receber a senha junto com o arquivo.
   hasCertificatePassword: z.boolean(),
-  certificatePasswordMask: z.string(),
   provider: z.enum(["FOCUS_NFE"]),
   focusEmpresaId: z.string().nullable(),
   hasFocusTokenHomolog: z.boolean(),
@@ -97,7 +119,11 @@ const configOutput = z.object({
 const get = p
   .input(z.object({}).optional())
   .output(configOutput)
-  .handler(async ({ context }) => {
+  .handler(async ({ context, errors }) => {
+    // A configuração fiscal expõe máscaras de segredo e metadados do
+    // certificado — leitura é tão sensível quanto escrita.
+    await requireManage(context.org.id, context.user.id, errors);
+
     const row = await prisma.fiscalConfig.findUnique({
       where: { organizationId: context.org.id },
     });
@@ -124,13 +150,13 @@ const get = p
       zipCode: row?.zipCode ?? null,
       fiscalPhone: row?.fiscalPhone ?? null,
       fiscalEmail: row?.fiscalEmail ?? null,
-      certificateKey: row?.certificateKey ?? null,
+      hasCertificate: !!row?.certificateKey,
       certificateFilename: row?.certificateFilename ?? null,
       certificateExpiresAt: row?.certificateExpiresAt?.toISOString() ?? null,
+      certificateStorageLegacy:
+        !!row?.certificateKey &&
+        !row.certificateKey.startsWith(FISCAL_KEY_PREFIX),
       hasCertificatePassword: !!row?.certificatePasswordEnc,
-      certificatePasswordMask: row?.certificatePasswordEnc
-        ? maskSecret(safeDecrypt(row.certificatePasswordEnc))
-        : "",
       provider: row?.provider ?? "FOCUS_NFE",
       focusEmpresaId: row?.focusEmpresaId ?? null,
       hasFocusTokenHomolog: !!row?.focusTokenHomolog,
@@ -189,11 +215,8 @@ const upsertInput = z.object({
   fiscalPhone: z.string().nullable().optional(),
   fiscalEmail: z.string().nullable().optional(),
 
-  // Certificado: `certificateKey` só é atualizado se enviado (upload novo).
-  certificateKey: z.string().nullable().optional(),
-  certificateFilename: z.string().nullable().optional(),
-  certificateExpiresAt: z.string().nullable().optional(),
-  certificatePassword: secretString,
+  // O certificado NÃO entra aqui: arquivo, senha e validade são gravados por
+  // `uploadCertificate`, que é quem consegue validar os três juntos.
 
   focusEmpresaId: z.string().nullable().optional(),
   focusTokenHomolog: secretString,
@@ -219,11 +242,6 @@ const upsert = p
 
     // Segredos: aplica a lógica "keep/set/clear".
     const secretPatch: Record<string, string | null | undefined> = {};
-    applySecret(
-      secretPatch,
-      "certificatePasswordEnc",
-      input.certificatePassword,
-    );
     applySecret(secretPatch, "focusTokenHomolog", input.focusTokenHomolog);
     applySecret(secretPatch, "focusToken", input.focusToken);
     applySecret(secretPatch, "csc", input.csc);
@@ -248,13 +266,6 @@ const upsert = p
       zipCode: input.zipCode,
       fiscalPhone: input.fiscalPhone,
       fiscalEmail: input.fiscalEmail,
-      certificateKey: input.certificateKey,
-      certificateFilename: input.certificateFilename,
-      certificateExpiresAt: input.certificateExpiresAt
-        ? new Date(input.certificateExpiresAt)
-        : input.certificateExpiresAt === null
-          ? null
-          : undefined,
       focusEmpresaId: input.focusEmpresaId,
       nfceSerie: input.nfceSerie,
       nfceNextNumber: input.nfceNextNumber,
@@ -279,6 +290,112 @@ const upsert = p
     });
 
     return { ok: true };
+  });
+
+/**
+ * Teto do .pfx. Um A1 tem poucos KB — 64KB já é folgado e mantém o base64
+ * dentro do que o oRPC transporta sem presigned URL.
+ */
+const MAX_PFX_BYTES = 64 * 1024;
+
+/**
+ * Recebe o certificado A1, VALIDA e grava no bucket fiscal privado.
+ *
+ * Por que o upload passa por aqui e não pelo presigned de `/api/s3/upload`:
+ * a senha é indispensável para abrir o .pfx, e só abrindo dá para conferir
+ * validade e CNPJ. Validar aqui transforma "certificado errado" em erro de
+ * tela; validar só na primeira venda transformaria em incidente fiscal.
+ *
+ * A senha chega crua (sob TLS), é usada para abrir o arquivo e sai daqui
+ * cifrada — nunca é devolvida ao client.
+ */
+const uploadCertificate = p
+  .input(
+    z.object({
+      filename: z.string().min(1).max(200),
+      /** Conteúdo do .pfx em base64. */
+      contentBase64: z.string().min(1),
+      password: z.string().min(1, "Informe a senha do certificado"),
+    }),
+  )
+  .output(
+    z.object({
+      filename: z.string(),
+      expiresAt: z.string(),
+      subjectName: z.string(),
+      cnpj: z.string(),
+    }),
+  )
+  .handler(async ({ input, context, errors }) => {
+    await requireManage(context.org.id, context.user.id, errors);
+
+    const config = await prisma.fiscalConfig.findUnique({
+      where: { organizationId: context.org.id },
+      select: { cnpj: true, certificateKey: true },
+    });
+    if (!config?.cnpj)
+      throw errors.BAD_REQUEST({
+        message:
+          "Cadastre e salve o CNPJ da empresa antes de enviar o certificado.",
+      });
+
+    const pfx = Buffer.from(input.contentBase64, "base64");
+    if (pfx.length === 0)
+      throw errors.BAD_REQUEST({ message: "Arquivo vazio" });
+    if (pfx.length > MAX_PFX_BYTES)
+      throw errors.BAD_REQUEST({
+        message: "Arquivo grande demais para um certificado A1 (máx. 64KB)",
+      });
+
+    let parsed: ReturnType<typeof parsePfx>;
+    try {
+      parsed = parsePfx(pfx, input.password);
+    } catch (error) {
+      if (error instanceof CertificateError)
+        throw errors.BAD_REQUEST({ message: error.message });
+      throw error;
+    }
+
+    if (isExpired(parsed, new Date()))
+      throw errors.BAD_REQUEST({
+        message: `Certificado vencido em ${parsed.notAfter.toLocaleDateString("pt-BR")}. Envie um certificado válido.`,
+      });
+
+    if (!matchesCnpj(parsed, config.cnpj))
+      throw errors.BAD_REQUEST({
+        message: parsed.cnpj
+          ? `O certificado é do CNPJ ${parsed.cnpj}, diferente do cadastrado nesta empresa.`
+          : "O certificado não tem CNPJ (parece um e-CPF). A emissão exige um e-CNPJ A1.",
+      });
+
+    const key = certificateObjectKey(context.org.id);
+    await putFiscalObject(key, pfx, "application/x-pkcs12");
+
+    // Só grava a referência depois que o objeto subiu: falha no meio deixa um
+    // órfão no bucket, nunca uma linha apontando para arquivo inexistente.
+    await prisma.fiscalConfig.update({
+      where: { organizationId: context.org.id },
+      data: {
+        certificateKey: key,
+        certificateFilename: input.filename.replace(/[^\w.\- ]/g, "_"),
+        certificateExpiresAt: parsed.notAfter,
+        certificatePasswordEnc: encryptString(input.password),
+      },
+    });
+
+    // Certificado antigo some do bucket. Keys legadas (do bucket público de
+    // imagens) não são apagadas aqui — vivem em outro bucket e precisam de
+    // limpeza manual no R2.
+    const previous = config.certificateKey;
+    if (previous?.startsWith(FISCAL_KEY_PREFIX) && previous !== key)
+      await deleteFiscalObject(previous);
+
+    return {
+      filename: input.filename,
+      expiresAt: parsed.notAfter.toISOString(),
+      subjectName: parsed.subjectName,
+      cnpj: parsed.cnpj ?? "",
+    };
   });
 
 const testSefaz = p
@@ -342,6 +459,7 @@ const testProvider = p
 export const fiscalConfigRoutes = {
   get,
   upsert,
+  uploadCertificate,
   testSefaz,
   testProvider,
 };

@@ -27,15 +27,18 @@ export const registerOutput = base
     }),
   )
   .handler(async ({ context, input, errors }) => {
-    const product = await prisma.product.findUnique({
+    // `findFirst` com organizationId, não `findUnique` por id: sem o filtro,
+    // qualquer usuário autenticado movimentaria estoque de outra org (IDOR).
+    const product = await prisma.product.findFirst({
       where: {
         id: input.productId,
+        organizationId: context.org.id,
       },
     });
 
     if (!product) {
       throw errors.NOT_FOUND({
-        message: "Product not found",
+        message: "Produto não encontrado",
       });
     }
 

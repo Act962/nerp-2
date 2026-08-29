@@ -30,6 +30,7 @@ import { Controller, useForm } from "react-hook-form";
 import { RichTextEditor } from "../../../../../components/rich-text/editor";
 import { useCreateProduct } from "@/features/products/hooks/use-products";
 import { FiscalFields } from "@/features/products/components/fiscal-fields";
+import { PriceMetrics } from "@/features/products/components/price-metrics";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 
 const unitLabels: Record<ProductUnit, string> = {
@@ -371,7 +372,7 @@ export function CreateProductForm() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Preços */}
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="costPrice">
                     Preço de Custo <span className="text-destructive">*</span>
@@ -405,25 +406,18 @@ export function CreateProductForm() {
                     {form.formState.errors.salePrice?.message}
                   </FieldError>
                 </div>
-
-                <div className="space-y-2">
-                  <Label>Margem de Lucro</Label>
-                  <Input
-                    value={
-                      form.watch("costPrice") > 0
-                        ? (
-                            ((form.watch("salePrice") -
-                              form.watch("costPrice")) /
-                              form.watch("costPrice")) *
-                            100
-                          ).toFixed(2) + "%"
-                        : "0.00%"
-                    }
-                    placeholder="0.00%"
-                    disabled
-                  />
-                </div>
               </div>
+
+              <PriceMetrics
+                costPrice={Number(form.watch("costPrice")) || 0}
+                salePrice={Number(form.watch("salePrice")) || 0}
+                onSalePriceChange={(value) =>
+                  form.setValue("salePrice", value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  })
+                }
+              />
 
               {/* Estoque */}
               <div className="grid gap-4 sm:grid-cols-3">

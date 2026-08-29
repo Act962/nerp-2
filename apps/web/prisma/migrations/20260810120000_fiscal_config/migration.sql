@@ -1,17 +1,29 @@
--- CreateEnum
-CREATE TYPE "FiscalEnvironment" AS ENUM ('HOMOLOGACAO', 'PRODUCAO');
+-- Idempotente: este schema já existe em bancos que o receberam à mão, sem a
+-- linha correspondente no _prisma_migrations. As guardas deixam o
+-- `migrate deploy` registrar a migração sem tentar recriar o que já está lá.
 
 -- CreateEnum
-CREATE TYPE "TaxRegime" AS ENUM ('SIMPLES_NACIONAL', 'SIMPLES_MEI', 'LUCRO_PRESUMIDO', 'LUCRO_REAL');
+DO $$ BEGIN
+  CREATE TYPE "FiscalEnvironment" AS ENUM ('HOMOLOGACAO', 'PRODUCAO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateEnum
-CREATE TYPE "FiscalProvider" AS ENUM ('FOCUS_NFE');
+DO $$ BEGIN
+  CREATE TYPE "TaxRegime" AS ENUM ('SIMPLES_NACIONAL', 'SIMPLES_MEI', 'LUCRO_PRESUMIDO', 'LUCRO_REAL');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateEnum
-CREATE TYPE "FiscalEmissionType" AS ENUM ('NORMAL', 'CONTINGENCIA_SVCAN', 'CONTINGENCIA_OFFLINE');
+DO $$ BEGIN
+  CREATE TYPE "FiscalProvider" AS ENUM ('FOCUS_NFE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- CreateEnum
+DO $$ BEGIN
+  CREATE TYPE "FiscalEmissionType" AS ENUM ('NORMAL', 'CONTINGENCIA_SVCAN', 'CONTINGENCIA_OFFLINE');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- CreateTable
-CREATE TABLE "fiscal_configs" (
+CREATE TABLE IF NOT EXISTS "fiscal_configs" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "environment" "FiscalEnvironment" NOT NULL DEFAULT 'HOMOLOGACAO',
@@ -55,10 +67,12 @@ CREATE TABLE "fiscal_configs" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "fiscal_configs_organizationId_key" ON "fiscal_configs"("organizationId");
+CREATE UNIQUE INDEX IF NOT EXISTS "fiscal_configs_organizationId_key" ON "fiscal_configs"("organizationId");
 
 -- CreateIndex
-CREATE INDEX "fiscal_configs_organizationId_idx" ON "fiscal_configs"("organizationId");
+CREATE INDEX IF NOT EXISTS "fiscal_configs_organizationId_idx" ON "fiscal_configs"("organizationId");
 
 -- AddForeignKey
-ALTER TABLE "fiscal_configs" ADD CONSTRAINT "fiscal_configs_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "fiscal_configs" ADD CONSTRAINT "fiscal_configs_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

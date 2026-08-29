@@ -7,9 +7,11 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import placeholder from "@/assets/background-default-image.svg";
+import { ProductPhotoDialog } from "./product-photo-dialog";
 
 import { Button } from "@/components/ui/button";
 import {
+  Boxes,
   Copy,
   Eye,
   MoreVertical,
@@ -126,6 +128,11 @@ export function ProductsTable({
   // Se o container não controlar, cai num fallback local (comportamento antigo:
   // filtra só a página). Preferir sempre a versão controlada.
   const [internalSearch, setInternalSearch] = useState("");
+  const [fotoDe, setFotoDe] = useState<{
+    id: string;
+    name: string;
+    image: string;
+  } | null>(null);
   const searchTerm = searchValue ?? internalSearch;
   const setSearchTerm = onSearchChange ?? setInternalSearch;
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
@@ -207,8 +214,7 @@ export function ProductsTable({
             categorySlugs: activeFilter?.categorySlugs,
             // Prioriza a busca local (input desta tabela) sobre o filtro do
             // container — os dois casam com o que está sendo mostrado.
-            search:
-              searchTerm.trim() || activeFilter?.search || undefined,
+            search: searchTerm.trim() || activeFilter?.search || undefined,
           },
           patch,
         },
@@ -231,8 +237,10 @@ export function ProductsTable({
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center gap-4">
-          <InputGroup>
+        {/* No celular a busca fica com a linha inteira: dividindo espaço com os
+            botões ela ficava com 52% da tela, e o texto digitado não cabia. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <InputGroup className="w-full">
             <InputGroupAddon>
               <Search className="size-4" />
             </InputGroupAddon>
@@ -248,10 +256,14 @@ export function ProductsTable({
               </InputGroupAddon>
             )}
           </InputGroup>
-          <CalendarFilter>
-            <span className="hidden sm:block">Calendário</span>
-          </CalendarFilter>
-          <FilterProducts categories={categories} />
+          {/* Os dois secundários dividem UMA linha no celular. Soltos, viravam
+              duas faixas cheias e comiam altura sem ganhar nada. */}
+          <div className="flex items-center gap-2 sm:contents">
+            <CalendarFilter>
+              <span className="hidden sm:block">Calendário</span>
+            </CalendarFilter>
+            <FilterProducts categories={categories} />
+          </div>
         </div>
       </CardHeader>
       <CardContent>
@@ -283,8 +295,8 @@ export function ProductsTable({
                   ) : (
                     <>
                       <span>
-                        Os {filteredProducts.length} produtos desta página
-                        estão selecionados.
+                        Os {filteredProducts.length} produtos desta página estão
+                        selecionados.
                       </span>
                       <Button
                         size="sm"
@@ -326,89 +338,89 @@ export function ProductsTable({
                 </Button>
               )}
               <div className="ml-auto flex flex-wrap gap-2">
-              {/* Cada dropdown aplica um patch nos selecionados. Ação
+                {/* Cada dropdown aplica um patch nos selecionados. Ação
                 imediata (sem confirmação): "N produtos atualizados" no toast
                 e o service em memória invalida a lista. */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkUpdate.isPending}
-                  >
-                    Produto ativo
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ isActive: true })}
-                  >
-                    Marcar como ativo
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ isActive: false })}
-                  >
-                    Marcar como inativo
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkUpdate.isPending}
-                  >
-                    Controlar estoque
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ trackStock: true })}
-                  >
-                    Habilitar controle
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ trackStock: false })}
-                  >
-                    Desabilitar controle (vende ilimitado)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkUpdate.isPending}
-                  >
-                    Exibir no Catálogo Online
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ showInCatalog: true })}
-                  >
-                    Exibir no catálogo
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ showInCatalog: false })}
-                  >
-                    Ocultar do catálogo
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button size="sm" variant="destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkUpdate.isPending}
+                    >
+                      Produto ativo
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ isActive: true })}
+                    >
+                      Marcar como ativo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ isActive: false })}
+                    >
+                      Marcar como inativo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkUpdate.isPending}
+                    >
+                      Controlar estoque
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ trackStock: true })}
+                    >
+                      Habilitar controle
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ trackStock: false })}
+                    >
+                      Desabilitar controle (vende ilimitado)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkUpdate.isPending}
+                    >
+                      Exibir no Catálogo Online
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ showInCatalog: true })}
+                    >
+                      Exibir no catálogo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ showInCatalog: false })}
+                    >
+                      Ocultar do catálogo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button size="sm" variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </Button>
               </div>
             </div>
           </div>
         )}
 
         <div className="rounded-md border">
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">
@@ -443,15 +455,27 @@ export function ProductsTable({
                         onCheckedChange={() => toggleSelect(product.id)}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Produto">
                       <div className="flex items-center gap-3">
-                        <Image
-                          src={product.image || placeholder}
-                          alt={product.name}
-                          width={40}
-                          height={40}
-                          className="rounded-md"
-                        />
+                        {/* Foto clicável: cadastrar/trocar imagem sem sair da
+                            lista, que é onde se percebe que ela falta. */}
+                        <button
+                          type="button"
+                          onClick={() => setFotoDe(product)}
+                          className="shrink-0 rounded-md ring-offset-background transition hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                          title="Cadastrar ou trocar a foto"
+                        >
+                          <Image
+                            src={product.image || placeholder}
+                            alt={product.name}
+                            width={40}
+                            height={40}
+                            className="rounded-md"
+                          />
+                          <span className="sr-only">
+                            Cadastrar foto de {product.name}
+                          </span>
+                        </button>
                         <div>
                           <div className="font-medium">{product.name}</div>
                           <div className="text-xs text-muted-foreground">
@@ -460,14 +484,22 @@ export function ProductsTable({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm font-semibold text-muted-foreground">
+                    <TableCell
+                      data-label="SKU"
+                      className="text-sm font-semibold text-muted-foreground"
+                    >
                       {product.sku || "N/A"}
                     </TableCell>
-                    <TableCell>{product.category || "N/A"}</TableCell>
-                    <TableCell className="text-right font-semibold">
+                    <TableCell data-label="Categoria">
+                      {product.category || "N/A"}
+                    </TableCell>
+                    <TableCell
+                      data-label="Preço"
+                      className="text-right font-semibold"
+                    >
                       R$ {currencyFormatter(product.salePrice)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label="Estoque" className="text-right">
                       <div className="font-medium">
                         {product.currentStock} un
                       </div>
@@ -475,50 +507,70 @@ export function ProductsTable({
                         Min: {product.minStock}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Status">
                       <Badge className={stockStatus.className}>
                         {stockStatus.label}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <Link href={`/produtos/${product.id}`}>
-                            <DropdownMenuItem>
-                              <Eye className="h-4 w-4 mr-2" />
-                              Ver detalhes
-                            </DropdownMenuItem>
-                          </Link>
-                          <Link href={`/produtos/${product.id}/editar`}>
-                            <DropdownMenuItem>
-                              <Pencil className="h-4 w-4 mr-2" />
-                              Editar
-                            </DropdownMenuItem>
-                          </Link>
-                          <DropdownMenuItem
-                            onClick={() => onDuplicate(product.id)}
-                            className="cursor-pointer"
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Atalho para as movimentações DESTE produto: filtra por
+                          id, não por nome, senão "Arroz 1kg" traria junto
+                          "Arroz 5kg". */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          asChild
+                          title="Ver movimentações de estoque"
+                        >
+                          <Link
+                            href={`/estoque/movimentacoes?produto=${product.id}`}
                           >
-                            <Copy className="h-4 w-4 mr-2" />
-                            Duplicar
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            className="text-destructive cursor-pointer"
-                            onClick={() => {
-                              onOpen(product);
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Excluir
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <Boxes className="h-4 w-4" />
+                            <span className="sr-only">
+                              Movimentações de {product.name}
+                            </span>
+                          </Link>
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <Link href={`/produtos/${product.id}`}>
+                              <DropdownMenuItem>
+                                <Eye className="h-4 w-4 mr-2" />
+                                Ver detalhes
+                              </DropdownMenuItem>
+                            </Link>
+                            <Link href={`/produtos/${product.id}/editar`}>
+                              <DropdownMenuItem>
+                                <Pencil className="h-4 w-4 mr-2" />
+                                Editar
+                              </DropdownMenuItem>
+                            </Link>
+                            <DropdownMenuItem
+                              onClick={() => onDuplicate(product.id)}
+                              className="cursor-pointer"
+                            >
+                              <Copy className="h-4 w-4 mr-2" />
+                              Duplicar
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive cursor-pointer"
+                              onClick={() => {
+                                onOpen(product);
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Excluir
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -551,6 +603,10 @@ export function ProductsTable({
           </div>
         </div>
       </CardContent>
+      <ProductPhotoDialog
+        produto={fotoDe}
+        onOpenChange={(aberto) => !aberto && setFotoDe(null)}
+      />
     </Card>
   );
 }

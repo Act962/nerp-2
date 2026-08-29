@@ -34,6 +34,12 @@ export interface PendingCustomer {
 // diálogos e o carrinho (form).
 interface PdvUiState {
   weighedOpen: boolean;
+  /**
+   * Token do celular pareado como leitor. Vive aqui porque quem gera o QR é o
+   * cabeçalho (fora da árvore do PDV) e quem consome os códigos é a tela de
+   * venda — o store é a ponte que já existe entre os dois.
+   */
+  scannerToken: string | null;
   shortcutsOpen: boolean;
   pendingOrdersOpen: boolean;
   // Payload de hidratação: quando setado por "Aprovar", o create-sale
@@ -44,6 +50,7 @@ interface PdvUiState {
   } | null;
   setWeighedOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
+  setScannerToken: (token: string | null) => void;
   setPendingOrdersOpen: (open: boolean) => void;
   setHydratePayload: (
     payload: {
@@ -55,11 +62,13 @@ interface PdvUiState {
 
 export const usePdvUiStore = create<PdvUiState>((set) => ({
   weighedOpen: false,
+  scannerToken: null,
   shortcutsOpen: false,
   pendingOrdersOpen: false,
   hydratePayload: null,
   setWeighedOpen: (weighedOpen) => set({ weighedOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
+  setScannerToken: (scannerToken) => set({ scannerToken }),
   setPendingOrdersOpen: (pendingOrdersOpen) => set({ pendingOrdersOpen }),
   setHydratePayload: (hydratePayload) => set({ hydratePayload }),
 }));

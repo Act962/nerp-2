@@ -32,7 +32,11 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/tradegram") ||
     // Link público do Catálogo Promocional (/promocao/{token}). Aberto/deslogado
     // e compartilhável de qualquer domínio.
-    pathname.startsWith("/promocao")
+    pathname.startsWith("/promocao") ||
+    // Celular como leitor (/leitor/{token}): aberto pelo QR do PDV, sem login.
+    // Sem esta linha, abrir pelo subdomínio da loja cairia na reescrita de
+    // vitrine e daria 404 — e é o único jeito de chegar nesta página.
+    pathname.startsWith("/leitor")
   ) {
     return NextResponse.next();
   }

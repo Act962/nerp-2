@@ -31,7 +31,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { UserBase } from "./list-movements";
+import type { UserBase } from "./list-movements";
 
 const formFilterSchema = z.object({
   userIds: z.array(z.string()),
@@ -55,7 +55,7 @@ export function FilterMoviments({ members }: FilterMovimentsProps) {
     if (form.getValues("userIds").length > 0) {
       const selectUsers = form.getValues("userIds");
       const usersSelected = members.filter((user) =>
-        selectUsers.includes(user.id)
+        selectUsers.includes(user.id),
       );
       setUsers(usersSelected.map((user) => user.id).join(","));
     } else {
@@ -132,8 +132,8 @@ export function FilterMoviments({ members }: FilterMovimentsProps) {
                                 if (currentValue.includes(category.id)) {
                                   field.onChange(
                                     currentValue.filter(
-                                      (id) => id !== category.id
-                                    )
+                                      (id) => id !== category.id,
+                                    ),
                                   );
                                 } else {
                                   field.onChange([
@@ -151,7 +151,7 @@ export function FilterMoviments({ members }: FilterMovimentsProps) {
                                     "size-4",
                                     field.value.includes(category.id)
                                       ? "opacity-100"
-                                      : "opacity-0"
+                                      : "opacity-0",
                                   )}
                                 />
                               )}

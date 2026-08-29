@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/page-header";
 import { ListMovements } from "../../../../../features/stock/movimentscoes/list-movements";
 import { CreateStockMovimentModal } from "@/components/modals/stock/create-stock-moviment-modal";
+import { EstoqueTabs } from "@/features/stock/components/estoque-tabs";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
@@ -17,6 +18,7 @@ export default async function Page() {
       >
         <CreateStockMovimentModal />
       </PageHeader>
+      <EstoqueTabs />
       <ListMovements
         members={organization.members.map((member) => member.user)}
       />

@@ -21,6 +21,7 @@ import {
   ReceiptPrintArea,
   triggerReceiptPrint,
 } from "@/features/receipt-designer/components/receipt-print";
+import { useEffect, useRef } from "react";
 import { CheckCircle, Printer, FileText, Receipt, Copy } from "lucide-react";
 
 interface SaleCompletedDialogProps {
@@ -35,6 +36,9 @@ interface SaleCompletedDialogProps {
     invoiceGenerated: boolean;
   } | null;
   receiptData?: ReceiptSaleData | null;
+  // Espelha o checkbox "Imprimir Cupom" do pagamento: dispara a impressão
+  // sozinho ao abrir, sem o operador ter que clicar de novo.
+  autoPrint?: boolean;
   onNewSale: () => void;
   onPrintInvoice: () => void;
 }
@@ -48,10 +52,12 @@ export function SaleCompletedDialog({
   onOpenChange,
   sale,
   receiptData,
+  autoPrint = false,
   onNewSale,
   onPrintInvoice,
 }: SaleCompletedDialogProps) {
-  const { data: defaultTemplate } = useReceiptDefaultTemplate();
+  const { data: defaultTemplate, isPending: templatePending } =
+    useReceiptDefaultTemplate();
 
   const template = defaultTemplate?.template ?? null;
   const printBlocks = template?.blocks ?? FALLBACK_BLOCKS;
@@ -61,6 +67,20 @@ export function SaleCompletedDialog({
     if (!receiptData) return;
     triggerReceiptPrint(printPaper);
   };
+
+  // Só imprime depois que o template padrão da org resolveu — senão sairia no
+  // preset de fallback — e depois que o portal do cupom montou, porque o @page
+  // é calculado a partir da altura já renderizada. Uma vez por venda: o ref
+  // guarda o número impresso para o efeito não repetir a cada render.
+  const printedSaleRef = useRef<number | null>(null);
+  const saleNumber = sale?.saleNumber ?? null;
+  useEffect(() => {
+    if (!open || !autoPrint || !receiptData || templatePending) return;
+    if (saleNumber === null || printedSaleRef.current === saleNumber) return;
+    printedSaleRef.current = saleNumber;
+    const timer = setTimeout(() => triggerReceiptPrint(printPaper), 250);
+    return () => clearTimeout(timer);
+  }, [open, autoPrint, receiptData, templatePending, saleNumber, printPaper]);
 
   if (!sale) return null;
 

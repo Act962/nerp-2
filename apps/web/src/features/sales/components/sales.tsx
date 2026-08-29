@@ -127,8 +127,8 @@ export function SalesPage() {
         <TabsContent value={statusFilter} className="space-y-4">
           <Card>
             <CardHeader>
-              <div className="flex items-center gap-4">
-                <div className="relative flex-1">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                <div className="relative w-full sm:flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder="Buscar por número ou cliente..."
@@ -137,26 +137,30 @@ export function SalesPage() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
-                <Select defaultValue="today">
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="today">Hoje</SelectItem>
-                    <SelectItem value="week">Esta semana</SelectItem>
-                    <SelectItem value="month">Este mês</SelectItem>
-                    <SelectItem value="all">Todos</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button variant="outline">
-                  <Filter className="h-4 w-4 mr-2" />
-                  Filtros
-                </Button>
+                {/* Secundários dividem UMA linha no celular; soltos viravam
+                    faixas cheias e comiam altura. */}
+                <div className="flex items-center gap-2 sm:contents">
+                  <Select defaultValue="today">
+                    <SelectTrigger className="w-full sm:w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">Hoje</SelectItem>
+                      <SelectItem value="week">Esta semana</SelectItem>
+                      <SelectItem value="month">Este mês</SelectItem>
+                      <SelectItem value="all">Todos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline">
+                    <Filter className="h-4 w-4 mr-2" />
+                    Filtros
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
-                <Table>
+                <Table stacked>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Número</TableHead>
@@ -174,10 +178,13 @@ export function SalesPage() {
                         statusConfig[sale.status as keyof typeof statusConfig];
                       return (
                         <TableRow key={sale.id}>
-                          <TableCell className="font-mono font-medium">
+                          <TableCell
+                            data-label="Número"
+                            className="font-mono font-medium"
+                          >
                             {sale.saleNumber}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Cliente">
                             <div>
                               <div className="font-medium">
                                 {sale.customer || "Cliente não informado"}
@@ -187,18 +194,23 @@ export function SalesPage() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{formatDate(sale.date)}</TableCell>
-                          <TableCell>
+                          <TableCell data-label="Data/Hora">
+                            {formatDate(sale.date)}
+                          </TableCell>
+                          <TableCell data-label="Pagamento">
                             <Badge variant="outline">
                               {paymentMethodLabels[sale.paymentMethod || ""]}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Status">
                             <Badge className={status.className}>
                               {status.label}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right font-semibold">
+                          <TableCell
+                            data-label="Total"
+                            className="text-right font-semibold"
+                          >
                             {currencyFormatter(sale.total)}
                           </TableCell>
                           <TableCell>

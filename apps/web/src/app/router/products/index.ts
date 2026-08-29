@@ -4,6 +4,7 @@ import { deleteProduct } from "./delete";
 import { duplicateProduct } from "./duplicate";
 import { findProductByCode } from "./find-by-code";
 import { getProduct } from "./get";
+import { productGapsSummary } from "./gaps-summary";
 import { listProducts } from "./list";
 import { pullProducts } from "./pull";
 import { matchProductsBySku } from "./match-by-sku";
@@ -18,6 +19,7 @@ import { createImport } from "./import/create";
 import { getImport } from "./import/get";
 
 export const productsRoutes = {
+  gapsSummary: productGapsSummary,
   list: listProducts,
   pull: pullProducts,
   create: createProduct,

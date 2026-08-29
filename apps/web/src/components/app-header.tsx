@@ -9,6 +9,7 @@ import { PdvHeaderInfo } from "@/features/sales/components/novo/pdv-header-info"
 import { PdvHeaderClock } from "@/features/sales/components/novo/pdv-header-clock";
 import { SidebarTrigger, useSidebar } from "./ui/sidebar";
 import { ModeToggle } from "./mode-toggle";
+import { ScannerQrButton } from "@/features/scanner/components/scanner-qr-button";
 import { FullscreenToggle } from "./fullscreen-toggle";
 
 // No PDV (tela cheia) a busca global do topo só distrai — a busca de produto
@@ -24,7 +25,7 @@ export function AppHeader() {
     pathname.startsWith(prefix),
   );
   const showSearch = !isPdv;
-  const { setOpen } = useSidebar();
+  const { setOpen, state, isMobile } = useSidebar();
 
   // No PDV a sidebar recolhe pra dar espaço à venda — mas só uma vez ao entrar.
   // Sem o guard, o effect re-rodaria e forçaria `false` logo após o usuário
@@ -62,7 +63,11 @@ export function AppHeader() {
   return (
     <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6">
       <div className="flex items-center gap-4 flex-1">
-        <SidebarTrigger />
+        {/* Só quando o menu está RECOLHIDO. Aberto, quem recolhe é o botão
+            dentro do próprio menu — dois ícones idênticos lado a lado
+            confundem, e um deles não teria função. No celular o menu é uma
+            gaveta sobreposta, então aqui ele sempre aparece. */}
+        {(isMobile || state === "collapsed") && <SidebarTrigger />}
         {showSearch && (
           // No celular o campo espremia o trigger da sidebar sem entregar valor.
           <div className="relative hidden w-full max-w-md md:block">
@@ -81,6 +86,7 @@ export function AppHeader() {
       <div className="flex items-center gap-2 md:gap-4">
         {isPdv && <PdvHeaderClock />}
         {isPdv && <PdvHeaderActions />}
+        <ScannerQrButton />
         <FullscreenToggle />
         <ModeToggle />
       </div>

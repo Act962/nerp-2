@@ -1,12 +1,18 @@
+-- Idempotente: este schema já existe em bancos que o receberam à mão, sem a
+-- linha correspondente no _prisma_migrations. As guardas deixam o
+-- `migrate deploy` registrar a migração sem tentar recriar o que já está lá.
+
 -- CreateEnum
-CREATE TYPE "PdvMediaType" AS ENUM ('IMAGE', 'VIDEO');
+DO $$ BEGIN
+  CREATE TYPE "PdvMediaType" AS ENUM ('IMAGE', 'VIDEO');
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- AlterTable: painel de mídia do PDV (config por organização)
-ALTER TABLE "organization" ADD COLUMN "pdvMediaEnabled" BOOLEAN NOT NULL DEFAULT false;
-ALTER TABLE "organization" ADD COLUMN "pdvMediaPauseSeconds" INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE "organization" ADD COLUMN IF NOT EXISTS "pdvMediaEnabled" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "organization" ADD COLUMN IF NOT EXISTS "pdvMediaPauseSeconds" INTEGER NOT NULL DEFAULT 1;
 
 -- CreateTable
-CREATE TABLE "pdv_medias" (
+CREATE TABLE IF NOT EXISTS "pdv_medias" (
     "id" TEXT NOT NULL,
     "organizationId" TEXT NOT NULL,
     "title" TEXT,
@@ -23,7 +29,9 @@ CREATE TABLE "pdv_medias" (
 );
 
 -- CreateIndex
-CREATE INDEX "pdv_medias_organizationId_idx" ON "pdv_medias"("organizationId");
+CREATE INDEX IF NOT EXISTS "pdv_medias_organizationId_idx" ON "pdv_medias"("organizationId");
 
 -- AddForeignKey
-ALTER TABLE "pdv_medias" ADD CONSTRAINT "pdv_medias_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "pdv_medias" ADD CONSTRAINT "pdv_medias_organizationId_fkey" FOREIGN KEY ("organizationId") REFERENCES "organization"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

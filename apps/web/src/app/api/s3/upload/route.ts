@@ -37,9 +37,10 @@ const ALLOWED_CONTENT_TYPES = new Set([
   // Vídeo da mídia promocional do PDV.
   "video/mp4",
   "video/webm",
-  // Certificado digital A1 (.pfx) da configuração fiscal.
-  "application/x-pkcs12",
-  "application/pkcs12",
+  // O certificado digital A1 (.pfx) JÁ ESTEVE nesta lista e não pode voltar:
+  // este bucket é servido por `/api/s3/image`, que não tem sessão. O upload do
+  // certificado é `fiscalConfig.uploadCertificate`, que valida a senha, confere
+  // o CNPJ e grava no bucket fiscal PRIVADO.
 ]);
 
 const fileUploadSchema = z

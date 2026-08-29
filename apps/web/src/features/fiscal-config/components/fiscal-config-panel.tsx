@@ -36,11 +36,7 @@ import { CertificateUploader } from "./certificate-uploader";
 // atual (que nunca chega ao client em texto claro).
 const KEEP = "__KEEP__";
 
-type SecretField =
-  | "certificatePassword"
-  | "focusTokenHomolog"
-  | "focusToken"
-  | "csc";
+type SecretField = "focusTokenHomolog" | "focusToken" | "csc";
 
 export function FiscalConfigPanel() {
   const { config, isLoading } = useFiscalConfig();
@@ -73,12 +69,9 @@ export function FiscalConfigPanel() {
     zipCode: "",
     fiscalPhone: "",
     fiscalEmail: "",
-    certificateKey: null as string | null,
-    certificateFilename: null as string | null,
     // Segredos começam com o sentinela (mantém o valor atual). Só substituímos
     // se o usuário digitar algo — nesse caso mandamos o valor cru pro server
     // (que cifra) ou "" pra apagar.
-    certificatePassword: KEEP,
     focusEmpresaId: "",
     focusTokenHomolog: KEEP,
     focusToken: KEEP,
@@ -116,8 +109,6 @@ export function FiscalConfigPanel() {
       zipCode: config.zipCode ?? "",
       fiscalPhone: config.fiscalPhone ?? "",
       fiscalEmail: config.fiscalEmail ?? "",
-      certificateKey: config.certificateKey,
-      certificateFilename: config.certificateFilename,
       focusEmpresaId: config.focusEmpresaId ?? "",
       nfceSerie: config.nfceSerie ?? 1,
       nfceNextNumber: config.nfceNextNumber,
@@ -381,39 +372,21 @@ export function FiscalConfigPanel() {
             Certificado digital A1
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <CertificateUploader
-              currentFilename={form.certificateFilename}
-              currentKey={form.certificateKey}
-              onUploaded={({ key, filename }) => {
-                setForm((prev) => ({
-                  ...prev,
-                  certificateKey: key,
-                  certificateFilename: filename,
-                }));
-              }}
-            />
-          </div>
-          <Field label="Senha do certificado">
-            <SecretInput
-              hasSaved={config.hasCertificatePassword}
-              mask={config.certificatePasswordMask}
-              value={form.certificatePassword}
-              onChange={(value) => setSecret("certificatePassword", value)}
-            />
-          </Field>
-          <Field label="Validade (informativo, opcional)">
-            <Input
-              type="date"
-              value={
-                config.certificateExpiresAt
-                  ? config.certificateExpiresAt.slice(0, 10)
-                  : ""
-              }
-              disabled
-            />
-          </Field>
+        <CardContent>
+          {/* Arquivo, senha e validade são gravados juntos pelo uploader: sem a
+              senha o server não abre o .pfx, e sem abrir não confere validade
+              nem CNPJ. Por isso não há campo de senha solto neste formulário. */}
+          <CertificateUploader
+            hasCertificate={config.hasCertificate}
+            filename={config.certificateFilename}
+            expiresAt={config.certificateExpiresAt}
+            legacyStorage={config.certificateStorageLegacy}
+            disabledReason={
+              config.cnpj
+                ? null
+                : "Preencha e salve o CNPJ da empresa antes de enviar o certificado — é ele que valida o titular do arquivo."
+            }
+          />
         </CardContent>
       </Card>
 

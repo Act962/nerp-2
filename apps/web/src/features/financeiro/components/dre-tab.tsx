@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useDre } from "@/features/financeiro/hooks/use-financeiro";
 import { formatCents } from "@/features/financeiro/lib/money";
 import { cn } from "@/lib/utils";
+import { computePriceMetrics, formatPercent } from "@/utils/pricing";
 import { useState } from "react";
 
 interface DreNode {
@@ -102,7 +103,18 @@ function GroupCard({
   );
 }
 
-function ResultCard({ label, value }: { label: string; value: number }) {
+function ResultCard({
+  label,
+  value,
+  hint,
+  format = formatCents,
+}: {
+  label: string;
+  // `null` = sem base para o cálculo (ver computePriceMetrics); vira "—".
+  value: number | null;
+  hint?: string;
+  format?: (value: number) => string;
+}) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -114,13 +126,16 @@ function ResultCard({ label, value }: { label: string; value: number }) {
         <div
           className={cn(
             "text-2xl font-semibold tabular-nums",
-            value >= 0
-              ? "text-emerald-600 dark:text-emerald-400"
-              : "text-red-600 dark:text-red-400",
+            value === null
+              ? "text-muted-foreground"
+              : value >= 0
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-red-600 dark:text-red-400",
           )}
         >
-          {formatCents(value)}
+          {value === null ? "—" : format(value)}
         </div>
+        {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
       </CardContent>
     </Card>
   );
@@ -132,6 +147,13 @@ export function DreTab() {
   const [to, setTo] = useState(bounds.to);
 
   const { data, isPending } = useDre(from, to);
+
+  // Mesma conta do cadastro de produto, agora sobre o período: o resultado
+  // bruto é o "lucro", a receita é a "venda" e os custos são o "custo".
+  const { marginPercent, markupPercent } = computePriceMetrics(
+    data?.cost.total ?? 0,
+    data?.revenue.total ?? 0,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -161,14 +183,30 @@ export function DreTab() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ResultCard label="Receita" value={data?.revenue.total ?? 0} />
         <ResultCard
           label="Custos + Despesas"
           value={-((data?.cost.total ?? 0) + (data?.expense.total ?? 0))}
         />
-        <ResultCard label="Resultado bruto" value={data?.grossResult ?? 0} />
+        <ResultCard
+          label="Resultado bruto"
+          value={data?.grossResult ?? 0}
+          hint="Receita − custos"
+        />
         <ResultCard label="Resultado líquido" value={data?.netResult ?? 0} />
+        <ResultCard
+          label="Margem sobre a venda"
+          value={marginPercent}
+          format={formatPercent}
+          hint="Resultado bruto ÷ receita"
+        />
+        <ResultCard
+          label="Markup sobre o custo"
+          value={markupPercent}
+          format={formatPercent}
+          hint="Resultado bruto ÷ custos"
+        />
       </div>
 
       {isPending ? (

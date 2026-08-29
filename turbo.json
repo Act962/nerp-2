@@ -19,7 +19,8 @@
     "COSMOS_*",
     "OPENAI_*",
     "FREE_MARKET_*",
-    "INNGEST_*"
+    "INNGEST_*",
+    "FISCAL_*"
   ],
   "tasks": {
     "db:generate": {

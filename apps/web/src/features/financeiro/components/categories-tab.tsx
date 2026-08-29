@@ -264,7 +264,7 @@ export function CategoriesTab() {
         </Button>
       </div>
       <div className="rounded-lg border">
-        <Table>
+        <Table stacked>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
@@ -296,7 +296,7 @@ export function CategoriesTab() {
             ) : (
               categories.map((category) => (
                 <TableRow key={category.id}>
-                  <TableCell className="font-medium">
+                  <TableCell data-label="Nome" className="font-medium">
                     <span className="flex items-center gap-2">
                       <span
                         className="inline-block size-3 rounded-full"
@@ -307,15 +307,17 @@ export function CategoriesTab() {
                       {category.name}
                     </span>
                   </TableCell>
-                  <TableCell>{CATEGORY_TYPE_LABEL[category.type]}</TableCell>
-                  <TableCell>
+                  <TableCell data-label="Tipo">
+                    {CATEGORY_TYPE_LABEL[category.type]}
+                  </TableCell>
+                  <TableCell data-label="Classificação">
                     {category.isOperational ? (
                       <Badge variant="secondary">Operacional</Badge>
                     ) : (
                       <Badge variant="outline">Não-operacional</Badge>
                     )}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     {category.isActive ? (
                       <Badge variant="secondary">Ativa</Badge>
                     ) : (
