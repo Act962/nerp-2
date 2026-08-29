@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { ChevronRight, Home } from "lucide-react";
 import {
   Breadcrumb,
@@ -43,7 +44,14 @@ export function BreadcrumbNav() {
           return (
             <div
               key={breadcrumb.href + "-" + index}
-              className="flex items-center gap-2"
+              // O item "Home" some no celular: o ícone de menu no topo já leva
+              // à navegação, e um alvo de toque a mais no caminho só atrapalha.
+              // O RESTO da trilha fica — com o título agora em `sr-only`, é ela
+              // que diz em que página se está.
+              className={cn(
+                "flex items-center gap-2",
+                index === 0 && "max-sm:hidden",
+              )}
             >
               <BreadcrumbItem>
                 {isLast ? (
