@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useQueryState } from "nuqs";
+import { isSalesPeriod, type SalesPeriod } from "../lib/period-range";
 import {
   Plus,
   Search,
@@ -56,6 +58,10 @@ const paymentMethodLabels: Record<string, string> = {
 
 export function SalesPage() {
   const [searchTerm, setSearchTerm] = useState("");
+  // Na URL: o recorte sobrevive ao recarregar e o link pode ser mandado a
+  // outra pessoa mostrando exatamente a mesma lista.
+  const [periodoRaw, setPeriodo] = useQueryState("periodo");
+  const periodo: SalesPeriod = isSalesPeriod(periodoRaw) ? periodoRaw : "all";
   const [statusFilter, setStatusFilter] = useState("all");
   const [open, setOpen] = useState(false);
   const [saleId, setSaleId] = useState<string | null>(null);
@@ -66,6 +72,7 @@ export function SalesPage() {
   } | null>(null);
 
   const { data, isLoadingSales } = useQuerySales({
+    period: periodo,
     status: undefined,
     dateInit: undefined,
     dateEnd: undefined,
@@ -140,7 +147,10 @@ export function SalesPage() {
                 {/* Secundários dividem UMA linha no celular; soltos viravam
                     faixas cheias e comiam altura. */}
                 <div className="flex items-center gap-2 sm:contents">
-                  <Select defaultValue="today">
+                  <Select
+                    value={periodo}
+                    onValueChange={(v) => setPeriodo(v === "all" ? null : v)}
+                  >
                     <SelectTrigger className="w-full sm:w-48">
                       <SelectValue />
                     </SelectTrigger>
