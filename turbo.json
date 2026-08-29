@@ -36,6 +36,9 @@
         "^build",
         "db:generate"
       ],
+      "passThroughEnv": [
+        "NODE_OPTIONS"
+      ],
       "outputs": [
         ".next/**",
         "!.next/cache/**",
