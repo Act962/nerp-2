@@ -230,7 +230,7 @@ export function CategoryDiscountsCard({
             Nenhum desconto por categoria nesta tabela.
           </p>
         ) : (
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead>Categoria</TableHead>
@@ -242,13 +242,16 @@ export function CategoryDiscountsCard({
             <TableBody>
               {discounts.map((discount) => (
                 <TableRow key={discount.id}>
-                  <TableCell className="font-medium">
+                  <TableCell data-label="Categoria" className="font-medium">
                     {discount.categoryName}
                   </TableCell>
-                  <TableCell className="tabular-nums">
+                  <TableCell data-label="Desconto" className="tabular-nums">
                     {discount.percentDiscount}%
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell
+                    data-label="Vigência"
+                    className="text-muted-foreground"
+                  >
                     <div className="flex items-center gap-2">
                       {formatRange(discount.startsAt, discount.endsAt)}
                       {!discount.isActive && (

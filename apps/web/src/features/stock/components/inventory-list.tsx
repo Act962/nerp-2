@@ -28,7 +28,7 @@ export function InventoryList() {
 
   return (
     <div className="rounded-lg border">
-      <Table>
+      <Table stacked>
         <TableHeader>
           <TableRow>
             <TableHead>Contagem</TableHead>
@@ -56,7 +56,7 @@ export function InventoryList() {
           ) : (
             counts.map((count) => (
               <TableRow key={count.id}>
-                <TableCell className="font-medium">
+                <TableCell data-label="Contagem" className="font-medium">
                   <Link
                     href={`/estoque/inventarios/${count.id}`}
                     className="hover:underline"
@@ -69,15 +69,18 @@ export function InventoryList() {
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell className="tabular-nums">
+                <TableCell data-label="Produtos" className="tabular-nums">
                   {count.itemCount}
                 </TableCell>
-                <TableCell>
+                <TableCell data-label="Status">
                   <Badge variant={STATUS[count.status]?.variant ?? "outline"}>
                     {STATUS[count.status]?.label ?? count.status}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-muted-foreground">
+                <TableCell
+                  data-label="Início"
+                  className="text-muted-foreground"
+                >
                   {new Date(count.startedAt).toLocaleString("pt-BR")}
                 </TableCell>
               </TableRow>

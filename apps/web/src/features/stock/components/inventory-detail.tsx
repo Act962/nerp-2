@@ -129,7 +129,7 @@ export function InventoryDetail({ id }: { id: string }) {
       )}
 
       <div className="rounded-lg border">
-        <Table>
+        <Table stacked>
           <TableHeader>
             <TableRow>
               <TableHead>Produto</TableHead>
@@ -153,7 +153,7 @@ export function InventoryDetail({ id }: { id: string }) {
             ) : (
               items.map((item) => (
                 <TableRow key={item.productId}>
-                  <TableCell className="font-medium">
+                  <TableCell data-label="Produto" className="font-medium">
                     {item.productName}
                     {item.driftedSinceCount && (
                       <Badge variant="outline" className="ml-2">
@@ -161,16 +161,23 @@ export function InventoryDetail({ id }: { id: string }) {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell
+                    data-label="Contado"
+                    className="text-right tabular-nums"
+                  >
                     {item.countedQuantity}
                   </TableCell>
                   {!oculto && (
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
+                    <TableCell
+                      data-label="Sistema"
+                      className="text-right tabular-nums text-muted-foreground"
+                    >
                       {item.systemQuantity}
                     </TableCell>
                   )}
                   {!oculto && (
                     <TableCell
+                      data-label="Divergência"
                       className={cn(
                         "text-right font-medium tabular-nums",
                         (item.divergence ?? 0) > 0 &&

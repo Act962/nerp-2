@@ -1,10 +1,44 @@
-"use client"
+"use client";
 
-import * as React from "react"
+import type * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
+/**
+ * Empilhamento no celular: abaixo de `sm` a tabela deixa de ser tabela e cada
+ * linha vira um cartão, com o nome da coluna à esquerda do valor.
+ *
+ * Rolar na horizontal funciona (o container já faz isso), mas ler uma linha de
+ * oito colunas empurrando o dedo é péssimo — some o cabeçalho e o valor perde
+ * o significado. Aqui o rótulo viaja junto com o dado.
+ *
+ * O rótulo vem do `data-label` de cada `TableCell`. Célula sem `data-label`
+ * aparece sem rótulo, o que é o certo para colunas de ação.
+ */
+const STACKED_ON_MOBILE = [
+  "max-sm:block",
+  "[&_thead]:max-sm:hidden",
+  "[&_tbody]:max-sm:block",
+  "[&_tr]:max-sm:mb-2 [&_tr]:max-sm:block [&_tr]:max-sm:rounded-lg",
+  "[&_tr]:max-sm:border [&_tr]:max-sm:px-3 [&_tr]:max-sm:py-1",
+  "[&_td]:max-sm:flex [&_td]:max-sm:items-center [&_td]:max-sm:justify-between",
+  "[&_td]:max-sm:gap-4 [&_td]:max-sm:px-0 [&_td]:max-sm:py-2",
+  "[&_td]:max-sm:border-b [&_td:last-child]:max-sm:border-0",
+  "[&_td[data-label]]:max-sm:before:content-[attr(data-label)]",
+  "[&_td[data-label]]:max-sm:before:shrink-0",
+  "[&_td[data-label]]:max-sm:before:text-xs",
+  "[&_td[data-label]]:max-sm:before:font-medium",
+  "[&_td[data-label]]:max-sm:before:text-muted-foreground",
+].join(" ");
+
+function Table({
+  className,
+  stacked = false,
+  ...props
+}: React.ComponentProps<"table"> & {
+  /** Vira cartões abaixo de `sm`. Use em tabelas com muitas colunas. */
+  stacked?: boolean;
+}) {
   return (
     <div
       data-slot="table-container"
@@ -12,11 +46,15 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
     >
       <table
         data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+        className={cn(
+          "w-full caption-bottom text-sm",
+          stacked && STACKED_ON_MOBILE,
+          className,
+        )}
         {...props}
       />
     </div>
-  )
+  );
 }
 
 function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
@@ -26,7 +64,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
       className={cn("[&_tr]:border-b", className)}
       {...props}
     />
-  )
+  );
 }
 
 function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
@@ -36,7 +74,7 @@ function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
       className={cn("[&_tr:last-child]:border-0", className)}
       {...props}
     />
-  )
+  );
 }
 
 function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
@@ -45,11 +83,11 @@ function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
       data-slot="table-footer"
       className={cn(
         "bg-muted/50 border-t font-medium [&>tr]:last:border-b-0",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
@@ -58,11 +96,11 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
       data-slot="table-row"
       className={cn(
         "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableHead({ className, ...props }: React.ComponentProps<"th">) {
@@ -71,11 +109,11 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
       data-slot="table-head"
       className={cn(
         "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableCell({ className, ...props }: React.ComponentProps<"td">) {
@@ -84,11 +122,11 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
       data-slot="table-cell"
       className={cn(
         "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-        className
+        className,
       )}
       {...props}
     />
-  )
+  );
 }
 
 function TableCaption({
@@ -101,7 +139,7 @@ function TableCaption({
       className={cn("text-muted-foreground mt-4 text-sm", className)}
       {...props}
     />
-  )
+  );
 }
 
 export {
@@ -113,4 +151,4 @@ export {
   TableRow,
   TableCell,
   TableCaption,
-}
+};

@@ -207,8 +207,7 @@ export function ProductsTable({
             categorySlugs: activeFilter?.categorySlugs,
             // Prioriza a busca local (input desta tabela) sobre o filtro do
             // container — os dois casam com o que está sendo mostrado.
-            search:
-              searchTerm.trim() || activeFilter?.search || undefined,
+            search: searchTerm.trim() || activeFilter?.search || undefined,
           },
           patch,
         },
@@ -283,8 +282,8 @@ export function ProductsTable({
                   ) : (
                     <>
                       <span>
-                        Os {filteredProducts.length} produtos desta página
-                        estão selecionados.
+                        Os {filteredProducts.length} produtos desta página estão
+                        selecionados.
                       </span>
                       <Button
                         size="sm"
@@ -326,89 +325,89 @@ export function ProductsTable({
                 </Button>
               )}
               <div className="ml-auto flex flex-wrap gap-2">
-              {/* Cada dropdown aplica um patch nos selecionados. Ação
+                {/* Cada dropdown aplica um patch nos selecionados. Ação
                 imediata (sem confirmação): "N produtos atualizados" no toast
                 e o service em memória invalida a lista. */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkUpdate.isPending}
-                  >
-                    Produto ativo
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ isActive: true })}
-                  >
-                    Marcar como ativo
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ isActive: false })}
-                  >
-                    Marcar como inativo
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkUpdate.isPending}
-                  >
-                    Controlar estoque
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ trackStock: true })}
-                  >
-                    Habilitar controle
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ trackStock: false })}
-                  >
-                    Desabilitar controle (vende ilimitado)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={bulkUpdate.isPending}
-                  >
-                    Exibir no Catálogo Online
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ showInCatalog: true })}
-                  >
-                    Exibir no catálogo
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => applyPatch({ showInCatalog: false })}
-                  >
-                    Ocultar do catálogo
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button size="sm" variant="destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Excluir
-              </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkUpdate.isPending}
+                    >
+                      Produto ativo
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ isActive: true })}
+                    >
+                      Marcar como ativo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ isActive: false })}
+                    >
+                      Marcar como inativo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkUpdate.isPending}
+                    >
+                      Controlar estoque
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ trackStock: true })}
+                    >
+                      Habilitar controle
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ trackStock: false })}
+                    >
+                      Desabilitar controle (vende ilimitado)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={bulkUpdate.isPending}
+                    >
+                      Exibir no Catálogo Online
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ showInCatalog: true })}
+                    >
+                      Exibir no catálogo
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => applyPatch({ showInCatalog: false })}
+                    >
+                      Ocultar do catálogo
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button size="sm" variant="destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Excluir
+                </Button>
               </div>
             </div>
           </div>
         )}
 
         <div className="rounded-md border">
-          <Table>
+          <Table stacked>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">
@@ -437,13 +436,13 @@ export function ProductsTable({
                 );
                 return (
                   <TableRow key={product.id}>
-                    <TableCell>
+                    <TableCell data-label="0 } onCheckedChange={toggleSelectAll} />">
                       <Checkbox
                         checked={selectedProducts.includes(product.id)}
                         onCheckedChange={() => toggleSelect(product.id)}
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Produto">
                       <div className="flex items-center gap-3">
                         <Image
                           src={product.image || placeholder}
@@ -460,14 +459,22 @@ export function ProductsTable({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm font-semibold text-muted-foreground">
+                    <TableCell
+                      data-label="SKU"
+                      className="text-sm font-semibold text-muted-foreground"
+                    >
                       {product.sku || "N/A"}
                     </TableCell>
-                    <TableCell>{product.category || "N/A"}</TableCell>
-                    <TableCell className="text-right font-semibold">
+                    <TableCell data-label="Categoria">
+                      {product.category || "N/A"}
+                    </TableCell>
+                    <TableCell
+                      data-label="Preço"
+                      className="text-right font-semibold"
+                    >
                       R$ {currencyFormatter(product.salePrice)}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label="Estoque" className="text-right">
                       <div className="font-medium">
                         {product.currentStock} un
                       </div>
@@ -475,7 +482,7 @@ export function ProductsTable({
                         Min: {product.minStock}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label="Status">
                       <Badge className={stockStatus.className}>
                         {stockStatus.label}
                       </Badge>

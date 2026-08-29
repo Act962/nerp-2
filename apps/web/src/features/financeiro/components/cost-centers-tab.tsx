@@ -221,7 +221,7 @@ export function CostCentersTab() {
         </Button>
       </div>
       <div className="rounded-lg border">
-        <Table>
+        <Table stacked>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
@@ -252,13 +252,16 @@ export function CostCentersTab() {
             ) : (
               costCenters.map((costCenter) => (
                 <TableRow key={costCenter.id}>
-                  <TableCell className="font-medium">
+                  <TableCell data-label="Nome" className="font-medium">
                     {costCenter.name}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell
+                    data-label="Descrição"
+                    className="text-muted-foreground"
+                  >
                     {costCenter.description ?? "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     {costCenter.isActive ? (
                       <Badge variant="secondary">Ativo</Badge>
                     ) : (

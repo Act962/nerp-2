@@ -156,7 +156,7 @@ export function SalesPage() {
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
-                <Table>
+                <Table stacked>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Número</TableHead>
@@ -174,10 +174,13 @@ export function SalesPage() {
                         statusConfig[sale.status as keyof typeof statusConfig];
                       return (
                         <TableRow key={sale.id}>
-                          <TableCell className="font-mono font-medium">
+                          <TableCell
+                            data-label="Número"
+                            className="font-mono font-medium"
+                          >
                             {sale.saleNumber}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Cliente">
                             <div>
                               <div className="font-medium">
                                 {sale.customer || "Cliente não informado"}
@@ -187,18 +190,23 @@ export function SalesPage() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell>{formatDate(sale.date)}</TableCell>
-                          <TableCell>
+                          <TableCell data-label="Data/Hora">
+                            {formatDate(sale.date)}
+                          </TableCell>
+                          <TableCell data-label="Pagamento">
                             <Badge variant="outline">
                               {paymentMethodLabels[sale.paymentMethod || ""]}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Status">
                             <Badge className={status.className}>
                               {status.label}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right font-semibold">
+                          <TableCell
+                            data-label="Total"
+                            className="text-right font-semibold"
+                          >
                             {currencyFormatter(sale.total)}
                           </TableCell>
                           <TableCell>

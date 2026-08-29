@@ -301,7 +301,7 @@ export function ContactsTab() {
         </Button>
       </div>
       <div className="rounded-lg border">
-        <Table>
+        <Table stacked>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
@@ -334,20 +334,31 @@ export function ContactsTab() {
             ) : (
               contacts.map((contact) => (
                 <TableRow key={contact.id}>
-                  <TableCell className="font-medium">{contact.name}</TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell data-label="Nome" className="font-medium">
+                    {contact.name}
+                  </TableCell>
+                  <TableCell
+                    data-label="Documento"
+                    className="text-muted-foreground"
+                  >
                     {contact.document ?? "—"}
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell
+                    data-label="Contato"
+                    className="text-muted-foreground"
+                  >
                     {contact.email ?? contact.phone ?? "—"}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Tipo">
                     <Badge variant="secondary">
                       {CONTACT_TYPE_LABEL[contact.contactType as ContactType] ??
                         contact.contactType}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell
+                    data-label="Limite"
+                    className="text-right tabular-nums"
+                  >
                     {formatCents(contact.creditLimit)}
                   </TableCell>
                   <TableCell>

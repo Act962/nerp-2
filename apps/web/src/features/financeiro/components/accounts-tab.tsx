@@ -299,7 +299,7 @@ export function AccountsTab() {
         </Button>
       </div>
       <div className="rounded-lg border">
-        <Table>
+        <Table stacked>
           <TableHeader>
             <TableRow>
               <TableHead>Nome</TableHead>
@@ -332,7 +332,7 @@ export function AccountsTab() {
             ) : (
               accounts.map((account) => (
                 <TableRow key={account.id}>
-                  <TableCell className="font-medium">
+                  <TableCell data-label="Nome" className="font-medium">
                     <span className="flex items-center gap-2">
                       <span
                         className="inline-block size-3 rounded-full"
@@ -346,14 +346,22 @@ export function AccountsTab() {
                       )}
                     </span>
                   </TableCell>
-                  <TableCell className="text-muted-foreground">
+                  <TableCell
+                    data-label="Banco"
+                    className="text-muted-foreground"
+                  >
                     {account.bankName ?? "—"}
                   </TableCell>
-                  <TableCell>{ACCOUNT_TYPE_LABEL[account.type]}</TableCell>
-                  <TableCell className="text-right tabular-nums">
+                  <TableCell data-label="Tipo">
+                    {ACCOUNT_TYPE_LABEL[account.type]}
+                  </TableCell>
+                  <TableCell
+                    data-label="Saldo"
+                    className="text-right tabular-nums"
+                  >
                     {formatCents(account.balance)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell data-label="Status">
                     {account.isActive ? (
                       <Badge variant="secondary">Ativa</Badge>
                     ) : (

@@ -281,9 +281,38 @@
   -webkit-mask:
     linear-gradient(#000 0 0) top / 100% calc(100% - var(--receipt-b)) no-repeat,
     conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg)
-      bottom / var(--receipt-s) var(--receipt-b) repeat-x;
+    bottom / var(--receipt-s) var(--receipt-b) repeat-x;
   mask:
     linear-gradient(#000 0 0) top / 100% calc(100% - var(--receipt-b)) no-repeat,
     conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg)
-      bottom / var(--receipt-s) var(--receipt-b) repeat-x;
+    bottom / var(--receipt-s) var(--receipt-b) repeat-x;
+}
+
+/* Alvo de toque mínimo em aparelhos de dedo.
+ *
+ * O gatilho é `pointer: coarse`, NÃO a largura da tela: um tablet largo também
+ * é operado com o dedo, e uma janela estreita no desktop continua sendo mouse.
+ * Assim o desktop não muda em nada — sobe só o mínimo, o layout permanece.
+ *
+ * Os botões do design system são 36px (`h-9`) e os pequenos, 32px. Abaixo de
+ * 44px o erro de toque cresce muito, e no balcão isso vira item errado na
+ * venda.
+ *
+ * Caixa, rádio e interruptor ficam de fora: são controles de tamanho próprio,
+ * e esticá-los deixaria a linha do formulário deformada. */
+@media (pointer: coarse) {
+  button:not([role="checkbox"]):not([role="radio"]):not([role="switch"]),
+  [role="button"],
+  [role="tab"],
+  select,
+  input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: 44px;
+  }
+
+  /* Botão só de ícone também precisa de largura, senão vira um alvo alto e
+     fino, que é pior que o quadrado pequeno. */
+  button:has(> svg:only-child),
+  [role="button"]:has(> svg:only-child) {
+    min-width: 44px;
+  }
 }

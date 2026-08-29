@@ -143,7 +143,7 @@ export function ListMovements({ members }: ListMovementsProps) {
           </CardHeader>
           <CardContent>
             <div className="rounded-md border">
-              <Table>
+              <Table stacked>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Tipo</TableHead>
@@ -189,13 +189,13 @@ export function ListMovements({ members }: ListMovementsProps) {
                       const Icon = config.icon;
                       return (
                         <TableRow key={movement.id}>
-                          <TableCell>
+                          <TableCell data-label="Tipo">
                             <Badge className={config.className}>
                               <Icon className="h-3 w-3 mr-1" />
                               {config.label}
                             </Badge>
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Produto">
                             <div>
                               <div className="font-medium">
                                 {movement.product.name}
@@ -205,7 +205,10 @@ export function ListMovements({ members }: ListMovementsProps) {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell
+                            data-label="Quantidade"
+                            className="text-center"
+                          >
                             <span
                               className={`font-semibold ${
                                 movement.quantity > 0
@@ -217,23 +220,32 @@ export function ListMovements({ members }: ListMovementsProps) {
                               {movement.quantity} un
                             </span>
                           </TableCell>
-                          <TableCell className="text-center font-medium">
+                          <TableCell
+                            data-label="Estoque Anterior"
+                            className="text-center font-medium"
+                          >
                             {movement.previousStock} un
                           </TableCell>
-                          <TableCell className="text-center font-semibold">
+                          <TableCell
+                            data-label="Novo Estoque"
+                            className="text-center font-semibold"
+                          >
                             {movement.newStock} un
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell data-label="Data/Hora" className="text-sm">
                             {formatDate(movement.createdAt.toString())}
                           </TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell data-label="Usuário" className="text-sm">
                             {movement.user.name.split(" ")[0]}{" "}
                             {movement.user.name.split(" ")[1]}
                           </TableCell>
-                          <TableCell className="text-sm text-muted-foreground max-w-xs truncate">
+                          <TableCell
+                            data-label="Observações"
+                            className="text-sm text-muted-foreground max-w-xs truncate"
+                          >
                             {movement.notes || "N/A"}
                           </TableCell>
-                          <TableCell>
+                          <TableCell data-label="Ações">
                             <div className="flex items-center gap-1">
                               <Button
                                 variant="ghost"
