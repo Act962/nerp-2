@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "node scripts/copy-zxing-wasm.mjs && next dev --turbopack",
-    "build": "node scripts/copy-zxing-wasm.mjs && next build",
+    "build": "node scripts/copy-zxing-wasm.mjs && node scripts/next-build.mjs",
     "start": "next start",
     "lint": "biome check",
     "check-types": "tsc --noEmit",
