@@ -1,3 +1,4 @@
+import type { MissingField } from "@/features/products/lib/missing-filters";
 import { orpc } from "@/lib/orpc";
 import {
   keepPreviousData,
@@ -18,6 +19,8 @@ interface UseProductsProps {
   dateEnd?: Date;
   cursor?: string;
   limit?: number;
+  /** Lacuna de cadastro vinda dos cards do painel. */
+  missing?: MissingField;
 }
 
 export function useProducts({
@@ -31,6 +34,7 @@ export function useProducts({
   maxValue,
   dateInit,
   dateEnd,
+  missing,
 }: UseProductsProps) {
   const { data, isLoading } = useQuery(
     orpc.products.list.queryOptions({
@@ -45,6 +49,7 @@ export function useProducts({
         dateEnd,
         cursor,
         limit,
+        missing,
       },
       // Mantém os resultados anteriores durante o refetch (busca por
       // digitação): a grade não pisca a cada tecla.
