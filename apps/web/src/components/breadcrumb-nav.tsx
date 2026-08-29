@@ -36,9 +36,10 @@ export function BreadcrumbNav() {
   ];
 
   return (
-    // Some inteira no celular: o botão de menu no topo já dá a navegação,
-    // e a trilha custava uma faixa no topo de toda tela.
-    <Breadcrumb className="max-sm:hidden">
+    // A trilha FICA no celular: sem ela, e com o título em `sr-only`, a tela
+    // não teria nenhuma identificação — quem chega por link não saberia onde
+    // está. O "Home" é que sai (ver abaixo), porque o botão de menu já cobre.
+    <Breadcrumb>
       <BreadcrumbList>
         {breadcrumbs.map((breadcrumb, index) => {
           const isLast = index === breadcrumbs.length - 1;
