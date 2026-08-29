@@ -141,6 +141,11 @@ jobs:
           BETTER_AUTH_URL="http://localhost:3000"
           NEXT_PUBLIC_BASE_DOMAIN="localhost:3000"
           NEXT_PUBLIC_DOMAIN="http://localhost:3000"
+          # A suíte fiscal cifra segredos e exercita o bucket do certificado A1.
+          # Valores descartáveis, iguais aos do .env.test.example — o storage é
+          # mockado, nada sai daqui.
+          FISCAL_ENCRYPTION_KEY="dGVzdGUtZGUtaW50ZWdyYWNhby1uYW8tdXNhci1lbS1wcm9k"
+          FISCAL_S3_BUCKET_NAME="nerp-fiscal-test"
           EOF
 
       # O `.env.test` acima serve à suíte, mas o `db:generate` que o turbo roda
