@@ -7,8 +7,10 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import type { SalesPeriod } from "../lib/period-range";
 
 interface useQuerySalesProps {
+  period?: SalesPeriod;
   dateInit?: Date;
   dateEnd?: Date;
   methodPayment?: string;
@@ -18,6 +20,7 @@ interface useQuerySalesProps {
 }
 
 export function useQuerySales({
+  period,
   dateInit,
   dateEnd,
   methodPayment,
@@ -28,6 +31,7 @@ export function useQuerySales({
   const { data, isLoading } = useQuery(
     orpc.sales.list.queryOptions({
       input: {
+        period,
         dateInit,
         dateEnd,
         methodPayment,
