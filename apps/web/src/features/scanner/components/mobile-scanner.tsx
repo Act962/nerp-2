@@ -10,8 +10,16 @@ import {
   usePushScannerScan,
 } from "../hooks/use-scanner";
 
-/** Ignora releitura do mesmo código em sequência — a câmera dispara em rajada. */
-const DEDUPE_MS = 1200;
+/**
+ * Ignora releitura do MESMO código dentro desta janela.
+ *
+ * Em modo contínuo a câmera enxerga o mesmo item a cada ~350ms enquanto
+ * apontada para ele — sem isto, parar em cima de um produto lançaria três
+ * unidades por segundo. A janela cobre a rajada e ainda deixa o operador
+ * bipar dois itens iguais em seguida: basta afastar e voltar, que é o gesto
+ * natural e leva mais que isso.
+ */
+const DEDUPE_MS = 900;
 
 export function MobileScanner({ token }: { token: string }) {
   const claim = useClaimScannerPairing();
@@ -95,7 +103,7 @@ export function MobileScanner({ token }: { token: string }) {
         </p>
       </div>
 
-      <BarcodeScanner onDetect={enviar} />
+      <BarcodeScanner onDetect={enviar} continuous />
 
       {enviados.length > 0 && (
         <div className="flex flex-col gap-2">
@@ -114,6 +122,8 @@ export function MobileScanner({ token }: { token: string }) {
         </div>
       )}
 
+      {/* Recuperação: a câmera segue lendo sozinha, isto é só para o caso de
+          o navegador travar o vídeo. */}
       <Button
         variant="outline"
         className="mt-auto"

@@ -60,8 +60,19 @@ async function resolveDetector(): Promise<BarcodeDetectorLike> {
 // acesso à câmera em contexto seguro (HTTPS), inclusive iOS Safari.
 export function BarcodeScanner({
   onDetect,
+  continuous = false,
 }: {
   onDetect: (code: string) => void;
+  /**
+   * Segue lendo depois do primeiro código, em vez de parar a câmera.
+   *
+   * O padrão é PARAR: o fluxo do Shopper lê um produto e vai para a tela dele.
+   * Já o celular usado como leitor do PDV precisa passar item atrás de item —
+   * ali, parar significaria reiniciar a câmera a cada bipe. Quem liga isto
+   * assume a responsabilidade de ignorar releitura do mesmo código, porque a
+   * câmera continua enxergando o mesmo item por vários quadros.
+   */
+  continuous?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [status, setStatus] = useState<Status>("starting");
@@ -70,6 +81,10 @@ export function BarcodeScanner({
   // ref e sai das dependências.
   const onDetectRef = useRef(onDetect);
   onDetectRef.current = onDetect;
+  // Em ref pelo mesmo motivo do `onDetect`: mudar a prop não pode reiniciar a
+  // câmera no meio da operação.
+  const continuousRef = useRef(continuous);
+  continuousRef.current = continuous;
   // Trocado para forçar uma nova tentativa depois de erro/negação — aí a
   // chamada nasce de um toque, que é o contexto em que o iOS reabre o pedido
   // de permissão.
@@ -160,9 +175,9 @@ export function BarcodeScanner({
               const codes = await detector.detect(frame);
               const hit = codes.find((code) => /^\d{8,}$/.test(code.rawValue));
               if (hit && !done) {
-                done = true;
+                if (!continuousRef.current) done = true;
                 onDetectRef.current(hit.rawValue);
-                return;
+                if (done) return;
               }
             }
           } catch {
