@@ -55,7 +55,9 @@ export function ProductsContainer() {
   const { categories } = useCategory();
 
   return (
-    <div className="px-4 mt-8 space-y-4">
+    // Sem `px-4` no celular: o shell já aplica `p-4`, e os dois somavam 64px de
+    // recheio para o mesmo fim.
+    <div className="mt-8 space-y-4 sm:px-4">
       {/* Empilha no celular: lado a lado, os três botões somavam 438px numa
           tela de 331px — o título era espremido em quatro palavras por linha e
           as ações saíam da tela. */}

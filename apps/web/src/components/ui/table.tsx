@@ -33,6 +33,9 @@ const STACKED_ON_MOBILE = [
   // largura do cartão em vez de quebrar. O rótulo não encolhe; o valor sim.
   "[&_td]:max-sm:min-w-0 [&_td]:max-sm:text-right",
   "[&_td]:max-sm:break-words [&_td]:max-sm:whitespace-normal",
+  // Cartão colado na borda: com o recheio do cartão, mais o do Card em volta,
+  // sobrava pouco para o dado. A linha já tem sua própria moldura.
+  "[&_tr]:max-sm:-mx-1",
 ].join(" ");
 
 function Table({
