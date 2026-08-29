@@ -27,7 +27,17 @@ dependsOn = ["install"]
 # É também o ponto de extensão para um segundo app Next: cada deploy aponta seu
 # `--filter`, e só UM deles mantém o `db:deploy` (dois deploys concorrentes
 # migrando o mesmo banco correm um contra o outro).
-cmds = ["pnpm db:deploy", "pnpm turbo build --filter=@nerp/web"]
+#
+# `NODE_OPTIONS` sobe o heap do Node porque a fase "Linting and checking
+# validity of types" do `next build` estoura o teto padrão. O padrão do Node é
+# derivado da RAM da máquina: no runner do CI (16 GB) dá 4 GB e passa; num
+# servidor de 8 GB ou menos dá ~2 GB e o worker morre com "Reached heap limit",
+# depois de compilar com sucesso — o log fica sem erro nenhum, o que faz
+# parecer travamento. Foi o que derrubou o deploy de 638e0b6.
+cmds = [
+  "pnpm db:deploy",
+  "NODE_OPTIONS=--max-old-space-size=4096 pnpm turbo build --filter=@nerp/web",
+]
 
 # Mesmos diretórios que o provider Node usa; declarados porque o override de
 # `cmds` os descartaria junto.
