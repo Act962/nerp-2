@@ -15,6 +15,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -538,7 +539,15 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible={fullscreenEditor ? "offcanvas" : "icon"}>
       <SidebarHeader>
-        <OrgMenu />
+        {/* Recolher de dentro do próprio menu, como no editor de catálogo: com
+            a sidebar aberta no celular ela cobre a tela inteira, e o botão que
+            a abriu fica embaixo dela. Sem isto, só tocando fora. */}
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <OrgMenu />
+          </div>
+          <SidebarTrigger className="shrink-0 group-data-[collapsible=icon]:hidden" />
+        </div>
       </SidebarHeader>
       <SidebarContent className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <SidebarGroup>

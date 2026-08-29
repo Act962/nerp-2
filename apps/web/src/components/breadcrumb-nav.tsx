@@ -36,7 +36,9 @@ export function BreadcrumbNav() {
   ];
 
   return (
-    <Breadcrumb>
+    // Some inteira no celular: o botão de menu no topo já dá a navegação,
+    // e a trilha custava uma faixa no topo de toda tela.
+    <Breadcrumb className="max-sm:hidden">
       <BreadcrumbList>
         {breadcrumbs.map((breadcrumb, index) => {
           const isLast = index === breadcrumbs.length - 1;
