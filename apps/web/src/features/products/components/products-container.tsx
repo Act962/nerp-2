@@ -63,8 +63,10 @@ export function ProductsContainer() {
           as ações saíam da tela. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
-          <h3 className="font-semibold text-lg">Lista de Produtos</h3>
-          <p className="text-sm text-muted-foreground">
+          <h3 className="font-semibold text-lg max-sm:sr-only">
+            Lista de Produtos
+          </h3>
+          <p className="text-sm text-muted-foreground max-sm:hidden">
             Gerencie seu catálogo de produtos
           </p>
         </div>

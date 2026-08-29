@@ -274,7 +274,9 @@ export function ListMovements({ members }: ListMovementsProps) {
               </Table>
             </div>
 
-            <div className="mt-4 flex items-center justify-between">
+            {/* Empilha no celular: lado a lado, a contagem mais os três botões
+                pediam 309px numa faixa de 273px e o "Próximo" saía da tela. */}
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-muted-foreground">
                 Mostrando {filteredMovements.length} de {data.length}{" "}
                 movimentações
