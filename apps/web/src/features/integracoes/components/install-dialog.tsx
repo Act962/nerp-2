@@ -24,6 +24,7 @@ import { Separator } from "@/components/ui/separator";
 import { WinthorPanel } from "@/features/erp-sync/components/winthor-panel";
 import { FiscalConfigPanel } from "@/features/fiscal-config/components/fiscal-config-panel";
 import { GoogleDriveCard } from "@/features/google-drive/components/google-drive-card";
+import { OrbitaCrmPanel } from "./orbita-crm-panel";
 import { cn } from "@/lib/utils";
 import { ehSegredo } from "../catalog";
 import type { ProviderManifest } from "../catalog/types";
@@ -90,7 +91,8 @@ function PainelNativo({
 }) {
   if (qual === "winthor") return <WinthorPanel />;
   if (qual === "fiscal") return <FiscalConfigPanel />;
-  return <GoogleDriveCard />;
+  if (qual === "google-drive") return <GoogleDriveCard />;
+  return <OrbitaCrmPanel />;
 }
 
 function FormularioDeCredenciais({

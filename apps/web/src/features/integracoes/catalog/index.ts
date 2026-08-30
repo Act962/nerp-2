@@ -1,12 +1,14 @@
 import type { IntegrationCategory } from "@/generated/prisma/enums";
 import { adquirentes } from "./adquirentes";
 import { bancos } from "./bancos";
+import { crms } from "./crms";
 import { nativos } from "./nativos";
 import type { CredentialField, ProviderManifest } from "./types";
 
 export const CATALOGO: ProviderManifest[] = [
   ...bancos,
   ...adquirentes,
+  ...crms,
   ...nativos,
 ];
 
@@ -58,6 +60,11 @@ export const SECOES: {
     categoria: "GATEWAY",
     titulo: "Gateways de pagamento",
     descricao: "Cobrança por PIX, boleto e cartão.",
+  },
+  {
+    categoria: "CRM",
+    titulo: "CRMs",
+    descricao: "Atendimento e funil de vendas em outra plataforma.",
   },
   {
     categoria: "ERP",

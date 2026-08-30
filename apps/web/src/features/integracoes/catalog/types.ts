@@ -77,6 +77,6 @@ export type ProviderManifest = {
    * Integrações que já existiam antes do catálogo têm painel próprio no lugar
    * do formulário genérico.
    */
-  painelProprio?: "winthor" | "fiscal" | "google-drive";
+  painelProprio?: "winthor" | "fiscal" | "google-drive" | "orbita-crm";
   docsUrl?: string;
 };
