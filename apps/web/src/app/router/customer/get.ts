@@ -22,10 +22,15 @@ export const getCustomer = base
   //     customer: z.custom<CustomerWithSales>(),
   //   })
   // )
-  .handler(async ({ input, errors }) => {
-    const customer = await prisma.customer.findUnique({
+  .handler(async ({ input, context, errors }) => {
+    // O `id` chega do cliente e precisa ser confrontado com a organização
+    // antes de qualquer uso: sem o filtro, esta consulta devolvia o cadastro
+    // **e o histórico de compras** de um cliente de outro tenant para quem
+    // soubesse um id.
+    const customer = await prisma.customer.findFirst({
       where: {
         id: input.id,
+        organizationId: context.org.id,
       },
       include: {
         sales: true,
