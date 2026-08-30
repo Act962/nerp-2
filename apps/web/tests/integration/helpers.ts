@@ -89,6 +89,13 @@ export async function createMember(user: User, org: Organization) {
 /**
  * Limpa o que os testes criam. Cascata de `Organization` derruba fornecedor e
  * member; `Device` (sem @relation) e o usuário precisam ir separado.
+ *
+ * As tabelas do CRM/WhatsApp (funil, lead, conversa, mensagem, campanha,
+ * agenda, lembrete, extrato de Stars) não precisam de linha aqui: todas
+ * cascateiam de `Organization`, e as FKs restritas para `User`
+ * (`Broadcast.createdBy`, `Reminder.createdBy`) não travam porque a
+ * organização é apagada antes do usuário. `StarPackage` e
+ * `ProcessedStripeEvent` são globais e ficam de fora de propósito.
  */
 export async function resetDb() {
   const testOrgs = await prisma.organization.findMany({

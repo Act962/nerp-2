@@ -60,6 +60,24 @@ model User {
 
   scannerPairings ScannerPairing[] @relation("ScannerPairingCreatedBy")
 
+  // CRM / atendimento por WhatsApp
+  crmFunnelParticipants CrmFunnelParticipant[]
+  crmFunnelConsultants  CrmFunnelConsultant[]
+  crmLeadsResponsible   CrmLead[]              @relation("CrmLeadResponsible")
+  crmLeadHistories      CrmLeadHistory[]
+  crmLeadJourneyEvents  CrmLeadJourneyEvent[]  @relation("CrmLeadJourneyActor")
+  crmTagsArchived       CrmTag[]               @relation("CrmTagArchiver")
+  crmLeadFiles          CrmLeadFile[]
+  messageStickers       MessageSticker[]
+  createdBroadcasts     Broadcast[]
+  starTransactions      StarTransaction[]
+  memberStarBudgets     MemberStarBudget[]
+  starsPayments         StarsPayment[]
+  agendaResponsibles    AgendaResponsible[]
+  appointments          Appointment[]
+  crmWorkflows          CrmWorkflow[]
+  createdReminders      Reminder[]             @relation("ReminderCreatedBy")
+
   @@index([email])
   @@map("user")
 }
@@ -299,6 +317,33 @@ model Organization {
   priceLists                PriceList[]
   priceCategoryDiscounts    PriceListCategoryDiscount[]
   productPrices             ProductPrice[]
+  // CRM / atendimento por WhatsApp
+  crmFunnels                CrmFunnel[]
+  crmLeads                  CrmLead[]
+  crmTags                   CrmTag[]
+  crmTagGroups              CrmTagGroup[]
+  whatsappConnections       WhatsAppConnection[]
+  conversations             Conversation[]
+  messages                  Message[]
+  messageStickers           MessageSticker[]
+  broadcasts                Broadcast[]
+  starTransactions          StarTransaction[]
+  starRules                 StarRule[]
+  memberStarBudgets         MemberStarBudget[]
+  starsPayments             StarsPayment[]
+
+  // ── Stars: crédito pré-pago consumido por mensagem enviada ──
+  // Saldo único, sem separar bônus: o extrato (`StarTransaction`) já registra
+  // de onde cada crédito veio, e duas contas paralelas só fariam sentido se
+  // alguma delas tivesse regra de uso diferente — o que não existe aqui.
+  starsBalance    Int           @default(0) @map("stars_balance")
+  /// Início do ciclo mensal. Nulo enquanto a organização nunca recebeu crédito.
+  starsCycleStart DateTime?     @map("stars_cycle_start")
+  agendas         Agenda[]
+  crmWorkflows    CrmWorkflow[]
+  crmWorkflowRuns CrmWorkflowRun[]
+  appointments    Appointment[]
+  reminders       Reminder[]
 
   @@index([slug])
   @@index([subdomain])
@@ -1028,6 +1073,8 @@ model Customer {
   userCatalog     CatalogUser? @relation(fields: [clientId], references: [id])
   clientId        String?      @unique
   priceList       PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  // Leads do CRM ligados a este cliente (um por funil, no máximo).
+  crmLeads        CrmLead[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -3898,6 +3945,10 @@ enum IntegrationCategory {
   ERP
   FISCAL
   PRODUTIVIDADE
+  // CRM externo (Órbita). Não vira linha de `FinancialIntegration` — a
+  // conexão mora em `NasaIntegrationKey`; a categoria existe só para o card
+  // aparecer no catálogo, na seção certa.
+  CRM
 }
 
 enum IntegrationStatus {
@@ -4985,4 +5036,1445 @@ model GoogleDriveConnection {
   @@unique([organizationId, userId])
   @@index([organizationId])
   @@map("google_drive_connections")
+}
+
+// ============================================
+// CRM — funil de atendimento (port do Órbita/nasaex-wey)
+//
+// Nomes prefixados com `Crm` de propósito: no Órbita estes models se chamam
+// `Tracking`, `Status`, `Lead` e `Tag`. Num schema com ~180 models, um model
+// chamado só `Status` não se acha, e `Tag` colidiria conceitualmente com as
+// marcas/etiquetas do Trade.
+//
+// Diferença estrutural em relação à origem: lá o `Lead` não tem
+// `organizationId` — a organização é alcançada por `Tracking`. Aqui todo model
+// carrega `organizationId`, porque o escopo por tenant é manual em cada
+// handler (ver CLAUDE.md) e depender de join para saber de quem é a linha é
+// como vazamento entre organizações acontece.
+// ============================================
+
+enum CrmParticipantRole {
+  OWNER // criou o funil, controle total
+  ADMIN // gerencia participantes
+  MEMBER // vê e atende
+  VIEWER // só vê
+
+  @@map("crm_participant_role")
+}
+
+enum CrmReasonType {
+  WIN
+  LOSS
+
+  @@map("crm_reason_type")
+}
+
+enum CrmTagType {
+  CUSTOM
+  SYSTEM
+
+  @@map("crm_tag_type")
+}
+
+enum CrmLeadAction {
+  ACTIVE // no funil
+  DELETED // lixeira
+  WON
+  LOST
+
+  @@map("crm_lead_action")
+}
+
+enum CrmLeadEventType {
+  ACTION_CHANGE
+  STATUS_CHANGE
+  FUNNEL_CHANGE
+  RESPONSIBLE_CHANGE
+  TAG_ADDED
+  TAG_REMOVED
+  FILE_UPLOADED
+  NOTE
+  SLA_BREACHED
+
+  @@map("crm_lead_event_type")
+}
+
+enum CrmLeadSource {
+  DEFAULT
+  WHATSAPP
+  AGENDA
+  INSTAGRAM
+  TIKTOK
+  LINKEDIN
+  GMAIL
+  GOOGLE_MAPS
+  IMPORT
+  OTHER
+
+  @@map("crm_lead_source")
+}
+
+enum CrmTemperature {
+  COLD
+  WARM
+  HOT
+  VERY_HOT
+
+  @@map("crm_temperature")
+}
+
+/// Estado do atendimento, separado do estágio do funil: um lead pode estar na
+/// coluna "Proposta" e mesmo assim estar `WAITING` (esperando o atendente) ou
+/// `FINISHED` (atendimento encerrado). É o que alimenta os filtros da caixa de
+/// entrada, não a posição no kanban.
+enum CrmStatusFlow {
+  NEW
+  ACTIVE
+  WAITING
+  FINISHED
+
+  @@map("crm_status_flow")
+}
+
+/// Funil de atendimento. Uma organização pode ter vários (ex.: "Vendas",
+/// "Pós-venda"), e cada um tem no máximo uma conexão de WhatsApp.
+model CrmFunnel {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  name           String
+  description    String?
+  isArchived     Boolean   @default(false) @map("is_archived")
+  archivedAt     DateTime? @map("archived_at")
+
+  // Aparência do kanban — cor/imagem de fundo do canvas, da coluna e do card.
+  // Guardadas aqui e não num JSON solto porque a tela de personalização edita
+  // campo a campo e o board lê tudo numa query só.
+  cardBorderColor               String? @map("card_border_color")
+  cardBackgroundImage           String? @map("card_background_image")
+  cardBackgroundBlur            Int     @default(8) @map("card_background_blur")
+  cardBackgroundOpacity         Int     @default(25) @map("card_background_opacity")
+  kanbanCardBackgroundColor     String? @map("kanban_card_background_color")
+  kanbanCardBorderColor         String? @map("kanban_card_border_color")
+  kanbanCardBackgroundOpacity   Int     @default(100) @map("kanban_card_background_opacity")
+  kanbanColumnBackgroundColor   String? @map("kanban_column_background_color")
+  kanbanColumnBorderColor       String? @map("kanban_column_border_color")
+  kanbanColumnBackgroundOpacity Int     @default(100) @map("kanban_column_background_opacity")
+  kanbanBackgroundColor         String? @map("kanban_background_color")
+  kanbanBackgroundImage         String? @map("kanban_background_image")
+  kanbanBackgroundBlur          Int     @default(0) @map("kanban_background_blur")
+  kanbanBackgroundOpacity       Int     @default(50) @map("kanban_background_opacity")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participants       CrmFunnelParticipant[]
+  consultants        CrmFunnelConsultant[]
+  cardConfig         CrmFunnelCardConfig?
+  idleAutomation     CrmFunnelIdleAutomation?
+  stages             CrmStage[]
+  leads              CrmLead[]
+  tags               CrmTag[]
+  winLossReasons     CrmWinLossReason[]
+  whatsappConnection WhatsAppConnection?
+  conversations      Conversation[]
+  broadcasts         Broadcast[]
+  agendas            Agenda[]
+  reminders          Reminder[]
+  workflows          CrmWorkflow[]
+
+  @@index([organizationId])
+  @@index([organizationId, isArchived])
+  @@map("crm_funnels")
+}
+
+model CrmFunnelParticipant {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  funnelId       String             @map("funnel_id")
+  userId         String             @map("user_id")
+  role           CrmParticipantRole @default(MEMBER)
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  funnel CrmFunnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, funnelId])
+  @@index([funnelId])
+  @@index([organizationId])
+  @@map("crm_funnel_participants")
+}
+
+/// Rodízio de atendimento: quem entra na fila de distribuição automática de
+/// lead novo e qual o teto de leads simultâneos de cada um.
+model CrmFunnelConsultant {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  funnelId       String    @map("funnel_id")
+  userId         String    @map("user_id")
+  maxFlow        Int       @default(0) @map("max_flow")
+  isActive       Boolean   @default(true) @map("is_active")
+  lastAssignedAt DateTime? @map("last_assigned_at")
+
+  funnel CrmFunnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, funnelId])
+  @@index([funnelId])
+  @@index([organizationId])
+  @@map("crm_funnel_consultants")
+}
+
+/// O que aparece no card do lead. `cardVisibility` é um mapa `campo → boolean`;
+/// chave ausente significa visível, então `{}` mantém tudo ligado.
+model CrmFunnelCardConfig {
+  id                 String   @id @default(cuid())
+  organizationId     String   @map("organization_id")
+  funnelId           String   @unique @map("funnel_id")
+  cardVisibility     Json     @default("{}") @map("card_visibility")
+  showSlaTimer       Boolean  @default(true) @map("show_sla_timer")
+  // Cesta de compra: quantos dias desde a última venda do cliente ligado
+  // pintam o ícone de verde, amarelo, laranja e vermelho.
+  showPurchaseBasket Boolean  @default(true) @map("show_purchase_basket")
+  basketRecentDays   Int      @default(30) @map("basket_recent_days")
+  basketMediumDays   Int      @default(60) @map("basket_medium_days")
+  basketLongDays     Int      @default(90) @map("basket_long_days")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  funnel CrmFunnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("crm_funnel_card_configs")
+}
+
+enum CrmIdleMessageMode {
+  NONE
+  FIXED
+  AI_REOPEN
+
+  @@map("crm_idle_message_mode")
+}
+
+/// Cobrança automática de lead parado. Dois cenários independentes: ninguém
+/// respondeu o lead novo, e conversa em andamento que esfriou.
+model CrmFunnelIdleAutomation {
+  id             String @id @default(cuid())
+  organizationId String @map("organization_id")
+  funnelId       String @unique @map("funnel_id")
+
+  noFirstRespActive       Boolean            @default(false) @map("no_first_resp_active")
+  noFirstRespMinutes      Int                @default(60) @map("no_first_resp_minutes")
+  noFirstRespEnableAi     Boolean            @default(false) @map("no_first_resp_enable_ai")
+  noFirstRespMessageMode  CrmIdleMessageMode @default(NONE) @map("no_first_resp_message_mode")
+  noFirstRespMessage      String?            @map("no_first_resp_message")
+  noFirstRespNotifyResp   Boolean            @default(false) @map("no_first_resp_notify_resp")
+  noFirstRespRespTemplate String?            @map("no_first_resp_resp_template")
+
+  inConvActive       Boolean            @default(false) @map("in_conv_active")
+  inConvMinutes      Int                @default(120) @map("in_conv_minutes")
+  inConvEnableAi     Boolean            @default(false) @map("in_conv_enable_ai")
+  inConvMessageMode  CrmIdleMessageMode @default(NONE) @map("in_conv_message_mode")
+  inConvMessage      String?            @map("in_conv_message")
+  inConvNotifyResp   Boolean            @default(false) @map("in_conv_notify_resp")
+  inConvRespTemplate String?            @map("in_conv_resp_template")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  funnel CrmFunnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("crm_funnel_idle_automations")
+}
+
+/// Coluna do kanban. `order` é fracionário de propósito: mover um card entre
+/// dois vizinhos grava a média entre eles, então o board nunca renumera a
+/// coluna inteira a cada arrasto.
+model CrmStage {
+  id                   String   @id @default(cuid())
+  organizationId       String   @map("organization_id")
+  funnelId             String   @map("funnel_id")
+  name                 String
+  color                String?  @default("#1447e6")
+  order                Decimal  @default(0) @db.Decimal(20, 10)
+  slaHours             Int?     @map("sla_hours")
+  notifyClientOnEnter  Boolean  @default(false) @map("notify_client_on_enter")
+  clientNotifyTemplate String?  @map("client_notify_template") @db.Text
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  funnel  CrmFunnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  leads   CrmLead[]
+  agendas Agenda[]
+
+  @@index([funnelId, order])
+  @@index([organizationId])
+  @@map("crm_stages")
+}
+
+/// O card do funil — no Órbita se chama `Lead`; na interface daqui é "cliente".
+///
+/// `customerId` é a ponte com o ERP e é **opcional de propósito**: um número
+/// desconhecido que manda mensagem vira lead na hora, sem poluir o cadastro de
+/// clientes (que tem CPF/CNPJ, vendas, pedidos e financeiro pendurados). A
+/// ligação acontece quando o telefone casa com um único `Customer` da
+/// organização, ou quando o atendente converte explicitamente.
+model CrmLead {
+  id             String  @id @default(cuid())
+  organizationId String  @map("organization_id")
+  funnelId       String  @map("funnel_id")
+  stageId        String  @map("stage_id")
+  customerId     String? @map("customer_id")
+  responsibleId  String? @map("responsible_id")
+
+  name        String
+  email       String?
+  /// E.164 (+55DDDNNNNNNNN). É a chave de casamento com o inbound do WhatsApp
+  /// e com `Customer.phone` — guardar formatado quebra as duas coisas.
+  phone       String?
+  document    String?
+  /// Apelido informal, para distinguir homônimos ("João pai" / "João filho").
+  nickname    String?
+  description String?
+  profile     String?
+
+  order       Decimal        @default(0) @db.Decimal(20, 10)
+  source      CrmLeadSource  @default(DEFAULT)
+  temperature CrmTemperature @default(COLD)
+  /// Valor potencial do negócio, em reais.
+  amount      Decimal        @default(0) @db.Decimal(15, 2)
+  statusFlow  CrmStatusFlow  @default(ACTIVE) @map("status_flow")
+
+  currentAction CrmLeadAction @default(ACTIVE) @map("current_action")
+  isActive      Boolean       @default(true) @map("is_active")
+  /// Arquivado sai de todos os filtros padrão mas continua acessível pelo
+  /// filtro "Arquivados"; mensagem nova dele só aparece lá.
+  isArchived    Boolean       @default(false) @map("is_archived")
+  archivedAt    DateTime?     @map("archived_at")
+
+  // Origem: UTM da landing, clique em anúncio do WhatsApp (CTWA) e ids do
+  // Meta Ads. Sem isso não dá para dizer qual campanha trouxe a venda.
+  utmSource      String? @map("utm_source")
+  utmMedium      String? @map("utm_medium")
+  utmCampaign    String? @map("utm_campaign")
+  utmContent     String? @map("utm_content")
+  utmTerm        String? @map("utm_term")
+  referrer       String?
+  landingPage    String? @map("landing_page")
+  device         String?
+  ctwaClid       String? @map("ctwa_clid")
+  metaAdId       String? @map("meta_ad_id")
+  metaAdsetId    String? @map("meta_adset_id")
+  metaCampaignId String? @map("meta_campaign_id")
+  metaSourceUrl  String? @map("meta_source_url")
+  metaHeadline   String? @map("meta_headline")
+  metaBody       String? @map("meta_body")
+
+  // Marcos do atendimento — alimentam SLA, automação de ociosidade e relatório
+  // de tempo de primeira resposta.
+  assignedAt         DateTime? @map("assigned_at")
+  lastInboundAt      DateTime? @map("last_inbound_at")
+  lastOutboundAt     DateTime? @map("last_outbound_at")
+  firstResponseAt    DateTime? @map("first_response_at")
+  lastStatusChangeAt DateTime? @map("last_status_change_at")
+  slaDeadline        DateTime? @map("sla_deadline")
+  stageEnteredAt     DateTime? @map("stage_entered_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  closedAt  DateTime? @map("closed_at")
+
+  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel              CrmFunnel             @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  stage               CrmStage              @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  customer            Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  responsible         User?                 @relation("CrmLeadResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  leadTags            CrmLeadTag[]
+  history             CrmLeadHistory[]
+  journeyEvents       CrmLeadJourneyEvent[]
+  files               CrmLeadFile[]
+  conversation        Conversation?
+  broadcastRecipients BroadcastRecipient[]
+  appointments        Appointment[]
+  reminders           Reminder[]
+  workflowRuns        CrmWorkflowRun[]
+
+  /// Mesmo telefone em funis diferentes são leads diferentes — é o que permite
+  /// o mesmo cliente estar em "Vendas" e em "Pós-venda" ao mesmo tempo.
+  @@unique([phone, funnelId])
+  @@index([organizationId])
+  @@index([funnelId])
+  @@index([stageId, order])
+  @@index([customerId])
+  @@index([responsibleId])
+  @@index([organizationId, phone])
+  @@index([email])
+  @@index([currentAction])
+  @@index([isActive])
+  @@index([lastInboundAt])
+  @@index([assignedAt])
+  @@index([utmCampaign])
+  @@index([metaAdId])
+  @@index([metaCampaignId])
+  @@map("crm_leads")
+}
+
+model CrmWinLossReason {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  funnelId       String        @map("funnel_id")
+  name           String
+  type           CrmReasonType
+  isActive       Boolean       @default(true) @map("is_active")
+  order          Int           @default(0)
+  createdAt      DateTime      @default(now()) @map("created_at")
+
+  funnel        CrmFunnel        @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  leadHistories CrmLeadHistory[]
+
+  @@index([funnelId])
+  @@index([organizationId])
+  @@map("crm_win_loss_reasons")
+}
+
+model CrmLeadHistory {
+  id                    String            @id @default(cuid())
+  organizationId        String            @map("organization_id")
+  leadId                String            @map("lead_id")
+  action                CrmLeadAction
+  eventType             CrmLeadEventType? @map("event_type")
+  previousStageId       String?           @map("previous_stage_id")
+  newStageId            String?           @map("new_stage_id")
+  previousFunnelId      String?           @map("previous_funnel_id")
+  newFunnelId           String?           @map("new_funnel_id")
+  previousResponsibleId String?           @map("previous_responsible_id")
+  newResponsibleId      String?           @map("new_responsible_id")
+  metadata              Json?
+  reasonId              String?           @map("reason_id")
+  notes                 String?
+  userId                String?           @map("user_id")
+  createdAt             DateTime          @default(now()) @map("created_at")
+
+  lead   CrmLead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  reason CrmWinLossReason? @relation(fields: [reasonId], references: [id], onDelete: SetNull)
+  user   User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([organizationId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@map("crm_lead_histories")
+}
+
+/// Timeline granular do lead — alimenta a aba "Jornada". Separado do histórico
+/// porque `CrmLeadHistory` é preso ao enum de ação (4 valores) e aqui o `kind`
+/// é livre: message_in, message_out, first_response, appointment_created,
+/// appointment_done, appointment_no_show, stage_changed, tag_added,
+/// lead_assigned, ctwa_referral, utm_landing, won, lost.
+model CrmLeadJourneyEvent {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  leadId         String   @map("lead_id")
+  kind           String
+  occurredAt     DateTime @default(now()) @map("occurred_at")
+  actorId        String?  @map("actor_id")
+  metadata       Json     @default("{}")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  lead  CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  actor User?   @relation("CrmLeadJourneyActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([leadId, occurredAt])
+  @@index([organizationId])
+  @@index([kind])
+  @@map("crm_lead_journey_events")
+}
+
+/// Agrupamento visual de tags (ex.: "Origem" azul, "Interesse" laranja). A cor
+/// do grupo é informativa — a tag mantém a própria.
+model CrmTagGroup {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  name           String
+  color          String   @default("#6366f1")
+  icon           String?
+  order          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  tags         CrmTag[]
+
+  @@unique([name, organizationId])
+  @@index([organizationId, order])
+  @@map("crm_tag_groups")
+}
+
+model CrmTag {
+  id             String     @id @default(cuid())
+  organizationId String     @map("organization_id")
+  /// Null = tag da organização inteira; preenchido = tag só daquele funil.
+  funnelId       String?    @map("funnel_id")
+  tagGroupId     String?    @map("tag_group_id")
+  name           String
+  slug           String
+  color          String?    @default("#1447e6")
+  description    String?
+  icon           String?
+  type           CrmTagType @default(CUSTOM)
+  /// Id da etiqueta correspondente no WhatsApp Business, quando sincronizada.
+  whatsappId     String?    @map("whatsapp_id")
+
+  /// Soft delete: tag arquivada some dos seletores mas continua resolvível no
+  /// histórico. `purge` é o único caminho para apagar de verdade.
+  archivedAt   DateTime? @map("archived_at")
+  archivedById String?   @map("archived_by_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel       CrmFunnel?   @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  tagGroup     CrmTagGroup? @relation(fields: [tagGroupId], references: [id], onDelete: SetNull)
+  archivedBy   User?        @relation("CrmTagArchiver", fields: [archivedById], references: [id], onDelete: SetNull)
+  leadTags     CrmLeadTag[]
+
+  @@unique([slug, organizationId, funnelId])
+  @@unique([name, organizationId, funnelId])
+  @@index([organizationId])
+  @@index([funnelId])
+  @@index([organizationId, archivedAt])
+  @@index([tagGroupId])
+  @@map("crm_tags")
+}
+
+model CrmLeadTag {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  tagId     String   @map("tag_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tag  CrmTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, tagId])
+  @@index([leadId])
+  @@index([tagId])
+  @@map("crm_lead_tags")
+}
+
+model CrmLeadFile {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  leadId         String   @map("lead_id")
+  name           String
+  /// Chave do objeto no bucket, não URL — a URL é construída na leitura.
+  fileKey        String   @map("file_key")
+  mimeType       String   @map("mime_type")
+  createdById    String?  @map("created_by_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  lead    CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  creator User?   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([leadId])
+  @@index([organizationId])
+  @@index([createdById])
+  @@map("crm_lead_files")
+}
+
+// ============================================
+// WHATSAPP — conexão, conversas e mensagens
+//
+// Só a Cloud API oficial da Meta. O Órbita tem também um provedor
+// não-oficial (Uazapi) e um widget próprio; nenhum dos dois vem, mas a
+// arquitetura de ports & adapters vem — adicionar outro provedor depois é
+// escrever um adapter, sem mexer no núcleo.
+// ============================================
+
+enum WhatsAppConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+
+  @@map("whatsapp_connection_status")
+}
+
+/// Um número de WhatsApp ligado a um funil. `@unique` no funil porque toda a
+/// resolução de envio parte do funil: dois números no mesmo funil tornariam
+/// ambíguo por qual deles a resposta sai.
+model WhatsAppConnection {
+  id             String                   @id @default(cuid())
+  organizationId String                   @map("organization_id")
+  funnelId       String                   @unique @map("funnel_id")
+  name           String
+  status         WhatsAppConnectionStatus @default(DISCONNECTED)
+
+  phoneNumber   String? @map("phone_number")
+  profileName   String? @map("profile_name")
+  profilePicUrl String? @map("profile_pic_url")
+  isActive      Boolean @default(true) @map("is_active")
+
+  /// Id do número na Meta. Fica em **texto puro e único** de propósito: é a
+  /// chave pela qual o webhook descobre de quem é a mensagem que chegou, e
+  /// esse lookup precisa ser um `findUnique` indexado. No Órbita nasceu
+  /// cifrado e teve migration só para desfazer.
+  metaPhoneNumberId     String? @unique @map("meta_phone_number_id")
+  /// Id da conta WhatsApp Business (WABA). Identificador público.
+  metaBusinessAccountId String? @map("meta_business_account_id")
+  /// Cifrados com APP_ENCRYPTION_KEY (src/lib/crypto/app-secret.ts).
+  metaAccessToken       String? @map("meta_access_token_enc")
+  metaAppSecret         String? @map("meta_app_secret_enc")
+  metaVerifyToken       String? @map("meta_verify_token_enc")
+
+  lastSyncAt  DateTime? @map("last_sync_at")
+  /// Último erro do provedor, já sanitizado (nunca contém credencial).
+  lastError   String?   @map("last_error")
+  lastErrorAt DateTime? @map("last_error_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel       CrmFunnel    @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@map("whatsapp_connections")
+}
+
+enum ConversationChannel {
+  WHATSAPP
+
+  @@map("conversation_channel")
+}
+
+/// Uma conversa por lead. Não existe multi-thread: o histórico com aquela
+/// pessoa naquele funil é um só.
+model Conversation {
+  id             String              @id @default(cuid())
+  organizationId String              @map("organization_id")
+  funnelId       String              @map("funnel_id")
+  leadId         String              @unique @map("lead_id")
+  channel        ConversationChannel @default(WHATSAPP)
+
+  /// Identificador da outra ponta no provedor (para o WhatsApp, o número).
+  remoteJid     String  @map("remote_jid")
+  name          String?
+  profilePicUrl String? @map("profile_pic_url")
+  isActive      Boolean @default(true) @map("is_active")
+
+  isGroup                Boolean @default(false) @map("is_group")
+  groupSubject           String? @map("group_subject")
+  groupParticipantsCount Int?    @map("group_participants_count")
+
+  /// Quando o lead falou pela primeira vez. Guarda o gatilho de "primeira
+  /// interação" e é gravado com update condicional, não com leitura seguida de
+  /// escrita — duas mensagens simultâneas dispariam o gatilho duas vezes.
+  firstUserMessageAt DateTime? @map("first_user_message_at")
+
+  lastMessageId String?  @unique @map("last_message_id")
+  lastMessageAt DateTime @updatedAt @map("last_message_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel       CrmFunnel    @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  lead         CrmLead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  lastMessage  Message?     @relation("ConversationLastMessage", fields: [lastMessageId], references: [id])
+  messages     Message[]    @relation("ConversationMessages")
+  reminders    Reminder[]
+
+  @@unique([remoteJid, funnelId])
+  @@index([organizationId])
+  @@index([funnelId])
+  @@index([lastMessageAt])
+  @@index([isActive])
+  @@map("conversations")
+}
+
+enum MessageStatus {
+  SENT
+  DELIVERED
+  SEEN
+  FAILED
+  DELETED
+
+  @@map("message_status")
+}
+
+/// `status` e `seen` **não são a mesma coisa**: `status` são os tiques que o
+/// atendente vê na própria mensagem; `seen` é o badge de não-lidas da lista.
+/// Mensagem recebida nasce `status: SEEN` (o provedor já confirmou a entrega
+/// para nós) e `seen: false` (o atendente ainda não abriu). Mexer num sem o
+/// outro quebra o contador silenciosamente.
+model Message {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  conversationId String        @map("conversation_id")
+  body           String?
+  fromMe         Boolean       @default(false) @map("from_me")
+  status         MessageStatus @default(SENT)
+  seen           Boolean       @default(false)
+
+  /// Id da mensagem no provedor (`wamid` da Meta). **Único global** — é a
+  /// chave de idempotência de todo `upsert` de entrada. A Meta reentrega o
+  /// mesmo webhook em qualquer 5xx, então persistir com `create` duplica a
+  /// bolha na conversa.
+  externalMessageId String @unique @map("external_message_id")
+
+  /// Chave do objeto no bucket privado, nunca URL: a URL é assinada na
+  /// leitura, porque mídia de conversa não pode ficar em bucket público.
+  mediaKey     String? @map("media_key")
+  mediaType    String? @map("media_type")
+  mediaCaption String? @map("media_caption")
+  mimetype     String?
+  fileName     String? @map("file_name")
+
+  latitude  Float?
+  longitude Float?
+
+  quotedMessageId String? @map("quoted_message_id")
+  senderId        String? @map("sender_id")
+  senderName      String? @map("sender_name")
+  metadata        Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation  Conversation  @relation("ConversationMessages", fields: [conversationId], references: [id], onDelete: Cascade)
+  quotedMessage Message?      @relation("QuotedMessages", fields: [quotedMessageId], references: [id], onDelete: SetNull)
+  quotes        Message[]     @relation("QuotedMessages")
+  lastMessageOf Conversation? @relation("ConversationLastMessage")
+
+  @@index([conversationId, createdAt])
+  @@index([organizationId])
+  @@index([status])
+  @@index([fromMe])
+  @@map("messages")
+}
+
+/// Figurinhas da organização, exibidas no seletor do composer. Escopadas por
+/// organização (todo mundo da loja vê o mesmo banco), com o criador registrado.
+model MessageSticker {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  createdById    String   @map("created_by_id")
+  /// Chave no bucket.
+  fileKey        String   @map("file_key")
+  mimetype       String   @default("image/webp")
+  label          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([createdById])
+  @@map("message_stickers")
+}
+
+// ============================================
+// CAMPANHAS — disparo em massa pela API oficial
+//
+// Campanha nasce presa a um funil porque é do número daquele funil que a
+// mensagem sai. Template não tem model: ele vive na Meta e é buscado ao vivo;
+// aqui fica só a escolha (nome, idioma, categoria e o mapeamento de variáveis).
+// ============================================
+
+enum BroadcastStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  PAUSED
+  FAILED
+  CANCELLED
+
+  @@map("broadcast_status")
+}
+
+enum BroadcastRecipientStatus {
+  PENDING
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SKIPPED
+
+  @@map("broadcast_recipient_status")
+}
+
+enum WhatsAppTemplateCategory {
+  MARKETING
+  UTILITY
+  AUTHENTICATION
+
+  @@map("whatsapp_template_category")
+}
+
+model Broadcast {
+  id             String          @id @default(cuid())
+  organizationId String          @map("organization_id")
+  funnelId       String          @map("funnel_id")
+  createdById    String          @map("created_by_id")
+  name           String
+  status         BroadcastStatus @default(DRAFT)
+
+  templateName      String?                   @map("template_name")
+  templateLanguage  String?                   @map("template_language")
+  templateCategory  WhatsAppTemplateCategory? @map("template_category")
+  /// Mapeamento variável do template → campo do destinatário.
+  templateVariables Json?                     @map("template_variables")
+
+  scheduledAt DateTime? @map("scheduled_at")
+  startedAt   DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+
+  /// Contadores desnormalizados para a tela não fazer `COUNT` a cada refresh.
+  /// São **recalculados** a partir dos destinatários, nunca incrementados —
+  /// incremento erra quando o job repete um lote ou a Meta reentrega o status.
+  totalRecipients Int @default(0) @map("total_recipients")
+  sentCount       Int @default(0) @map("sent_count")
+  deliveredCount  Int @default(0) @map("delivered_count")
+  readCount       Int @default(0) @map("read_count")
+  failedCount     Int @default(0) @map("failed_count")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel       CrmFunnel            @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation(fields: [createdById], references: [id])
+  recipients   BroadcastRecipient[]
+
+  @@index([organizationId])
+  @@index([funnelId])
+  @@index([status])
+  @@index([status, scheduledAt])
+  @@map("broadcasts")
+}
+
+model BroadcastRecipient {
+  id          String  @id @default(cuid())
+  broadcastId String  @map("broadcast_id")
+  /// Null quando o destinatário veio de planilha e não casou com nenhum lead.
+  leadId      String? @map("lead_id")
+  name        String?
+  /// E.164, mesmo formato do lead.
+  phone       String
+  /// Valores das variáveis do template para este destinatário.
+  variables   Json?
+
+  status            BroadcastRecipientStatus @default(PENDING)
+  /// `wamid` devolvido pela Meta — é por ele que o webhook de status encontra
+  /// esta linha depois.
+  externalMessageId String?                  @unique @map("external_message_id")
+  errorCode         String?                  @map("error_code")
+  errorMessage      String?                  @map("error_message")
+
+  sentAt      DateTime? @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+  readAt      DateTime? @map("read_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  lead      CrmLead?  @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  /// Mesmo número duas vezes na mesma campanha é erro de audiência, não
+  /// intenção — o banco recusa em vez de mandar a mensagem em dobro.
+  @@unique([broadcastId, phone])
+  @@index([broadcastId, status])
+  @@index([leadId])
+  @@map("broadcast_recipients")
+}
+
+// ============================================
+// STARS — crédito pré-pago consumido por mensagem enviada
+//
+// Só o ledger: saldo, extrato, regra de custo por ação, orçamento por membro e
+// recarga avulsa. O catálogo de planos do Órbita não vem — o nerp já tem
+// `TradeSubscription`, e dois conceitos de plano na mesma organização é
+// confusão garantida. O crédito mensal, quando existir, pendura ali.
+// ============================================
+
+enum StarTransactionType {
+  PLAN_CREDIT
+  TOPUP_PURCHASE
+  APP_CHARGE
+  MANUAL_ADJUST
+  REFUND
+  WELCOME_BONUS
+
+  @@map("star_transaction_type")
+}
+
+/// Extrato. Cada linha guarda o saldo resultante (`balanceAfter`) para a
+/// auditoria não depender de reprocessar a soma inteira.
+model StarTransaction {
+  id             String              @id @default(cuid())
+  organizationId String              @map("organization_id")
+  type           StarTransactionType
+  /// Positivo credita, negativo debita.
+  amount         Int
+  balanceAfter   Int                 @map("balance_after")
+  description    String
+  /// Ação que gerou o débito (ex.: "message_send"), quando houver.
+  actionKey      String?             @map("action_key")
+  userId         String?             @map("user_id")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([type])
+  @@map("star_transactions")
+}
+
+/// Custo por ação, por organização. `stars: 0` desliga a cobrança daquela ação
+/// sem precisar mexer em código.
+model StarRule {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  actionKey      String   @map("action_key")
+  label          String
+  stars          Int      @default(0)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, actionKey])
+  @@index([organizationId])
+  @@map("star_rules")
+}
+
+/// Cota individual dentro do saldo da organização, quando a distribuição não é
+/// um pote único.
+model MemberStarBudget {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  userId         String    @map("user_id")
+  monthlyBudget  Int       @default(0) @map("monthly_budget")
+  currentUsage   Int       @default(0) @map("current_usage")
+  cycleStart     DateTime? @map("cycle_start")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@map("member_star_budgets")
+}
+
+/// Pacote de recarga avulsa. Catálogo global, não por organização.
+model StarPackage {
+  id        String   @id @default(cuid())
+  label     String
+  stars     Int
+  priceBrl  Decimal  @map("price_brl") @db.Decimal(10, 2)
+  isActive  Boolean  @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("star_packages")
+}
+
+/// Tentativa de compra de crédito. Vira `StarTransaction` só quando o webhook
+/// confirma o pagamento — antes disso é intenção, não saldo.
+model StarsPayment {
+  id                    String    @id @default(cuid())
+  organizationId        String    @map("organization_id")
+  userId                String    @map("user_id")
+  /// Null quando a compra foi de quantidade digitada, não de pacote.
+  packageId             String?   @map("package_id")
+  starsAmount           Int       @map("stars_amount")
+  amountBrl             Decimal   @map("amount_brl") @db.Decimal(10, 2)
+  provider              String    @default("stripe")
+  /// Id da sessão de checkout no provedor.
+  externalId            String?   @map("external_id")
+  stripePaymentIntentId String?   @map("stripe_payment_intent_id")
+  /// pending | paid | failed | expired | refunded
+  status                String    @default("pending")
+  paidAt                DateTime? @map("paid_at")
+  refundedAt            DateTime? @map("refunded_at")
+  metadata              Json      @default("{}")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([externalId])
+  @@index([stripePaymentIntentId])
+  @@index([status])
+  @@map("stars_payments")
+}
+
+/// Dedupe de webhook do Stripe: a Stripe reentrega o mesmo evento em qualquer
+/// resposta não-2xx, e creditar duas vezes é dinheiro.
+model ProcessedStripeEvent {
+  id        String   @id
+  type      String
+  source    String   @default("stars")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("processed_stripe_events")
+}
+
+// ============================================
+// AGENDA — disponibilidade e agendamento
+//
+// É agendamento tipo Calendly (o cliente escolhe o horário numa página
+// pública), e não se confunde com `CalendarEvent`, que é o calendário de ações
+// do Trade. Por isso a rota é /agenda-crm e não /agenda.
+//
+// Toda agenda pertence a um funil: o agendamento cria (ou reaproveita) um lead
+// e o coloca num estágio, então sem funil não há onde pousar.
+// ============================================
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+
+  @@map("day_of_week")
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  DONE
+
+  @@map("appointment_status")
+}
+
+enum MeetingType {
+  ONLINE
+  IN_PERSON
+
+  @@map("meeting_type")
+}
+
+model Agenda {
+  id             String  @id @default(cuid())
+  organizationId String  @map("organization_id")
+  funnelId       String  @map("funnel_id")
+  /// Estágio em que o lead cai quando alguém agenda por esta agenda.
+  stageId        String? @map("stage_id")
+  name           String
+  description    String?
+  /// Usado na URL pública: /agenda/{orgSlug}/{slug}.
+  slug           String
+  isActive       Boolean @default(true) @map("is_active")
+  /// Duração de cada encaixe, em minutos.
+  slotDuration   Int     @default(30) @map("slot_duration")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel             CrmFunnel                @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  stage              CrmStage?                @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  responsibles       AgendaResponsible[]
+  availabilities     AgendaAvailability[]
+  dateAvailabilities AgendaDateAvailability[]
+  dateOverrides      AgendaDateOverride[]
+  appointments       Appointment[]
+
+  @@unique([slug, organizationId])
+  @@index([organizationId])
+  @@index([funnelId])
+  @@index([isActive])
+  @@map("agendas")
+}
+
+/// Quem atende esta agenda. Vazio = qualquer participante do funil.
+model AgendaResponsible {
+  id        String   @id @default(cuid())
+  agendaId  String   @map("agenda_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  agenda Agenda @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([agendaId, userId])
+  @@index([agendaId])
+  @@index([userId])
+  @@map("agenda_responsibles")
+}
+
+/// Disponibilidade recorrente por dia da semana (ex.: segunda, 8h–12h e
+/// 14h–18h). Os intervalos ficam nos slots filhos.
+model AgendaAvailability {
+  id        String    @id @default(cuid())
+  agendaId  String    @map("agenda_id")
+  dayOfWeek DayOfWeek @map("day_of_week")
+  isActive  Boolean   @default(true) @map("is_active")
+
+  agenda    Agenda                 @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  timeSlots AvailabilityTimeSlot[]
+
+  @@unique([agendaId, dayOfWeek])
+  @@index([agendaId])
+  @@map("agenda_availabilities")
+}
+
+/// Horários guardados como texto "HH:MM", não como DateTime: é horário de
+/// parede que se repete toda semana, sem data e sem fuso.
+model AvailabilityTimeSlot {
+  id             String @id @default(cuid())
+  availabilityId String @map("availability_id")
+  startTime      String @map("start_time")
+  endTime        String @map("end_time")
+  order          Int    @default(0)
+
+  availability AgendaAvailability @relation(fields: [availabilityId], references: [id], onDelete: Cascade)
+
+  @@index([availabilityId])
+  @@map("availability_time_slots")
+}
+
+/// Disponibilidade de uma data específica, que sobrepõe a semanal.
+/// `date` é "YYYY-MM-DD" — data de calendário, sem hora e sem fuso.
+model AgendaDateAvailability {
+  id        String   @id @default(cuid())
+  agendaId  String   @map("agenda_id")
+  date      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  agenda    Agenda                       @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  timeSlots AgendaDateAvailabilitySlot[]
+
+  @@unique([agendaId, date])
+  @@index([agendaId])
+  @@map("agenda_date_availabilities")
+}
+
+model AgendaDateAvailabilitySlot {
+  id                 String @id @default(cuid())
+  dateAvailabilityId String @map("date_availability_id")
+  startTime          String @map("start_time")
+  endTime            String @map("end_time")
+  order              Int    @default(0)
+
+  dateAvailability AgendaDateAvailability @relation(fields: [dateAvailabilityId], references: [id], onDelete: Cascade)
+
+  @@index([dateAvailabilityId])
+  @@map("agenda_date_availability_slots")
+}
+
+/// Bloqueio (ou liberação) de uma data específica — feriado, folga.
+model AgendaDateOverride {
+  id        String   @id @default(cuid())
+  agendaId  String   @map("agenda_id")
+  date      String
+  isBlocked Boolean  @default(true) @map("is_blocked")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  agenda Agenda @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+
+  @@unique([agendaId, date])
+  @@index([agendaId])
+  @@map("agenda_date_overrides")
+}
+
+model Appointment {
+  id             String            @id @default(cuid())
+  organizationId String            @map("organization_id")
+  agendaId       String            @map("agenda_id")
+  leadId         String?           @map("lead_id")
+  /// Atendente responsável por este compromisso.
+  userId         String?           @map("user_id")
+  title          String?
+  notes          String?
+  startsAt       DateTime          @map("starts_at")
+  endsAt         DateTime          @map("ends_at")
+  status         AppointmentStatus @default(PENDING)
+  meetingType    MeetingType       @default(ONLINE) @map("meeting_type")
+  /// Id do evento no Google Calendar, quando sincronizado.
+  gcalEventId    String?           @map("gcal_event_id")
+  /// "CLIENT" quando o próprio cliente cancelou pela página pública.
+  cancelledBy    String?           @map("cancelled_by")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  agenda       Agenda       @relation(fields: [agendaId], references: [id], onDelete: Cascade)
+  lead         CrmLead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([agendaId])
+  @@index([leadId])
+  @@index([userId])
+  @@index([startsAt])
+  @@index([status])
+  @@map("appointments")
+}
+
+// ============================================
+// LEMBRETES — follow-up manual do atendimento
+//
+// O atendente marca "me lembra de cobrar esse cliente terça". Vive ao lado da
+// conversa e do lead; a recorrência gera ocorrências, e é a ocorrência (não o
+// lembrete) que o job marca como enviada — assim um lembrete semanal não perde
+// o histórico do que já disparou.
+// ============================================
+
+enum ReminderRecurrenceType {
+  ONCE
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+
+  @@map("reminder_recurrence_type")
+}
+
+model Reminder {
+  id              String @id @default(cuid())
+  organizationId  String @map("organization_id")
+  createdByUserId String @map("created_by_user_id")
+
+  message        String
+  recurrenceType ReminderRecurrenceType @map("recurrence_type")
+  dayOfMonth     Int?                   @map("day_of_month")
+  /// Horário de parede "HH:MM" — o lembrete é sempre no fuso da loja.
+  remindTime     String                 @map("remind_time")
+  notifyPhone    String?                @map("notify_phone")
+
+  nextRemindAt DateTime? @map("next_remind_at")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  leadId         String? @map("lead_id")
+  conversationId String? @map("conversation_id")
+  funnelId       String? @map("funnel_id")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("ReminderCreatedBy", fields: [createdByUserId], references: [id])
+  lead         CrmLead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  conversation Conversation?        @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  funnel       CrmFunnel?           @relation(fields: [funnelId], references: [id], onDelete: SetNull)
+  occurrences  ReminderOccurrence[]
+
+  @@index([nextRemindAt, isActive])
+  @@index([organizationId])
+  @@index([leadId])
+  @@index([conversationId])
+  @@index([funnelId])
+  @@map("reminders")
+}
+
+model ReminderOccurrence {
+  id          String    @id @default(cuid())
+  reminderId  String    @map("reminder_id")
+  scheduledAt DateTime  @map("scheduled_at")
+  sent        Boolean   @default(false)
+  sentAt      DateTime? @map("sent_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  reminder Reminder @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+
+  @@index([reminderId])
+  @@index([scheduledAt, sent])
+  @@map("reminder_occurrences")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Automações do funil
+//
+// Um workflow é um grafo: um nó de gatilho, arestas, nós de ação. O grafo mora
+// no banco (e não uma lista ordenada) porque `FILTER` já bifurca — "se for
+// cliente antigo faz isto, senão aquilo" — e porque é o formato que um editor
+// de canvas consome sem migração de dados depois.
+//
+// Diferenças conscientes em relação ao Órbita:
+//  · `organization_id` em todos, inclusive nos filhos. Lá o nó chega à
+//    organização por dois joins, e as procedures confiavam no id vindo do
+//    cliente.
+//  · Sem `workspaceId` — Workspace não veio no port.
+//  · Sem o "modo agente" (branches livres, loops, sub-workflows, nós de LLM):
+//    são um segundo motor de execução, e este aqui é o linear com filtro, que
+//    cobre o que uma loja realmente automatiza.
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum CrmNodeType {
+  // Gatilhos — o prefixo é estrutural: é assim que o motor distingue início de
+  // ação sem manter uma lista à parte que envelhece.
+  TRIGGER_NEW_LEAD
+  TRIGGER_MESSAGE_IN
+  TRIGGER_STAGE_CHANGED
+  TRIGGER_LEAD_IDLE
+  TRIGGER_MANUAL
+
+  // Ações
+  SEND_MESSAGE
+  WAIT
+  MOVE_STAGE
+  SET_TEMPERATURE
+  SET_RESPONSIBLE
+  SET_WIN_LOSS
+  HTTP_REQUEST
+
+  // Lógica
+  FILTER
+
+  @@map("crm_node_type")
+}
+
+enum CrmRunStatus {
+  RUNNING
+  SUCCESS
+  FAILED
+  /// Parou no `FILTER`: a condição não bateu. Não é erro.
+  FILTERED
+  /// Bateu o teto de execuções por hora do workflow.
+  RATE_LIMITED
+
+  @@map("crm_run_status")
+}
+
+model CrmWorkflow {
+  id             String  @id @default(cuid())
+  organizationId String  @map("organization_id")
+  funnelId       String  @map("funnel_id")
+  createdById    String? @map("created_by_id")
+
+  name        String
+  description String?
+  isActive    Boolean @default(false) @map("is_active")
+  /// Teto de execuções por hora. Existe porque automação que manda mensagem
+  /// pode ser disparada pela resposta que ela mesma provocou; sem teto, um
+  /// grafo mal montado vira loop com custo por mensagem.
+  maxRunsPerHour Int  @default(60) @map("max_runs_per_hour")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  funnel       CrmFunnel               @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  createdBy    User?                   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  nodes        CrmWorkflowNode[]
+  connections  CrmWorkflowConnection[]
+  runs         CrmWorkflowRun[]
+
+  @@index([organizationId])
+  @@index([funnelId, isActive])
+  @@map("crm_workflows")
+}
+
+model CrmWorkflowNode {
+  id             String      @id @default(cuid())
+  organizationId String      @map("organization_id")
+  workflowId     String      @map("workflow_id")
+  type           CrmNodeType
+  name           String
+  /// `{ x, y }` do canvas. Só apresentação — o motor anda pelas conexões.
+  position       Json        @default("{}")
+  /// Configuração do nó: texto da mensagem, minutos de espera, etapa de
+  /// destino, condição do filtro. O formato é validado por tipo de nó na
+  /// gravação, não aqui.
+  data           Json        @default("{}")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  workflow          CrmWorkflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  outputConnections CrmWorkflowConnection[] @relation("DoNo")
+  inputConnections  CrmWorkflowConnection[] @relation("ParaNo")
+  runs              CrmWorkflowNodeRun[]
+
+  // O gatilho é procurado a cada inbound; sem este índice a busca varre a
+  // tabela de nós inteira no caminho quente.
+  @@index([workflowId, type])
+  @@index([organizationId])
+  @@map("crm_workflow_nodes")
+}
+
+model CrmWorkflowConnection {
+  id             String @id @default(cuid())
+  organizationId String @map("organization_id")
+  workflowId     String @map("workflow_id")
+  fromNodeId     String @map("from_node_id")
+  toNodeId       String @map("to_node_id")
+  /// "main" nos nós comuns; "sim"/"nao" nas duas saídas do `FILTER`.
+  fromOutput     String @default("main") @map("from_output")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  workflow CrmWorkflow     @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  fromNode CrmWorkflowNode @relation("DoNo", fields: [fromNodeId], references: [id], onDelete: Cascade)
+  toNode   CrmWorkflowNode @relation("ParaNo", fields: [toNodeId], references: [id], onDelete: Cascade)
+
+  @@unique([fromNodeId, toNodeId, fromOutput])
+  @@index([workflowId])
+  @@index([organizationId])
+  @@map("crm_workflow_connections")
+}
+
+model CrmWorkflowRun {
+  id             String  @id @default(cuid())
+  organizationId String  @map("organization_id")
+  workflowId     String  @map("workflow_id")
+  leadId         String? @map("lead_id")
+
+  triggerType    CrmNodeType  @map("trigger_type")
+  status         CrmRunStatus @default(RUNNING)
+  /// O que o gatilho sabia quando disparou. É o que permite reler uma execução
+  /// meses depois sem depender do estado atual do lead.
+  initialContext Json         @default("{}") @map("initial_context")
+  nodesExecuted  Int          @default(0) @map("nodes_executed")
+  errorMessage   String?      @map("error_message")
+
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workflow     CrmWorkflow          @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  lead         CrmLead?             @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  nodeRuns     CrmWorkflowNodeRun[]
+
+  @@index([workflowId, startedAt(sort: Desc)])
+  @@index([organizationId])
+  @@index([leadId])
+  @@map("crm_workflow_runs")
+}
+
+model CrmWorkflowNodeRun {
+  id     String @id @default(cuid())
+  runId  String @map("run_id")
+  nodeId String @map("node_id")
+
+  status       CrmRunStatus @default(RUNNING)
+  /// O que o nó produziu — status do HTTP, id da mensagem enviada, lado do
+  /// filtro. É o que a tela de execuções mostra passo a passo.
+  output       Json         @default("{}")
+  errorMessage String?      @map("error_message")
+
+  startedAt  DateTime  @default(now()) @map("started_at")
+  finishedAt DateTime? @map("finished_at")
+
+  run  CrmWorkflowRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  node CrmWorkflowNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([nodeId])
+  @@map("crm_workflow_node_runs")
 }
