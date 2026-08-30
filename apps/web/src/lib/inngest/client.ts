@@ -196,3 +196,46 @@ export type ErpSyncRequestedData = {
 export const erpSyncRequested = eventType("erp/sync.requested", {
   schema: staticSchema<ErpSyncRequestedData>(),
 });
+
+/**
+ * Disparo de campanha de WhatsApp.
+ *
+ * Enviado por `campanhas.send` (ou pelo agendamento) depois de a campanha ser
+ * marcada como `SENDING` com um `updateMany` condicional — é esse update que
+ * impede dois cliques, ou o clique e o agendamento, de disparar em dobro.
+ * O evento carrega só ids; a função busca o resto.
+ */
+export type CampanhaDisparoData = {
+  broadcastId: string;
+  organizationId: string;
+  funnelId: string;
+};
+
+export const campanhaDisparoSolicitado = eventType(
+  "campanhas/disparo.requested",
+  {
+    schema: staticSchema<CampanhaDisparoData>(),
+  },
+);
+
+/**
+ * Disparo de uma automação do funil.
+ *
+ * A linha de `CrmWorkflowRun` é criada **antes** do evento, e o id dela vai no
+ * payload: se a publicação falhar, a execução fica registrada como `RUNNING`
+ * sem nunca terminar — visível na tela — em vez de sumir sem rastro.
+ */
+export type AutomacaoDisparadaData = {
+  runId: string;
+  workflowId: string;
+  organizationId: string;
+  funnelId: string;
+  leadId: string;
+  /** Dono do workflow: assina o que a automação fizer. */
+  autorId: string | null;
+  textoDaMensagem: string | null;
+};
+
+export const automacaoDisparada = eventType("crm/automacao.disparada", {
+  schema: staticSchema<AutomacaoDisparadaData>(),
+});

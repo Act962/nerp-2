@@ -187,6 +187,11 @@ export const PAGE_PERMISSIONS = [
     href: "/ranking",
   },
   {
+    key: "whatsapp",
+    label: "WhatsApp e CRM",
+    href: "/whatsapp",
+  },
+  {
     key: "integracoes",
     label: "Integrações",
     href: "/integracoes",
@@ -313,6 +318,7 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
   },
   { module: "Colaborador", keys: ["colaboradores"] },
   { module: "Ranking de Equipes", keys: ["ranking"] },
+  { module: "WhatsApp e CRM", keys: ["whatsapp"] },
   { module: "Integrações", keys: ["integracoes"] },
   { module: "Catálogo Online", keys: ["catalogo"] },
   { module: "Catálogo Promocional", keys: ["catalogo-promocional"] },

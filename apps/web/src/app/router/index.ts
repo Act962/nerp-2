@@ -60,6 +60,14 @@ import { tradegramPublicRoutes } from "./tradegram-public";
 import { tradeDashboardRoutes } from "./trade-dashboard";
 import { tradeInterestRoutes } from "./trade-interest";
 import { erpSyncRoutes } from "./erp-sync";
+import { agendaRoutes } from "./agenda";
+import { automacoesRoutes } from "./automacoes";
+import { campanhasRoutes } from "./campanhas";
+import { conversationRoutes } from "./conversation";
+import { crmRoutes } from "./crm";
+import { messageRoutes } from "./message";
+import { starsRoutes } from "./stars";
+import { whatsappRoutes } from "./whatsapp";
 import { integracoesRoutes } from "./integracoes";
 import { fiscalConfigRoutes } from "./fiscal-config";
 import { googleDriveRoutes } from "./google-drive";
@@ -129,6 +137,14 @@ export const router = {
   storeInventory: storeInventoryRoutes,
   shopperInsights: shopperInsightsRoutes,
   erpSync: erpSyncRoutes,
+  agenda: agendaRoutes,
+  automacoes: automacoesRoutes,
+  campanhas: campanhasRoutes,
+  conversation: conversationRoutes,
+  crm: crmRoutes,
+  message: messageRoutes,
+  stars: starsRoutes,
+  whatsapp: whatsappRoutes,
   integracoes: integracoesRoutes,
   fiscalConfig: fiscalConfigRoutes,
   googleDrive: googleDriveRoutes,

@@ -1,3 +1,14 @@
+import { carregarGrafo } from "@/features/automacoes/server/carregar";
+import { varrerLeadsOciosos } from "@/features/automacoes/server/varrer-ociosos";
+import { executarNo } from "@/features/automacoes/server/executar-no";
+import {
+  acharGatilho,
+  MAXIMO_DE_NOS,
+  proximos,
+} from "@/features/automacoes/lib/grafo";
+import { enviarLote } from "@/features/campanhas/server/enviar-lote";
+import { recalcularContadores } from "@/features/campanhas/server/contadores";
+import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import {
   listOrganizationsForSync,
@@ -17,7 +28,9 @@ import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
 import { checkWidgetAlerts } from "@/features/dashboard-widgets/server/check-widget-alerts";
 import {
+  automacaoDisparada,
   bookGenerateRequested,
+  campanhaDisparoSolicitado,
   customerImportRequested,
   erpSyncRequested,
   inngest,
@@ -477,7 +490,269 @@ export const dashboardAlertCheck = inngest.createFunction(
   },
 );
 
+/**
+ * Disparo de campanha de WhatsApp.
+ *
+ * Um `step.run` por lote de 50 destinatários, como na importação de lojas e
+ * pelo mesmo motivo: o passo precisa caber numa invocação, e com a campanha
+ * inteira num passo só uma lista de milhares estouraria o tempo e o Inngest
+ * recomeçaria do primeiro destinatário a cada tentativa. Com o lote memoizado,
+ * a retentativa refaz no máximo um lote — e como a consulta filtra `PENDING`,
+ * refazer não reenvia para quem já recebeu.
+ *
+ * `concurrency` com chave na organização: a Meta limita por conta, e uma loja
+ * disparando cem mil mensagens não pode consumir a fila de outra.
+ */
+export const campanhaDisparar = inngest.createFunction(
+  {
+    id: "campanha-disparar",
+    triggers: [campanhaDisparoSolicitado],
+    retries: 2,
+    concurrency: [{ key: "event.data.organizationId", limit: 3 }],
+    onFailure: async ({ event, error }) => {
+      const { broadcastId } = event.data.event.data;
+      // Tentativas esgotadas: o que sobrou pendente vira falha explícita, para
+      // a campanha não ficar eternamente "enviando".
+      await prisma.broadcastRecipient
+        .updateMany({
+          where: { broadcastId, status: { in: ["PENDING", "QUEUED"] } },
+          data: { status: "FAILED", errorCode: "DISPATCH_FAILED" },
+        })
+        .catch(() => {});
+      await prisma.broadcast
+        .updateMany({
+          where: { id: broadcastId, status: "SENDING" },
+          data: { status: "FAILED", completedAt: new Date() },
+        })
+        .catch(() => {});
+      await recalcularContadores(broadcastId).catch(() => {});
+      console.error(`[campanha] falha no disparo de ${broadcastId}:`, error);
+    },
+  },
+  async ({ event, step }) => {
+    const { broadcastId, organizationId, funnelId } = event.data;
+
+    // Teto de segurança: 20 mil lotes de 50 é muito além de qualquer campanha
+    // real, e existe para o laço nunca ficar solto se um lote parar de avançar.
+    for (let lote = 0; lote < 20_000; lote++) {
+      const resultado = await step.run(`enviar-lote-${lote}`, () =>
+        enviarLote({ broadcastId, organizationId, funnelId }),
+      );
+      // Saldo de ★ acabou: para aqui em vez de rodar os lotes restantes só
+      // para falhar em cada um. O que sobrou continua pendente.
+      if (resultado.semSaldo) break;
+      if (resultado.restam === 0) break;
+    }
+
+    return step.run("finalizar", async () => {
+      const enviadas = await prisma.broadcastRecipient.count({
+        where: { broadcastId, status: { not: "FAILED" } },
+      });
+      await prisma.broadcast.updateMany({
+        where: { id: broadcastId, status: "SENDING" },
+        data: {
+          // Campanha em que nada saiu é falha, não conclusão.
+          status: enviadas > 0 ? "SENT" : "FAILED",
+          completedAt: new Date(),
+        },
+      });
+      await recalcularContadores(broadcastId);
+      return { broadcastId, enviadas };
+    });
+  },
+);
+
+/**
+ * Anda pelo grafo de uma automação, um passo por vez.
+ *
+ * Cada nó é um `step.run` com nome único: se o processo cair no meio, o
+ * Inngest refaz do último passo concluído em vez de reexecutar tudo — e
+ * reexecutar tudo, aqui, é mandar de novo a mensagem que o cliente já
+ * recebeu.
+ *
+ * `WAIT` vira `step.sleep`, que é o motivo de a automação morar no Inngest e
+ * não num laço com `setTimeout`: uma espera de duas horas precisa sobreviver a
+ * deploy.
+ *
+ * `concurrency` pela organização: uma loja com automação em todo lead novo não
+ * pode consumir a fila das outras.
+ */
+export const automacaoExecutar = inngest.createFunction(
+  {
+    id: "crm-automacao-executar",
+    triggers: [automacaoDisparada],
+    retries: 2,
+    concurrency: [{ key: "event.data.organizationId", limit: 5 }],
+    onFailure: async ({ event, error }) => {
+      const { runId } = event.data.event.data;
+      await prisma.crmWorkflowRun
+        .updateMany({
+          where: { id: runId, status: "RUNNING" },
+          data: {
+            status: "FAILED",
+            errorMessage: error instanceof Error ? error.message : "Falhou",
+            finishedAt: new Date(),
+          },
+        })
+        .catch(() => {});
+    },
+  },
+  async ({ event, step }) => {
+    const {
+      runId,
+      workflowId,
+      organizationId,
+      funnelId,
+      leadId,
+      autorId,
+      textoDaMensagem,
+    } = event.data;
+
+    const grafo = await step.run("carregar", () =>
+      carregarGrafo(workflowId, organizationId),
+    );
+
+    // Workflow apagado ou desligado durante a espera: encerra em silêncio.
+    if (!grafo || !grafo.isActive) {
+      return step.run("encerrar-sem-grafo", async () => {
+        await prisma.crmWorkflowRun.updateMany({
+          where: { id: runId },
+          data: {
+            status: "SUCCESS",
+            errorMessage: "A automação foi desligada antes de terminar.",
+            finishedAt: new Date(),
+          },
+        });
+        return { runId, motivo: "desligada" };
+      });
+    }
+
+    const gatilho = acharGatilho(grafo);
+    if (!gatilho) {
+      return step.run("encerrar-sem-gatilho", async () => {
+        await prisma.crmWorkflowRun.updateMany({
+          where: { id: runId },
+          data: {
+            status: "FAILED",
+            errorMessage: "A automação não tem um gatilho válido.",
+            finishedAt: new Date(),
+          },
+        });
+        return { runId, motivo: "sem-gatilho" };
+      });
+    }
+
+    const contexto = {
+      organizationId,
+      funnelId,
+      workflowId,
+      leadId,
+      autorId: autorId ?? "",
+      textoDaMensagem,
+    };
+
+    let atual = proximos(grafo, gatilho.id)[0] ?? null;
+    let executados = 0;
+    let status: "SUCCESS" | "FAILED" | "FILTERED" = "SUCCESS";
+    let motivo: string | null = null;
+
+    while (atual && executados < MAXIMO_DE_NOS) {
+      const no = atual;
+      const passo = `no-${executados}-${no.id}`;
+
+      const resultado = await step.run(passo, async () => {
+        const registro = await prisma.crmWorkflowNodeRun.create({
+          data: { runId, nodeId: no.id },
+          select: { id: true },
+        });
+        const saida = await executarNo(no, contexto);
+
+        await prisma.crmWorkflowNodeRun.update({
+          where: { id: registro.id },
+          data: {
+            status:
+              saida.tipo === "falhou"
+                ? "FAILED"
+                : saida.tipo === "parou"
+                  ? "FILTERED"
+                  : "SUCCESS",
+            output:
+              saida.tipo === "seguiu" || saida.tipo === "parou"
+                ? (saida.output as Prisma.InputJsonObject)
+                : {},
+            errorMessage: saida.tipo === "falhou" ? saida.erro : null,
+            finishedAt: new Date(),
+          },
+        });
+        return saida;
+      });
+
+      executados += 1;
+
+      if (resultado.tipo === "falhou") {
+        status = "FAILED";
+        motivo = resultado.erro;
+        break;
+      }
+      if (resultado.tipo === "parou") {
+        status = "FILTERED";
+        motivo = resultado.motivo;
+        break;
+      }
+      if (resultado.tipo === "esperar") {
+        await step.sleep(`espera-${executados}`, `${resultado.minutos}m`);
+        atual = proximos(grafo, no.id)[0] ?? null;
+        continue;
+      }
+
+      const seguintes = proximos(grafo, no.id, resultado.saida);
+      // Filtro sem nada do lado escolhido é fim de caminho, não erro: "se for
+      // quente manda mensagem, se não for não faz nada" é um desenho legítimo.
+      atual = seguintes[0] ?? null;
+    }
+
+    if (executados >= MAXIMO_DE_NOS) {
+      status = "FAILED";
+      motivo = `A automação passou de ${MAXIMO_DE_NOS} passos e foi interrompida.`;
+    }
+
+    return step.run("finalizar", async () => {
+      await prisma.crmWorkflowRun.updateMany({
+        where: { id: runId },
+        data: {
+          status,
+          nodesExecuted: executados,
+          errorMessage: motivo,
+          finishedAt: new Date(),
+        },
+      });
+      return { runId, executados, status };
+    });
+  },
+);
+
+/**
+ * Varre os leads que ficaram parados, para o gatilho "sem resposta há X".
+ *
+ * Janela igual à dos outros crons deste arquivo (seg–sáb, 6h–22h, fuso da
+ * loja) e pelo mesmo motivo: é horário comercial que interessa, e cron que
+ * roda de madrugada custa na conta do Inngest sem nada acontecer do outro
+ * lado. Uma automação de silêncio que dispararia às 3h dispara às 6h — o que
+ * é melhor para o cliente, que não recebe mensagem de loja de madrugada.
+ */
+export const automacaoVarrerOciosos = inngest.createFunction(
+  {
+    id: "crm-automacao-varrer-ociosos",
+    triggers: [{ cron: "TZ=America/Fortaleza */15 6-22 * * 1-6" }],
+    retries: 1,
+  },
+  async ({ step }) => step.run("varrer", () => varrerLeadsOciosos()),
+);
+
 export const functions = [
+  automacaoExecutar,
+  automacaoVarrerOciosos,
+  campanhaDisparar,
   syncNasaDelivery,
   productImportProcess,
   supplierImportProcess,
