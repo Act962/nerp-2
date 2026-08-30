@@ -1,4 +1,4 @@
-import { IntegracoesPage } from "@/features/erp-sync/components/integracoes-page";
+import { IntegracoesPage } from "@/features/integracoes/components/integracoes-page";
 import { requirePermission } from "@/lib/auth-utils";
 
 export default async function Page() {

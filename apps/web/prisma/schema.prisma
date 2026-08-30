@@ -12,16 +12,16 @@ datasource db {
 // ============================================
 
 model User {
-  id                       String                  @id @default(cuid())
+  id                       String                    @id @default(cuid())
   name                     String
-  email                    String                  @unique
-  emailVerified            Boolean                 @default(false)
+  email                    String                    @unique
+  emailVerified            Boolean                   @default(false)
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
   whatsapp                 String?
-  createdAt                DateTime                @default(now())
-  updatedAt                DateTime                @updatedAt
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
   // Relações de autenticação
   sessions                 Session[]
   accounts                 Account[]
@@ -29,29 +29,31 @@ model User {
   members                  Member[]
   invitations              Invitation[]
   // Auditoria de ações no ERP
-  createdProducts          Product[]               @relation("CreatedProducts")
-  createdSales             Sale[]                  @relation("CreatedSales")
-  openedCashSessions       CashSession[]           @relation("OpenedCashSessions")
-  closedCashSessions       CashSession[]           @relation("ClosedCashSessions")
-  createdCashMovements     CashMovement[]          @relation("CreatedCashMovements")
-  requestedCancellations   CancellationRequest[]   @relation("RequestedCancellations")
-  approvedCancellations    CancellationRequest[]   @relation("ApprovedCancellations")
-  createdStockMovements    StockMovement[]         @relation("CreatedStockMovements")
-  createdPurchases         Purchase[]              @relation("CreatedPurchases")
-  createdKitchenOrders     KitchenOrder[]          @relation("CreatedKitchenOrders")
-  kitchenEventsActed       KitchenOrderEvent[]     @relation("KitchenEventsByUser")
+  createdProducts          Product[]                 @relation("CreatedProducts")
+  createdSales             Sale[]                    @relation("CreatedSales")
+  openedCashSessions       CashSession[]             @relation("OpenedCashSessions")
+  closedCashSessions       CashSession[]             @relation("ClosedCashSessions")
+  createdCashMovements     CashMovement[]            @relation("CreatedCashMovements")
+  requestedCancellations   CancellationRequest[]     @relation("RequestedCancellations")
+  approvedCancellations    CancellationRequest[]     @relation("ApprovedCancellations")
+  createdStockMovements    StockMovement[]           @relation("CreatedStockMovements")
+  createdPurchases         Purchase[]                @relation("CreatedPurchases")
+  createdKitchenOrders     KitchenOrder[]            @relation("CreatedKitchenOrders")
+  kitchenEventsActed       KitchenOrderEvent[]       @relation("KitchenEventsByUser")
   promotionalCatalogs      PromotionalCatalog[]
-  createdPdvPhotos         PdvPhoto[]              @relation("CreatedPdvPhotos")
-  createdBooks             Book[]                  @relation("CreatedBooks")
-  createdTradeCatalogs     TradeCatalog[]          @relation("CreatedTradeCatalogs")
-  createdPlanograms        Planogram[]             @relation("CreatedPlanograms")
-  createdPlanogramVersions PlanogramVersion[]      @relation("CreatedPlanogramVersions")
-  authoredAnnotations      MapAnnotation[]         @relation("AuthoredAnnotations")
-  editedMapObjects         MapObject[]             @relation("EditedMapObjects")
-  createdNegotiations      SpaceNegotiation[]      @relation("CreatedSpaceNegotiations")
-  companyClaims            CompanyClaim[]          @relation("UserCompanyClaims")
-  createdPaymentEntries    PaymentEntry[]          @relation("PaymentEntryCreatedBy")
+  createdPdvPhotos         PdvPhoto[]                @relation("CreatedPdvPhotos")
+  createdBooks             Book[]                    @relation("CreatedBooks")
+  createdTradeCatalogs     TradeCatalog[]            @relation("CreatedTradeCatalogs")
+  createdPlanograms        Planogram[]               @relation("CreatedPlanograms")
+  createdPlanogramVersions PlanogramVersion[]        @relation("CreatedPlanogramVersions")
+  authoredAnnotations      MapAnnotation[]           @relation("AuthoredAnnotations")
+  editedMapObjects         MapObject[]               @relation("EditedMapObjects")
+  createdNegotiations      SpaceNegotiation[]        @relation("CreatedSpaceNegotiations")
+  companyClaims            CompanyClaim[]            @relation("UserCompanyClaims")
+  createdPaymentEntries    PaymentEntry[]            @relation("PaymentEntryCreatedBy")
   googleDriveConnections   GoogleDriveConnection[]
+  financialIntegrations    FinancialIntegration[]
+  integrationLogos         IntegrationProviderLogo[]
 
   inventoryCounts     InventoryCount[]     @relation("InventoryCountCreatedBy")
   inventoryCountItems InventoryCountItem[] @relation("InventoryCountItemCountedBy")
@@ -274,6 +276,8 @@ model Organization {
   // Integração com ERP externo (espelho canônico de vendas)
   erpConnection             ErpConnection?
   externalSellers           ExternalSeller[]
+  // Catálogo de integrações (bancos, adquirentes, gateways)
+  financialIntegrations     FinancialIntegration[]
   salesFactsDaily           SalesFactDaily[]
   // Dashboard personalizável
   dashboardManualMetrics    DashboardManualMetric[]
@@ -3885,6 +3889,94 @@ model ErpConnection {
   @@map("erp_connections")
 }
 
+// Categoria do provedor no catálogo de Integrações. NÃO é segurança — decide só
+// sob qual seção o card aparece na tela.
+enum IntegrationCategory {
+  BANCO
+  ADQUIRENTE
+  GATEWAY
+  ERP
+  FISCAL
+  PRODUTIVIDADE
+}
+
+enum IntegrationStatus {
+  ACTIVE
+  PAUSED
+  ERROR
+  PENDING_AUTH // OAuth iniciado, callback ainda não voltou
+}
+
+// Uma instalação do catálogo: a organização ligou o provedor com as credenciais
+// dela. O catálogo em si é CÓDIGO (`src/features/integracoes/catalog`) e só a
+// instalação é dado — `providerId` é a chave entre os dois. Provedor novo é um
+// arquivo de manifesto, sem migration.
+model FinancialIntegration {
+  id             String              @id @default(cuid())
+  organizationId String
+  providerId     String // casa com o id do manifesto
+  category       IntegrationCategory
+  status         IntegrationStatus   @default(ACTIVE)
+
+  // Credenciais cifradas em AES-256-GCM, mesmo cofre do S2S
+  // (`src/lib/nasa-s2s-crypto.ts`). NUNCA sai para o client — a listagem
+  // devolve só os últimos dígitos.
+  credentialsCiphertext String? @db.Text
+
+  // mTLS: caminho do certificado no bucket PRIVADO. A senha do .pfx vai dentro
+  // do blob cifrado acima, nunca aqui. `certificateExpiresAt` é lido do próprio
+  // certificado no upload — certificado vencido derruba a integração calada.
+  certificateKey       String?
+  certificateExpiresAt DateTime?
+
+  environment String @default("producao") // sandbox | producao
+
+  // Conta/estabelecimento no provedor, para permitir duas instalações do mesmo
+  // banco. "" e não null de propósito: no Postgres dois NULL não colidem, então
+  // com null a @@unique não impediria instalar o mesmo provedor duas vezes.
+  externalRef String  @default("")
+  displayName String? // "Inter — Conta 1234", escolhido pelo usuário
+
+  capabilities  String[] // capacidades ativadas, subconjunto do manifesto
+  bankAccountId String? // conta que recebe os lançamentos deste conector
+  installedById String
+
+  lastSyncAt    DateTime?
+  lastSyncError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  installedBy  User                @relation(fields: [installedById], references: [id], onDelete: Cascade)
+  bankAccount  PaymentBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId, providerId, externalRef])
+  @@index([organizationId])
+  @@index([bankAccountId])
+  @@map("financial_integrations")
+}
+
+// Logo de um provedor do catálogo — linha GLOBAL, super-admin apenas.
+//
+// Sem `organizationId` de propósito: a marca do Banco Inter é a mesma para todo
+// inquilino, e escopar por organização faria cada cliente ter de subir a própria
+// arte. Mesmo desenho de `DirectoryCompany.logoKey`, o outro recurso global.
+//
+// `logoKey` é CHAVE do R2, nunca URL: `constructUrl` devolve verbatim qualquer
+// coisa começando com `/` ou `http`, e numa linha global um valor solto
+// renderiza no catálogo de TODOS os inquilinos.
+model IntegrationProviderLogo {
+  providerId  String   @id
+  logoKey     String
+  updatedById String?
+  updatedAt   DateTime @updatedAt
+
+  updatedBy User? @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@map("integration_provider_logos")
+}
+
 // Vendedor do ERP ↔ Member do NERP. É o ÚNICO lugar desse vínculo:
 // SalesGoalEntry.externalCode resolve através daqui, para não existirem duas
 // verdades sobre quem é quem.
@@ -4536,8 +4628,9 @@ model PaymentBankAccount {
   createdAt      DateTime           @default(now()) @map("created_at")
   updatedAt      DateTime           @updatedAt @map("updated_at")
 
-  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   entries      PaymentEntry[]
+  integrations FinancialIntegration[]
 
   @@index([organizationId])
   @@map("payment_bank_accounts")

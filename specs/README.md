@@ -40,6 +40,8 @@ feature depois de trabalhar em outra coisa.
 - [`catalogo-link-publico.md`](./catalogo-link-publico.md) — Compartilhar: escolher página + link público do catálogo + WhatsApp com link · `feat/catalogo-paginas-canva` · 🟢 entregue (token no config, sem migration)
 - [`catalogo-lista.md`](./catalogo-lista.md) — Aba "Lista": planilha/PDF/imagem (IA Gemini) → catálogo com 1 página por cliente, preços por linha, imagens casadas por nome · `feat/catalogo-lista` · 🟢 MVP entregue (Fases 1-4, sem migration)
 
+- [`integracoes-catalogo-financeiro.md`](./integracoes-catalogo-financeiro.md) — Catálogo de conectores em `/integracoes`: cards por categoria (bancos, adquirentes, gateways), conector direto com API própria do provedor, credencial cifrada · `feat/integracoes-catalogo-financeiro` · 🟡 Fase 1 implementada
+
 ## ERP — Núcleo de varejo (roadmap)
 
 > Roadmap de paridade de mercado (referências SIC/CEFAS), mantendo a UI simples. Ordem recomendada: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Cada spec = 1 branch = 1 PR.
