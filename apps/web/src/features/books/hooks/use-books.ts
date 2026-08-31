@@ -454,6 +454,29 @@ export function useSetSlotPhoto() {
   );
 }
 
+// Foto do computador para um slot: o arquivo já subiu pro R2, aqui ele vira um
+// PdvPhoto e ocupa o slot.
+// Interruptor "Numerar as fotos" do book inteiro.
+export function useSetBookPhotoNumbers() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.update.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useUploadSlotPhoto() {
+  const invalidate = useInvalidateBooks();
+  return useMutation(
+    orpc.book.uploadSlotPhoto.mutationOptions({
+      onSuccess: () => invalidate(),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useSetSlotAdjustment() {
   const invalidate = useInvalidateBooks();
   return useMutation(

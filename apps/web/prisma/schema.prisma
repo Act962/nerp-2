@@ -3414,6 +3414,11 @@ model Book {
   coverBackground   Json?
   closingBackground Json?
   pageBackground    Json?
+  // Numeração "FOTO N" carimbada DENTRO de cada foto. Desligar aqui vale para o
+  // book inteiro, sem precisar desmarcar espaço por espaço em cada página; o
+  // `showNumber` de cada slot continua valendo como exceção quando ligado.
+  // Não afeta a variável {{numeroFoto}} usada em textos do layout.
+  showPhotoNumbers  Boolean      @default(true)
   // Envio do book à indústria/fornecedor para liberar a verba. Snapshot de
   // quem enviou, sem relation, pra exibir sem join.
   sentAt            DateTime?

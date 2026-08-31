@@ -113,6 +113,12 @@ export async function resetDb() {
   await prisma.cashSession.deleteMany({ where: orgIds });
   await prisma.cashRegister.deleteMany({ where: orgIds });
   await prisma.product.deleteMany({ where: orgIds });
+  // Book cascateia BookPage/BookItem, mas BookPage.storeId e PdvPhoto.storeId
+  // apontam para Store com FK restrita: sem apagar os books e as fotos antes, a
+  // cascata da Organization esbarra em `book_pages_storeId_fkey`.
+  await prisma.book.deleteMany({ where: orgIds });
+  await prisma.pdvPhoto.deleteMany({ where: orgIds });
+  await prisma.store.deleteMany({ where: orgIds });
   await prisma.device.deleteMany({ where: orgIds });
   await prisma.organization.deleteMany({
     where: { slug: { startsWith: "org-" } },

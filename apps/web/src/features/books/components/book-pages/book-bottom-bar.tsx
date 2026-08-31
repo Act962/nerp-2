@@ -3,10 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { LayoutGrid, List, ZoomIn, ZoomOut } from "lucide-react";
+import { LayoutGrid, List, Presentation, ZoomIn, ZoomOut } from "lucide-react";
 import { useState } from "react";
 
-export type BookView = "list" | "grid";
+export type BookView = "list" | "grid" | "slides";
 
 // Limites do zoom (%) — como no Canva, dá pra afastar bastante e aproximar um
 // pouco além de 100%.
@@ -68,6 +68,17 @@ export function BookBottomBar({
         >
           <LayoutGrid className="size-4" />
           Grade
+        </Button>
+        <Button
+          type="button"
+          variant={view === "slides" ? "secondary" : "ghost"}
+          size="sm"
+          className="gap-1"
+          onClick={() => onViewChange("slides")}
+          title="Editar em slides: miniaturas à esquerda, página editável à direita"
+        >
+          <Presentation className="size-4" />
+          Slides
         </Button>
       </div>
 
