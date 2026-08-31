@@ -37,21 +37,85 @@ export class DestinoBloqueadoError extends Error {
   }
 }
 
+/**
+ * Expande um IPv6 nos seus oito hextets. `null` quando o texto não é um IPv6
+ * que saibamos ler.
+ *
+ * Existe porque comparar prefixo em cima do texto do endereço não funciona: o
+ * mesmo endereço se escreve de várias formas, e `::ffff:7f00:1` é o mesmo
+ * 127.0.0.1 que `::ffff:127.0.0.1`. Quem classifica precisa dos números.
+ */
+function hextets(ip: string): number[] | null {
+  let texto = ip.toLowerCase();
+
+  // Cauda escrita como IPv4 (`::ffff:127.0.0.1`) vira os dois hextets que ela
+  // representa, para o resto da função lidar com um formato só.
+  const comCaudaIpv4 = /^(.*:)(\d{1,3}(?:\.\d{1,3}){3})$/.exec(texto);
+  if (comCaudaIpv4) {
+    const octetos = comCaudaIpv4[2].split(".").map(Number);
+    if (octetos.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+      return null;
+    }
+    const alto = (octetos[0] << 8) | octetos[1];
+    const baixo = (octetos[2] << 8) | octetos[3];
+    texto = `${comCaudaIpv4[1]}${alto.toString(16)}:${baixo.toString(16)}`;
+  }
+
+  const lados = texto.split("::");
+  if (lados.length > 2) return null;
+
+  const emNumeros = (trecho: string) =>
+    trecho === "" ? [] : trecho.split(":").map((h) => Number.parseInt(h, 16));
+
+  const cabeca = emNumeros(lados[0]);
+  const cauda = lados.length === 2 ? emNumeros(lados[1]) : [];
+  const informados = cabeca.length + cauda.length;
+
+  if (informados > 8) return null;
+  // Sem `::` o endereço precisa trazer os oito.
+  if (lados.length === 1 && informados !== 8) return null;
+
+  const todos = [
+    ...cabeca,
+    ...new Array(8 - informados).fill(0),
+    ...cauda,
+  ] as number[];
+  if (todos.some((h) => !Number.isInteger(h) || h < 0 || h > 0xffff)) {
+    return null;
+  }
+  return todos;
+}
+
 /** Faixas que nunca são um webhook legítimo de cliente. */
 function enderecoInterno(ip: string): boolean {
   if (isIP(ip) === 6) {
-    const normalizado = ip.toLowerCase();
-    if (normalizado === "::1" || normalizado === "::") return true;
-    // Link-local (fe80::/10) e único-local (fc00::/7).
-    if (normalizado.startsWith("fe8") || normalizado.startsWith("fe9"))
-      return true;
-    if (normalizado.startsWith("fea") || normalizado.startsWith("feb"))
-      return true;
-    if (normalizado.startsWith("fc") || normalizado.startsWith("fd"))
-      return true;
-    // IPv4 embutido em IPv6 (::ffff:127.0.0.1).
-    const embutido = normalizado.split(":").pop() ?? "";
-    if (embutido.includes(".")) return enderecoInterno(embutido);
+    const h = hextets(ip);
+    // Endereço que não conseguimos classificar é bloqueado. Falhar fechado é
+    // a única resposta segura aqui — o mesmo critério do IPv4 malformado.
+    if (!h) return true;
+
+    // `::ffff:a.b.c.d` (mapeado) e `::a.b.c.d` (compatível, obsoleto):
+    // os dois chegam no IPv4 correspondente na hora de conectar, então a
+    // classificação é a do IPv4. `::` e `::1` caem aqui como 0.0.0.0 e
+    // 0.0.0.1, ambos já bloqueados pela regra do `a === 0`.
+    const cincoPrimeirosZerados = h.slice(0, 5).every((parte) => parte === 0);
+    if (cincoPrimeirosZerados && (h[5] === 0xffff || h[5] === 0)) {
+      const [alto, baixo] = [h[6], h[7]];
+      return enderecoInterno(
+        `${alto >> 8}.${alto & 0xff}.${baixo >> 8}.${baixo & 0xff}`,
+      );
+    }
+
+    if ((h[0] & 0xffc0) === 0xfe80) return true; // link-local, fe80::/10
+    if ((h[0] & 0xfe00) === 0xfc00) return true; // único-local, fc00::/7
+    // NAT64 (64:ff9b::/96): o gateway traduz para o IPv4 dos dois últimos
+    // hextets, então vale a classificação do IPv4, como no mapeado.
+    if (h[0] === 0x64 && h[1] === 0xff9b) {
+      const [alto, baixo] = [h[6], h[7]];
+      return enderecoInterno(
+        `${alto >> 8}.${alto & 0xff}.${baixo >> 8}.${baixo & 0xff}`,
+      );
+    }
     return false;
   }
 

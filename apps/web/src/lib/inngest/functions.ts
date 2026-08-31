@@ -711,7 +711,12 @@ export const automacaoExecutar = inngest.createFunction(
       atual = seguintes[0] ?? null;
     }
 
-    if (executados >= MAXIMO_DE_NOS) {
+    // `atual` distingue os dois motivos de o laço acabar: com nó pendente, foi
+    // o teto que interrompeu; sem nó, o caminho chegou ao fim sozinho. Sem essa
+    // conferência, a automação de exatamente MAXIMO_DE_NOS passos que rodou
+    // inteira era registrada como falha, e o operador ia procurar um defeito
+    // que não existe.
+    if (atual && executados >= MAXIMO_DE_NOS) {
       status = "FAILED";
       motivo = `A automação passou de ${MAXIMO_DE_NOS} passos e foi interrompida.`;
     }
@@ -739,6 +744,11 @@ export const automacaoExecutar = inngest.createFunction(
  * roda de madrugada custa na conta do Inngest sem nada acontecer do outro
  * lado. Uma automação de silêncio que dispararia às 3h dispara às 6h — o que
  * é melhor para o cliente, que não recebe mensagem de loja de madrugada.
+ *
+ * **Mexer nesta janela obriga a rever `JANELA_DE_TRAVESSIA_MS` em
+ * `varrer-ociosos.ts`**: ela precisa ser maior que o maior intervalo entre
+ * duas passadas deste cron (hoje as ~31 h do fim de semana). Menor que isso, o
+ * lead que cruza o limite com o cron parado nunca é visto.
  */
 export const automacaoVarrerOciosos = inngest.createFunction(
   {

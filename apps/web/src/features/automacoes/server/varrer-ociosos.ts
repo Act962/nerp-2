@@ -16,10 +16,27 @@ const TETO_POR_WORKFLOW = 200;
  * pelos mesmos de sempre — os que acabaram de ficar parados nunca chegariam a
  * ser atendidos.
  *
- * Duas horas com uma varredura a cada quinze minutos dá oito passagens de
- * folga: mesmo que algumas falhem, o lead que cruzou o limite é pego.
+ * **O tamanho da janela é ditado pelo intervalo entre duas varreduras, e o
+ * intervalo que manda é o maior.** O cron roda a cada 15 minutos, das 6h às
+ * 22h, de segunda a sábado (`crm-automacao-varrer-ociosos`, em
+ * `lib/inngest/functions.ts`): não roda das 22:45 às 06:00 e não roda no
+ * domingo, então entre a última passada de sábado e a primeira de segunda vão
+ * ~31 h. Uma janela de duas horas parecia generosa por dar oito passagens de
+ * folga, mas isso só valia dentro do horário comercial — o lead que cruzava o
+ * limite no sábado à noite ou no domingo já estava fora da janela quando a
+ * varredura voltava na segunda, e como a janela só anda para frente ele ficava
+ * fora para sempre. Automação de retomada que nunca dispara e não deixa rastro
+ * é o pior defeito possível neste arquivo.
+ *
+ * 36 h cobrem a parada do fim de semana com folga. Alargar é seguro: o
+ * histórico (`crmWorkflowRun` posterior à última fala do lead) é que impede a
+ * repetição, não o tamanho da janela. E como os candidatos vêm ordenados por
+ * `lastInboundAt` decrescente, quem acabou de cruzar continua na frente do
+ * teto por rodada.
+ *
+ * Mexeu no cron? Reveja este número.
  */
-const JANELA_DE_TRAVESSIA_MS = 2 * 60 * 60_000;
+const JANELA_DE_TRAVESSIA_MS = 36 * 60 * 60_000;
 
 /**
  * Dispara as automações de "lead parado há X minutos".
