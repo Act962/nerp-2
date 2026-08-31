@@ -14,6 +14,28 @@ const HORA = /^([01]\d|2[0-3]):([0-5]\d)$/;
 /** Quantos compromissos futuros o mesmo telefone pode ter na mesma agenda. */
 const LIMITE_POR_TELEFONE = 3;
 
+/**
+ * Até quando dá para marcar. Sem teto, a regex de data aceita `9999-12-31` e a
+ * grade semanal gera encaixe para qualquer dia útil de qualquer ano — sobra
+ * limpeza manual para a loja.
+ */
+const ANTECEDENCIA_MAXIMA_DIAS = 180;
+
+/**
+ * Freio de enxurrada, por agenda.
+ *
+ * O limite por telefone sozinho não segura um script: o telefone é escolhido
+ * por quem chama, e um número novo a cada requisição começa do zero. Este
+ * conta o que saiu **pelo formulário público** (`userId: null` — quem marca
+ * pelo ERP grava o atendente) numa janela curta.
+ *
+ * Os números são folgados para uma loja de verdade: quinze marcações pelo
+ * formulário em dez minutos, na mesma agenda, é robô. Quando estoura, a
+ * recusa é temporária e a mensagem diz isso.
+ */
+const JANELA_DE_ENXURRADA_MS = 10 * 60_000;
+const LIMITE_NA_JANELA = 15;
+
 export const bookPublicAgenda = base
   .route({
     method: "POST",
@@ -71,14 +93,47 @@ export const bookPublicAgenda = base
       });
     }
 
-    // Freio para o formulário aberto na internet: sem isso um script enche a
-    // agenda inteira em segundos, e o duplo clique de quem está com pressa
-    // marca duas vezes.
+    const agora = new Date();
+
+    const limiteDaData = new Date(agora);
+    limiteDaData.setUTCDate(
+      limiteDaData.getUTCDate() + ANTECEDENCIA_MAXIMA_DIAS,
+    );
+    if (input.date > limiteDaData.toISOString().slice(0, 10)) {
+      throw errors.BAD_REQUEST({
+        message: `Só dá para marcar com até ${ANTECEDENCIA_MAXIMA_DIAS} dias de antecedência.`,
+      });
+    }
+
+    // Freio de enxurrada. Vem antes do freio por telefone porque é o que
+    // segura o script: aquele conta por número, e número é escolhido por quem
+    // chama.
+    const recentes = await prisma.appointment.count({
+      where: {
+        agendaId: agenda.id,
+        userId: null,
+        createdAt: { gte: new Date(agora.getTime() - JANELA_DE_ENXURRADA_MS) },
+      },
+    });
+    if (recentes >= LIMITE_NA_JANELA) {
+      console.warn("[agenda:publica] enxurrada de marcações", {
+        agendaId: agenda.id,
+        organizationId: org.id,
+        recentes,
+      });
+      throw errors.BAD_REQUEST({
+        message:
+          "Muitas marcações seguidas nesta agenda. Tente de novo em alguns minutos.",
+      });
+    }
+
+    // Freio do duplo clique de quem está com pressa, e do cliente que marca
+    // horário demais.
     const jaMarcados = await prisma.appointment.count({
       where: {
         agendaId: agenda.id,
         status: { not: "CANCELLED" },
-        startsAt: { gte: new Date() },
+        startsAt: { gte: agora },
         lead: { phone: telefone },
       },
     });

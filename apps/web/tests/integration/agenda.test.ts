@@ -12,7 +12,10 @@ import { setAvailability } from "@/app/router/agenda/set-availability";
 import { setDateOverride } from "@/app/router/agenda/set-date-override";
 import { updateAgenda } from "@/app/router/agenda/update";
 import { createFunnel } from "@/app/router/crm/create-funnel";
-import { diaDaSemanaDaData } from "@/features/agenda/lib/horarios";
+import {
+  diaDaSemanaDaData,
+  paredeParaUtc,
+} from "@/features/agenda/lib/horarios";
 import type { Organization, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import {
@@ -537,3 +540,224 @@ async function slugsDeOutraAgenda(): Promise<{
   });
   return { orgSlug: org.slug, agendaSlug: agenda.slug };
 }
+
+/**
+ * Agenda com grade larga e encaixe curto, para os testes que precisam de
+ * muitos horários no mesmo dia.
+ */
+async function agendaLarga(
+  faixas: { startTime: string; endTime: string }[],
+): Promise<{
+  id: string;
+  funnelId: string;
+  orgSlug: string;
+  agendaSlug: string;
+}> {
+  const funil = await call(
+    createFunnel,
+    { name: `Funil largo ${Math.random().toString(36).slice(2, 7)}` },
+    ctx(),
+  );
+  const agenda = await call(
+    createAgenda,
+    {
+      name: `Larga ${Math.random().toString(36).slice(2, 7)}`,
+      funnelId: funil.id,
+      slotDuration: 60,
+    },
+    ctx(),
+  );
+  await call(
+    setAvailability,
+    {
+      agendaId: agenda.id,
+      semana: [{ dayOfWeek: diaDaSemanaDaData(DIA), isActive: true, faixas }],
+    },
+    ctx(),
+  );
+  const linha = await prisma.agenda.findUniqueOrThrow({
+    where: { id: agenda.id },
+    select: { slug: true },
+  });
+  return {
+    id: agenda.id,
+    funnelId: funil.id,
+    orgSlug: org.slug,
+    agendaSlug: linha.slug,
+  };
+}
+
+describe("freios do formulário público", () => {
+  it("recusa marcação longe demais no futuro", async () => {
+    const endereco = await slugs();
+    const daquiAUmAno = new Date(Date.now() + 365 * 86_400_000)
+      .toISOString()
+      .slice(0, 10);
+
+    // Sem teto, a regex de data aceitava `9999-12-31` e a grade semanal gerava
+    // encaixe para qualquer dia útil de qualquer ano.
+    await expect(
+      call(
+        bookPublicAgenda,
+        {
+          ...endereco,
+          date: daquiAUmAno,
+          time: "08:00",
+          name: "Muito Antecipado",
+          phone: "(11) 96666-0001",
+        },
+        publico,
+      ),
+    ).rejects.toThrow(/antecedência/i);
+  });
+
+  it("segura a enxurrada mesmo com um telefone novo a cada marcação", async () => {
+    // A regressão: o limite por telefone é chaveado pelo número que quem
+    // chama informa, então um script que varia o número passava por ele e
+    // enchia a agenda inteira.
+    const endereco = await agendaLarga([
+      { startTime: "06:00", endTime: "23:00" },
+    ]);
+
+    for (let i = 0; i < 15; i += 1) {
+      await call(
+        bookPublicAgenda,
+        {
+          orgSlug: endereco.orgSlug,
+          agendaSlug: endereco.agendaSlug,
+          date: DIA,
+          time: `${String(6 + i).padStart(2, "0")}:00`,
+          name: `Robô ${i}`,
+          phone: `(11) 95${String(i).padStart(3, "0")}-0000`,
+        },
+        publico,
+      );
+    }
+
+    await expect(
+      call(
+        bookPublicAgenda,
+        {
+          orgSlug: endereco.orgSlug,
+          agendaSlug: endereco.agendaSlug,
+          date: DIA,
+          time: "21:00",
+          name: "Robô 15",
+          phone: "(11) 95999-0000",
+        },
+        publico,
+      ),
+    ).rejects.toThrow(/marcações seguidas/i);
+  });
+
+  it("o freio de enxurrada não atinge quem marca pelo ERP", async () => {
+    const endereco = await agendaLarga([
+      { startTime: "06:00", endTime: "23:00" },
+    ]);
+
+    for (let i = 0; i < 15; i += 1) {
+      await call(
+        bookPublicAgenda,
+        {
+          orgSlug: endereco.orgSlug,
+          agendaSlug: endereco.agendaSlug,
+          date: DIA,
+          time: `${String(6 + i).padStart(2, "0")}:00`,
+          name: `Robô ${i}`,
+          phone: `(11) 94${String(i).padStart(3, "0")}-0000`,
+        },
+        publico,
+      );
+    }
+
+    // O atendente precisa continuar marcando: o freio conta só o que veio do
+    // formulário aberto (`userId: null`).
+    await expect(
+      call(
+        createAppointment,
+        {
+          agendaId: endereco.id,
+          date: DIA,
+          time: "21:00",
+          name: "Cliente do balcão",
+          phone: "(11) 94888-0000",
+        },
+        ctx(),
+      ),
+    ).resolves.toBeTruthy();
+  });
+});
+
+describe("compromisso que atravessa a meia-noite", () => {
+  it("não oferece nem aceita encaixe ocupado por compromisso da véspera", async () => {
+    // A regressão: a consulta de ocupados filtrava por `startsAt` dentro do
+    // dia, então o compromisso que começou ontem e termina hoje não bloqueava
+    // nada — o encaixe das 00:00 saía livre e a agenda aceitava dois
+    // sobrepostos.
+    const endereco = await agendaLarga([
+      { startTime: "00:00", endTime: "03:00" },
+    ]);
+
+    const vespera = new Date(`${DIA}T00:00:00Z`);
+    vespera.setUTCDate(vespera.getUTCDate() - 1);
+    const dataDaVespera = vespera.toISOString().slice(0, 10);
+
+    // Lead próprio: depender de um criado por outro teste torna este
+    // dependente da ordem de execução.
+    const etapa = await prisma.crmStage.findFirstOrThrow({
+      where: { funnelId: endereco.funnelId },
+      orderBy: { order: "asc" },
+      select: { id: true },
+    });
+    const lead = await prisma.crmLead.create({
+      data: {
+        organizationId: org.id,
+        funnelId: endereco.funnelId,
+        stageId: etapa.id,
+        name: "Cliente da véspera",
+        phone: "5511922220000",
+      },
+      select: { id: true },
+    });
+
+    // 23:00 da véspera até 00:30 de hoje, na parede da loja.
+    await prisma.appointment.create({
+      data: {
+        organizationId: org.id,
+        agendaId: endereco.id,
+        leadId: lead.id,
+        title: "Vira a noite",
+        startsAt: paredeParaUtc(dataDaVespera, 23 * 60),
+        endsAt: paredeParaUtc(DIA, 30),
+      },
+    });
+
+    const { horarios } = await call(
+      listPublicSlots,
+      {
+        orgSlug: endereco.orgSlug,
+        agendaSlug: endereco.agendaSlug,
+        date: DIA,
+      },
+      publico,
+    );
+    expect(horarios.map((h) => h.hora)).not.toContain("00:00");
+    // O 01:00 continua livre: o bloqueio é do encaixe que colide, não do dia.
+    expect(horarios.map((h) => h.hora)).toContain("01:00");
+
+    await expect(
+      call(
+        bookPublicAgenda,
+        {
+          orgSlug: endereco.orgSlug,
+          agendaSlug: endereco.agendaSlug,
+          date: DIA,
+          time: "00:00",
+          name: "Madrugador",
+          phone: "(11) 93333-0000",
+        },
+        publico,
+      ),
+    ).rejects.toThrow();
+  });
+});

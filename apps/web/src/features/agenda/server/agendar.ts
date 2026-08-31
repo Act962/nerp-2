@@ -138,14 +138,20 @@ export async function agendarCompromisso(
         if (faixas.length === 0) throw new HorarioIndisponivelError();
 
         const inicioDoDia = paredeParaUtc(dados.data, 0);
+        const fimDoDia = new Date(inicioDoDia.getTime() + 86_400_000);
+        // Sobreposição de verdade: começa antes de o dia acabar E termina
+        // depois de o dia começar. Filtrar só por `startsAt` dentro do dia
+        // deixava de fora o compromisso que começou ontem e atravessa a
+        // meia-noite — o encaixe das 00:00 saía como livre e a agenda aceitava
+        // dois compromissos sobrepostos. A transação Serializable não pega
+        // isso: ela protege contra duas escritas concorrentes, não contra uma
+        // consulta que nunca leu a linha conflitante.
         const ocupados = await tx.appointment.findMany({
           where: {
             agendaId: agenda.id,
             status: { not: "CANCELLED" },
-            startsAt: {
-              gte: inicioDoDia,
-              lt: new Date(inicioDoDia.getTime() + 86_400_000),
-            },
+            startsAt: { lt: fimDoDia },
+            endsAt: { gt: inicioDoDia },
           },
           select: { startsAt: true, endsAt: true },
         });

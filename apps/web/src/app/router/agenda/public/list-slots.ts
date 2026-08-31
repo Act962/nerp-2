@@ -56,14 +56,15 @@ export const listPublicSlots = base
     if (faixas.length === 0) return { horarios: [] };
 
     const inicioDoDia = paredeParaUtc(input.date, 0);
+    // Mesma sobreposição que `agendarCompromisso` usa, e precisa ser a mesma:
+    // esta consulta é o que a tela oferece, aquela é o que o servidor aceita.
+    // Divergir aqui é oferecer publicamente um horário que a marcação recusa.
     const ocupados = await prisma.appointment.findMany({
       where: {
         agendaId: agenda.id,
         status: { not: "CANCELLED" },
-        startsAt: {
-          gte: inicioDoDia,
-          lt: new Date(inicioDoDia.getTime() + 86_400_000),
-        },
+        startsAt: { lt: new Date(inicioDoDia.getTime() + 86_400_000) },
+        endsAt: { gt: inicioDoDia },
       },
       select: { startsAt: true, endsAt: true },
     });
