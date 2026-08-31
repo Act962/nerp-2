@@ -18,12 +18,19 @@
 // Aqui dentro do script `build` do app, o ajuste vale para todo mundo que
 // chama `next build` — turbo, CI, Coolify ou a mão.
 //
-// É TETO, não reserva: medido, o build conclui com pico de ~2 GB. A folga só
-// impede o coletor de lixo de desistir quando encosta no limite.
+// É TETO, não reserva: a folga impede o coletor de lixo de desistir quando
+// encosta no limite.
+//
+// Foi de 4096 para 8192 em 30/08/2026, junto com o módulo de WhatsApp/CRM: o
+// schema passou de ~126 para 174 modelos e o client gerado do Prisma foi a
+// 23 MB, e a fase de coleta de dados das páginas passou a estourar 4 GB
+// (`Ineffective mark-compacts near heap limit`, medido duas vezes). Com 8192 o
+// build conclui. ATENÇÃO: isto é teto do V8, não RAM da máquina — num servidor
+// com menos que isso o processo é morto pelo kernel antes de o teto valer.
 
 import { spawn } from "node:child_process";
 
-const HEAP_MB = 4096;
+const HEAP_MB = 8192;
 
 // Preserva o que já vier no ambiente — se alguém definiu um limite maior de
 // propósito, o último argumento é o que o V8 considera, então o nosso vence

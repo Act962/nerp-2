@@ -33,6 +33,7 @@ Arquivos principais:
 - [ ] **1 sessão aberta por operador** — índice parcial no SQL da migration: `CREATE UNIQUE INDEX … ON "cash_sessions" ("organizationId","memberId") WHERE status = 'OPEN'` + guard no handler.
 - [ ] **Procedures** (`src/app/router/caixa/*`) — `abrir`, `fechar` (contagem cega: esperado × contado × diferença), `sangria`, `suprimento`, `current`, `list`, `movements` + `_access.ts`; registrar em `router/index.ts`.
 - [ ] **Amarrar venda à sessão** — bloquear `sales/create.ts` sem caixa aberto; anexar `cashSessionId`; criar `CashMovement` `VENDA` com `paymentMethod`/`amount`.
+- [ ] **Dados de cartão em `SalePayment`** (`prisma/schema.prisma:1232`) — hoje guarda só `method`/`amount`/`saleId`. Sem `acquirer`, `nsu`, `authorizationCode`, `brand`, `installments` e `terminalId` não existe chave para casar venda × liquidação da adquirente, e a conciliação de cartão fica limitada ao agregado do dia. Bloqueia a Fase 2 de [`integracoes-catalogo-financeiro.md`](./integracoes-catalogo-financeiro.md).
 - [ ] **Níveis operador/caixa** (`src/lib/permissions.ts`) — chave de página `caixa` + ações `caixa-abrir/fechar/sangria/suprimento` (aparecem automaticamente no painel de Configurações; carry-over no convite já existe).
 
 ### UX

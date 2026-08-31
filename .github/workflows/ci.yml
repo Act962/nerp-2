@@ -146,6 +146,14 @@ jobs:
           # mockado, nada sai daqui.
           FISCAL_ENCRYPTION_KEY="dGVzdGUtZGUtaW50ZWdyYWNhby1uYW8tdXNhci1lbS1wcm9k"
           FISCAL_S3_BUCKET_NAME="nerp-fiscal-test"
+          # Cifra as credenciais da Meta (WhatsApp) e as dos conectores
+          # financeiros. Sem elas, `whatsapp-connection`, `whatsapp-webhook` e
+          # `integracoes-list` estouram no `beforeAll` e o arquivo inteiro nem
+          # roda — some da contagem em vez de falhar num assert, que foi o que
+          # tornou isso difícil de enxergar. Mesmos valores descartáveis do
+          # `.env.test.example`; mantenha os dois em sincronia.
+          APP_ENCRYPTION_KEY="dGVzdGUtZGUtaW50ZWdyYWNhby1uYW8tdXNhci1lbS1wcm9kMQ=="
+          NASA_S2S_ENCRYPTION_KEY="00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
           EOF
 
       # O `.env.test` acima serve à suíte, mas o `db:generate` que o turbo roda

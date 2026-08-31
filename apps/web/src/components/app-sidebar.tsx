@@ -25,6 +25,7 @@ import {
   DollarSign,
   Building,
   Building2,
+  CalendarClock,
   CalendarDays,
   Camera,
   ChefHat,
@@ -34,6 +35,7 @@ import {
   GalleryVerticalEnd,
   FileText,
   Inbox,
+  KanbanSquare,
   LayoutDashboard,
   Library,
   LayoutGrid,
@@ -44,7 +46,9 @@ import {
   MonitorDown,
   MonitorPlay,
   Package,
+  MessageCircle,
   Plug,
+  Star,
   Plus,
   Receipt,
   ClipboardList,
@@ -62,6 +66,7 @@ import {
   Truck,
   UserCircle2,
   UsersIcon,
+  Workflow,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -382,6 +387,57 @@ const navigation: NavItem[] = [
     href: "/ranking",
     icon: Trophy,
     permission: "ranking",
+  },
+  {
+    // Item pai sem `permission`: quem manda é a chave de cada filho, e o pai
+    // some sozinho quando nenhum filho sobrevive ao filtro.
+    name: "WhatsApp",
+    href: "/whatsapp",
+    icon: MessageCircle,
+    children: [
+      {
+        name: "Atendimento",
+        href: "/whatsapp",
+        icon: MessageCircle,
+        permission: "whatsapp",
+      },
+      {
+        name: "Funil (CRM)",
+        href: "/whatsapp/funil",
+        icon: KanbanSquare,
+        permission: "whatsapp",
+      },
+      {
+        name: "Campanhas",
+        href: "/whatsapp/campanhas",
+        icon: Megaphone,
+        permission: "whatsapp",
+      },
+      {
+        name: "Agenda",
+        href: "/whatsapp/agenda",
+        icon: CalendarClock,
+        permission: "whatsapp",
+      },
+      {
+        name: "Automações",
+        href: "/whatsapp/automacoes",
+        icon: Workflow,
+        permission: "whatsapp",
+      },
+      {
+        name: "Créditos",
+        href: "/whatsapp/creditos",
+        icon: Star,
+        permission: "whatsapp",
+      },
+      {
+        name: "Conexão",
+        href: "/whatsapp/conexao",
+        icon: Plug,
+        permission: "whatsapp",
+      },
+    ],
   },
   {
     name: "Integrações",

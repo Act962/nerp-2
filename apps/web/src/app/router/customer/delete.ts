@@ -12,12 +12,17 @@ export const deleteCustomer = base
       id: z.string(),
     }),
   )
-  .handler(async ({ input, errors }) => {
+  .handler(async ({ input, context, errors }) => {
     const { id } = input;
-    const customer = await prisma.customer.findUnique({
+    // `requireOrgMiddleware` dá o `context.org`, mas não escopa consulta
+    // nenhuma: sem este filtro, qualquer usuário autenticado apagava o cliente
+    // de qualquer organização passando o id.
+    const customer = await prisma.customer.findFirst({
       where: {
         id,
+        organizationId: context.org.id,
       },
+      select: { id: true },
     });
     if (!customer) {
       throw errors.NOT_FOUND({
@@ -26,7 +31,7 @@ export const deleteCustomer = base
     }
     return await prisma.customer.delete({
       where: {
-        id,
+        id: customer.id,
       },
     });
   });

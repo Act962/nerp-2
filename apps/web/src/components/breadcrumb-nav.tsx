@@ -13,8 +13,13 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 
-// Rotas de tela cheia (PDV) onde o breadcrumb só polui.
-const HIDE_BREADCRUMB_ON = ["/vendas/novo"];
+// Rotas de tela cheia (PDV, chat) onde o breadcrumb só polui.
+//
+// `/whatsapp` entra na lista EXATA, não na de prefixos: a caixa de entrada
+// ocupa a altura toda e a linha do breadcrumb empurra a conversa para fora da
+// dobra, mas `/whatsapp/agenda` e `/whatsapp/automacoes` são páginas comuns e
+// se beneficiam dela.
+const HIDE_BREADCRUMB_ON = ["/vendas/novo", "/whatsapp"];
 // Editores em tela cheia (têm cabeçalho próprio): esconde o breadcrumb.
 const HIDE_BREADCRUMB_PREFIXES = ["/catalogo-promocional/"];
 
