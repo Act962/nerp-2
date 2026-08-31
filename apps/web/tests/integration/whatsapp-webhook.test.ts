@@ -173,3 +173,134 @@ describe("POST /api/whatsapp/webhook", () => {
     });
   });
 });
+
+/**
+ * A regressão: um POST com mais de um `phone_number_id` era descartado com
+ * 200. Como 2xx faz a Meta considerar entregue, a mensagem do cliente sumia
+ * sem retentativa — e a Meta agrupa justamente quando os números estão sob o
+ * mesmo App, que é o arranjo normal quando o nerp é o BSP.
+ *
+ * O que os dois testes fixam: o lote é processado, **e** cada mensagem cai na
+ * organização dona do número. Aprovar o lote inteiro porque o segredo de uma
+ * conexão confere deixaria quem conhece esse segredo escrever na conversa da
+ * vizinha.
+ */
+describe("lote com mais de um número", () => {
+  const PHONE_DA_VIZINHA = "2098624330008863";
+  const CLIENTE_DA_VIZINHA = "5511999990000";
+
+  let vizinha: Organization;
+  let funilDaVizinha: string;
+
+  beforeAll(async () => {
+    vizinha = await createOrg("Rede vizinha");
+    const adminDaVizinha = await createUser();
+    await createMember(adminDaVizinha, vizinha);
+
+    const funil = await call(
+      createFunnel,
+      { name: "Atendimento" },
+      { context: s2sContext(adminDaVizinha, vizinha) },
+    );
+    funilDaVizinha = funil.id;
+  });
+
+  /** Envelope com duas `entry`, uma por número, como a Meta agrupa. */
+  function corpoComDoisNumeros(): string {
+    const payload = JSON.parse(corpoDaCaptura("message.json"));
+
+    payload.entry[0].changes[0].value.messages[0].id = "wamid.PRIMEIRA-LOTE";
+
+    const daVizinha = structuredClone(payload.entry[0]);
+    const valor = daVizinha.changes[0].value;
+    valor.metadata.phone_number_id = PHONE_DA_VIZINHA;
+    valor.contacts[0].wa_id = CLIENTE_DA_VIZINHA;
+    valor.messages[0].from = CLIENTE_DA_VIZINHA;
+    valor.messages[0].id = "wamid.VIZINHA-LOTE";
+    payload.entry.push(daVizinha);
+
+    return JSON.stringify(payload);
+  }
+
+  it("processa os dois quando as conexões compartilham o App Secret", async () => {
+    await prisma.whatsAppConnection.create({
+      data: {
+        organizationId: vizinha.id,
+        funnelId: funilDaVizinha,
+        name: "Número da vizinha",
+        ...encryptMetaCredentialsInput({
+          accessToken: "token-da-vizinha",
+          phoneNumberId: PHONE_DA_VIZINHA,
+          appSecret: APP_SECRET,
+        }),
+      },
+    });
+
+    const corpo = corpoComDoisNumeros();
+    const resposta = await POST(requisicao(corpo, assinar(corpo)));
+
+    expect(resposta.status).toBe(200);
+    await expect(resposta.json()).resolves.toMatchObject({
+      ok: true,
+      gravadas: 2,
+    });
+
+    const naVizinha = await prisma.message.findFirstOrThrow({
+      where: { organizationId: vizinha.id },
+      include: { conversation: { include: { lead: true } } },
+    });
+    expect(naVizinha.conversation.lead.phone).toBe(CLIENTE_DA_VIZINHA);
+    expect(naVizinha.conversation.funnelId).toBe(funilDaVizinha);
+
+    // E nada da vizinha atravessou para a primeira organização.
+    expect(
+      await prisma.message.count({
+        where: {
+          organizationId: org.id,
+          conversation: { lead: { phone: CLIENTE_DA_VIZINHA } },
+        },
+      }),
+    ).toBe(0);
+  });
+
+  it("processa só o número cujo próprio segredo valida o corpo", async () => {
+    // A vizinha passa a ter App Secret próprio: a assinatura do corpo é feita
+    // com o segredo da PRIMEIRA, então só ela pode ser processada.
+    await prisma.whatsAppConnection.updateMany({
+      where: { organizationId: vizinha.id },
+      data: encryptMetaCredentialsInput({ appSecret: "segredo-so-da-vizinha" }),
+    });
+
+    const antesNaVizinha = await prisma.message.count({
+      where: { organizationId: vizinha.id },
+    });
+
+    const payload = JSON.parse(corpoComDoisNumeros());
+    payload.entry[0].changes[0].value.messages[0].id = "wamid.PRIMEIRA-MISTA";
+    payload.entry[1].changes[0].value.messages[0].id = "wamid.VIZINHA-MISTA";
+    const corpo = JSON.stringify(payload);
+
+    const resposta = await POST(requisicao(corpo, assinar(corpo)));
+
+    expect(resposta.status).toBe(200);
+    await expect(resposta.json()).resolves.toMatchObject({ gravadas: 1 });
+
+    // A mensagem da vizinha não entrou: o corpo não foi assinado com o segredo
+    // dela, e aceitar seria deixar a primeira forjar conversa na vizinha.
+    expect(
+      await prisma.message.count({ where: { organizationId: vizinha.id } }),
+    ).toBe(antesNaVizinha);
+
+    // E — o que importa de verdade — ela também não caiu na organização que
+    // autenticou. Processar o envelope inteiro porque uma conexão passou na
+    // assinatura entregaria a conversa da vizinha a quem não é dono dela.
+    expect(
+      await prisma.message.findFirst({
+        where: {
+          organizationId: org.id,
+          externalMessageId: "wamid.VIZINHA-MISTA",
+        },
+      }),
+    ).toBeNull();
+  });
+});

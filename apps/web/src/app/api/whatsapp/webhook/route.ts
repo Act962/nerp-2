@@ -27,15 +27,21 @@ import { decryptAppSecret } from "@/lib/crypto/app-secret";
  *
  * 1. ler o corpo **cru** — o HMAC é sobre os bytes exatos; `JSON.parse`
  *    seguido de `stringify` muda espaços e a assinatura deixa de bater;
- * 2. espiar o JSON só para extrair o `phone_number_id`;
- * 3. resolver a conexão (é ela que traz o App Secret e a organização);
- * 4. **só então** validar o HMAC, com falha fechada;
+ * 2. espiar o JSON só para extrair os `phone_number_id`;
+ * 3. resolver as conexões (é delas que vêm o App Secret e a organização);
+ * 4. **só então** validar o HMAC, uma vez por conexão, com falha fechada;
  * 5. validar o formato com Zod;
- * 6. normalizar e entregar à pipeline.
+ * 6. recortar o envelope por número e entregar cada pedaço à pipeline da sua
+ *    organização.
  *
  * Inverter 3 e 4 é impossível — sem saber de quem é a mensagem não se sabe
  * com qual segredo verificar. Por isso o passo 3 não pode ter efeito nenhum
  * além da leitura.
+ *
+ * O passo 4 é **por conexão**, não uma vez só: um POST pode trazer números de
+ * organizações diferentes, e aprovar o lote inteiro porque o segredo de uma
+ * delas confere deixaria quem conhece esse segredo escrever na conversa da
+ * vizinha. Só entra na pipeline o número cujo próprio segredo valida o corpo.
  *
  * ## Código de resposta e a retentativa da Meta
  *
@@ -140,6 +146,37 @@ function extrairPhoneNumberIds(payload: unknown): string[] {
   return Array.from(ids);
 }
 
+/**
+ * Devolve um envelope com **só** as mudanças de um `phone_number_id`.
+ *
+ * A Meta pode agrupar num POST só os eventos de vários números da mesma conta,
+ * e cada número pertence a uma organização. Sem recortar, o lote inteiro seria
+ * normalizado como se fosse de um único dono — ou, como era antes, descartado.
+ *
+ * Trabalha sobre o JSON cru: nesta altura o Zod ainda não passou.
+ */
+function recortarPorPhoneNumberId(payload: unknown, alvo: string): unknown {
+  const entradas = (payload as { entry?: unknown })?.entry;
+  if (!Array.isArray(entradas)) return payload;
+
+  const recortadas = entradas
+    .map((entrada) => {
+      const mudancas = (entrada as { changes?: unknown })?.changes;
+      if (!Array.isArray(mudancas)) return null;
+      const minhas = mudancas.filter(
+        (mudanca) =>
+          (mudanca as { value?: { metadata?: { phone_number_id?: unknown } } })
+            ?.value?.metadata?.phone_number_id === alvo,
+      );
+      return minhas.length > 0
+        ? { ...(entrada as object), changes: minhas }
+        : null;
+    })
+    .filter((entrada) => entrada !== null);
+
+  return { ...(payload as object), entry: recortadas };
+}
+
 // ── POST: os eventos ──────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   let corpoCru: string;
@@ -174,25 +211,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (phoneNumberIds.length > 1) {
-    // O envelope permite vários números num POST só, mas a assinatura é uma
-    // para o corpo inteiro e cada conexão tem o seu App Secret. Processar
-    // seria escolher arbitrariamente com qual segredo validar — e gravar
-    // mensagem na organização errada. Recusa e registra.
-    console.warn("[whatsapp:webhook] varios_phone_number_id", {
-      phoneNumberIds,
-    });
-    return NextResponse.json(
-      { ok: true, ignorado: "varios_phone_number_id" },
-      { status: 200 },
-    );
-  }
+  const assinatura = request.headers.get("x-hub-signature-256");
 
-  const phoneNumberId = phoneNumberIds[0] as string;
-
-  let conexao: Awaited<ReturnType<typeof getConnectionByMetaPhoneNumberId>>;
+  // O envelope permite vários números num POST só, e é o que a Meta faz quando
+  // os números estão sob o mesmo App. Antes o lote inteiro era descartado com
+  // 200 — e 2xx faz a Meta considerar entregue, então a mensagem do cliente
+  // sumia sem retentativa. Agora cada número é resolvido e conferido com **o
+  // App Secret da sua própria conexão**: valida contra o segredo de um e
+  // processar o do outro seria deixar quem conhece um segredo forjar mensagem
+  // para a organização vizinha.
+  let conexoes: NonNullable<
+    Awaited<ReturnType<typeof getConnectionByMetaPhoneNumberId>>
+  >[];
   try {
-    conexao = await getConnectionByMetaPhoneNumberId(phoneNumberId);
+    const resolvidas = await Promise.all(
+      phoneNumberIds.map((id) => getConnectionByMetaPhoneNumberId(id)),
+    );
+    conexoes = resolvidas.filter((c) => c !== null);
   } catch (error) {
     // Banco fora do ar é transitório: 500 para a Meta reentregar.
     console.error("[whatsapp:webhook] busca_da_conexao_falhou", error);
@@ -202,111 +237,120 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!conexao) {
-    // Número que não conhecemos: sem App Secret não há como validar nada.
+  if (conexoes.length === 0) {
+    // Nenhum número conhecido: sem App Secret não há como validar nada.
     // 401 para a Meta parar — é webhook apontado para o ambiente errado.
     console.warn("[whatsapp:webhook] phone_number_id_desconhecido", {
-      phoneNumberId,
+      phoneNumberIds,
     });
     return new NextResponse("Unknown phone_number_id", { status: 401 });
   }
 
-  const appSecret = conexao.appSecret ?? process.env.META_APP_SECRET ?? null;
-  if (!appSecret) {
-    console.warn("[whatsapp:webhook] sem_app_secret", {
-      connectionId: conexao.connectionId,
-    });
-    return new NextResponse("App Secret not configured", { status: 401 });
-  }
+  const autenticadas = conexoes.filter((conexao) => {
+    const appSecret = conexao.appSecret ?? process.env.META_APP_SECRET ?? null;
+    if (!appSecret) {
+      console.warn("[whatsapp:webhook] sem_app_secret", {
+        connectionId: conexao.connectionId,
+      });
+      return false;
+    }
+    if (!isMetaSignatureValid(corpoCru, assinatura, appSecret)) {
+      console.warn("[whatsapp:webhook] assinatura_invalida", {
+        connectionId: conexao.connectionId,
+        temHeader: Boolean(assinatura),
+        origemDoSegredo: conexao.appSecret ? "conexao" : "env_global",
+      });
+      return false;
+    }
+    return true;
+  });
 
-  const assinatura = request.headers.get("x-hub-signature-256");
-  if (!isMetaSignatureValid(corpoCru, assinatura, appSecret)) {
-    console.warn("[whatsapp:webhook] assinatura_invalida", {
-      connectionId: conexao.connectionId,
-      temHeader: Boolean(assinatura),
-      origemDoSegredo: conexao.appSecret ? "conexao" : "env_global",
-    });
+  if (autenticadas.length === 0) {
     return new NextResponse("Invalid signature", { status: 401 });
   }
 
   if (!parseWhatsAppOfficialWebhook(json)) {
     // Assinado corretamente, mas com formato que não conhecemos — tipo novo
     // da Meta. 200 com log: retentar não muda nada.
-    console.warn("[whatsapp:webhook] formato_inesperado", { phoneNumberId });
+    console.warn("[whatsapp:webhook] formato_inesperado", { phoneNumberIds });
     return NextResponse.json(
       { ok: true, ignorado: "formato_inesperado" },
       { status: 200 },
     );
   }
 
-  const provider = createProvider("meta-cloud", {
-    accessToken: conexao.accessToken,
-    phoneNumberId: conexao.phoneNumberId,
-    appSecret,
-  });
-
-  const normalizado = provider.normalizeInbound(json);
-  if (!normalizado) {
-    return NextResponse.json(
-      { ok: true, ignorado: "normalizacao_vazia" },
-      { status: 200 },
-    );
-  }
-
-  const baixarMidia = criarEstrategiaDeMidiaMeta({
-    accessToken: conexao.accessToken,
-    organizationId: conexao.organizationId,
-  });
-
-  // Uma mensagem que falha não pode impedir as outras do mesmo lote: a Meta
-  // reentregaria o lote inteiro, e as que já entraram seriam reprocessadas.
-  // O `upsert` torna isso inofensivo, mas ainda assim tratamos uma a uma.
   let gravadas = 0;
   let ignoradas = 0;
-  for (const mensagem of normalizado.messages) {
-    try {
-      const resultado = await persistInboundMessage(mensagem, {
-        organizationId: conexao.organizationId,
-        funnelId: conexao.funnelId,
-        baixarMidia,
-      });
-      if ("messageId" in resultado) gravadas += 1;
-      else ignoradas += 1;
-    } catch (error) {
-      console.error("[whatsapp:webhook] falha_ao_gravar_mensagem", {
-        externalMessageId: mensagem.externalMessageId,
-        error,
-      });
-      // 500 para a Meta reentregar: é falha nossa, e reprocessar é seguro
-      // porque a gravação é idempotente pelo id da mensagem.
-      return NextResponse.json(
-        { ok: false, motivo: "falha_ao_gravar" },
-        { status: 500 },
-      );
+  let statusAplicados = 0;
+  let statusDeCampanha = 0;
+
+  for (const conexao of autenticadas) {
+    const appSecret = conexao.appSecret ?? process.env.META_APP_SECRET ?? "";
+    const provider = createProvider("meta-cloud", {
+      accessToken: conexao.accessToken,
+      phoneNumberId: conexao.phoneNumberId,
+      appSecret,
+    });
+
+    // Cada organização enxerga só o que é dela. Normalizar o envelope inteiro
+    // gravaria a mensagem da vizinha no funil errado.
+    //
+    // O atalho olha quantos números o ENVELOPE traz, não quantas conexões
+    // passaram na assinatura: com dois números e só um autenticado, pular o
+    // recorte entregaria as duas mensagens à organização que autenticou.
+    const meuPedaco =
+      phoneNumberIds.length === 1
+        ? json
+        : recortarPorPhoneNumberId(json, conexao.phoneNumberId);
+
+    const normalizado = provider.normalizeInbound(meuPedaco);
+    if (!normalizado) continue;
+
+    const baixarMidia = criarEstrategiaDeMidiaMeta({
+      accessToken: conexao.accessToken,
+      organizationId: conexao.organizationId,
+    });
+
+    // Uma mensagem que falha não pode impedir as outras do mesmo lote: a Meta
+    // reentregaria o lote inteiro, e as que já entraram seriam reprocessadas.
+    // O `upsert` torna isso inofensivo, mas ainda assim tratamos uma a uma.
+    for (const mensagem of normalizado.messages) {
+      try {
+        const resultado = await persistInboundMessage(mensagem, {
+          organizationId: conexao.organizationId,
+          funnelId: conexao.funnelId,
+          baixarMidia,
+        });
+        if ("messageId" in resultado) gravadas += 1;
+        else ignoradas += 1;
+      } catch (error) {
+        console.error("[whatsapp:webhook] falha_ao_gravar_mensagem", {
+          externalMessageId: mensagem.externalMessageId,
+          error,
+        });
+        // 500 para a Meta reentregar: é falha nossa, e reprocessar é seguro
+        // porque a gravação é idempotente pelo id da mensagem.
+        return NextResponse.json(
+          { ok: false, motivo: "falha_ao_gravar" },
+          { status: 500 },
+        );
+      }
     }
+
+    // O mesmo aviso serve para dois destinos: o tique da mensagem no chat e o
+    // status do destinatário da campanha. Qual dos dois responde depende de
+    // onde o `wamid` foi gravado — por isso os dois são consultados.
+    const atualizacoes = normalizado.statusUpdates ?? [];
+    statusAplicados += (
+      await applyStatusUpdates(atualizacoes, conexao.organizationId)
+    ).aplicadas;
+    statusDeCampanha += (
+      await aplicarStatusDeCampanha(atualizacoes, conexao.organizationId)
+    ).aplicadas;
   }
 
-  // O mesmo aviso serve para dois destinos: o tique da mensagem no chat e o
-  // status do destinatário da campanha. Qual dos dois responde depende de onde
-  // o `wamid` foi gravado — por isso os dois são consultados.
-  const atualizacoes = normalizado.statusUpdates ?? [];
-  const { aplicadas } = await applyStatusUpdates(
-    atualizacoes,
-    conexao.organizationId,
-  );
-  const daCampanha = await aplicarStatusDeCampanha(
-    atualizacoes,
-    conexao.organizationId,
-  );
-
   return NextResponse.json(
-    {
-      ok: true,
-      gravadas,
-      ignoradas,
-      statusAplicados: aplicadas,
-      statusDeCampanha: daCampanha.aplicadas,
-    },
+    { ok: true, gravadas, ignoradas, statusAplicados, statusDeCampanha },
     { status: 200 },
   );
 }
