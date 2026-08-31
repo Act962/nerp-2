@@ -4,6 +4,8 @@ import { sanitizarErro } from "@/features/integracoes/server/credentials";
 import {
   ACOES,
   cobrarAcao,
+  custoDaAcao,
+  podePagar,
   SaldoInsuficienteError,
 } from "@/features/stars/server/debitar";
 import { resolveOutboundProvider } from "@/features/whatsapp-chat/lib/providers";
@@ -74,10 +76,40 @@ export async function enviarLote(input: {
     ? (campanha.templateVariables as unknown[]).map(String)
     : [];
 
+  // Uma leitura por lote: o preço não muda no meio de cinquenta envios. Zero
+  // é o padrão de quem não ligou a cobrança, e aí toda a conferência de saldo
+  // abaixo sai do caminho sem custar consulta nenhuma.
+  const custo = await custoDaAcao(
+    input.organizationId,
+    ACOES.destinatarioDeCampanha,
+  );
+
   let enviados = 0;
   let falharam = 0;
 
+  /** Fecha a rodada informando quanto sobrou para a próxima. */
+  const encerrar = async (semSaldo: boolean) => {
+    await recalcularContadores(campanha.id);
+    const restam = await prisma.broadcastRecipient.count({
+      where: { broadcastId: campanha.id, status: "PENDING" },
+    });
+    return { enviados, falharam, restam, semSaldo };
+  };
+
   for (const destinatario of pendentes) {
+    // Confere o saldo ANTES de enviar, porque a cobrança vem depois do envio
+    // (o motivo está logo abaixo). Sem esta parada, a mensagem que esgota o
+    // saldo sai, é marcada `SENT` e nunca é cobrada: ela deixou de estar
+    // `PENDING`, então a consulta da próxima rodada não a alcança. Era uma
+    // mensagem grátis por esgotamento, visível só cruzando o extrato de ★ com
+    // o relatório da campanha.
+    if (custo > 0 && !(await podePagar(input.organizationId, custo))) {
+      console.warn("[campanha] saldo de ★ acabou; lote interrompido", {
+        broadcastId: campanha.id,
+      });
+      return encerrar(true);
+    }
+
     // Marca se o envio deu certo. A cobrança acontece FORA do `try` do envio:
     // dentro dele, um erro ao cobrar cairia no `catch` que marca o
     // destinatário como falho — e marcaria como falha alguém que já recebeu.
@@ -133,10 +165,8 @@ export async function enviarLote(input: {
     // Cobra **depois** de o envio dar certo e de o destinatário sair de
     // `PENDING`. Cobrar antes faria a repetição de um lote cobrar duas vezes
     // pela mesma mensagem; nesta ordem, a repetição nem chega aqui, porque a
-    // consulta só pega quem ainda está pendente.
-    //
-    // Se o saldo acabar no meio do lote, para por aqui: o que já saiu está
-    // pago, e o restante continua pendente para quando houver crédito.
+    // consulta só pega quem ainda está pendente. É o `podePagar` no topo do
+    // laço que garante que a esta altura há saldo.
     try {
       await cobrarAcao({
         organizationId: input.organizationId,
@@ -146,22 +176,22 @@ export async function enviarLote(input: {
     } catch (erroDeSaldo) {
       if (!(erroDeSaldo instanceof SaldoInsuficienteError)) throw erroDeSaldo;
 
-      console.warn("[campanha] saldo de ★ acabou no meio do lote", {
-        broadcastId: campanha.id,
-      });
-      await recalcularContadores(campanha.id);
-      const aindaPendentes = await prisma.broadcastRecipient.count({
-        where: { broadcastId: campanha.id, status: "PENDING" },
-      });
-      return { enviados, falharam, restam: aindaPendentes, semSaldo: true };
+      // Corrida: a conferência aprovou e outro envio da mesma organização
+      // consumiu o saldo antes deste débito. `podePagar` não reserva, então
+      // sobra esta janela. A mensagem JÁ SAIU e não será cobrada — registra
+      // como erro, porque é dinheiro e não pode passar como aviso de rotina.
+      console.error(
+        "[campanha] mensagem enviada sem cobrança: saldo consumido entre a conferência e o débito",
+        {
+          broadcastId: campanha.id,
+          organizationId: input.organizationId,
+          recipientId: destinatario.id,
+          custo,
+        },
+      );
+      return encerrar(true);
     }
   }
 
-  await recalcularContadores(campanha.id);
-
-  const restam = await prisma.broadcastRecipient.count({
-    where: { broadcastId: campanha.id, status: "PENDING" },
-  });
-
-  return { enviados, falharam, restam };
+  return encerrar(false);
 }

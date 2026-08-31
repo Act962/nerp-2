@@ -346,6 +346,103 @@ describe("envio em lotes", () => {
   });
 });
 
+describe("cobrança de ★ no lote", () => {
+  /**
+   * A regressão: a cobrança acontece DEPOIS do envio, para a repetição de um
+   * lote não cobrar duas vezes pela mesma mensagem. Sem conferir o saldo antes
+   * de enviar, a mensagem que esgota o saldo saía, era marcada `SENT` e nunca
+   * era cobrada — e como deixava de estar `PENDING`, nenhuma rodada seguinte a
+   * alcançava. Uma mensagem grátis por esgotamento, visível só cruzando o
+   * extrato com o relatório.
+   *
+   * O que o teste fixa é a igualdade: toda mensagem que saiu foi cobrada.
+   */
+  it("não envia mensagem que não consegue cobrar", async () => {
+    const comCobranca = await call(
+      createCampanha,
+      { funnelId, name: "Com cobrança" },
+      { context: s2sContext(admin, org) },
+    );
+    await call(
+      addRecipientsFromLeads,
+      { broadcastId: comCobranca.id, limite: 1000 },
+      { context: s2sContext(admin, org) },
+    );
+    await call(
+      setTemplate,
+      {
+        broadcastId: comCobranca.id,
+        nome: "promocao_semanal",
+        idioma: "pt_BR",
+        categoria: "MARKETING",
+      },
+      { context: s2sContext(admin, org) },
+    );
+    await call(
+      sendCampanha,
+      { broadcastId: comCobranca.id },
+      { context: s2sContext(admin, org) },
+    );
+
+    const total = await prisma.broadcastRecipient.count({
+      where: { broadcastId: comCobranca.id },
+    });
+    // Saldo para menos gente do que a campanha tem: é o esgotamento no meio.
+    const saldo = total - 2;
+
+    await prisma.starRule.create({
+      data: {
+        organizationId: org.id,
+        actionKey: "campaign_recipient",
+        label: "Destinatário de campanha",
+        stars: 1,
+        isActive: true,
+      },
+    });
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { starsBalance: saldo },
+    });
+
+    let sequencia = 0;
+    enviarTemplate.mockImplementation(async () => {
+      sequencia += 1;
+      return { externalMessageId: `wamid.COBRANCA-${sequencia}`, raw: {} };
+    });
+
+    const resultado = await enviarLote({
+      broadcastId: comCobranca.id,
+      organizationId: org.id,
+      funnelId,
+    });
+
+    expect(resultado.semSaldo).toBe(true);
+    expect(resultado.enviados).toBe(saldo);
+
+    const cobrancas = await prisma.starTransaction.count({
+      where: { organizationId: org.id, type: "APP_CHARGE" },
+    });
+    // O invariante: nenhuma mensagem saiu de graça.
+    expect(cobrancas).toBe(resultado.enviados);
+
+    const enviados = await prisma.broadcastRecipient.count({
+      where: { broadcastId: comCobranca.id, status: "SENT" },
+    });
+    expect(enviados).toBe(cobrancas);
+
+    // Quem não coube continua pendente, para quando houver crédito.
+    expect(resultado.restam).toBe(total - saldo);
+
+    const depois = await prisma.organization.findUniqueOrThrow({
+      where: { id: org.id },
+      select: { starsBalance: true },
+    });
+    expect(depois.starsBalance).toBe(0);
+
+    await prisma.starRule.deleteMany({ where: { organizationId: org.id } });
+  });
+});
+
 describe("avisos de entrega", () => {
   it("avança o status e recalcula os contadores", async () => {
     const destinatario = await prisma.broadcastRecipient.findFirstOrThrow({
