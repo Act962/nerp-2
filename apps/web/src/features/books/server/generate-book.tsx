@@ -497,6 +497,7 @@ export async function generateBook(bookId: string): Promise<string> {
     coverBackground: readBackground(fundoCapa),
     closingBackground: readBackground(fundoFinal),
     pageBackground: readBackground(book.pageBackground),
+    showPhotoNumbers: book.showPhotoNumbers,
   };
 
   const buffer = await renderToBuffer(<BookDocument data={data} />);

@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { z } from "zod";
+import { assignSlotPhoto } from "./_slot";
 
 // Define (ou substitui) a foto de um slot dentro de uma BookPage. Se o slot
 // já tem um item, troca o pdvPhotoId; senão, cria um item novo naquele slot.
@@ -34,34 +35,10 @@ export const setSlotPhoto = base
     });
     if (!photo) throw errors.NOT_FOUND({ message: "Foto não encontrada" });
 
-    const existing = await prisma.bookItem.findFirst({
-      where: { bookPageId: page.id, slotIndex: input.slotIndex },
-      select: { id: true },
+    return assignSlotPhoto(prisma, {
+      bookId: page.bookId,
+      bookPageId: page.id,
+      slotIndex: input.slotIndex,
+      pdvPhotoId: input.pdvPhotoId,
     });
-
-    if (existing) {
-      await prisma.bookItem.update({
-        where: { id: existing.id },
-        data: { pdvPhotoId: input.pdvPhotoId },
-      });
-      return { itemId: existing.id };
-    }
-
-    const last = await prisma.bookItem.findFirst({
-      where: { bookId: page.bookId },
-      orderBy: { order: "desc" },
-      select: { order: true },
-    });
-
-    const created = await prisma.bookItem.create({
-      data: {
-        bookId: page.bookId,
-        bookPageId: page.id,
-        pdvPhotoId: input.pdvPhotoId,
-        slotIndex: input.slotIndex,
-        order: (last?.order ?? -1) + 1,
-      },
-      select: { id: true },
-    });
-    return { itemId: created.id };
   });

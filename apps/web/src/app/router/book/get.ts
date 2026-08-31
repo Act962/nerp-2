@@ -124,6 +124,7 @@ export const getBook = base
       coverBackground: chrome.cover?.background ?? book.coverBackground,
       closingBackground: chrome.closing?.background ?? book.closingBackground,
       pageBackground: book.pageBackground,
+      showPhotoNumbers: book.showPhotoNumbers,
       generatedAt: book.generatedAt?.toISOString() ?? null,
       // Editado depois de gerar = o PDF em mãos não reflete o que está na tela.
       // Tolerância de 3s: o próprio update que grava generatedAt bumpa o
