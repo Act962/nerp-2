@@ -29,6 +29,7 @@ import {
   useRemoveBookItem,
   useSetSlotAdjustment,
   useSetSlotPhoto,
+  useUploadSlotPhoto,
 } from "../../hooks/use-books";
 import type { BookVariableValues } from "../../lib/book-variables";
 import {
@@ -117,6 +118,8 @@ interface BookPageCardV2Props {
   variableValues: BookVariableValues;
   // Número sequencial de cada foto no book (slotIndex → N), pra legenda "FOTO N".
   photoNumbers: Record<number, number>;
+  // Interruptor "Numerar as fotos" do book.
+  showPhotoNumbers: boolean;
   onMoveUp: () => void;
   onMoveDown: () => void;
   onInsertAfter: () => void;
@@ -133,6 +136,7 @@ export function BookPageCardV2({
   logos,
   variableValues,
   photoNumbers,
+  showPhotoNumbers,
   onMoveUp,
   onMoveDown,
   onInsertAfter,
@@ -142,6 +146,7 @@ export function BookPageCardV2({
   const removeItem = useRemoveBookItem();
   const deletePage = useDeleteBookPage();
   const setSlot = useSetSlotPhoto();
+  const uploadSlot = useUploadSlotPhoto();
   const setAdjustment = useSetSlotAdjustment();
   const changePattern = useChangeBookPageLayout();
   const currentPattern = inferCurrentPattern(page.pageLayout);
@@ -324,6 +329,7 @@ export function BookPageCardV2({
                 photoUrls={photoUrls}
                 photoAdjustments={photoAdjustments}
                 photoNumbers={photoNumbers}
+                showPhotoNumbers={showPhotoNumbers}
                 variableValues={pageVariables}
                 photoVariables={photoVariables}
                 logos={logos}
@@ -468,6 +474,16 @@ export function BookPageCardV2({
               { onSuccess: () => setSwapContext(null) },
             );
           }}
+          onPickUpload={(photoKey) => {
+            uploadSlot.mutate(
+              {
+                bookPageId: page.id,
+                slotIndex: swapContext.slotIndex,
+                photoKey,
+              },
+              { onSuccess: () => setSwapContext(null) },
+            );
+          }}
         />
       )}
 
@@ -588,6 +604,7 @@ function SwapPhotoDialog({
   storeId,
   storeName,
   onPickPdvPhoto,
+  onPickUpload,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -596,6 +613,8 @@ function SwapPhotoDialog({
   storeId: string;
   storeName: string | null;
   onPickPdvPhoto: (pdvPhotoId: string) => void;
+  // Foto vinda do computador: o arquivo já subiu, só existe a chave R2.
+  onPickUpload: (photoKey: string) => void;
 }) {
   return (
     <ImportPhotoDialog
@@ -607,6 +626,7 @@ function SwapPhotoDialog({
       defaultStoreName={storeName}
       onPick={(photo) => {
         if (photo.id) onPickPdvPhoto(photo.id);
+        else onPickUpload(photo.photoKey);
       }}
     />
   );

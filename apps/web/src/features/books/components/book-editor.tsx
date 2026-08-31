@@ -1,7 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { Switch } from "@/components/ui/switch";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {
   ArrowLeft,
@@ -13,7 +15,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useBook, useGenerateBook, useSendBook } from "../hooks/use-books";
+import {
+  useBook,
+  useGenerateBook,
+  useSendBook,
+  useSetBookPhotoNumbers,
+} from "../hooks/use-books";
 import { formatPeriod } from "../lib/book-format";
 import { buildSampleValues } from "../lib/book-variables";
 import { AddExtraPageButton } from "./book-pages/add-extra-page-button";
@@ -22,6 +29,7 @@ import { BookCoverCard } from "./book-pages/book-cover-card";
 import { BookPagesGrid } from "./book-pages/book-pages-grid";
 import { BookPagesList } from "./book-pages/book-pages-list";
 import { BookPagesListV2 } from "./book-pages/book-pages-list-v2";
+import { BookSlidesEditor } from "./book-pages/book-slides-editor";
 import { BookStatusBadge } from "./book-status-badge";
 
 interface BookEditorProps {
@@ -46,6 +54,7 @@ export function BookEditor({ bookId }: BookEditorProps) {
   const { book, isLoading } = useBook(bookId);
   const generateBook = useGenerateBook();
   const sendBook = useSendBook();
+  const setPhotoNumbers = useSetBookPhotoNumbers();
   const [pendingMode, setPendingMode] = useState<"queue" | "sync" | null>(null);
   const [view, setView] = useState<BookView>("list");
   // Zoom do conteúdo (%) — como no Canva. Feito pela LARGURA do container: o
@@ -57,7 +66,7 @@ export function BookEditor({ bookId }: BookEditorProps) {
   const [pendingScroll, setPendingScroll] = useState<number | null>(null);
 
   const goToPage = (pageNumber: number) => {
-    if (view === "grid") {
+    if (view !== "list") {
       setView("list");
       setPendingScroll(pageNumber);
     } else {
@@ -140,6 +149,26 @@ export function BookEditor({ bookId }: BookEditorProps) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+            <Switch
+              id="numerar-fotos"
+              checked={book.showPhotoNumbers}
+              onCheckedChange={(checked) =>
+                setPhotoNumbers.mutate({
+                  id: bookId,
+                  showPhotoNumbers: checked,
+                })
+              }
+              disabled={setPhotoNumbers.isPending}
+            />
+            <Label
+              htmlFor="numerar-fotos"
+              className="cursor-pointer text-sm font-normal"
+              title='Tarja "FOTO N" dentro de cada foto. Desligar vale para o book inteiro; não afeta os textos do layout que usam a variável {{numeroFoto}}.'
+            >
+              Numerar as fotos
+            </Label>
+          </div>
           {book.status === "READY" && book.pdfKey && (
             <Button asChild variant="outline">
               <a
@@ -238,8 +267,22 @@ export function BookEditor({ bookId }: BookEditorProps) {
         </p>
       )}
 
-      <div className="mx-auto" style={{ width: `${zoom}%` }}>
-        {view === "grid" ? (
+      {/* O zoom é da leitura (Lista/Grade). Nos slides o canvas tem o próprio
+          enquadramento, e encolher a página só dificultaria a edição. */}
+      <div
+        className="mx-auto"
+        style={view === "slides" ? undefined : { width: `${zoom}%` }}
+      >
+        {view === "slides" ? (
+          <BookSlidesEditor
+            pages={book.pages ?? []}
+            pageLayout={book.pageLayout}
+            pageBackground={book.pageBackground}
+            logos={logos}
+            variableValues={variableValues}
+            pageNumberStart={2}
+          />
+        ) : view === "grid" ? (
           <BookPagesGrid
             supplierId={book.supplierId}
             coverLayout={book.coverLayout}
@@ -307,6 +350,7 @@ export function BookEditor({ bookId }: BookEditorProps) {
                 variableValues={variableValues}
                 pageNumberStart={2}
                 totalPages={totalPages}
+                showPhotoNumbers={book.showPhotoNumbers}
               />
             )}
 

@@ -15,6 +15,7 @@ export const updateBook = base
       periodMonth: z.number().int().min(1).max(12).optional(),
       periodYear: z.number().int().min(2000).max(2100).optional(),
       distributorLogo: z.string().nullable().optional(),
+      showPhotoNumbers: z.boolean().optional(),
     }),
   )
   .handler(async ({ input, context, errors }) => {

@@ -70,6 +70,9 @@ export interface BookDocumentData {
   coverBackground?: CoverBackground | null;
   closingBackground?: CoverBackground | null;
   pageBackground?: CoverBackground | null;
+  // Interruptor "Numerar as fotos" do book: false esconde a tarja "FOTO N"
+  // dentro das fotos. A variável {{numeroFoto}} dos textos segue funcionando.
+  showPhotoNumbers?: boolean;
 }
 
 // Variáveis que valem no documento inteiro — as únicas disponíveis na capa e
@@ -420,6 +423,7 @@ export function BookDocument({ data }: { data: BookDocumentData }) {
               photoSources={item.photoSources}
               photoFits={item.photoFits}
               photoNumbers={item.photoNumbers}
+              showPhotoNumbers={data.showPhotoNumbers}
               photoVariables={item.photoVariables}
               photoBackdrops={item.photoBackdrops}
             />

@@ -51,6 +51,7 @@ function PreviewElement({
   photoUrls,
   photoAdjustments,
   photoNumbers,
+  showPhotoNumbers = true,
   onSlotClick,
   logos,
 }: {
@@ -60,6 +61,10 @@ function PreviewElement({
   photoUrls?: string[];
   photoAdjustments?: Array<PhotoAdjustment | undefined>;
   photoNumbers?: Record<number, number>;
+  // Interruptor do book: false esconde a tarja "FOTO N" de TODOS os espaços.
+  // Não mexe na variável {{numeroFoto}} dos textos — a numeração continua
+  // existindo, só não é carimbada dentro da foto.
+  showPhotoNumbers?: boolean;
   onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
   logos?: LayoutLogos;
 }) {
@@ -144,7 +149,8 @@ function PreviewElement({
     // Legenda "FOTO N": numeração sequencial no book (só quando o slot tem foto
     // e não foi desativada no padrão).
     const photoNumber = photoNumbers?.[element.slotIndex];
-    const showNumber = element.showNumber !== false && photoNumber != null;
+    const showNumber =
+      showPhotoNumbers && element.showNumber !== false && photoNumber != null;
     const commonBox = {
       ...box,
       ...moldura,
@@ -303,6 +309,8 @@ interface LayoutPreviewProps {
   photoUrls?: string[];
   photoAdjustments?: Array<PhotoAdjustment | undefined>;
   photoNumbers?: Record<number, number>;
+  // Interruptor do book: false esconde a tarja "FOTO N" dentro das fotos.
+  showPhotoNumbers?: boolean;
   onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
   logos?: LayoutLogos;
   className?: string;
@@ -316,6 +324,7 @@ export function LayoutPreview({
   photoUrls,
   photoAdjustments,
   photoNumbers,
+  showPhotoNumbers,
   onSlotClick,
   logos,
   className,
@@ -358,6 +367,7 @@ export function LayoutPreview({
           photoUrls={photoUrls}
           photoAdjustments={photoAdjustments}
           photoNumbers={photoNumbers}
+          showPhotoNumbers={showPhotoNumbers}
           onSlotClick={onSlotClick}
           logos={logos}
         />

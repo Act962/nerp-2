@@ -25,6 +25,8 @@ interface BookPagesListV2Props {
   // scroll do "Ir para página" e pro rótulo "Página X/N" bater com o número.
   pageNumberStart?: number;
   totalPages?: number;
+  // Interruptor "Numerar as fotos" do book.
+  showPhotoNumbers?: boolean;
 }
 
 export function BookPagesListV2({
@@ -35,6 +37,7 @@ export function BookPagesListV2({
   variableValues,
   pageNumberStart,
   totalPages,
+  showPhotoNumbers = true,
 }: BookPagesListV2Props) {
   const reorder = useReorderBookPages();
   const addPage = useAddBookPage();
@@ -207,6 +210,7 @@ export function BookPagesListV2({
             logos={logos}
             variableValues={variableValues}
             photoNumbers={numbersByPage[index]}
+            showPhotoNumbers={showPhotoNumbers}
             onMoveUp={() => move(index, index - 1)}
             onMoveDown={() => move(index, index + 1)}
             onInsertAfter={() => {

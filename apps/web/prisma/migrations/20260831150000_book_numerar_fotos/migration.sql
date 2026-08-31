@@ -1,0 +1,16 @@
+-- Interruptor de numeração das fotos por BOOK.
+--
+-- A tarja "FOTO N" dentro da foto já era desligável por espaço de foto
+-- (`showNumber` no layout), mas só uma a uma, dentro do editor de layout de
+-- cada página: num book de 100 páginas seriam 200 cliques. Este campo desliga o
+-- book inteiro de uma vez, e o `showNumber` do slot segue valendo como exceção
+-- enquanto o book está ligado.
+--
+-- Não afeta a variável {{numeroFoto}} usada em textos do layout: a numeração
+-- continua existindo, só não é carimbada dentro da foto.
+--
+-- Default true preserva o comportamento de todos os books existentes.
+--
+-- IF NOT EXISTS porque o `migrate deploy` desta base está bloqueado por uma
+-- migração falha anterior (P3009) e esta é aplicada à mão.
+ALTER TABLE "books" ADD COLUMN IF NOT EXISTS "showPhotoNumbers" BOOLEAN NOT NULL DEFAULT true;

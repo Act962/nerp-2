@@ -32,6 +32,7 @@ import { duplicateBookPage } from "./duplicate-page";
 import { autoGenerateBook } from "./auto-generate";
 import { autoGeneratePreview } from "./auto-generate-preview";
 import { setSlotPhoto } from "./set-slot-photo";
+import { uploadSlotPhoto } from "./upload-slot-photo";
 import { setSlotAdjustment } from "./set-slot-adjustment";
 import { getBookPageTemplate } from "./get-page-template";
 import { updateBookPageTemplate } from "./update-page-template";
@@ -80,6 +81,7 @@ export const bookRoutes = {
   autoGenerate: autoGenerateBook,
   autoGeneratePreview: autoGeneratePreview,
   setSlotPhoto: setSlotPhoto,
+  uploadSlotPhoto: uploadSlotPhoto,
   setSlotAdjustment: setSlotAdjustment,
   getPageTemplate: getBookPageTemplate,
   updatePageTemplate: updateBookPageTemplate,
