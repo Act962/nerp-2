@@ -343,7 +343,16 @@ conta, que é sua:
 
 1. Stripe → Developers → Webhooks → **Add endpoint**
 2. URL: `https://<domínio>/api/stars/webhook`
-3. Evento: **apenas** `checkout.session.completed`
+3. Eventos: `checkout.session.completed`,
+   `checkout.session.async_payment_succeeded` e
+   `checkout.session.async_payment_failed` — **os três**, e só eles
+
+   > Os dois últimos não são opcionais. Boleto e Pix não confirmam na hora: o
+   > Stripe manda `completed` na **abertura** do checkout, com
+   > `payment_status: "unpaid"`, e só depois manda `async_payment_succeeded`.
+   > Assinando só o primeiro, o cliente paga o boleto e o ★ nunca é creditado —
+   > o `StarsPayment` fica `pending` para sempre, sem erro em lugar nenhum.
+   > Quem decide creditar é o `payment_status`, não o nome do evento.
 4. Copie o *signing secret* (`whsec_…`) para a variável
    **`STRIPE_STARS_WEBHOOK_SECRET`** no ambiente do Coolify.
 

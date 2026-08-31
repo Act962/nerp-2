@@ -53,6 +53,47 @@ export async function custoDaAcao(
 }
 
 /**
+ * A organização consegue pagar `valor` ★ agora?
+ *
+ * Existe para quem é obrigado a executar a ação **antes** de cobrar — hoje só
+ * o disparo de campanha, que precisa dessa ordem para a repetição de um lote
+ * não cobrar duas vezes pela mesma mensagem. Nessa ordem invertida, descobrir
+ * a falta de saldo pelo `SaldoInsuficienteError` é tarde demais: a mensagem já
+ * saiu e já deixou de estar `PENDING`, então nenhuma rodada seguinte a alcança
+ * para cobrar.
+ *
+ * Confere o crédito do ciclo antes de dizer não, pelo mesmo motivo que
+ * `cobrarAcao` confere no caminho de falha: saldo zerado na virada do mês
+ * costuma ser só o crédito do plano que ainda não entrou.
+ *
+ * **Não reserva nada.** Entre o `true` daqui e o débito ainda cabe outro envio
+ * concorrente, então quem chama precisa tratar a cobrança que falha mesmo
+ * assim — é raro, mas é dinheiro.
+ */
+export async function podePagar(
+  organizationId: string,
+  valor: number,
+): Promise<boolean> {
+  if (valor <= 0) return true;
+
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { starsBalance: true },
+  });
+  if (!org) return false;
+  if (org.starsBalance >= valor) return true;
+
+  const { garantirCreditoDoCiclo } = await import("./credito-do-ciclo");
+  if (!(await garantirCreditoDoCiclo(organizationId)).creditou) return false;
+
+  const depois = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { starsBalance: true },
+  });
+  return (depois?.starsBalance ?? 0) >= valor;
+}
+
+/**
  * Cobra uma ação. Lança `SaldoInsuficienteError` quando há regra e falta saldo.
  *
  * Quem chama deve fazê-lo **depois** de garantir que a ação pode acontecer
@@ -70,60 +111,82 @@ export async function cobrarAcao(input: {
   const valor = await custoDaAcao(input.organizationId, input.actionKey);
   if (valor === 0) return { cobrado: false, valor: 0, saldoDepois: null };
 
-  // O `gte` no `where` é a trava: só debita quem ainda tem saldo, e a
-  // concorrência é resolvida pelo banco, não por leitura seguida de escrita.
-  const { count } = await prisma.organization.updateMany({
-    where: { id: input.organizationId, starsBalance: { gte: valor } },
-    data: { starsBalance: { decrement: valor } },
-  });
-
-  if (count === 0) {
-    // Saldo insuficiente pode ser só o crédito do mês que ainda não entrou.
-    // A conferência do ciclo mora AQUI, no caminho de falha, e não no começo
-    // da função: no caminho feliz ela seria uma consulta a mais em toda
-    // mensagem enviada, para quase sempre não fazer nada.
-    const { garantirCreditoDoCiclo } = await import("./credito-do-ciclo");
-    const ciclo = await garantirCreditoDoCiclo(input.organizationId);
-
-    if (ciclo.creditou) {
-      const segunda = await prisma.organization.updateMany({
-        where: { id: input.organizationId, starsBalance: { gte: valor } },
-        data: { starsBalance: { decrement: valor } },
-      });
-      if (segunda.count === 0) {
-        const org = await prisma.organization.findUnique({
-          where: { id: input.organizationId },
-          select: { starsBalance: true },
-        });
-        throw new SaldoInsuficienteError(valor, org?.starsBalance ?? 0);
-      }
-    } else {
-      const org = await prisma.organization.findUnique({
-        where: { id: input.organizationId },
-        select: { starsBalance: true },
-      });
-      throw new SaldoInsuficienteError(valor, org?.starsBalance ?? 0);
-    }
+  const saldoDepois = await debitarComExtrato(input, valor);
+  if (saldoDepois !== null) {
+    return { cobrado: true, valor, saldoDepois };
   }
 
-  const org = await prisma.organization.findUniqueOrThrow({
+  // Saldo insuficiente pode ser só o crédito do mês que ainda não entrou. A
+  // conferência do ciclo mora AQUI, no caminho de falha, e não no começo da
+  // função: no caminho feliz ela seria uma consulta a mais em toda mensagem
+  // enviada, para quase sempre não fazer nada.
+  //
+  // E mora **fora** da transação do débito de propósito: ela escreve na mesma
+  // linha de `organization` por outra conexão, e chamá-la com a linha já
+  // travada seria esperar a si mesma até o tempo limite.
+  const { garantirCreditoDoCiclo } = await import("./credito-do-ciclo");
+  if ((await garantirCreditoDoCiclo(input.organizationId)).creditou) {
+    const segunda = await debitarComExtrato(input, valor);
+    if (segunda !== null) return { cobrado: true, valor, saldoDepois: segunda };
+  }
+
+  const org = await prisma.organization.findUnique({
     where: { id: input.organizationId },
     select: { starsBalance: true },
   });
+  throw new SaldoInsuficienteError(valor, org?.starsBalance ?? 0);
+}
 
-  await prisma.starTransaction.create({
-    data: {
-      organizationId: input.organizationId,
-      type: "APP_CHARGE",
-      amount: -valor,
-      balanceAfter: org.starsBalance,
-      description: input.descricao,
-      actionKey: input.actionKey,
-      userId: input.userId ?? null,
-    },
+/**
+ * Desconta o saldo e grava a linha do extrato **na mesma transação**.
+ * Devolve o saldo resultante, ou `null` quando o saldo não cobria o valor.
+ *
+ * As duas escritas juntas não são preciosismo. Separadas, o processo que morre
+ * entre elas deixa ★ debitado sem lançamento nenhum — a loja vê saldo sumindo
+ * e não há como reconstruir de onde.
+ *
+ * O `gte` no `where` continua sendo a trava de concorrência: só debita quem
+ * ainda tem saldo, e quem perde a corrida vê `count: 0`. O que a transação
+ * acrescenta é a leitura do `balanceAfter` **sob a trava da própria linha** —
+ * lida fora dela, duas cobranças simultâneas liam o saldo já descontado pelas
+ * duas e gravavam o mesmo `balanceAfter`, quebrando a conferência do extrato
+ * que é justamente para isso que ele serve.
+ */
+async function debitarComExtrato(
+  input: {
+    organizationId: string;
+    actionKey: string;
+    descricao: string;
+    userId?: string;
+  },
+  valor: number,
+): Promise<number | null> {
+  return prisma.$transaction(async (tx) => {
+    const { count } = await tx.organization.updateMany({
+      where: { id: input.organizationId, starsBalance: { gte: valor } },
+      data: { starsBalance: { decrement: valor } },
+    });
+    if (count === 0) return null;
+
+    const org = await tx.organization.findUniqueOrThrow({
+      where: { id: input.organizationId },
+      select: { starsBalance: true },
+    });
+
+    await tx.starTransaction.create({
+      data: {
+        organizationId: input.organizationId,
+        type: "APP_CHARGE",
+        amount: -valor,
+        balanceAfter: org.starsBalance,
+        description: input.descricao,
+        actionKey: input.actionKey,
+        userId: input.userId ?? null,
+      },
+    });
+
+    return org.starsBalance;
   });
-
-  return { cobrado: true, valor, saldoDepois: org.starsBalance };
 }
 
 /**
@@ -132,6 +195,9 @@ export async function cobrarAcao(input: {
  * Existe para o caso de a ação falhar **depois** do débito. Um estorno é uma
  * linha nova no extrato, nunca a remoção da linha do débito: apagar história
  * financeira é como um extrato deixa de servir para auditoria.
+ *
+ * Saldo e extrato numa transação só, pelo mesmo motivo do débito: separados,
+ * a queda entre os dois devolve ★ sem lançamento que explique de onde veio.
  */
 export async function estornar(input: {
   organizationId: string;
@@ -142,26 +208,34 @@ export async function estornar(input: {
 }): Promise<void> {
   if (input.valor <= 0) return;
 
-  const org = await prisma.organization.update({
-    where: { id: input.organizationId },
-    data: { starsBalance: { increment: input.valor } },
-    select: { starsBalance: true },
-  });
+  await prisma.$transaction(async (tx) => {
+    const org = await tx.organization.update({
+      where: { id: input.organizationId },
+      data: { starsBalance: { increment: input.valor } },
+      select: { starsBalance: true },
+    });
 
-  await prisma.starTransaction.create({
-    data: {
-      organizationId: input.organizationId,
-      type: "REFUND",
-      amount: input.valor,
-      balanceAfter: org.starsBalance,
-      description: input.descricao,
-      actionKey: input.actionKey ?? null,
-      userId: input.userId ?? null,
-    },
+    await tx.starTransaction.create({
+      data: {
+        organizationId: input.organizationId,
+        type: "REFUND",
+        amount: input.valor,
+        balanceAfter: org.starsBalance,
+        description: input.descricao,
+        actionKey: input.actionKey ?? null,
+        userId: input.userId ?? null,
+      },
+    });
   });
 }
 
-/** Credita saldo — recarga, cortesia, crédito de plano. */
+/**
+ * Credita saldo — recarga, cortesia, crédito de plano.
+ *
+ * Saldo e extrato numa transação só. Aqui é o caminho por onde entra dinheiro
+ * de verdade (a recarga confirmada pelo Stripe): a queda entre as duas
+ * escritas creditaria ★ sem nota fiscal nenhuma no extrato.
+ */
 export async function creditar(input: {
   organizationId: string;
   valor: number;
@@ -171,28 +245,32 @@ export async function creditar(input: {
 }): Promise<number> {
   if (input.valor <= 0) throw new Error("Crédito precisa ser positivo");
 
-  const org = await prisma.organization.update({
-    where: { id: input.organizationId },
-    data: {
-      starsBalance: { increment: input.valor },
-      // Primeiro crédito marca o início do ciclo.
-      ...(input.tipo === "PLAN_CREDIT" ? { starsCycleStart: new Date() } : {}),
-    },
-    select: { starsBalance: true },
-  });
+  return prisma.$transaction(async (tx) => {
+    const org = await tx.organization.update({
+      where: { id: input.organizationId },
+      data: {
+        starsBalance: { increment: input.valor },
+        // Primeiro crédito marca o início do ciclo.
+        ...(input.tipo === "PLAN_CREDIT"
+          ? { starsCycleStart: new Date() }
+          : {}),
+      },
+      select: { starsBalance: true },
+    });
 
-  await prisma.starTransaction.create({
-    data: {
-      organizationId: input.organizationId,
-      type: input.tipo,
-      amount: input.valor,
-      balanceAfter: org.starsBalance,
-      description: input.descricao,
-      userId: input.userId ?? null,
-    },
-  });
+    await tx.starTransaction.create({
+      data: {
+        organizationId: input.organizationId,
+        type: input.tipo,
+        amount: input.valor,
+        balanceAfter: org.starsBalance,
+        description: input.descricao,
+        userId: input.userId ?? null,
+      },
+    });
 
-  return org.starsBalance;
+    return org.starsBalance;
+  });
 }
 
 /**

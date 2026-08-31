@@ -24,6 +24,19 @@ export const runtime = "nodejs";
  *  3. **Valor e quantidade saem do banco**, pelo `starsPaymentId` dos
  *     metadados — nunca do payload. Metadado é ponto de partida para achar a
  *     linha, não fonte de verdade sobre quanto creditar.
+ *
+ * ## Pagamento que só confirma depois
+ *
+ * Boleto e Pix não confirmam na hora. Para eles o Stripe manda
+ * `checkout.session.completed` **na abertura**, com `payment_status: "unpaid"`,
+ * e só depois manda `checkout.session.async_payment_succeeded` (ou
+ * `..._failed`). Ouvir só o primeiro evento é receber o dinheiro e nunca
+ * creditar o ★ — o `StarsPayment` fica `pending` para sempre e ninguém é
+ * avisado. Por isso os três eventos entram aqui, e quem decide creditar é o
+ * `payment_status`, não o nome do evento.
+ *
+ * **Os três precisam estar assinados no endpoint do Stripe.** Só o código não
+ * basta: evento não assinado não é entregue.
  */
 export async function POST(request: Request) {
   const assinatura = request.headers.get("stripe-signature");
@@ -51,10 +64,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ erro: "Assinatura inválida" }, { status: 400 });
   }
 
-  if (evento.type !== "checkout.session.completed") {
+  const EVENTOS_TRATADOS = [
+    "checkout.session.completed",
+    "checkout.session.async_payment_succeeded",
+    "checkout.session.async_payment_failed",
+  ] as const;
+
+  type EventoTratado = (typeof EVENTOS_TRATADOS)[number];
+
+  if (!(EVENTOS_TRATADOS as readonly string[]).includes(evento.type)) {
     // 200 para o Stripe parar de reentregar o que não nos interessa.
     return NextResponse.json({ ignorado: evento.type });
   }
+
+  const tipo = evento.type as EventoTratado;
 
   // Grava o evento ANTES de creditar. Se duas entregas chegarem juntas, a
   // segunda falha na chave primária e sai por aqui sem creditar de novo.
@@ -95,7 +118,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ repetido: pagamento.id });
   }
 
+  if (tipo === "checkout.session.async_payment_failed") {
+    // O boleto venceu ou o Pix não foi pago. Fecha a linha: `pending` eterno
+    // é indistinguível de recarga que o Stripe ainda vai confirmar, e é isso
+    // que faz uma recarga perdida passar despercebida.
+    await prisma.starsPayment.update({
+      where: { id: pagamento.id },
+      data: { status: "failed" },
+    });
+    console.warn("[stars:webhook] pagamento_assincrono_falhou", {
+      paymentId: pagamento.id,
+      organizationId: pagamento.organizationId,
+    });
+    return NextResponse.json({ recusado: pagamento.id });
+  }
+
   if (sessao.payment_status !== "paid") {
+    // Boleto/Pix na abertura do checkout: o dinheiro ainda não entrou. Quem
+    // credita é o `async_payment_succeeded` que vem depois.
     await prisma.starsPayment.update({
       where: { id: pagamento.id },
       data: { status: "pending" },
