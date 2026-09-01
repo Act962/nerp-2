@@ -66,6 +66,7 @@ import { oracleExplorerRoutes } from "./oracle-explorer";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
 import { orgDashboardRoutes } from "./org-dashboard";
 import { precosRoutes } from "./precos";
+import { siteRoutes } from "./site";
 
 export const router = {
   products: productsRoutes,
@@ -134,6 +135,7 @@ export const router = {
   dashboardWidgets: dashboardWidgetsRoutes,
   orgDashboard: orgDashboardRoutes,
   precos: precosRoutes,
+  site: siteRoutes,
   device: deviceRoutes,
   desktopRelease: desktopReleaseRoutes,
 };
