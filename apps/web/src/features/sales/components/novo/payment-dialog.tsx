@@ -369,7 +369,12 @@ export function PaymentDialog({
                         id="amountPaid"
                         type="number"
                         step="0.01"
-                        min={total}
+                        // `min` era o total da venda, e isso quebrava duas
+                        // coisas: o `step` de 1 centavo passava a se ancorar
+                        // nele (total quebrado => "104,00 inválido"), e digitar
+                        // "1" a caminho de "104" já era valor inválido. Quem
+                        // barra troco insuficiente é o `canFinish`, abaixo.
+                        min={0}
                         placeholder="0,00"
                         className="pl-10 text-lg"
                         value={amountPaid}

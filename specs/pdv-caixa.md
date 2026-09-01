@@ -67,6 +67,46 @@ Arquivos principais:
 
 ---
 
+## Correcoes de balcao — 2026-09-01
+
+> Branch `feat/frente-de-caixa-melhorias-2`. As tres foram reportadas pelo dev
+> usando o PDV de verdade.
+>
+> Nota: o cabecalho deste spec ainda diz "📋 Planejado" e as caixas de
+> Pendencias seguem desmarcadas, mas o modulo de caixa esta construido
+> (`router/caixa` com 12 procedures, `features/caixa` com 9 componentes). Nao
+> auditei item a item — so registro aqui que o status esta defasado.
+
+- [x] **Setas da quantidade travadas** (`create-sale/cart-sale.tsx`) — o input
+  tinha `max={currentStock}`. Como a linha entra no carrinho ja com quantidade
+  1, em todo produto com estoque 1 a seta pra cima morria de imediato, e o
+  navegador ainda recusava a quantidade digitada. O `max` saiu; estoque
+  estourado agora AVISA na linha em vez de travar em silencio. O mesmo teto
+  existia no `addToCart` (`quantity < currentStock`), o que fazia bipar duas
+  vezes o mesmo item nao surtir efeito nenhum. — ✅ 2026-09-01
+
+- [x] **Busca do PDV parava em 9 itens** (`create-sale/product-section.tsx`) —
+  `pageIndex`, `onNextPage`, `onPreviousPage`, `hasNextPage` e
+  `hasPreviousPage` chegavam como props e **nunca eram renderizados**: a grade
+  mostrava a 1a pagina e nao havia como chegar na 2a. O Biome ja apontava isso
+  (linhas 96-98 e 103-104), soterrado entre os outros 203 erros do `pnpm lint`.
+  Rodape de paginacao renderizado, e a busca virou procedure propria
+  (`products.searchPdv`): paginacao por PAGINA, com total, e quem COMECA com o
+  termo vindo antes de quem so o contem — buscar "queijo" traz os "Queijo ..."
+  antes de "Pao de queijo". `products.list` ficou intocada. — ✅ 2026-09-01
+
+- [x] **"Valor Recebido" recusava 104,00** (`novo/payment-dialog.tsx`) — o
+  input tinha `min={total}` com `step="0.01"`, e o total da venda nunca era
+  arredondado para centavos. Com desconto percentual ou item pesavel o total
+  saia com 3+ casas (ex.: 103,9975), e o passo de 1 centavo passava a se
+  ancorar nele: o navegador dizia "os dois valores validos mais proximos sao
+  103,995 e 104,005". Duas correcoes: o total do PDV agora passa por `round2` a
+  cada etapa, e o `min` virou 0 — quem barra troco insuficiente e o `canFinish`,
+  que ja existia. De quebra, digitar "1" a caminho de "104" deixou de ser valor
+  invalido. — ✅ 2026-09-01
+
+---
+
 ## Melhorias futuras (nao urgentes)
 
 - [ ] Reconciliar total em dinheiro no `FinancialAccount(CAIXA)`/`Transaction` no fechamento.
