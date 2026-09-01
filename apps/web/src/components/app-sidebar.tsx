@@ -45,6 +45,7 @@ import {
   Megaphone,
   MonitorDown,
   MonitorPlay,
+  PackagePlus,
   Package,
   MessageCircle,
   Plug,
@@ -199,6 +200,11 @@ const navigation: NavItem[] = [
         name: "Movimentações",
         href: "/estoque/movimentacoes",
         icon: TrendingUp,
+      },
+      {
+        name: "Entradas de nota",
+        href: "/estoque/entradas",
+        icon: PackagePlus,
       },
       {
         name: "Coletor",

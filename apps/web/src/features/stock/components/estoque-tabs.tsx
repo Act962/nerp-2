@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 // sem passar pela lista de movimentações.
 const TABS = [
   { href: "/estoque/movimentacoes", label: "Movimentações" },
+  { href: "/estoque/entradas", label: "Entradas" },
   { href: "/estoque/coletor", label: "Coletor" },
   { href: "/estoque/inventarios", label: "Inventários" },
 ];

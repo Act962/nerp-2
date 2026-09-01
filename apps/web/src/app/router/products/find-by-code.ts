@@ -19,7 +19,12 @@ export const findProductByCode = base
           sku: z.string().nullable(),
           barcode: z.string().nullable(),
           salePrice: z.number(),
+          // Custo e controle de estoque: a entrada de nota precisa deles para
+          // sugerir o preço de venda e decidir se gera movimento. O PDV, que
+          // também chama este procedure, simplesmente ignora.
+          costPrice: z.number(),
           currentStock: z.number(),
+          trackStock: z.boolean(),
           unit: z.string(),
         })
         .nullable(),
@@ -38,7 +43,9 @@ export const findProductByCode = base
         sku: true,
         barcode: true,
         salePrice: true,
+        costPrice: true,
         currentStock: true,
+        trackStock: true,
         unit: true,
       },
     });
@@ -50,7 +57,9 @@ export const findProductByCode = base
         sku: product.sku,
         barcode: product.barcode,
         salePrice: Number(product.salePrice),
+        costPrice: Number(product.costPrice),
         currentStock: Number(product.currentStock),
+        trackStock: product.trackStock,
         unit: product.unit,
       },
     };

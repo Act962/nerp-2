@@ -42,8 +42,16 @@ export function formatPercent(value: number): string {
 // preço é a decisão. Devolvem `null` quando a meta é impossível — aí a UI não
 // mexe em nada em vez de gravar um preço absurdo.
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100;
+/**
+ * Arredonda para centavos.
+ *
+ * O `+ Number.EPSILON` cobre o empate binário: `1.005 * 100` dá
+ * 100.49999999999999 em ponto flutuante, e sem o empurrão viraria 1,00 em vez
+ * de 1,01. É o arredondamento que todo valor que vira coluna `Decimal(10,2)`
+ * — ou `min`/`step` de input de dinheiro — precisa passar.
+ */
+export function round2(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
 /** Venda = custo + lucro. Funciona mesmo com custo zero. */

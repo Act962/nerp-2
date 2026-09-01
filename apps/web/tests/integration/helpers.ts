@@ -112,6 +112,10 @@ export async function resetDb() {
   await prisma.sale.deleteMany({ where: orgIds }); // cascata: SaleItem + SalePayment
   await prisma.cashSession.deleteMany({ where: orgIds });
   await prisma.cashRegister.deleteMany({ where: orgIds });
+  // Antes do produto: PurchaseItem.product é `onDelete: Restrict`, então uma
+  // entrada de nota com itens trava o deleteMany abaixo e derruba a suíte
+  // inteira. Apagar a Purchase cascateia os itens.
+  await prisma.purchase.deleteMany({ where: orgIds });
   await prisma.product.deleteMany({ where: orgIds });
   // Book cascateia BookPage/BookItem, mas BookPage.storeId e PdvPhoto.storeId
   // apontam para Store com FK restrita: sem apagar os books e as fotos antes, a
