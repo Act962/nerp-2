@@ -194,6 +194,8 @@ model Organization {
   maxUsers                  Int                           @default(3)
   // Contador atômico da numeração de vendas por org (evita a corrida do count()).
   lastSaleNumber            Int                           @default(0)
+  // Mesmo contador, para a numeração das entradas de nota.
+  lastPurchaseNumber        Int                           @default(0)
   // Atalhos de teclado do PDV personalizados pelo admin (mapa ação→tecla).
   // Ausentes = usa os padrões definidos em código. Ex.: { "abrir-caixa": "F8" }.
   pdvShortcuts              Json?
@@ -1119,6 +1121,7 @@ model Supplier {
   // Relações
   organization      Organization               @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   purchases         Purchase[]
+  paymentContact    PaymentContact?
   products          Product[]
   customerId        String?
   customer          Customer?                  @relation(fields: [customerId], references: [id])
@@ -1575,6 +1578,10 @@ model Purchase {
   orderDate      DateTime        @default(now())
   expectedDate   DateTime?
   receivedDate   DateTime?
+  // Condição de pagamento, informada na digitação — é quando o papel está na
+  // mão do operador. O processamento materializa as parcelas no Financeiro.
+  installments   Int             @default(1)
+  firstDueDate   DateTime?
   // Observações
   notes          String?         @db.Text
   // Timestamps
@@ -1587,6 +1594,9 @@ model Purchase {
   createdBy      User            @relation("CreatedPurchases", fields: [createdById], references: [id])
   items          PurchaseItem[]
   stockMovements StockMovement[]
+  financeEntries PaymentEntry[]  @relation("PurchaseFinanceEntries")
+  /// LEGADO — `Transaction` é o financeiro morto (zero uso de `prisma.transaction`
+  /// no código). O financeiro vivo da compra é `PaymentEntry` via `purchaseId`.
   transactions   Transaction[]
 
   @@unique([organizationId, purchaseNumber])
@@ -1607,12 +1617,21 @@ model PurchaseItem {
   unitPrice   Decimal  @db.Decimal(10, 2)
   discount    Decimal  @default(0) @db.Decimal(10, 2)
   total       Decimal  @db.Decimal(10, 2)
+  // Preço de venda que o operador ACEITOU para este produto ao conferir a nota.
+  // NULL = não mexer no preço. Persiste porque o rascunho é reaberto: sem isso
+  // a precificação seria refeita do zero a cada abertura.
+  newSalePrice Decimal? @db.Decimal(10, 2)
+  // Não existe `createdAt` aqui. Sem ordem explícita as linhas voltam do banco
+  // em ordem indefinida — a conferência contra o papel fica inviável e o
+  // "último custo" do mesmo produto repetido deixa de ser determinístico.
+  sortOrder   Int      @default(0)
   // Relações
   purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([purchaseId])
   @@index([productId])
+  @@index([sortOrder])
   @@map("purchase_items")
 }
 
@@ -4703,6 +4722,11 @@ model PaymentCategory {
   isActive       Boolean               @default(true) @map("is_active")
   // DRO: operacional (padrão) x não-operacional/financeiro (juros, multas, etc.)
   isOperational  Boolean               @default(true) @map("is_operational")
+  // Classifica, mas não entra no DRE nem no DRO. Comprar mercadoria é trocar
+  // caixa por ativo: o resultado só é atingido na venda, via CMV — lançar a
+  // compra como custo contaria o mesmo dinheiro duas vezes. Serve igual para
+  // empréstimo, aporte de sócio e compra de imobilizado.
+  excludeFromResult Boolean            @default(false) @map("exclude_from_result")
   createdAt      DateTime              @default(now()) @map("created_at")
   updatedAt      DateTime              @updatedAt @map("updated_at")
 
@@ -4739,6 +4763,10 @@ model PaymentContact {
   email          String?
   phone          String?
   contactType    String   @default("BOTH") @map("contact_type") // CUSTOMER, SUPPLIER, BOTH
+  // Vínculo com o cadastro de fornecedor. Sem ele o casamento seria por
+  // documento/nome, e renomear o fornecedor forkaria um contato novo,
+  // partindo o histórico de contas a pagar em dois.
+  supplierId     String?  @unique @map("supplier_id")
   notes          String?
   isActive       Boolean  @default(true) @map("is_active")
   creditLimit    Int      @default(0) @map("credit_limit") // em centavos
@@ -4746,6 +4774,7 @@ model PaymentContact {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  supplier     Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   entries      PaymentEntry[]
 
   @@index([organizationId])
@@ -4779,6 +4808,11 @@ model PaymentEntry {
   // financeiro.
   saleId             String? @map("sale_id")
   saleEntryKey       String? @map("sale_entry_key")
+  // Lançamento gerado por uma ENTRADA DE NOTA, no mesmo mecanismo da venda:
+  // `purchaseEntryKey` discrimina as parcelas ("parcela-0", "parcela-1") e o
+  // único com `purchaseId` impede que reprocessar a nota duplique o passivo.
+  purchaseId         String? @map("purchase_id")
+  purchaseEntryKey   String? @map("purchase_entry_key")
 
   // Parcelamento
   installmentTotal   Int?    @map("installment_total")
@@ -4802,11 +4836,14 @@ model PaymentEntry {
   // SetNull e não Cascade: apagar uma venda não pode varrer o histórico
   // financeiro que já foi conciliado.
   sale             Sale?               @relation("SaleFinanceEntries", fields: [saleId], references: [id], onDelete: SetNull)
+  purchase         Purchase?           @relation("PurchaseFinanceEntries", fields: [purchaseId], references: [id], onDelete: SetNull)
   createdBy        User?               @relation("PaymentEntryCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
 
   @@unique([saleId, saleEntryKey])
+  @@unique([purchaseId, purchaseEntryKey])
   @@index([organizationId])
   @@index([saleId])
+  @@index([purchaseId])
   @@index([type])
   @@index([status])
   @@index([dueDate])

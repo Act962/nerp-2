@@ -65,6 +65,38 @@ export function useProducts({
   };
 }
 
+/**
+ * Grade do PDV: paginação por PÁGINA (não cursor) e ordenação que põe primeiro
+ * quem começa com o termo buscado. Ver `router/products/search-pdv.ts`.
+ */
+export function usePdvProducts({
+  search,
+  categorySlug,
+  page,
+  pageSize = 9,
+}: {
+  search?: string;
+  categorySlug?: string;
+  page: number;
+  pageSize?: number;
+}) {
+  const { data, isLoading } = useQuery(
+    orpc.products.searchPdv.queryOptions({
+      input: { search, categorySlug, page, pageSize },
+      // Mantém a página anterior enquanto a nova carrega: a grade não pisca a
+      // cada tecla digitada na busca.
+      placeholderData: keepPreviousData,
+    }),
+  );
+
+  return {
+    data: data?.products ?? [],
+    totalCount: data?.totalCount ?? 0,
+    totalPages: data?.totalPages ?? 1,
+    isLoading,
+  };
+}
+
 interface useQueryProductsOfCartProps {
   subdomain: string;
   productIds: string[];

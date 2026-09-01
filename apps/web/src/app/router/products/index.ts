@@ -10,6 +10,7 @@ import { pullProducts } from "./pull";
 import { matchProductsBySku } from "./match-by-sku";
 import { removeProductBackground } from "./remove-background";
 import { searchProductImages } from "./search-images";
+import { searchProductsForPdv } from "./search-pdv";
 import { setProductImages } from "./set-images";
 import { setProductThumbnail } from "./set-thumbnail";
 import { setProductThumbnailFromUrl } from "./set-thumbnail-from-url";
@@ -25,6 +26,7 @@ export const productsRoutes = {
   create: createProduct,
   get: getProduct,
   findByCode: findProductByCode,
+  searchPdv: searchProductsForPdv,
   update: updateProduct,
   delete: deleteProduct,
   duplicate: duplicateProduct,

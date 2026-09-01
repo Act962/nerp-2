@@ -119,7 +119,13 @@ export const getDre = p
     const [categories, entries] = await Promise.all([
       prisma.paymentCategory.findMany({
         where: { organizationId: context.org.id },
-        select: { id: true, name: true, type: true, parentId: true },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          parentId: true,
+          excludeFromResult: true,
+        },
       }),
       prisma.paymentEntry.findMany({
         where: {
@@ -145,6 +151,13 @@ export const getDre = p
       const cat = entry.categoryId
         ? categoryById.get(entry.categoryId)
         : undefined;
+      // Categoria fora do resultado: classifica e continua aparecendo em contas
+      // a pagar/receber e no fluxo de caixa, mas não entra no resultado. É o
+      // caso da compra de mercadoria — trocar caixa por estoque não é despesa,
+      // o resultado só é atingido na venda, via CMV. Vale igual para
+      // empréstimo, aporte de sócio e compra de imobilizado.
+      if (cat?.excludeFromResult) continue;
+
       if (cat) {
         amountByCategory.set(
           cat.id,
@@ -216,7 +229,12 @@ export const getDro = p
     const [categories, entries] = await Promise.all([
       prisma.paymentCategory.findMany({
         where: { organizationId: context.org.id },
-        select: { id: true, type: true, isOperational: true },
+        select: {
+          id: true,
+          type: true,
+          isOperational: true,
+          excludeFromResult: true,
+        },
       }),
       prisma.paymentEntry.findMany({
         where: {
@@ -239,6 +257,13 @@ export const getDro = p
       const cat = entry.categoryId
         ? categoryById.get(entry.categoryId)
         : undefined;
+      // Categoria fora do resultado: classifica e continua aparecendo em contas
+      // a pagar/receber e no fluxo de caixa, mas não entra no resultado. É o
+      // caso da compra de mercadoria — trocar caixa por estoque não é despesa,
+      // o resultado só é atingido na venda, via CMV. Vale igual para
+      // empréstimo, aporte de sócio e compra de imobilizado.
+      if (cat?.excludeFromResult) continue;
+
       if (cat) {
         const bucket = cat.isOperational ? op : nonOp;
         if (cat.type === "REVENUE") bucket.revenue += entry.amount;

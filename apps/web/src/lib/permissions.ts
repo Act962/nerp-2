@@ -249,6 +249,10 @@ export const ACTION_PERMISSIONS = [
     key: "catalogo-promocional-editar",
     label: "Editar catálogos promocionais",
   },
+  {
+    key: "estoque-entrada-processar",
+    label: "Processar entrada de nota (mexe em estoque, custo e financeiro)",
+  },
 ] as const;
 
 export type ActionPermissionKey = (typeof ACTION_PERMISSIONS)[number]["key"];
@@ -286,7 +290,7 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
     ],
   },
   { module: "Pedidos", keys: ["pedidos"] },
-  { module: "Estoque", keys: ["estoque"] },
+  { module: "Estoque", keys: ["estoque", "estoque-entrada-processar"] },
   { module: "Clientes", keys: ["clientes"] },
   { module: "Fornecedores", keys: ["fornecedores"] },
   { module: "Financeiro", keys: ["financeiro"] },

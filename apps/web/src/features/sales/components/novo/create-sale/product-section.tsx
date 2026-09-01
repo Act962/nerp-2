@@ -8,7 +8,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Grid3X3Icon, ListIcon, Search } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Grid3X3Icon,
+  ListIcon,
+  Search,
+} from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ProductSale } from ".";
 import { currencyFormatter } from "@/utils/currency-formatter";
@@ -65,9 +71,9 @@ interface ProductSessionProps {
   onSelectCategory?: (id: string | null) => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
-  hasNextPage?: boolean;
-  hasPreviousPage?: boolean;
-  pageIndex?: number;
+  page?: number;
+  totalPages?: number;
+  totalCount?: number;
   onNextPage?: () => void;
   onPreviousPage?: () => void;
   isLoading?: boolean;
@@ -91,17 +97,19 @@ export function ProductSection({
   onSelectCategory,
   viewMode,
   setViewMode,
-  hasNextPage,
-  hasPreviousPage,
-  pageIndex,
+  page = 1,
+  totalPages = 1,
+  totalCount = 0,
   onNextPage,
   onPreviousPage,
   isLoading,
   searchShortcut,
   orgLogo,
 }: ProductSessionProps) {
-  const previousIsDisabled = !hasPreviousPage;
-  const nextIsDisabled = !hasNextPage;
+  // Os controles existiam como PROPS e nunca eram renderizados: a grade
+  // mostrava a 1ª página e não havia como chegar na 2ª — buscar "queijo" e ver
+  // 9 itens dava a impressão de que só existiam 9.
+  const temPaginacao = totalPages > 1;
 
   return (
     // Altura total: busca fica no topo, categorias/paginação no rodapé,
@@ -163,141 +171,175 @@ export function ProductSection({
           {/* GRADE de produtos rola aqui dentro — categorias/paginação
               ficam ancoradas no rodapé do card, sempre visíveis. */}
           <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          {viewMode === "grid" ? (
-            <div className="grid auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3">
-              {isLoading
-                ? Array.from({ length: 9 }).map((_, index) => (
-                    <Skeleton key={index} className="w-full rounded-xl" />
-                  ))
-                : products.map((product, index) => {
-                    // Produto sem controle de estoque (`trackStock=false`)
-                    // vende ilimitado — ex.: serviços. Nesse caso não bloqueia
-                    // pelo `currentStock`.
-                    const outOfStock =
-                      product.trackStock && Number(product.currentStock) <= 0;
-                    return (
-                    <button
-                      type="button"
-                      key={product.id}
-                      onClick={() => !outOfStock && addToCart(product)}
-                      disabled={outOfStock}
-                      className={cn(
-                        // Card 100% branco (independente do tema do resto do
-                        // sistema) com texto preto — padrão de tiles de
-                        // produto de e-commerce. Alvo: 3×2 na primeira vista.
-                        "group relative flex flex-col overflow-hidden rounded-xl border bg-white p-3 text-left text-slate-900 shadow-sm transition hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50",
-                        index === selectedIndex &&
-                          "border-primary ring-2 ring-primary",
-                      )}
-                    >
-                      {/* SKU sutil no canto — onde antes ficava o badge de
+            {viewMode === "grid" ? (
+              <div className="grid auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3">
+                {isLoading
+                  ? Array.from({ length: 9 }).map((_, index) => (
+                      <Skeleton key={index} className="w-full rounded-xl" />
+                    ))
+                  : products.map((product, index) => {
+                      // Produto sem controle de estoque (`trackStock=false`)
+                      // vende ilimitado — ex.: serviços. Nesse caso não bloqueia
+                      // pelo `currentStock`.
+                      const outOfStock =
+                        product.trackStock && Number(product.currentStock) <= 0;
+                      return (
+                        <button
+                          type="button"
+                          key={product.id}
+                          onClick={() => !outOfStock && addToCart(product)}
+                          disabled={outOfStock}
+                          className={cn(
+                            // Card 100% branco (independente do tema do resto do
+                            // sistema) com texto preto — padrão de tiles de
+                            // produto de e-commerce. Alvo: 3×2 na primeira vista.
+                            "group relative flex flex-col overflow-hidden rounded-xl border bg-white p-3 text-left text-slate-900 shadow-sm transition hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50",
+                            index === selectedIndex &&
+                              "border-primary ring-2 ring-primary",
+                          )}
+                        >
+                          {/* SKU sutil no canto — onde antes ficava o badge de
                           estoque. Estoque vira implícito (zerado = disabled). */}
-                      {product.sku && (
-                        <span className="absolute right-3 top-2.5 z-10 max-w-[60%] truncate text-xs font-medium text-slate-500">
-                          {product.sku}
-                        </span>
-                      )}
-                      {/* Foto ocupa TODO o espaço vertical restante do tile —
+                          {product.sku && (
+                            <span className="absolute right-3 top-2.5 z-10 max-w-[60%] truncate text-xs font-medium text-slate-500">
+                              {product.sku}
+                            </span>
+                          )}
+                          {/* Foto ocupa TODO o espaço vertical restante do tile —
                           quanto maior o grade, maior a foto. */}
-                      <div className="flex min-h-0 flex-1 items-center justify-center">
-                        {product.image ? (
-                          // biome-ignore lint/performance/noImgElement: foto do produto via URL do S3
-                          <img
-                            src={product.image}
-                            alt=""
-                            className="h-full w-full object-contain"
-                          />
-                        ) : orgLogo ? (
-                          // Fallback sem foto do produto: logo da org em
-                          // grayscale + opacidade bem baixa como watermark.
-                          // biome-ignore lint/performance/noImgElement: logo via URL do S3
-                          <img
-                            src={orgLogo}
-                            alt=""
-                            className="h-full w-full object-contain opacity-20 grayscale"
-                          />
-                        ) : (
-                          <Avatar className="h-24 w-24 rounded-md opacity-40 grayscale">
+                          <div className="flex min-h-0 flex-1 items-center justify-center">
+                            {product.image ? (
+                              // biome-ignore lint/performance/noImgElement: foto do produto via URL do S3
+                              <img
+                                src={product.image}
+                                alt=""
+                                className="h-full w-full object-contain"
+                              />
+                            ) : orgLogo ? (
+                              // Fallback sem foto do produto: logo da org em
+                              // grayscale + opacidade bem baixa como watermark.
+                              // biome-ignore lint/performance/noImgElement: logo via URL do S3
+                              <img
+                                src={orgLogo}
+                                alt=""
+                                className="h-full w-full object-contain opacity-20 grayscale"
+                              />
+                            ) : (
+                              <Avatar className="h-24 w-24 rounded-md opacity-40 grayscale">
+                                <AvatarFallback>
+                                  {product.name.substring(0, 2)}
+                                </AvatarFallback>
+                              </Avatar>
+                            )}
+                          </div>
+                          <div className="mt-2 line-clamp-2 text-sm font-semibold uppercase leading-tight text-slate-900">
+                            {product.name}
+                          </div>
+                          {/* Preço + unidade lado a lado, ambos sutis. */}
+                          <div className="mt-1 flex items-baseline gap-1.5">
+                            <span className="text-base font-bold tabular-nums text-slate-900">
+                              R$ {currencyFormatter(product.salePrice)}
+                            </span>
+                            <span className="text-xs font-normal text-slate-500">
+                              / {unitLabel(product.unit)}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {isLoading
+                  ? Array.from({ length: 16 }).map((_, index) => (
+                      <Skeleton key={index} className="h-16 w-full" />
+                    ))
+                  : products.map((product) => {
+                      const outOfStock =
+                        product.trackStock && product.currentStock <= 0;
+                      return (
+                        <button
+                          type="button"
+                          key={product.id}
+                          onClick={() => !outOfStock && addToCart(product)}
+                          disabled={outOfStock}
+                          className="w-full flex items-center gap-3 rounded-lg border bg-card p-3 transition-all hover:border-primary hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Avatar className="h-12 w-12 rounded-md">
+                            <AvatarImage
+                              src={product.image || "/placeholder.svg"}
+                              alt={product.name}
+                            />
                             <AvatarFallback>
                               {product.name.substring(0, 2)}
                             </AvatarFallback>
                           </Avatar>
-                        )}
-                      </div>
-                      <div className="mt-2 line-clamp-2 text-sm font-semibold uppercase leading-tight text-slate-900">
-                        {product.name}
-                      </div>
-                      {/* Preço + unidade lado a lado, ambos sutis. */}
-                      <div className="mt-1 flex items-baseline gap-1.5">
-                        <span className="text-base font-bold tabular-nums text-slate-900">
-                          R$ {currencyFormatter(product.salePrice)}
-                        </span>
-                        <span className="text-xs font-normal text-slate-500">
-                          / {unitLabel(product.unit)}
-                        </span>
-                      </div>
-                    </button>
-                    );
-                  })}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {isLoading
-                ? Array.from({ length: 16 }).map((_, index) => (
-                    <Skeleton key={index} className="h-16 w-full" />
-                  ))
-                : products.map((product) => {
-                    const outOfStock =
-                      product.trackStock && product.currentStock <= 0;
-                    return (
-                    <button
-                      type="button"
-                      key={product.id}
-                      onClick={() => !outOfStock && addToCart(product)}
-                      disabled={outOfStock}
-                      className="w-full flex items-center gap-3 rounded-lg border bg-card p-3 transition-all hover:border-primary hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Avatar className="h-12 w-12 rounded-md">
-                        <AvatarImage
-                          src={product.image || "/placeholder.svg"}
-                          alt={product.name}
-                        />
-                        <AvatarFallback>
-                          {product.name.substring(0, 2)}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 text-left">
-                        <div className="text-[15px] font-medium">
-                          {product.name}
-                        </div>
-                        <div className="text-[13px] text-muted-foreground">
-                          {product.sku} | {product.barcode}
-                        </div>
-                      </div>
-                      <Badge
-                        variant={
-                          !product.trackStock
-                            ? "outline"
-                            : product.currentStock > 0
-                              ? "secondary"
-                              : "destructive"
-                        }
-                      >
-                        {!product.trackStock
-                          ? "Sem controle"
-                          : product.currentStock > 0
-                            ? `${product.currentStock} ${unitLabel(product.unit)}`
-                            : "Sem estoque"}
-                      </Badge>
-                      <div className="font-semibold text-primary">
-                        {currencyFormatter(product.salePrice)}
-                      </div>
-                    </button>
-                    );
-                  })}
+                          <div className="flex-1 text-left">
+                            <div className="text-[15px] font-medium">
+                              {product.name}
+                            </div>
+                            <div className="text-[13px] text-muted-foreground">
+                              {product.sku} | {product.barcode}
+                            </div>
+                          </div>
+                          <Badge
+                            variant={
+                              !product.trackStock
+                                ? "outline"
+                                : product.currentStock > 0
+                                  ? "secondary"
+                                  : "destructive"
+                            }
+                          >
+                            {!product.trackStock
+                              ? "Sem controle"
+                              : product.currentStock > 0
+                                ? `${product.currentStock} ${unitLabel(product.unit)}`
+                                : "Sem estoque"}
+                          </Badge>
+                          <div className="font-semibold text-primary">
+                            {currencyFormatter(product.salePrice)}
+                          </div>
+                        </button>
+                      );
+                    })}
+              </div>
+            )}
+          </div>
+
+          {/* Paginação da grade, ancorada no rodapé do card: fora do scroll
+              interno, sempre visível. O total responde "quantos existem?", que
+              é o que falta quando a página vem cheia. */}
+          {temPaginacao && (
+            <div className="flex shrink-0 items-center justify-between gap-2 pt-3">
+              <span className="text-sm text-muted-foreground">
+                Página {page} de {totalPages} · {totalCount}{" "}
+                {totalCount === 1 ? "produto" : "produtos"}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={onPreviousPage}
+                >
+                  <ChevronLeft className="size-4" />
+                  Anterior
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= totalPages}
+                  onClick={onNextPage}
+                >
+                  Próxima
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
             </div>
           )}
-          </div>
 
           {/* Abas de categoria (como na referência): filtram a grade.
               Em uma linha só, sem scroll: o que não couber vira "+N" que
@@ -395,9 +437,7 @@ function CategoryTabs({
           key={category.id}
           type="button"
           size="sm"
-          variant={
-            selectedCategory === category.id ? "default" : "outline"
-          }
+          variant={selectedCategory === category.id ? "default" : "outline"}
           className="shrink-0"
           onClick={() => onSelectCategory?.(category.id)}
         >
@@ -420,7 +460,10 @@ function CategoryTabs({
               +{hidden.length}
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="max-h-72 w-56 overflow-y-auto p-1">
+          <PopoverContent
+            align="end"
+            className="max-h-72 w-56 overflow-y-auto p-1"
+          >
             <div className="flex flex-col">
               {hidden.map((category) => (
                 <button
@@ -428,8 +471,7 @@ function CategoryTabs({
                   type="button"
                   className={cn(
                     "flex items-center rounded-sm px-2 py-1.5 text-left text-sm hover:bg-accent",
-                    selectedCategory === category.id &&
-                      "bg-accent font-medium",
+                    selectedCategory === category.id && "bg-accent font-medium",
                   )}
                   onClick={() => onSelectCategory?.(category.id)}
                 >

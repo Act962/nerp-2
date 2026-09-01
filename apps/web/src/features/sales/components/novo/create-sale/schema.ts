@@ -14,6 +14,10 @@ export const saleSchema = z
           price: z.number().positive(),
           quantity: z.number().positive(),
           currentStock: z.number(),
+          // Se o produto controla estoque. Sem isto o carrinho não sabe
+          // distinguir "acabou" de "nunca controlou" — e tratava os dois como
+          // teto rígido da quantidade.
+          trackStock: z.boolean().optional(),
           sku: z.string().nullable(),
           // Unidade cadastrada (UN, KG, L, M...). Mostrada no carrinho para o
           // operador saber se digita 0,1 (100g) ou 1 (1 un).

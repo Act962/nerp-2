@@ -7,6 +7,7 @@ import { catalogSettingsRouter } from "./catalog";
 import { stockRoutes } from "./stock";
 import { scannerRoutes } from "./scanner";
 import { inventoryRoutes } from "./inventory";
+import { purchaseRoutes } from "./purchase";
 import { checkoutRouter } from "./checkout";
 import { dashboardRoutes } from "./dashboard";
 import { customerRoutes } from "./customer";
@@ -83,6 +84,7 @@ export const router = {
   stocks: stockRoutes,
   scanner: scannerRoutes,
   inventory: inventoryRoutes,
+  purchase: purchaseRoutes,
   org: orgRoutes,
   checkout: checkoutRouter,
   dashboard: dashboardRoutes,
