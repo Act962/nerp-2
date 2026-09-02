@@ -4,15 +4,18 @@ import { base } from "@/app/middlewares/base";
 import { requireSiteAdminMiddleware } from "@/app/middlewares/site-admin";
 import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
-import { parseBlocks, siteBlocks } from "@/features/site/blocks";
+import { parseBlocks, siteBlocks } from "@nerp/site-content";
 
 const siteAdmin = base
   .use(requireAuthMiddleware)
   .use(requireSiteAdminMiddleware);
 
+const secao = z.enum(["SOLUCOES", "SEGMENTOS", "SOBRE"]);
+
 const pageSummary = z.object({
   id: z.string(),
   slug: z.string(),
+  section: secao,
   title: z.string(),
   status: z.enum(["DRAFT", "PUBLISHED"]),
   /** true quando o rascunho está diferente do que está no ar. */
@@ -32,6 +35,7 @@ export const listPages = siteAdmin
       select: {
         id: true,
         slug: true,
+        section: true,
         title: true,
         status: true,
         blocks: true,
@@ -44,6 +48,7 @@ export const listPages = siteAdmin
       pages: rows.map((p) => ({
         id: p.id,
         slug: p.slug,
+        section: p.section,
         title: p.title,
         status: p.status,
         hasChanges:
@@ -60,6 +65,7 @@ export const getPage = siteAdmin
     z.object({
       id: z.string(),
       slug: z.string(),
+      section: secao,
       title: z.string(),
       status: z.enum(["DRAFT", "PUBLISHED"]),
       blocks: siteBlocks,
@@ -82,6 +88,7 @@ export const getPage = siteAdmin
     return {
       id: page.id,
       slug: page.slug,
+      section: page.section,
       title: page.title,
       status: page.status,
       blocks: parseBlocks(page.blocks),
@@ -100,6 +107,7 @@ export const createPage = siteAdmin
         .string()
         .min(1, "Informe o endereço")
         .regex(/^[a-z0-9-]+$/, "Use só letras minúsculas, números e hífen"),
+      section: secao.default("SOLUCOES"),
     }),
   )
   .output(z.object({ id: z.string() }))
@@ -119,7 +127,12 @@ export const createPage = siteAdmin
     }
 
     const page = await prisma.sitePage.create({
-      data: { title: input.title, slug: input.slug, blocks: [] },
+      data: {
+        title: input.title,
+        slug: input.slug,
+        section: input.section,
+        blocks: [],
+      },
       select: { id: true },
     });
     return { id: page.id };

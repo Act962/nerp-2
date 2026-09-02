@@ -23,8 +23,9 @@ import {
   emptyBlock,
   type SiteBlock,
   type SiteBlockType,
-} from "../blocks";
+} from "@nerp/site-content";
 import { useSavePage, useSitePage } from "../hooks/use-site-admin";
+import { sitePath, siteUrl } from "../lib/section";
 import { SitePageHeader } from "./site-page-header";
 import { SiteBlockFields } from "./site-block-fields";
 import { SiteImagePicker } from "./site-image-picker";
@@ -89,12 +90,12 @@ export function SitePageEditor({ pageId }: { pageId: string }) {
     <>
       <SitePageHeader
         title={page.title}
-        description={`Página interna em /solucoes/${page.slug}. Os blocos são os mesmos para qualquer solução — ligue, desligue e mova.`}
+        description={`Página em ${sitePath(page.section, page.slug)}. Os blocos são os mesmos em qualquer página — ligue, desligue e mova.`}
         actions={
           <>
             <Button variant="outline" asChild>
               <a
-                href={`/solucoes/${page.slug}`}
+                href={siteUrl(page.section, page.slug)}
                 target="_blank"
                 rel="noreferrer"
               >

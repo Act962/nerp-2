@@ -39,9 +39,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/leitor") ||
     // Admin do site institucional. Caminho de topo novo: sem esta linha, abrir
     // por um subdomínio viraria /<subdominio>/site e daria 404.
-    pathname.startsWith("/site") ||
-    // Páginas internas das soluções, geradas pelo admin do site.
-    pathname.startsWith("/solucoes")
+    pathname.startsWith("/site")
   ) {
     return NextResponse.next();
   }

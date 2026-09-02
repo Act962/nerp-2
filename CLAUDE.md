@@ -178,9 +178,18 @@ New admin page → add a key to `PAGE_PERMISSIONS`, guard the page with `require
 
 ### Site institucional e o admin dele
 
-A home (`/`) é o site da ÓRBITA HUB (`src/app/(home)/_components/orbita/`), e
-`/site` é o admin que o alimenta. Duas coisas fogem do padrão do resto do app,
-de propósito:
+O site institucional é um app próprio, `apps/site`, e o admin que o alimenta
+fica aqui no `apps/web`, em `/site`. A divisão segue o que o `apps/desktop` já
+faz: **o `apps/web` é dono do estado** (banco, better-auth, R2, admin) e o
+outro app só desenha, consumindo `/api/site/content` e `/api/site/page/<slug>`
+por HTTP. O contrato entre os dois é o pacote `@nerp/site-content`; nenhum app
+importa de dentro do outro.
+
+As duas rotas públicas devolvem só o que já está no ar — nada de rascunho — e
+o `apps/site` tem o próprio conteúdo de reserva, então ele continua de pé com
+este app fora do ar.
+
+Duas coisas fogem do padrão do resto do app, de propósito:
 
 - **As tabelas `site_*` são GLOBAIS** — não têm `organizationId`. O site é um
   só; não é "o site de uma organização". Por isso as procedures em
@@ -194,22 +203,33 @@ de propósito:
   removido nem rebaixado pela tela. `requireSiteAdmin()` em
   `src/lib/site-admin.ts` é a guarda das páginas.
 
-Uma página interna (`/solucoes/<slug>`) é uma LISTA DE BLOCOS em JSON, validada
-por `src/features/site/blocks.ts`. `blocks` é o rascunho, `publishedBlocks` é o
+Uma página interna (`/solucoes/<slug>`, servida pelo `apps/site`) é uma LISTA DE
+BLOCOS em JSON, validada por `@nerp/site-content`. `blocks` é o rascunho, `publishedBlocks` é o
 que o site lê: salvar mexe só no rascunho, publicar copia um no outro, e uma
 página em rascunho é 404 no site. Ao criar um bloco novo, campo novo entra
 opcional ou com `.default()` — obrigatório invalidaria todas as páginas já
 salvas de uma vez.
 
-O menu do site sai do banco com fallback: painel sem nenhuma linha cai no
-conteúdo que vem no código (`data/content.ts`). É o que permite subir o admin
-antes de cadastrar qualquer coisa. `pnpm --filter @nerp/web exec tsx
-scripts/seed-site-content.ts` leva o catálogo atual para as tabelas — é
-idempotente e não sobrescreve o que já foi editado na tela.
+O menu sai do banco com fallback, e o fallback mora no outro app
+(`apps/site/src/orbita/data/content.ts`): painel que volta vazio cai no
+conteúdo que vem no código. É o que permite subir o admin antes de cadastrar
+qualquer coisa. `pnpm --filter @nerp/web exec tsx scripts/seed-site-content.ts`
+leva o catálogo atual para as tabelas — é idempotente e não sobrescreve o que
+já foi editado na tela.
 
-As 19 estações da órbita continuam saindo de `data/catalog.ts`: elas são a
-própria cena 3D (geometria, câmera e roleta saem dali em tempo de módulo).
-Editar o menu não muda a cena — é essa a divisão.
+**O catálogo é lido de dois jeitos.** `MENU_COLUMNS` dá as seis colunas do
+painel (28 ferramentas, incluindo os módulos do NERP); `ORBIT_TOOLS` dá as 19
+que são estação na órbita. A cena deriva a geometria da CONTAGEM de estações —
+ângulo de cada esfera, janela de scroll de cada categoria — então o menu pode
+crescer sem apertar a animação. Ferramenta que entra só no menu leva
+`orbitStation: false`.
+
+As estações não são editáveis pelo admin: elas são a própria cena. Editar o
+menu não muda a cena — é essa a divisão.
+
+Uma página vive em um dos três trechos (`SitePageSection`), que é o primeiro
+pedaço da URL. O slug é único no site inteiro, e a seção é o que impede
+`/solucoes/<slug>` e `/segmentos/<slug>` de devolverem a mesma coisa.
 
 ### Background jobs (Inngest)
 

@@ -1,0 +1,23 @@
+/*
+  Só o mínimo do documento. Todo o resto do visual mora junto de quem desenha:
+  `orbita/orbita.css` para a experiência 3D e `features/product-page.css` para
+  as páginas internas.
+*/
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #050a14;
+  color: #fff;
+}
+
+img {
+  max-width: 100%;
+}

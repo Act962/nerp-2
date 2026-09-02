@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useCreatePage, useSitePages } from "../hooks/use-site-admin";
+import { SECTION_LABEL, sitePath } from "../lib/section";
 import { SitePageHeader } from "./site-page-header";
 
 /** `CRM Tracking` → `crm-tracking`. */
@@ -42,6 +43,8 @@ export function SitePagesList() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  const [section, setSection] =
+    useState<keyof typeof SECTION_LABEL>("SOLUCOES");
   const router = useRouter();
 
   const { pages, isLoading } = useSitePages(search || undefined);
@@ -74,6 +77,23 @@ export function SitePagesList() {
                 />
               </Field>
               <Field>
+                <FieldLabel htmlFor="new-section">Trecho do site</FieldLabel>
+                <select
+                  id="new-section"
+                  className="h-9 rounded-md border bg-transparent px-3 text-sm"
+                  value={section}
+                  onChange={(e) =>
+                    setSection(e.target.value as keyof typeof SECTION_LABEL)
+                  }
+                >
+                  {Object.entries(SECTION_LABEL).map(([valor, rotulo]) => (
+                    <option key={valor} value={valor}>
+                      {rotulo}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field>
                 <FieldLabel htmlFor="new-slug">Endereço</FieldLabel>
                 <Input
                   id="new-slug"
@@ -81,14 +101,14 @@ export function SitePagesList() {
                   onChange={(e) => setSlug(slugify(e.target.value))}
                 />
                 <FieldDescription>
-                  A página vai ficar em /solucoes/{slug || "endereco"}.
+                  A página vai ficar em {sitePath(section, slug || "endereco")}.
                 </FieldDescription>
               </Field>
               <Button
                 disabled={!title || !slug || create.isPending}
                 onClick={() =>
                   create.mutate(
-                    { title, slug },
+                    { title, slug, section },
                     {
                       onSuccess: ({ id }) => {
                         setOpen(false);
@@ -128,6 +148,7 @@ export function SitePagesList() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Página</TableHead>
+                  <TableHead className="hidden sm:table-cell">Trecho</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="hidden md:table-cell">
                     Endereço
@@ -139,6 +160,11 @@ export function SitePagesList() {
                 {pages.map((page) => (
                   <TableRow key={page.id}>
                     <TableCell className="font-medium">{page.title}</TableCell>
+                    <TableCell className="hidden sm:table-cell">
+                      <Badge variant="outline">
+                        {SECTION_LABEL[page.section]}
+                      </Badge>
+                    </TableCell>
                     <TableCell>
                       {page.status === "PUBLISHED" ? (
                         <Badge variant="secondary">
@@ -151,7 +177,7 @@ export function SitePagesList() {
                       )}
                     </TableCell>
                     <TableCell className="hidden font-mono text-xs text-muted-foreground md:table-cell">
-                      /solucoes/{page.slug}
+                      {sitePath(page.section, page.slug)}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="sm" asChild>

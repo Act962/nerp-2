@@ -1,19 +1,13 @@
-import { getSiteContent } from "@/features/site/server/content";
-import { OrbitaHome } from "./_components/orbita-home";
+import HeroSection from "./_components/hero-section";
 
 /**
- * A home é o site institucional da ÓRBITA HUB.
+ * A raiz do `apps/web` é a porta do ERP.
  *
- * O conteúdo dos painéis da barra sai do banco (admin em `/site`); enquanto
- * as tabelas estiverem vazias, `getSiteContent` devolve o mesmo conteúdo que
- * já vinha no código.
- *
- * O hero anterior do ERP continua no repositório, em
- * `_components/hero-section.tsx`, sem referência — está ali caso a decisão
- * mude, e não custa nada por não ser importado.
+ * O site institucional da ÓRBITA HUB saiu daqui e virou um app próprio
+ * (`apps/site`), que consome o conteúdo publicado por `/api/site/*`. O que o
+ * `apps/web` continua sendo dono é do banco, do login, do storage e do admin
+ * do site, em `/site`.
  */
-export default async function Home() {
-  const content = await getSiteContent();
-
-  return <OrbitaHome content={content} />;
+export default function Home() {
+  return <HeroSection />;
 }

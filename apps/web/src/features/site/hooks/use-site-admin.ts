@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
-import type { SiteBlock } from "../blocks";
+import type { SiteBlock } from "@nerp/site-content";
 
 /**
  * Todas as chamadas do admin do site. Componente nenhum fala com `orpc`

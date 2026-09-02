@@ -4924,6 +4924,13 @@ enum SitePageStatus {
   PUBLISHED
 }
 
+/** Em que trecho do site a página vive — é o primeiro segmento da URL. */
+enum SitePageSection {
+  SOLUCOES
+  SEGMENTOS
+  SOBRE
+}
+
 // Quem entra no admin do site. A chave é o E-MAIL, e não o userId, porque o
 // convite acontece antes de a pessoa ter conta: ela é convidada, cria o login
 // depois e o `userId` é preenchido no primeiro acesso.
@@ -4978,8 +4985,9 @@ model SiteMenuItem {
 // no rascunho; publicar copia um no outro. Assim uma página meio editada nunca
 // aparece para o visitante.
 model SitePage {
-  id              String         @id @default(cuid())
-  slug            String         @unique
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  section         SitePageSection @default(SOLUCOES)
   title           String
   status          SitePageStatus @default(DRAFT)
   blocks          Json           @default("[]")

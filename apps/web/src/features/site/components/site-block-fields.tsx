@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import type { SiteBlock } from "../blocks";
+import type { SiteBlock } from "@nerp/site-content";
 import { SiteImagePicker } from "./site-image-picker";
 
 /**
@@ -253,6 +253,126 @@ export function SiteBlockFields({
               <option value="right">Direita</option>
             </select>
           </Field>
+        </>
+      );
+
+    case "steps":
+      return (
+        <>
+          <Text
+            label="Título da seção"
+            value={block.title}
+            onChange={(title) => onChange({ ...block, title })}
+          />
+          <Area
+            label="Texto de apoio"
+            value={block.text}
+            onChange={(text) => onChange({ ...block, text })}
+          />
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={block.cycle}
+              onChange={(e) => onChange({ ...block, cycle: e.target.checked })}
+            />
+            Desenhar em círculo, como um ciclo que recomeça
+          </label>
+          <div className="flex flex-col gap-3">
+            {block.items.map((item, index) => (
+              <div
+                key={index}
+                className="flex flex-col gap-2 rounded-lg border p-3"
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    className="w-16"
+                    value={item.mark}
+                    placeholder="N"
+                    aria-label="Marca da etapa"
+                    onChange={(e) => {
+                      const items = [...block.items];
+                      items[index] = { ...item, mark: e.target.value };
+                      onChange({ ...block, items });
+                    }}
+                  />
+                  <Input
+                    value={item.title}
+                    placeholder="Nome da etapa"
+                    onChange={(e) => {
+                      const items = [...block.items];
+                      items[index] = { ...item, title: e.target.value };
+                      onChange({ ...block, items });
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remover"
+                    onClick={() =>
+                      onChange({
+                        ...block,
+                        items: block.items.filter((_, i) => i !== index),
+                      })
+                    }
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+                <Input
+                  value={item.question}
+                  placeholder="A pergunta central desta etapa"
+                  onChange={(e) => {
+                    const items = [...block.items];
+                    items[index] = { ...item, question: e.target.value };
+                    onChange({ ...block, items });
+                  }}
+                />
+                <Textarea
+                  rows={3}
+                  value={item.text}
+                  placeholder="O que acontece nesta etapa"
+                  onChange={(e) => {
+                    const items = [...block.items];
+                    items[index] = { ...item, text: e.target.value };
+                    onChange({ ...block, items });
+                  }}
+                />
+                <StringList
+                  label="Perguntas ou itens"
+                  items={item.bullets}
+                  onChange={(bullets) => {
+                    const items = [...block.items];
+                    items[index] = { ...item, bullets };
+                    onChange({ ...block, items });
+                  }}
+                />
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                onChange({
+                  ...block,
+                  items: [
+                    ...block.items,
+                    {
+                      mark: "",
+                      title: "",
+                      question: "",
+                      text: "",
+                      bullets: [],
+                    },
+                  ],
+                })
+              }
+            >
+              <Plus className="size-4" />
+              Adicionar etapa
+            </Button>
+          </div>
         </>
       );
 

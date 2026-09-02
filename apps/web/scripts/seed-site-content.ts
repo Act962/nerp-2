@@ -1,25 +1,27 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { PrismaClient } from "@/generated/prisma/client";
 import {
-  ABOUT_GROUPS,
-  ABOUT_HIGHLIGHT,
-} from "@/app/(home)/_components/orbita/data/about";
-import {
-  TOOLS_BY_CATEGORY,
-  findTool,
-} from "@/app/(home)/_components/orbita/data/catalog";
-import { SEGMENTS } from "@/app/(home)/_components/orbita/data/segments";
-import { STATS, WHATSAPP } from "@/app/(home)/_components/orbita/data/site";
+  ABOUT_PAGES,
+  buildAllAboutPages,
+  buildAllSegmentPages,
+  buildAllSolutionPages,
+  buildMetodoPage,
+  findCatalogTool,
+  MENU_COLUMNS,
+  SEGMENTS,
+  type SitePageSeed,
+  solutionSlug,
+} from "@nerp/site-content";
+import { type Prisma, PrismaClient } from "@/generated/prisma/client";
 
 /**
- * Leva o conteúdo que hoje vive no código para o banco, para o admin do site
- * ter de onde partir.
+ * Leva o conteúdo do site para o banco, para o admin ter de onde partir.
  *
- * Idempotente: roda quantas vezes quiser. Cada item é `upsert` por
- * (painel, slug), e o que já foi editado no admin NÃO é sobrescrito — só
- * campos ausentes entram. Assim rodar de novo depois de uma edição não desfaz
- * o trabalho de ninguém.
+ * Idempotente: pode rodar quantas vezes quiser. Cada item é `upsert` por
+ * (painel, slug) e cada página por slug, e o que já foi editado no admin NÃO é
+ * sobrescrito — o seed garante que a coisa EXISTE, não que ela está com o
+ * texto original. Assim rodar de novo depois de uma edição não desfaz o
+ * trabalho de ninguém.
  *
  *   pnpm --filter @nerp/web exec tsx scripts/seed-site-content.ts
  */
@@ -27,31 +29,97 @@ import { STATS, WHATSAPP } from "@/app/(home)/_components/orbita/data/site";
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-async function seedMenu() {
-  let position = 0;
+/** O mesmo número do site. Fica aqui porque o seed também escreve os ajustes. */
+const WHATSAPP = { number: "558698221810", label: "Agendar Demonstração" };
+const WHATSAPP_HREF = `https://wa.me/${WHATSAPP.number}`;
 
-  for (const group of TOOLS_BY_CATEGORY) {
-    for (const tool of group.tools) {
+const SECAO = {
+  solucoes: "SOLUCOES",
+  segmentos: "SEGMENTOS",
+  sobre: "SOBRE",
+} as const;
+
+/**
+ * As páginas primeiro: o item do menu aponta para a página, e para apontar ela
+ * precisa existir.
+ */
+async function seedPages() {
+  const opcoes = { whatsappHref: WHATSAPP_HREF };
+  const pages: SitePageSeed[] = [
+    // O NERP é a ponte com o ERP: leva ao login, não tem página de vitrine.
+    ...buildAllSolutionPages(opcoes).filter((page) => page.toolId !== "nerp"),
+    ...buildAllSegmentPages(opcoes),
+    ...buildAllAboutPages(opcoes),
+    buildMetodoPage(opcoes),
+  ];
+
+  const idBySlug = new Map<string, string>();
+
+  for (const page of pages) {
+    const existing = await prisma.sitePage.findUnique({
+      where: { slug: page.slug },
+      select: { id: true },
+    });
+
+    if (existing) {
+      idBySlug.set(page.slug, existing.id);
+      continue;
+    }
+
+    const created = await prisma.sitePage.create({
+      data: {
+        slug: page.slug,
+        section: SECAO[page.section],
+        title: page.title,
+        seoTitle: page.seoTitle,
+        seoDescription: page.seoDescription,
+        blocks: page.blocks as unknown as Prisma.InputJsonValue,
+        // Nasce como RASCUNHO: o texto sai do catálogo, mas as imagens e os
+        // blocos que dependem de fato (cases, parceiros, vagas) ainda estão
+        // vazios. Publicar é decisão de quem revisa, não do seed.
+        status: "DRAFT",
+      },
+      select: { id: true },
+    });
+    idBySlug.set(page.slug, created.id);
+  }
+
+  return idBySlug;
+}
+
+async function seedMenu(pageIdBySlug: Map<string, string>) {
+  const ligar = (slug: string | null) =>
+    slug ? (pageIdBySlug.get(slug) ?? null) : null;
+
+  let position = 0;
+  // As colunas do menu, e não as categorias da órbita: é assim que o painel
+  // se organiza desde que os módulos da loja entraram.
+  for (const column of MENU_COLUMNS) {
+    for (const id of column.tools) {
+      const tool = findCatalogTool(id);
+      if (!tool) continue;
+      const pageId = ligar(solutionSlug(tool.id));
       await prisma.siteMenuItem.upsert({
         where: { panel_slug: { panel: "SOLUCOES", slug: tool.id } },
         create: {
           panel: "SOLUCOES",
-          groupTitle: group.title,
+          groupTitle: column.title,
           slug: tool.id,
           name: tool.name,
           summary: tool.tagline,
-          href: tool.href ?? null,
+          pageId,
           position: position++,
         },
-        // Nome e destino podem ter sido ajustados na tela; o que o seed
-        // garante é que o item EXISTE e está na coluna certa.
-        update: { groupTitle: group.title },
+        // Amarra a página mesmo em item que já existia — é o que faz o menu
+        // apontar para ela assim que alguém publicar.
+        update: { groupTitle: column.title, pageId: pageId ?? undefined },
       });
     }
   }
 
   position = 0;
   for (const segment of SEGMENTS) {
+    const pageId = ligar(segment.id);
     await prisma.siteMenuItem.upsert({
       where: { panel_slug: { panel: "SEGMENTOS", slug: segment.id } },
       create: {
@@ -61,43 +129,30 @@ async function seedMenu() {
         name: segment.name,
         summary: segment.summary,
         color: segment.color,
+        pageId,
         position: position++,
       },
-      update: {},
+      update: { pageId: pageId ?? undefined },
     });
   }
 
   position = 0;
-  for (const group of ABOUT_GROUPS) {
-    for (const item of group.items) {
-      await prisma.siteMenuItem.upsert({
-        where: { panel_slug: { panel: "SOBRE", slug: item.id } },
-        create: {
-          panel: "SOBRE",
-          groupTitle: group.title,
-          slug: item.id,
-          name: item.name,
-          summary: item.summary,
-          position: position++,
-        },
-        update: { groupTitle: group.title },
-      });
-    }
+  for (const page of ABOUT_PAGES) {
+    const pageId = ligar(page.slug);
+    await prisma.siteMenuItem.upsert({
+      where: { panel_slug: { panel: "SOBRE", slug: page.id } },
+      create: {
+        panel: "SOBRE",
+        groupTitle: page.group,
+        slug: page.id,
+        name: page.name,
+        summary: page.summary,
+        pageId,
+        position: position++,
+      },
+      update: { groupTitle: page.group, pageId: pageId ?? undefined },
+    });
   }
-
-  // "Destaque" é a coluna que o site transforma no bloco grande à direita.
-  await prisma.siteMenuItem.upsert({
-    where: { panel_slug: { panel: "SOBRE", slug: ABOUT_HIGHLIGHT.id } },
-    create: {
-      panel: "SOBRE",
-      groupTitle: "Destaque",
-      slug: ABOUT_HIGHLIGHT.id,
-      name: ABOUT_HIGHLIGHT.name,
-      summary: ABOUT_HIGHLIGHT.summary,
-      position: position++,
-    },
-    update: { groupTitle: "Destaque" },
-  });
 }
 
 async function seedSettings() {
@@ -106,159 +161,38 @@ async function seedSettings() {
     create: {
       key: "site",
       value: {
-        // Estes números seguem sendo os de exemplo do leiaute. Ficam aqui para
-        // aparecerem na tela do admin e serem trocados por lá — o aviso do
-        // painel continua marcando enquanto não forem.
-        stats: STATS,
+        // Números de exemplo, de propósito: aparecem no admin marcados como
+        // pendência até alguém trocar pelos reais.
+        stats: [
+          { value: "+500", label: "Clientes atendidos" },
+          { value: "+1200", label: "Projetos entregues" },
+          { value: "+8 anos", label: "De mercado" },
+          { value: "100%", label: "Foco no cliente" },
+        ],
         contact: {
           email: "contato@orbitahub.com.br",
           phone: "+55 (85) 0000-0000",
         },
-        whatsapp: { number: WHATSAPP.number, label: WHATSAPP.label },
+        whatsapp: WHATSAPP,
       },
     },
     update: {},
   });
 }
 
-/**
- * A página do CRM Tracking, no formato aprovado. Ela nasce como RASCUNHO: o
- * texto sai do catálogo, mas as imagens e as logos de cliente ainda não
- * existem — publicar é uma decisão de quem revisa, não do seed.
- */
-async function seedTrackingPage() {
-  const tool = findTool("tracking");
-  if (!tool) return;
-
-  const existing = await prisma.sitePage.findUnique({
-    where: { slug: "crm-tracking" },
-    select: { id: true },
-  });
-  if (existing) return;
-
-  const page = await prisma.sitePage.create({
-    data: {
-      slug: "crm-tracking",
-      title: tool.name,
-      seoTitle: `${tool.name} — ÓRBITA HUB`,
-      seoDescription: tool.tagline,
-      blocks: [
-        {
-          id: "hero",
-          type: "hero",
-          enabled: true,
-          eyebrow: "O cliente chega e avança",
-          title: "CRM Tracking: o funil que anda quando o card anda",
-          text: tool.summary,
-          primary: { label: "Agendar uma demonstração", href: WHATSAPP.href },
-          secondary: { label: "Ver funcionalidades", href: "" },
-          image: { key: "", alt: "" },
-        },
-        {
-          id: "statement",
-          type: "statement",
-          enabled: true,
-          title: "Um CRM que se adapta ao processo que a sua empresa já tem.",
-          text: "Vários funis sobre a mesma base de contatos, com as etapas que o seu time usa todo dia.",
-          cta: { label: "Falar com um especialista", href: WHATSAPP.href },
-        },
-        {
-          id: "compare",
-          type: "compare",
-          enabled: true,
-          title: "Com o CRM Tracking você terá",
-          moreTitle: "MAIS",
-          more: [
-            "Todo o histórico do contato num lugar só",
-            "Previsibilidade do que vai fechar",
-            "Motivo registrado em cada perda",
-            "O time inteiro olhando o mesmo funil",
-          ],
-          lessTitle: "MENOS",
-          less: [
-            "Lead esquecido na caixa de entrada",
-            "Planilha paralela que só uma pessoa entende",
-            "Reunião para descobrir em que pé está cada negócio",
-            "Card parado sem ninguém perceber",
-          ],
-        },
-        {
-          id: "features",
-          type: "features",
-          enabled: true,
-          title: "As cinco funcionalidades do CRM Tracking",
-          items: tool.features.map((feature) => ({
-            title: feature.title,
-            text: feature.description,
-          })),
-        },
-        {
-          id: "split",
-          type: "split",
-          enabled: true,
-          title: "O funil no bolso de quem está na rua",
-          paragraphs: [
-            "O vendedor move o card, registra o motivo e vê o histórico do contato sem voltar para o computador.",
-          ],
-          image: { key: "", alt: "" },
-          imageSide: "left",
-        },
-        {
-          id: "video",
-          type: "video",
-          enabled: true,
-          title: "Mais que um sistema, uma parceria",
-          text: "",
-          youtubeUrl: "",
-        },
-        {
-          id: "clients",
-          type: "clients",
-          enabled: true,
-          title: "Nossos clientes",
-          logos: [],
-        },
-        {
-          id: "contact",
-          type: "contact",
-          enabled: true,
-          title: "Vamos impulsionar a gestão do seu negócio?",
-          options: [
-            {
-              kind: "whatsapp",
-              label: "Converse por WhatsApp",
-              href: WHATSAPP.href,
-            },
-            {
-              kind: "callback",
-              label: "Nós ligamos para você",
-              href: WHATSAPP.href,
-            },
-          ],
-        },
-      ],
-    },
-    select: { id: true },
-  });
-
-  // Amarra a página ao item do menu: com ela publicada, o menu passa a
-  // apontar para /solucoes/crm-tracking sozinho.
-  await prisma.siteMenuItem.updateMany({
-    where: { panel: "SOLUCOES", slug: "tracking" },
-    data: { pageId: page.id },
-  });
-}
-
 async function main() {
-  await seedMenu();
+  const pageIdBySlug = await seedPages();
+  await seedMenu(pageIdBySlug);
   await seedSettings();
-  await seedTrackingPage();
 
-  const [menu, pages] = await Promise.all([
+  const [menu, pages, published] = await Promise.all([
     prisma.siteMenuItem.count(),
     prisma.sitePage.count(),
+    prisma.sitePage.count({ where: { status: "PUBLISHED" } }),
   ]);
-  console.log(`site: ${menu} itens de menu, ${pages} páginas`);
+  console.log(
+    `site: ${menu} itens de menu, ${pages} páginas (${published} publicadas)`,
+  );
 }
 
 main()

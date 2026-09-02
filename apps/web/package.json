@@ -27,6 +27,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@nerp/api": "workspace:*",
+    "@nerp/site-content": "workspace:*",
     "@nerp/types": "workspace:*",
     "@orpc/client": "^1.13.2",
     "@orpc/server": "^1.13.2",
