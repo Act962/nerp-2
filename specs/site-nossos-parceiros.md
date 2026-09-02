@@ -676,7 +676,19 @@ seção não aparece para ninguém:
       `prisma.sitePartner` é `undefined` em runtime e o `apps/web` não
       compila. Não rodei: comando Prisma não é meu para executar aqui;
 - [ ] aplicar a migração num banco local (Docker fora do ar hoje);
-- [ ] a tela do admin em `(site-admin)/site/parceiros`, com as duas abas;
+- [x] a tela do admin em `(site-admin)/site/parceiros`, com as duas abas —
+      FEITO. `router/site/partners.ts` (listar, salvar, reordenar, mostrar,
+      excluir para cada lista), os hooks em `use-site-admin.ts` e
+      `site-partners-manager.tsx`, no padrão de `site-menu-manager.tsx`.
+
+      **Permissão, com uma diferença em relação ao menu:** aqui o REDATOR
+      edita, porque o que ele mexe É o conteúdo — "só texto e imagem", diz o
+      papel. O que ele não faz é mudar a lista: criar, reordenar e excluir
+      ficam com EDITOR, e excluir só com o super admin.
+
+      As duas listas invalidam juntas: alimentam a mesma resposta pública e o
+      mesmo trecho da viagem, e atualizar uma só mostraria metade da seção
+      nova.
 - [ ] o bloco de vídeo do convite (tempo 7);
 - [ ] o fallback sem WebGL.
 

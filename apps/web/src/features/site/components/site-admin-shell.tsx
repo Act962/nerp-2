@@ -8,6 +8,7 @@ import {
   Image as ImageIcon,
   LayoutDashboard,
   ListTree,
+  Handshake,
   Menu as MenuIcon,
   Shield,
   Sparkles,
@@ -21,6 +22,7 @@ const SITE_ENTRIES: Entry[] = [
   { href: "/site/menu", label: "Menu", icon: MenuIcon },
   { href: "/site/paginas", label: "Páginas", icon: ListTree },
   { href: "/site/midia", label: "Mídia", icon: ImageIcon },
+  { href: "/site/parceiros", label: "Parceiros", icon: Handshake },
 ];
 
 export function SiteAdminShell({
