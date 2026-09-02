@@ -1,3 +1,5 @@
+import { legacy } from "../lib/timeline";
+
 /** O WhatsApp comercial — botão flutuante, CTA da barra e painéis. */
 export const WHATSAPP = {
   number: "558698221810",
@@ -26,10 +28,16 @@ export const NAV: Array<{
   /** Abre um painel em vez de viajar pela órbita. */
   mega?: "solucoes" | "segmentos" | "sobre";
 }> = [
-  { label: "Início", href: "#inicio", at: 0.0 },
-  { label: "Soluções", href: "#solucoes", at: 0.3, mega: "solucoes" },
-  { label: "Segmentos", href: "#segmentos", at: 0.62, mega: "segmentos" },
-  { label: "Sobre nós", href: "#sobre", at: 0.86, mega: "sobre" },
+  { label: "Início", href: "#inicio", at: legacy(0.0) },
+  { label: "Soluções", href: "#solucoes", at: legacy(0.3), mega: "solucoes" },
+  {
+    label: "Segmentos",
+    href: "#segmentos",
+    at: legacy(0.62),
+    mega: "segmentos",
+  },
+  { label: "Sobre nós", href: "#sobre", at: legacy(0.86), mega: "sobre" },
+  // Contato é o CTA final, que continua ancorado no fim da viagem.
   { label: "Contato", href: "#contato", at: 0.95 },
 ];
 

@@ -16,6 +16,11 @@ import { CameraRig } from "./camera-rig";
 import { AnchorTracker } from "./tracker";
 import { GlobeProjection } from "./globe-projection";
 import { createProceduralEnvironment } from "./environment";
+import { Ocean, OCEAN_SUN } from "./ocean";
+import { SkyPass } from "./sky-pass";
+import { CRAFT, OCEAN, oceanAmount, orbitVisible } from "../lib/timeline";
+import { CloudPass } from "./cloud-pass";
+import { CraftPass } from "./craft-pass";
 
 /** Instala o ambiente procedural usado pelos reflexos do símbolo. */
 function SceneEnvironment() {
@@ -69,11 +74,122 @@ function AfterCurtain({ children }: { children: React.ReactNode }) {
 }
 
 /**
+ * O espaço sai de cena enquanto se voa sobre o mar.
+ *
+ * O plano do mar tem 2400 de lado e passa pela origem — que é exatamente onde
+ * o planeta está. Sem esconder um, o outro apareceria como uma bola encalhada
+ * no meio da água. São dois lugares, não duas camadas do mesmo lugar.
+ */
+function SpaceStage({ children }: { children: React.ReactNode }) {
+  const group = useRef<Group>(null);
+  useFrame(() => {
+    if (group.current) group.current.visible = oceanAmount(scroll.smooth) <= 0;
+  });
+  return <group ref={group}>{children}</group>;
+}
+
+/**
+ * O mar entra e sai da cena, não só da vista.
+ *
+ * Montar a malha é caro — 900² segmentos — e ela não tem por que existir
+ * enquanto se olha o espaço. Este componente troca de estado uma vez em cada
+ * borda da janela, e não a cada quadro: é o único lugar da cena em que o
+ * progresso do scroll vira estado do React, e é discreto de propósito.
+ */
+function OceanStage({ segments }: { segments: number }) {
+  const [live, setLive] = useState(false);
+
+  useFrame(() => {
+    const p = scroll.smooth;
+    const dentro =
+      p > OCEAN.from - OCEAN.blendIn * 2 && p < OCEAN.to + OCEAN.blendOut * 4;
+    setLive((atual) => (atual === dentro ? atual : dentro));
+  });
+
+  if (!live) return null;
+
+  return (
+    <Suspense fallback={null}>
+      <OceanVisibility>
+        <Ocean visible segments={segments} />
+      </OceanVisibility>
+    </Suspense>
+  );
+}
+
+/*
+  Montado não é o mesmo que em cena.
+
+  A malha é montada com folga, para a geometria estar pronta quando o branco
+  abrir. Mas ela só pode APARECER quando o espaço já saiu — os dois ocupam a
+  origem, e um quadro com os dois mostra o planeta boiando no mar. O corte é o
+  mesmo dos dois lados (`oceanAmount`), então não existe instante em que ambos
+  estejam visíveis.
+*/
+function OceanVisibility({ children }: { children: React.ReactNode }) {
+  const group = useRef<Group>(null);
+  useFrame(() => {
+    if (group.current) group.current.visible = oceanAmount(scroll.smooth) > 0;
+  });
+  return <group ref={group}>{children}</group>;
+}
+
+/**
+ * A travessia, em três camadas que se intercalam.
+ *
+ * Nuvem atrás, nave, nuvem à frente. É essa ordem que faz a nave SURGIR ENTRE
+ * as nuvens em vez de aparecer colada por cima delas — e é por isso que ela
+ * precisou sair do DOM e entrar na cena.
+ *
+ * A imagem só é montada perto da janela: no carregamento da home ela não é
+ * baixada.
+ */
+function CrossingStage({ octaves }: { octaves: number }) {
+  const [naveViva, setNaveViva] = useState(false);
+
+  useFrame(() => {
+    const p = scroll.smooth;
+    const perto = p > CRAFT.from - 0.06 && p < CRAFT.to + 0.06;
+    setNaveViva((atual) => (atual === perto ? atual : perto));
+  });
+
+  return (
+    <>
+      <CloudPass octaves={octaves} renderOrder={100} />
+      {naveViva && (
+        <Suspense fallback={null}>
+          <CraftPass renderOrder={101} />
+        </Suspense>
+      )}
+      <CloudPass
+        octaves={Math.max(3, octaves - 1)}
+        renderOrder={102}
+        foreground
+      />
+    </>
+  );
+}
+
+/**
  * O que só existe com um produto aberto.
  *
  * Fica fora do `AfterCurtain` de propósito: o modo produto pode ser aberto em
  * qualquer ponto da viagem, inclusive num trecho em que a órbita está recuada.
  */
+/**
+ * A órbita — trajetória, estações e esfera — só existe na parte alta da viagem.
+ *
+ * Ela é o mapa da suíte, e o mapa acaba quando a descida começa. Mantê-la
+ * acesa faria a câmera atravessar o próprio anel a caminho da nuvem.
+ */
+function OrbitStage({ children }: { children: React.ReactNode }) {
+  const group = useRef<Group>(null);
+  useFrame(() => {
+    if (group.current) group.current.visible = orbitVisible(scroll.smooth);
+  });
+  return <group ref={group}>{children}</group>;
+}
+
 function ProductStage() {
   const product = useActiveProduct();
   if (!product) return null;
@@ -108,10 +224,10 @@ export function OrbitaScene({ quality, compact, onReady }: Props) {
         depth: true,
       }}
       camera={{ position: [0.75, 0.35, 4.6], fov: 34, near: 0.05, far: 140 }}
-      onCreated={({ gl, scene }) => {
+      onCreated={({ gl }) => {
         gl.toneMapping = ACESFilmicToneMapping;
         gl.toneMappingExposure = 1.1;
-        scene.background = null;
+        // O fundo é de `SkyBackground`: ele vai do vazio ao céu do sobrevoo.
         onReady?.();
       }}
     >
@@ -121,27 +237,39 @@ export function OrbitaScene({ quality, compact, onReady }: Props) {
       <Lights />
       <CameraRig compact={compact} />
 
-      <Suspense fallback={null}>
-        <Planet quality={quality} />
-        {quality.clouds && <Clouds quality={quality} />}
-      </Suspense>
+      {/* O céu do sobrevoo entra por trás de tudo, e só onde há mar. */}
+      <SkyPass sun={OCEAN_SUN} />
 
-      <Atmosphere />
-      <Starfield count={quality.stars} />
+      <SpaceStage>
+        <Suspense fallback={null}>
+          <Planet quality={quality} />
+          {quality.clouds && <Clouds quality={quality} />}
+        </Suspense>
 
-      <AfterCurtain>
-        <OrbitPath intensity={quality.glow ? 1 : 0.7} />
-        <ToolNodes />
-      </AfterCurtain>
+        <Atmosphere />
+        <Starfield count={quality.stars} />
 
-      <ProductStage />
-      <OrbitObject
-        scale={compact ? 0.26 : 0.3}
-        glow={quality.glow}
-        compact={compact}
-      />
+        <OrbitStage>
+          <AfterCurtain>
+            <OrbitPath intensity={quality.glow ? 1 : 0.7} />
+            <ToolNodes />
+          </AfterCurtain>
 
-      <GlobeProjection />
+          <ProductStage />
+          <OrbitObject
+            scale={compact ? 0.26 : 0.3}
+            glow={quality.glow}
+            compact={compact}
+          />
+        </OrbitStage>
+
+        <GlobeProjection />
+      </SpaceStage>
+
+      <OceanStage segments={quality.oceanSegments} />
+
+      <CrossingStage octaves={quality.tier === "low" ? 3 : 5} />
+
       <AnchorTracker />
     </Canvas>
   );

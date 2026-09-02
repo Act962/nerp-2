@@ -33,6 +33,9 @@ const prisma = new PrismaClient({ adapter });
 const WHATSAPP = { number: "558698221810", label: "Agendar Demonstração" };
 const WHATSAPP_HREF = `https://wa.me/${WHATSAPP.number}`;
 
+/** Traz o catálogo atualizado para páginas que já existem, e publica. */
+const REFRESCAR = process.env.SEED_SITE_REFRESH === "1";
+
 const SECAO = {
   solucoes: "SOLUCOES",
   segmentos: "SEGMENTOS",
@@ -61,7 +64,32 @@ async function seedPages() {
       select: { id: true },
     });
 
+    const conteudo = page.blocks as unknown as Prisma.InputJsonValue;
+
     if (existing) {
+      /*
+        Página que já existe não é tocada — a não ser que peçam.
+
+        O admin é a fonte de verdade depois do primeiro seed: reescrever os
+        blocos aqui apagaria a edição de quem revisou. `SEED_SITE_REFRESH=1`
+        existe para o caso oposto, o de trazer o catálogo atualizado para
+        páginas que ninguém editou ainda.
+      */
+      if (REFRESCAR) {
+        await prisma.sitePage.update({
+          where: { id: existing.id },
+          data: {
+            title: page.title,
+            section: SECAO[page.section],
+            seoTitle: page.seoTitle,
+            seoDescription: page.seoDescription,
+            blocks: conteudo,
+            publishedBlocks: conteudo,
+            status: "PUBLISHED",
+            publishedAt: new Date(),
+          },
+        });
+      }
       idBySlug.set(page.slug, existing.id);
       continue;
     }
@@ -73,11 +101,21 @@ async function seedPages() {
         title: page.title,
         seoTitle: page.seoTitle,
         seoDescription: page.seoDescription,
-        blocks: page.blocks as unknown as Prisma.InputJsonValue,
-        // Nasce como RASCUNHO: o texto sai do catálogo, mas as imagens e os
-        // blocos que dependem de fato (cases, parceiros, vagas) ainda estão
-        // vazios. Publicar é decisão de quem revisa, não do seed.
-        status: "DRAFT",
+        blocks: conteudo,
+        /*
+          Nasce PUBLICADA.
+
+          Era rascunho, com o argumento de que faltavam as imagens. Mas
+          rascunho é 404 no site: o menu tem trinta e quatro itens, e todos
+          levariam a lugar nenhum até alguém publicar um a um. O texto sai do
+          catálogo e é verdadeiro; a imagem que falta o renderizador desenha
+          como moldura vazia, e o cliente sobe pelo admin sem tocar em código.
+
+          Uma página verdadeira e sem foto é melhor do que um 404.
+        */
+        publishedBlocks: conteudo,
+        status: "PUBLISHED",
+        publishedAt: new Date(),
       },
       select: { id: true },
     });
@@ -193,6 +231,11 @@ async function main() {
   console.log(
     `site: ${menu} itens de menu, ${pages} páginas (${published} publicadas)`,
   );
+  if (!REFRESCAR) {
+    console.log(
+      "páginas que já existiam não foram tocadas — use SEED_SITE_REFRESH=1 para atualizá-las pelo catálogo.",
+    );
+  }
 }
 
 main()

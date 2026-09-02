@@ -8,6 +8,7 @@ import { scrollToProgress } from "../hooks/use-scroll-timeline";
 import { OrbitaLogo } from "./orbita-logo";
 import { MegaMenu, type MegaKind } from "./mega-menu";
 import { cn } from "../lib/cn";
+import { legacy } from "../lib/timeline";
 
 /**
  * Navegação transparente sobre o espaço.
@@ -46,7 +47,7 @@ export function Nav({
       // Item ativo = a estação da órbita mais próxima do progresso atual.
       let index = 0;
       for (let i = 0; i < NAV.length; i++) {
-        if (p >= NAV[i].at - 0.05) index = i;
+        if (p >= NAV[i].at - legacy(0.05)) index = i;
       }
       if (index !== last) {
         last = index;

@@ -6,6 +6,7 @@ import { clamp, smoothstep } from "../lib/cn";
 import { progressForAngle, toolAngles } from "../lib/orbit";
 import { scroll } from "../lib/store";
 import { scrollToProgress } from "../hooks/use-scroll-timeline";
+import { legacy } from "../lib/timeline";
 
 /**
  * O botão "Avançar" — só no celular.
@@ -28,7 +29,7 @@ const ANGLES = toolAngles(ORBIT_TOOLS.length);
 const PARADAS = ANGLES.map((angle) => progressForAngle(angle));
 
 /** Uma folga para o salto não cair na estação em que já estamos. */
-const FOLGA = 0.004;
+const FOLGA = legacy(0.004);
 
 export function AdvanceButton() {
   const ref = useRef<HTMLButtonElement>(null);
@@ -53,7 +54,7 @@ export function AdvanceButton() {
       const primeira = PARADAS[0];
       const ultima = PARADAS[PARADAS.length - 1];
 
-      const dentro = p > primeira - 0.05 && p < ultima + 0.02;
+      const dentro = p > primeira - legacy(0.05) && p < ultima + legacy(0.02);
       const livre = scroll.product.t < 0.05 && !scroll.menuOpen;
       const chegou = smoothstep(clamp((scroll.intro - 0.72) / 0.28));
 
@@ -74,7 +75,7 @@ export function AdvanceButton() {
     const proxima = PARADAS.find((parada) => parada > atual + FOLGA);
     // Na última estação, o botão entrega o fim da órbita em vez de não fazer
     // nada — um botão que não responde parece quebrado.
-    scrollToProgress(proxima ?? PARADAS[PARADAS.length - 1] + 0.04);
+    scrollToProgress(proxima ?? PARADAS[PARADAS.length - 1] + legacy(0.04));
   };
 
   return (
