@@ -26,12 +26,12 @@ import {
 import { SelectCustomerDialog } from "../select-customer-dialog";
 import { PaymentDialog, type SalePaymentInput } from "../payment-dialog";
 import { SaleCompletedDialog } from "../sale-completed-dialog";
-import { useProducts } from "@/features/products/hooks/use-products";
+import { usePdvProducts } from "@/features/products/hooks/use-products";
+import { round2 } from "@/utils/pricing";
 import { constructUrl } from "@/hooks/use-construct-url";
 import type { PersonType } from "@/schemas/customer";
 import { ProductSection } from "./product-section";
 import { CartSale } from "./cart-sale";
-import { useCursorPagination } from "@/hooks/use-cursor-pagination";
 import { type SaleFormData, saleSchema } from "./schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -63,6 +63,9 @@ export type CartItem = {
   productId: string;
   name: string;
   currentStock: number;
+  // Se o produto controla estoque. Ausente em carrinho recuperado de sessão
+  // anterior, por isso opcional — nesse caso o aviso de estoque não aparece.
+  trackStock?: boolean;
   sku: string | null;
   // Unidade cadastrada do produto (UN, KG, L, M...) — mostrada no carrinho
   // pra o operador saber se deve inserir 0,1 (100g) ou 1 (1 un).
@@ -174,8 +177,9 @@ export default function CreateSalePage({
     id: string;
     nonce: number;
   } | null>(null);
-  const { cursor, pageIndex, hasPrevious, goNext, goPrevious, reset } =
-    useCursorPagination();
+  // Paginação por página (não cursor): o operador precisa saber quantos
+  // produtos casaram com a busca e alcançar qualquer página.
+  const [page, setPage] = useState(1);
 
   // Abas de categoria (filtro da grade).
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -185,7 +189,7 @@ export default function CreateSalePage({
   const categories = categoriesData?.categories ?? [];
   const onSelectCategory = (id: string | null) => {
     setSelectedCategory(id);
-    reset();
+    setPage(1);
   };
 
   // 200ms: rápido o bastante para não parecer travado ao digitar, longo o
@@ -193,19 +197,18 @@ export default function CreateSalePage({
   const debouncedSearch = useDebouncedValue(searchTerm, 200);
 
   const {
-    hasNextPage,
     data: products,
-    nextCursor,
+    totalCount: productsCount,
+    totalPages,
     isLoading,
-  } = useProducts({
-    cursor,
+  } = usePdvProducts({
+    page,
     // Alvo: 3 colunas × 3 linhas — tiles maiores, foto ocupa o vertical inteiro.
-    // Sem paginação: o restante fica atrás do scroll interno da grade.
-    limit: 9,
-    category: selectedCategory ? [selectedCategory] : undefined,
-    // Busca no SERVIDOR (não só na página carregada): produtos fora das 12
-    // primeiras também aparecem. DEBOUNCED: sem isso é uma consulta por tecla
-    // digitada, e um código de 13 dígitos virava 13 consultas.
+    pageSize: 9,
+    categorySlug: selectedCategory ?? undefined,
+    // Busca no SERVIDOR (não só na página carregada). DEBOUNCED: sem isso é
+    // uma consulta por tecla digitada, e um código de 13 dígitos virava 13
+    // consultas.
     search: debouncedSearch.trim() || undefined,
   });
 
@@ -253,16 +256,18 @@ export default function CreateSalePage({
     );
 
     if (existingItem) {
-      if (existingItem.quantity < product.currentStock) {
-        form.setValue(
-          "cartItems",
-          currentCart.map((item) =>
-            item.id === product.id
-              ? { ...item, quantity: item.quantity + 1 }
-              : item,
-          ),
-        );
-      }
+      // Incrementa SEMPRE. Antes isto era travado em `quantity < currentStock`,
+      // e com estoque desatualizado (o caso comum) bipar o mesmo item duas
+      // vezes simplesmente não fazia nada — sem erro, sem aviso. Quem sinaliza
+      // que passou do estoque é a linha do carrinho.
+      form.setValue(
+        "cartItems",
+        currentCart.map((item) =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item,
+        ),
+      );
     } else {
       form.setValue("cartItems", [
         ...currentCart,
@@ -275,6 +280,7 @@ export default function CreateSalePage({
           price: Number(product.salePrice),
           quantity: 1,
           currentStock: Number(product.currentStock),
+          trackStock: product.trackStock,
         },
       ]);
     }
@@ -627,16 +633,23 @@ export default function CreateSalePage({
     await handleOpenPayment();
   };
 
-  const subtotal = form
-    .getValues("cartItems")
-    .filter((item) => !item.cancelled)
-    .reduce((sum, item) => sum + item.price * item.quantity, 0);
+  // Arredondado a cada passo: sem isso um item pesável (0,001) ou um desconto
+  // percentual produz total com 3+ casas — e aí o input de "Valor Recebido"
+  // recusava 104,00 dizendo que os válidos mais próximos eram 103,995 e
+  // 104,005, porque o `step` de 1 centavo se ancorava num número quebrado.
+  const subtotal = round2(
+    form
+      .getValues("cartItems")
+      .filter((item) => !item.cancelled)
+      .reduce((sum, item) => sum + item.price * item.quantity, 0),
+  );
 
-  const discountAmount =
+  const discountAmount = round2(
     form.getValues("discountType") === "percent"
       ? (subtotal * form.getValues("discount")) / 100
-      : form.getValues("discount");
-  const total = Math.max(0, subtotal - discountAmount);
+      : form.getValues("discount"),
+  );
+  const total = Math.max(0, round2(subtotal - discountAmount));
 
   const handlePaymentConfirm = (data: {
     payments: SalePaymentInput[];
@@ -773,18 +786,18 @@ export default function CreateSalePage({
       <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_620px]">
         {/* Left Side - Product Selection */}
         <ProductSection
-          hasNextPage={hasNextPage}
-          hasPreviousPage={hasPrevious}
-          pageIndex={pageIndex}
-          onNextPage={() => goNext(nextCursor)}
-          onPreviousPage={goPrevious}
+          page={page}
+          totalPages={totalPages}
+          totalCount={productsCount}
+          onNextPage={() => setPage((atual) => Math.min(totalPages, atual + 1))}
+          onPreviousPage={() => setPage((atual) => Math.max(1, atual - 1))}
           searchInputRef={searchInputRef}
           searchTerm={searchTerm}
           setSearchTerm={(value) => {
             setSearchTerm(value);
             setSelectedIndex(null);
             // Nova busca recomeça da 1ª página dos resultados.
-            reset();
+            setPage(1);
           }}
           selectedIndex={selectedIndex}
           onArrow={moveSelection}

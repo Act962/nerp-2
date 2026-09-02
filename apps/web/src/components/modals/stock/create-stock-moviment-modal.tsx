@@ -60,8 +60,11 @@ const CreateMovimentSchema = z.object({
   description: z.string().optional(),
 });
 
-// "ENTRADA" | "SAIDA" | "VENDA" | "COMPRA" | "DEVOLUCAO" | "AJUSTE" | "TRANSFERENCIA" | "PERDA"
-
+// Só os três tipos que este formulário realmente registra. Os outros cinco do
+// enum ficavam na lista e o `onSubmit` os ignorava no `default`: escolher
+// "Compra" e clicar em Registrar não fazia nada, sem erro nem toast. Cada um
+// tem seu caminho próprio — VENDA vem do PDV, AJUSTE do inventário,
+// COMPRA da entrada de nota (`/estoque/entradas`).
 const Types = [
   {
     name: "Entrada",
@@ -70,26 +73,6 @@ const Types = [
   {
     name: "Saída",
     value: MovementType.SAIDA,
-  },
-  {
-    name: "Venda",
-    value: MovementType.VENDA,
-  },
-  {
-    name: "Compra",
-    value: MovementType.COMPRA,
-  },
-  {
-    name: "Devolução",
-    value: MovementType.DEVOLUCAO,
-  },
-  {
-    name: "Ajuste",
-    value: MovementType.AJUSTE,
-  },
-  {
-    name: "Transferência",
-    value: MovementType.TRANSFERENCIA,
   },
   {
     name: "Perda",

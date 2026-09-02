@@ -89,6 +89,13 @@ export async function createMember(user: User, org: Organization) {
 /**
  * Limpa o que os testes criam. Cascata de `Organization` derruba fornecedor e
  * member; `Device` (sem @relation) e o usuário precisam ir separado.
+ *
+ * As tabelas do CRM/WhatsApp (funil, lead, conversa, mensagem, campanha,
+ * agenda, lembrete, extrato de Stars) não precisam de linha aqui: todas
+ * cascateiam de `Organization`, e as FKs restritas para `User`
+ * (`Broadcast.createdBy`, `Reminder.createdBy`) não travam porque a
+ * organização é apagada antes do usuário. `StarPackage` e
+ * `ProcessedStripeEvent` são globais e ficam de fora de propósito.
  */
 export async function resetDb() {
   const testOrgs = await prisma.organization.findMany({
@@ -105,7 +112,17 @@ export async function resetDb() {
   await prisma.sale.deleteMany({ where: orgIds }); // cascata: SaleItem + SalePayment
   await prisma.cashSession.deleteMany({ where: orgIds });
   await prisma.cashRegister.deleteMany({ where: orgIds });
+  // Antes do produto: PurchaseItem.product é `onDelete: Restrict`, então uma
+  // entrada de nota com itens trava o deleteMany abaixo e derruba a suíte
+  // inteira. Apagar a Purchase cascateia os itens.
+  await prisma.purchase.deleteMany({ where: orgIds });
   await prisma.product.deleteMany({ where: orgIds });
+  // Book cascateia BookPage/BookItem, mas BookPage.storeId e PdvPhoto.storeId
+  // apontam para Store com FK restrita: sem apagar os books e as fotos antes, a
+  // cascata da Organization esbarra em `book_pages_storeId_fkey`.
+  await prisma.book.deleteMany({ where: orgIds });
+  await prisma.pdvPhoto.deleteMany({ where: orgIds });
+  await prisma.store.deleteMany({ where: orgIds });
   await prisma.device.deleteMany({ where: orgIds });
   await prisma.organization.deleteMany({
     where: { slug: { startsWith: "org-" } },

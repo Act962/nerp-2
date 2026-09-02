@@ -187,6 +187,11 @@ export const PAGE_PERMISSIONS = [
     href: "/ranking",
   },
   {
+    key: "whatsapp",
+    label: "WhatsApp e CRM",
+    href: "/whatsapp",
+  },
+  {
     key: "integracoes",
     label: "Integrações",
     href: "/integracoes",
@@ -244,6 +249,10 @@ export const ACTION_PERMISSIONS = [
     key: "catalogo-promocional-editar",
     label: "Editar catálogos promocionais",
   },
+  {
+    key: "estoque-entrada-processar",
+    label: "Processar entrada de nota (mexe em estoque, custo e financeiro)",
+  },
 ] as const;
 
 export type ActionPermissionKey = (typeof ACTION_PERMISSIONS)[number]["key"];
@@ -281,7 +290,7 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
     ],
   },
   { module: "Pedidos", keys: ["pedidos"] },
-  { module: "Estoque", keys: ["estoque"] },
+  { module: "Estoque", keys: ["estoque", "estoque-entrada-processar"] },
   { module: "Clientes", keys: ["clientes"] },
   { module: "Fornecedores", keys: ["fornecedores"] },
   { module: "Financeiro", keys: ["financeiro"] },
@@ -313,6 +322,7 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
   },
   { module: "Colaborador", keys: ["colaboradores"] },
   { module: "Ranking de Equipes", keys: ["ranking"] },
+  { module: "WhatsApp e CRM", keys: ["whatsapp"] },
   { module: "Integrações", keys: ["integracoes"] },
   { module: "Catálogo Online", keys: ["catalogo"] },
   { module: "Catálogo Promocional", keys: ["catalogo-promocional"] },

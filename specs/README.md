@@ -33,12 +33,17 @@ feature depois de trabalhar em outra coisa.
 - [`dashboard.md`](./dashboard.md) — Dashboard pessoal + org + publico: 18 widgets, Oracle, alertas, pendencias
 - [`fornecedores.md`](./fornecedores.md) — CRUD de fornecedores (segurança, busca, refatoração)
 - [`importacao-fornecedores.md`](./importacao-fornecedores.md) — Importação via planilha (✅ entregue)
+- [`entrada-de-nota.md`](./entrada-de-nota.md) — Entrada de nota do fornecedor com N itens: rascunho → processar (estoque + custo + sugestão de preço + contas a pagar) · `feat/frente-de-caixa-melhorias-2` · 🟢 implementado, aguardando teste do dev
 - [`catalogo-editor-canva.md`](./catalogo-editor-canva.md) — Editor de Catálogo estilo Canva: 4 camadas, seleção/nós, painel de propriedades, grupo container · `feat/catalogo-paginas-canva` · 🟡 Fases 1-5 entregues
 - [`catalogo-precos-livre.md`](./catalogo-precos-livre.md) — Construtor "Padrão de estilos de preços" como canvas livre: variáveis (Preço/Nome/Foto/SKU/…) + formas com drag/resize, padrão reutilizável · `feat/catalogo-precos-livre` · 📋 Planejado
 - [`catalogo-multi-grupo.md`](./catalogo-multi-grupo.md) — Página com múltiplos grupos de produtos (duplicar grupo) + blocos de estilo individuais posicionáveis · `feat/catalogo-paginas-canva` · 🟡 Fases 1 e 3 entregues (Fase 2 = atribuição manual de produtos, pendente)
 - [`catalogo-filtros-oracle.md`](./catalogo-filtros-oracle.md) — "Adicionar produto": filtro por categoria (✅ entregue) + buscas Oracle (mais vendidos, vencimento, giro) · `feat/catalogo-filtros-oracle` · 🟡 categoria pronta; buscas Oracle planejadas
 - [`catalogo-link-publico.md`](./catalogo-link-publico.md) — Compartilhar: escolher página + link público do catálogo + WhatsApp com link · `feat/catalogo-paginas-canva` · 🟢 entregue (token no config, sem migration)
 - [`catalogo-lista.md`](./catalogo-lista.md) — Aba "Lista": planilha/PDF/imagem (IA Gemini) → catálogo com 1 página por cliente, preços por linha, imagens casadas por nome · `feat/catalogo-lista` · 🟢 MVP entregue (Fases 1-4, sem migration)
+
+- [`integracoes-catalogo-financeiro.md`](./integracoes-catalogo-financeiro.md) — Catálogo de conectores em `/integracoes`: cards por categoria (bancos, adquirentes, gateways), conector direto com API própria do provedor, credencial cifrada · `feat/integracoes-catalogo-financeiro` · 🟡 Fase 1 implementada
+
+- [`whatsapp-crm-campanhas.md`](./whatsapp-crm-campanhas.md) — Port do Órbita (nasaex-wey): atendimento por WhatsApp (API oficial da Meta) + CRM em funil + Campanhas + Agenda + Stars, com o lead amarrado ao `Customer` do ERP · `feat/whatsapp-crm-campanhas` · 🟢 Fases 0–10 feitas · **quem for mesclar: ler a seção "Antes do merge e do deploy" da spec** (ordem das migrations, envs novas, webhook do Stripe)
 
 ## ERP — Núcleo de varejo (roadmap)
 

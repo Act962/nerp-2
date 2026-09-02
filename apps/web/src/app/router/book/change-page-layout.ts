@@ -57,7 +57,7 @@ export const changeBookPageLayout = base
         storeId: true,
         pageLayout: true,
         pageBackground: true,
-        book: { select: { pageLayout: true } },
+        book: { select: { pageLayout: true, supplierId: true } },
         items: {
           orderBy: [{ slotIndex: "asc" }, { order: "asc" }],
           select: {
@@ -69,6 +69,28 @@ export const changeBookPageLayout = base
       },
     });
     if (!page) throw errors.NOT_FOUND({ message: "Página não encontrada" });
+
+    // Padrões salvos em /padroes para a indústria deste book. Sem isto, alterar
+    // o padrão de uma página ignorava o arranjo que a coordenadora desenhou e
+    // caía sempre no gerador embutido — que empilha as horizontais e distribui
+    // as verticais lado a lado, seja qual for o padrão salvo.
+    const savedTemplates = await prisma.bookPageTemplate.findMany({
+      where: {
+        organizationId: context.org.id,
+        supplierId: page.book.supplierId,
+        kind: "PHOTO",
+      },
+      select: {
+        photoOrientation: true,
+        photoSize: true,
+        layout: true,
+        background: true,
+      },
+    });
+    const savedFor = (orientation: "LANDSCAPE" | "PORTRAIT", size: number) =>
+      savedTemplates.find(
+        (t) => t.photoOrientation === orientation && t.photoSize === size,
+      ) ?? null;
 
     // Base do chrome: layout próprio da página ou, na falta, o do book.
     const baseLayout = Array.isArray(page.pageLayout)
@@ -86,16 +108,29 @@ export const changeBookPageLayout = base
     const keep = withPhoto.slice(0, input.size);
     const leftover = withPhoto.slice(input.size);
 
-    const newLayout = buildBasePhotoLayout(
-      baseLayout,
-      input.orientation,
-      input.size,
-    );
+    const saved = savedFor(input.orientation, input.size);
+    const newLayout =
+      saved?.layout ??
+      (buildBasePhotoLayout(
+        baseLayout,
+        input.orientation,
+        input.size,
+      ) as unknown as Prisma.JsonValue);
 
     await prisma.$transaction(async (tx) => {
       await tx.bookPage.update({
         where: { id: page.id },
-        data: { pageLayout: newLayout as unknown as Prisma.InputJsonValue },
+        data: {
+          pageLayout: newLayout as Prisma.InputJsonValue,
+          // O fundo acompanha o padrão salvo; sem padrão, fica como estava.
+          ...(saved
+            ? {
+                pageBackground:
+                  (saved.background as Prisma.InputJsonValue | null) ??
+                  Prisma.DbNull,
+              }
+            : {}),
+        },
       });
 
       // Remove todos os BookItems atuais da página (empties e os que vão migrar)
@@ -125,19 +160,23 @@ export const changeBookPageLayout = base
         });
         for (let c = 0; c < chunks.length; c++) {
           const chunkItems = chunks[c];
-          const chunkLayout = buildBasePhotoLayout(
-            baseLayout,
-            currentOrientation,
-            chunkItems.length,
-          );
+          const chunkSaved = savedFor(currentOrientation, chunkItems.length);
+          const chunkLayout =
+            chunkSaved?.layout ??
+            (buildBasePhotoLayout(
+              baseLayout,
+              currentOrientation,
+              chunkItems.length,
+            ) as unknown as Prisma.JsonValue);
           const created = await tx.bookPage.create({
             data: {
               bookId: page.bookId,
               storeId: page.storeId,
               order: page.order + 1 + c,
-              pageLayout: chunkLayout as unknown as Prisma.InputJsonValue,
+              pageLayout: chunkLayout as Prisma.InputJsonValue,
               pageBackground:
-                (page.pageBackground as Prisma.InputJsonValue | null) ??
+                ((chunkSaved?.background ??
+                  page.pageBackground) as Prisma.InputJsonValue | null) ??
                 Prisma.DbNull,
             },
             select: { id: true },

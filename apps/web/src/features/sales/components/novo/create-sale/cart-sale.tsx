@@ -207,6 +207,12 @@ export function CartSale({
                               {item.sku}
                             </div>
                           )}
+                          {item.trackStock !== false &&
+                            item.quantity > Number(item.currentStock) && (
+                              <div className="text-[12px] font-medium text-amber-600">
+                                acima do estoque ({item.currentStock})
+                              </div>
+                            )}
                         </div>
 
                         <div className="flex items-center justify-center gap-1">
@@ -216,10 +222,13 @@ export function CartSale({
                             }}
                             type="number"
                             min={0}
-                            step={
-                              unitAllowsDecimal(item.unit) ? "0.001" : "1"
-                            }
-                            max={Number(item.currentStock)}
+                            step={unitAllowsDecimal(item.unit) ? "0.001" : "1"}
+                            // SEM `max`. Ele valia `currentStock`, e como a
+                            // linha entra no carrinho já com quantidade 1, a
+                            // seta pra cima morria de imediato em todo produto
+                            // com estoque 1 — e o navegador ainda recusava a
+                            // quantidade digitada. Estoque estourado agora
+                            // AVISA (abaixo) em vez de travar em silêncio.
                             value={item.quantity}
                             onFocus={(e) => e.currentTarget.select()}
                             // O input NÃO é bloqueado quando requireCancelAuth

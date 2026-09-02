@@ -8,6 +8,14 @@ import tsconfigPaths from "vite-tsconfig-paths";
  * Tudo num arquivo só de propósito: o Vitest externaliza este pacote e o
  * carrega pelo Node, que exige extensão explícita em import relativo. Sem
  * imports internos, não há essa armadilha.
+ *
+ * O pacote exporta TypeScript CRU, e o Node só consegue lê-lo com type
+ * stripping — ligado por padrão apenas a partir do 22.18. Em Node mais antigo o
+ * carregador de config do Vite externaliza este arquivo e o `import` estoura com
+ * `SyntaxError`, derrubando a suíte inteira antes do primeiro teste. É por isso
+ * que os scripts de teste passam `--configLoader runner`: o module runner do
+ * Vitest transpila em vez de externalizar. Não tire a flag sem antes exigir
+ * Node >= 22.18.
  */
 
 /**

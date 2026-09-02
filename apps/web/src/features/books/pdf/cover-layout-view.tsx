@@ -139,6 +139,7 @@ export function CoverLayoutView({
   photoSources,
   photoFits,
   photoNumbers,
+  showPhotoNumbers = true,
   photoVariables,
   photoBackdrops,
 }: {
@@ -155,6 +156,9 @@ export function CoverLayoutView({
   photoFits?: Array<"cover" | "contain">;
   // Número da foto no book (legenda "FOTO N"), indexado por slotIndex.
   photoNumbers?: number[];
+  // Interruptor do book: false esconde a legenda de todos os espaços. Não mexe
+  // na variável {{numeroFoto}} dos textos.
+  showPhotoNumbers?: boolean;
   // Variáveis por foto (numeroFoto/cidade/uf/promotor), indexado por slotIndex.
   photoVariables?: Record<number, BookVariableValues>;
   photoBackdrops?: Array<PhotoBackdropSource | undefined>;
@@ -255,7 +259,9 @@ export function CoverLayoutView({
           const strokeWidth = element.strokeWidth ?? 0;
           const photoNumber = photoNumbers?.[element.slotIndex];
           const showNumber =
-            element.showNumber !== false && photoNumber != null;
+            showPhotoNumbers &&
+            element.showNumber !== false &&
+            photoNumber != null;
           // "Caber inteira" (contain) ignora zoom: mostra a foto inteira.
           const effectiveFit =
             photoFits?.[element.slotIndex] ?? element.objectFit;
