@@ -176,6 +176,61 @@ Better Auth (`src/lib/auth.ts`) with the `organization` plugin plus a custom `cr
 
 New admin page → add a key to `PAGE_PERMISSIONS`, guard the page with `requirePermission(key)` (or `requireViewAccess` where read-only viewers are allowed), add a sidebar entry in `src/components/app-sidebar.tsx`, and if it's a new **top-level** path add it to the pass-through list in `src/middleware.ts` so subdomain rewriting doesn't hijack it. Nesting under an already-allowlisted path (e.g. `/vendas/caixa`) avoids the middleware edit entirely.
 
+### Site institucional e o admin dele
+
+O site institucional é um app próprio, `apps/site`, e o admin que o alimenta
+fica aqui no `apps/web`, em `/site`. A divisão segue o que o `apps/desktop` já
+faz: **o `apps/web` é dono do estado** (banco, better-auth, R2, admin) e o
+outro app só desenha, consumindo `/api/site/content` e `/api/site/page/<slug>`
+por HTTP. O contrato entre os dois é o pacote `@nerp/site-content`; nenhum app
+importa de dentro do outro.
+
+As duas rotas públicas devolvem só o que já está no ar — nada de rascunho — e
+o `apps/site` tem o próprio conteúdo de reserva, então ele continua de pé com
+este app fora do ar.
+
+Duas coisas fogem do padrão do resto do app, de propósito:
+
+- **As tabelas `site_*` são GLOBAIS** — não têm `organizationId`. O site é um
+  só; não é "o site de uma organização". Por isso as procedures em
+  `src/app/router/site/` usam `requireSiteAdminMiddleware`
+  (`src/app/middlewares/site-admin.ts`) no lugar de `requireOrgMiddleware`, e a
+  regra de multi-tenancy manual não se aplica a elas. Se um dia existir site por
+  inquilino, o caminho é acrescentar `organizationId` — não reaproveitar estas
+  tabelas para dois significados.
+- **O acesso não vem de `Member`** — vem de `SiteAdmin` mais um super admin fixo
+  em `SITE_SUPER_ADMIN_EMAIL` (padrão `weydsonlima@gmail.com`), que não pode ser
+  removido nem rebaixado pela tela. `requireSiteAdmin()` em
+  `src/lib/site-admin.ts` é a guarda das páginas.
+
+Uma página interna (`/solucoes/<slug>`, servida pelo `apps/site`) é uma LISTA DE
+BLOCOS em JSON, validada por `@nerp/site-content`. `blocks` é o rascunho, `publishedBlocks` é o
+que o site lê: salvar mexe só no rascunho, publicar copia um no outro, e uma
+página em rascunho é 404 no site. Ao criar um bloco novo, campo novo entra
+opcional ou com `.default()` — obrigatório invalidaria todas as páginas já
+salvas de uma vez.
+
+O menu sai do banco com fallback, e o fallback mora no outro app
+(`apps/site/src/orbita/data/content.ts`): painel que volta vazio cai no
+conteúdo que vem no código. É o que permite subir o admin antes de cadastrar
+qualquer coisa. `pnpm --filter @nerp/web exec tsx scripts/seed-site-content.ts`
+leva o catálogo atual para as tabelas — é idempotente e não sobrescreve o que
+já foi editado na tela.
+
+**O catálogo é lido de dois jeitos.** `MENU_COLUMNS` dá as seis colunas do
+painel (28 ferramentas, incluindo os módulos do NERP); `ORBIT_TOOLS` dá as 19
+que são estação na órbita. A cena deriva a geometria da CONTAGEM de estações —
+ângulo de cada esfera, janela de scroll de cada categoria — então o menu pode
+crescer sem apertar a animação. Ferramenta que entra só no menu leva
+`orbitStation: false`.
+
+As estações não são editáveis pelo admin: elas são a própria cena. Editar o
+menu não muda a cena — é essa a divisão.
+
+Uma página vive em um dos três trechos (`SitePageSection`), que é o primeiro
+pedaço da URL. O slug é único no site inteiro, e a seção é o que impede
+`/solucoes/<slug>` e `/segmentos/<slug>` de devolverem a mesma coisa.
+
 ### Background jobs (Inngest)
 
 Client/events in `src/lib/inngest/client.ts`, functions array in `src/lib/inngest/functions.ts`, served at `src/app/api/inngest/route.ts`. The pattern: a procedure writes a status row (`GENERATING`/`PENDING`) then sends the event; the function body is a thin `step.run` delegating to `src/features/<domain>/server/*`, with `onFailure` marking the row `FAILED`; the client polls via `refetchInterval` keyed on status.

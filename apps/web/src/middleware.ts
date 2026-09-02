@@ -36,7 +36,10 @@ export function middleware(request: NextRequest) {
     // Celular como leitor (/leitor/{token}): aberto pelo QR do PDV, sem login.
     // Sem esta linha, abrir pelo subdomínio da loja cairia na reescrita de
     // vitrine e daria 404 — e é o único jeito de chegar nesta página.
-    pathname.startsWith("/leitor")
+    pathname.startsWith("/leitor") ||
+    // Admin do site institucional. Caminho de topo novo: sem esta linha, abrir
+    // por um subdomínio viraria /<subdominio>/site e daria 404.
+    pathname.startsWith("/site")
   ) {
     return NextResponse.next();
   }

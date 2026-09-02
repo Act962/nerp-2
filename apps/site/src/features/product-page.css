@@ -1,0 +1,506 @@
+/*
+  A página interna de uma solução.
+
+  Autocontida, como o resto do site institucional: sem Tailwind, sem tokens do
+  ERP, tudo prefixado com `sp-` porque este CSS é importado numa rota do mesmo
+  app e um `.hero` solto atropelaria qualquer outra tela.
+*/
+
+.sp-root {
+  --sp-void: #050a14;
+  --sp-ink: #0b1220;
+  --sp-blue: #1e9dfb;
+  --sp-blue-2: #3db4ff;
+  --sp-line: rgba(110, 172, 240, 0.24);
+  --sp-text: #cfe0f2;
+  --sp-dim: #8fb0d0;
+  --sp-gutter: clamp(1.25rem, 5vw, 5rem);
+
+  background: var(--sp-void);
+  color: #fff;
+  font-family:
+    Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.55;
+}
+
+.sp-root *,
+.sp-root *::before,
+.sp-root *::after {
+  box-sizing: border-box;
+}
+
+.sp-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 1rem var(--sp-gutter);
+  background: var(--sp-void);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.sp-nav__brand {
+  display: flex;
+  align-items: center;
+  color: #fff;
+  text-decoration: none;
+}
+
+/* A altura manda; a largura sai da proporção do arquivo oficial. */
+.sp-nav__brand img {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+
+.sp-foot__brand img {
+  height: 18px;
+  width: auto;
+  display: block;
+  opacity: 0.75;
+}
+
+.sp-nav__spacer {
+  flex: 1;
+}
+
+.sp-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 1.3rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.sp-btn--ghost {
+  color: var(--sp-text);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.sp-btn--solid {
+  background: var(--sp-blue);
+  color: #04243c;
+}
+
+.sp-btn--light {
+  background: #fff;
+  color: #0b2138;
+}
+
+.sp-btn--outline {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+/* ————— herói ————— */
+
+.sp-hero {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+  padding: clamp(3rem, 7vw, 5.5rem) var(--sp-gutter);
+  background: linear-gradient(135deg, #0f8ee8 0%, #3db4ff 100%);
+}
+
+.sp-hero__eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.22em;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.sp-hero h1 {
+  margin: 1rem 0;
+  font-size: clamp(2rem, 4.4vw, 3.4rem);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.sp-hero p {
+  margin: 0 0 2rem;
+  max-width: 46ch;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.sp-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+/* ————— seções ————— */
+
+.sp-section {
+  padding: clamp(3rem, 7vw, 5rem) var(--sp-gutter);
+}
+
+.sp-section h2 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.5rem, 3vw, 2.3rem);
+  line-height: 1.15;
+}
+
+.sp-statement {
+  text-align: center;
+  background: var(--sp-ink);
+}
+
+.sp-statement p {
+  margin: 0 auto 2rem;
+  max-width: 54ch;
+  color: var(--sp-dim);
+}
+
+.sp-duo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1rem, 2.5vw, 2rem);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.sp-duo > div {
+  border-radius: 18px;
+  padding: clamp(1.75rem, 3vw, 2.5rem);
+}
+
+.sp-duo__more {
+  background: linear-gradient(140deg, var(--sp-blue) 0%, var(--sp-blue-2) 100%);
+}
+
+.sp-duo__less {
+  border: 1px solid var(--sp-line);
+}
+
+.sp-duo h3 {
+  margin: 0 0 1.25rem;
+  font-size: 1.6rem;
+  letter-spacing: 0.02em;
+}
+
+.sp-duo ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sp-duo li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  font-size: 0.95rem;
+}
+
+.sp-duo li::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-top: 0.55em;
+  flex: none;
+  opacity: 0.8;
+}
+
+.sp-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sp-card {
+  flex: 1 1 15rem;
+  max-width: 19rem;
+  border: 1px solid var(--sp-line);
+  border-radius: 14px;
+  padding: 1.6rem 1.4rem;
+  background: linear-gradient(160deg, rgba(30, 157, 251, 0.09), transparent);
+}
+
+.sp-card h3 {
+  margin: 0 0 0.6rem;
+  font-size: 1rem;
+  color: var(--sp-blue-2);
+}
+
+.sp-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--sp-text);
+}
+
+.sp-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+}
+
+.sp-split--right .sp-split__media {
+  order: 2;
+}
+
+.sp-split p {
+  color: var(--sp-text);
+}
+
+.sp-video {
+  background: linear-gradient(135deg, var(--sp-blue) 0%, var(--sp-blue-2) 100%);
+  border-radius: 20px;
+  padding: clamp(2rem, 4vw, 3rem);
+  margin: 0 var(--sp-gutter) clamp(3rem, 7vw, 5rem);
+}
+
+.sp-video__frame {
+  aspect-ratio: 16 / 9;
+  width: 100%;
+  border: 0;
+  border-radius: 14px;
+  margin-top: 1.5rem;
+  background: #000;
+}
+
+.sp-clients {
+  background: #fff;
+  color: #0b2138;
+  padding: clamp(3rem, 6vw, 4.5rem) var(--sp-gutter);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 3rem);
+}
+
+.sp-clients h2 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #0f6fb8;
+  flex: none;
+}
+
+.sp-clients__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: clamp(1rem, 3vw, 2.5rem);
+}
+
+.sp-clients__row img {
+  max-height: 44px;
+  width: auto;
+}
+
+.sp-contact {
+  background: #fff;
+  color: #0b2138;
+  padding: 0 var(--sp-gutter) clamp(3rem, 6vw, 4.5rem);
+  text-align: center;
+}
+
+.sp-contact h2 {
+  color: #0f4f80;
+}
+
+.sp-contact__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: clamp(2rem, 6vw, 5rem);
+  margin-top: 2rem;
+}
+
+.sp-contact__row a {
+  color: #0b2138;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.sp-media {
+  width: 100%;
+  height: auto;
+  border-radius: 16px;
+  display: block;
+}
+
+/* Sem imagem enviada, o espaço fica marcado em vez de sumir — é o que mostra
+   ao editor que ali cabe uma imagem. */
+.sp-media--empty {
+  aspect-ratio: 16 / 10;
+  border: 1px dashed rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sp-foot {
+  background: var(--sp-void);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: clamp(2rem, 5vw, 3rem) var(--sp-gutter);
+  color: var(--sp-dim);
+  font-size: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.sp-foot a {
+  color: var(--sp-text);
+  text-decoration: none;
+}
+
+@media (max-width: 860px) {
+  .sp-hero,
+  .sp-duo,
+  .sp-split {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-split--right .sp-split__media {
+    order: 0;
+  }
+
+  .sp-nav__hide {
+    display: none;
+  }
+}
+
+/* ————— etapas ————— */
+
+.sp-steps__title {
+  text-align: center;
+}
+
+.sp-steps__lead {
+  margin: 0 auto 2.4rem;
+  max-width: 60ch;
+  text-align: center;
+  color: var(--sp-dim);
+}
+
+/*
+  O ciclo é desenho de marca, não ilustração: ele herda a cor do texto, então
+  funciona igual sobre o azul do herói e sobre o fundo escuro da seção.
+*/
+.sp-cycle {
+  display: block;
+  width: 100%;
+  max-width: 380px;
+  margin: 0 auto 2.5rem;
+  color: var(--sp-blue-2);
+}
+
+.sp-cycle__no {
+  fill: #04243c;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
+.sp-cycle__letra {
+  fill: #fff;
+  font-size: 26px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.sp-cycle__rot {
+  fill: currentColor;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  text-anchor: middle;
+}
+
+.sp-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.sp-step {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 1.4rem;
+  border: 1px solid var(--sp-line);
+  border-radius: 16px;
+  padding: 1.5rem;
+  background: linear-gradient(160deg, rgba(30, 157, 251, 0.08), transparent 60%);
+}
+
+.sp-step__mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  background: #04243c;
+  border-radius: 14px;
+}
+
+.sp-step__mark span {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--sp-blue-2);
+  line-height: 1;
+}
+
+/* O número de ordem, discreto: a letra é a identidade, o número é a posição. */
+.sp-step__mark i {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-style: normal;
+  font-size: 0.68rem;
+  color: var(--sp-dim);
+}
+
+.sp-step h3 {
+  margin: 0 0 0.3rem;
+  font-size: 1.15rem;
+}
+
+.sp-step__q {
+  margin: 0 0 0.8rem;
+  color: var(--sp-blue-2);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.sp-step p {
+  margin: 0 0 0.7rem;
+  color: var(--sp-text);
+  font-size: 0.95rem;
+}
+
+.sp-step ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--sp-dim);
+  font-size: 0.9rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+@media (max-width: 860px) {
+  .sp-step {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-step__mark {
+    height: 68px;
+  }
+}

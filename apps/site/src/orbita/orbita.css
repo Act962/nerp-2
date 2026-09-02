@@ -1,0 +1,2322 @@
+/* =========================================================================
+   ÓRBITA HUB — experiência 3D controlada por scroll
+   Folha própria e isolada: a estética espacial não herda (nem contamina) o
+   design system do ERP. Tudo aqui vive dentro de .orbita-root.
+   ========================================================================= */
+
+.orbita-root {
+  --o-void: #01040c;
+  --o-deep: #030b1a;
+  --o-blue: #0a93f7;
+  --o-blue-bright: #3db4ff;
+  --o-blue-deep: #0264c4;
+  --o-white: #ffffff;
+  --o-mist: #9db2cd;
+  --o-mist-dim: #6d84a3;
+  --o-line: rgba(120, 170, 230, 0.14);
+
+  --o-font:
+    var(--font-geist-sans), "Inter", "Satoshi", -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  --o-gutter: clamp(1.25rem, 4vw, 4.5rem);
+
+  /*
+   * Altura total em telas: 1 de cortina de abertura + 9 de órbita.
+   * O valor 0.1 em `INTRO_SHARE` (use-scroll-timeline) é o inverso disto.
+   */
+  --o-length: 10;
+
+  /* Escurecimento sob a navegação — a abertura zera enquanto o azul cobre. */
+  --o-nav-scrim: 1;
+
+  /*
+    O painel da barra é claro.
+
+    O azul é exatamente o do sublinhado dos itens do menu — a marca já usa
+    esse tom para marcar o que está ativo, e o painel é a versão grande do
+    mesmo gesto. A barra assume a mesma cor enquanto ele está aberto, por isso
+    as três variáveis moram aqui e não no painel.
+  */
+  --o-mega-bg: #3db4ff;
+  --o-mega-ink: #052440;
+  --o-mega-soft: #0f4a76;
+
+  position: relative;
+  height: calc(var(--o-length) * 100svh);
+  background: var(--o-void);
+  color: var(--o-white);
+  font-family: var(--o-font);
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+.orbita-root * {
+  box-sizing: border-box;
+}
+
+/* --- palco fixo -------------------------------------------------------- */
+
+.orbita-stage {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  width: 100%;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      120% 90% at 78% 12%,
+      rgba(20, 62, 130, 0.28) 0%,
+      rgba(2, 6, 16, 0) 58%
+    ), var(--o-void);
+}
+
+.orbita-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.orbita-canvas canvas {
+  display: block;
+  touch-action: pan-y;
+}
+
+/* Vinheta: fecha os cantos e faz o texto pousar sobre algo. */
+/*
+  Vinheta.
+
+  Fecha os cantos e assenta o topo e a base, e só. O contraste do texto é
+  trabalho das placas atrás de cada bloco (`.o-plate`) — um scrim largo o
+  bastante para proteger a leitura também acinzentava a esfera e o planeta,
+  que são o motivo de a página existir.
+*/
+.orbita-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to right,
+      rgba(1, 4, 12, 0.42) 0%,
+      rgba(1, 4, 12, 0.16) 14%,
+      transparent 26%
+    ),
+    radial-gradient(
+      150% 105% at 50% 50%,
+      transparent 52%,
+      rgba(0, 2, 8, 0.6) 100%
+    ), linear-gradient(to bottom, rgba(1, 4, 12, 0.55) 0%, transparent 18%),
+    linear-gradient(to top, rgba(1, 4, 12, 0.62) 0%, transparent 22%);
+}
+
+.orbita-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.orbita-layer > * {
+  pointer-events: auto;
+}
+
+/* --- tipografia -------------------------------------------------------- */
+
+.orbita-root h1,
+.orbita-root h2,
+.orbita-root h3,
+.orbita-root p {
+  margin: 0;
+}
+
+.o-eyebrow {
+  font-size: clamp(0.62rem, 0.72vw, 0.72rem);
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--o-blue-bright);
+  font-weight: 500;
+}
+
+.o-display {
+  font-size: clamp(2.35rem, 5.4vw, 4.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.o-title {
+  font-size: clamp(1.9rem, 3.9vw, 3.35rem);
+  line-height: 1.06;
+  letter-spacing: -0.032em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+
+.o-lead {
+  font-size: clamp(0.98rem, 1.15vw, 1.14rem);
+  line-height: 1.62;
+  color: var(--o-mist);
+  max-width: 34ch;
+}
+
+.o-glow-text {
+  text-shadow: 0 0 42px rgba(10, 147, 247, 0.35);
+}
+
+/* --- navegação --------------------------------------------------------- */
+
+.o-nav {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: clamp(1rem, 2vw, 1.6rem) var(--o-gutter);
+  background: linear-gradient(
+    to bottom,
+    rgba(1, 4, 12, calc(0.55 * var(--o-nav-scrim, 1))),
+    transparent
+  );
+  transition: opacity 0.4s ease;
+}
+
+.o-brand {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* O logotipo é o arquivo oficial; só a altura é definida aqui. */
+.o-brand__logo {
+  display: block;
+  height: clamp(20px, 2.1vw, 26px);
+  width: auto;
+  flex: none;
+}
+
+.o-nav__links {
+  display: flex;
+  align-items: center;
+  gap: clamp(1.2rem, 2.6vw, 2.8rem);
+}
+
+.o-nav__link {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0.35rem 0;
+  font: inherit;
+  font-size: 0.86rem;
+  letter-spacing: 0.01em;
+  color: rgba(226, 238, 255, 0.72);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.25s ease;
+}
+
+.o-nav__link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 100%;
+  bottom: 0;
+  height: 1px;
+  background: var(--o-blue-bright);
+  transition: right 0.3s ease;
+}
+
+.o-nav__link:hover,
+.o-nav__link[data-active="true"] {
+  color: var(--o-white);
+}
+
+.o-nav__link[data-active="true"]::after,
+.o-nav__link:hover::after {
+  right: 0;
+}
+
+.o-nav__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 1.05rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 180, 255, 0.34);
+  background: rgba(10, 90, 190, 0.16);
+  backdrop-filter: blur(10px);
+  color: var(--o-white);
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease;
+}
+
+.o-nav__cta:hover {
+  border-color: rgba(150, 205, 255, 0.7);
+  background: rgba(16, 116, 230, 0.28);
+}
+
+/*
+  A cópia da gaveta só existe no retrato.
+
+  O seletor é descendente de propósito: `.o-nav__signup` define `display` e
+  vem depois no arquivo, então com uma classe só ela venceria por ordem — e o
+  botão aparecia duas vezes no desktop.
+*/
+.o-nav__links .o-nav__auth-drawer {
+  display: none;
+}
+
+/* "Entrar": só texto. Quem já é cliente procura a porta, não um convite. */
+.o-nav__signin {
+  color: rgba(226, 238, 255, 0.78);
+  font-size: 0.82rem;
+  text-decoration: none;
+  padding: 0.55rem 0.35rem;
+  white-space: nowrap;
+  transition: color 0.25s ease;
+}
+
+.o-nav__signin:hover {
+  color: var(--o-white);
+}
+
+/* "Começar gratuitamente": contornado — convida sem competir com o CTA. */
+.o-nav__signup {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 180, 255, 0.34);
+  color: var(--o-white);
+  font-size: 0.82rem;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    border-color 0.25s ease,
+    background 0.25s ease;
+}
+
+.o-nav__signup:hover {
+  border-color: rgba(150, 205, 255, 0.7);
+  background: rgba(16, 116, 230, 0.18);
+}
+
+.o-nav--mega .o-nav__signin {
+  color: rgba(4, 30, 55, 0.78);
+}
+
+.o-nav--mega .o-nav__signin:hover {
+  color: var(--o-mega-ink);
+}
+
+.o-nav--mega .o-nav__signup {
+  border-color: rgba(5, 36, 64, 0.35);
+  color: var(--o-mega-ink);
+}
+
+.o-nav--mega .o-nav__signup:hover {
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(5, 36, 64, 0.6);
+}
+
+.o-nav__toggle {
+  display: none;
+}
+
+/* --- painéis da barra: Soluções, Segmentos e Sobre nós ------------------ */
+
+/*
+  O painel desce da barra.
+
+  Enquanto está aberto a barra assume a cor do painel: sem isso o topo
+  continuaria transparente sobre o planeta e o painel pareceria flutuar solto,
+  em vez de sair de dentro da navegação.
+*/
+.o-nav--mega {
+  background: var(--o-mega-bg);
+}
+
+/* O logotipo oficial é branco e sumiria sobre o azul claro. Escurecer é
+   tratamento de cor do mesmo arquivo — nada foi redesenhado. */
+.o-nav--mega .o-brand__logo {
+  filter: brightness(0) opacity(0.88);
+}
+
+.o-nav__right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.o-nav__link--mega {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.o-nav__chevron {
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.o-nav__link--mega[data-open="true"] .o-nav__chevron {
+  transform: rotate(180deg);
+}
+
+/* Com o painel aberto a barra fica clara: o texto escurece e o sublinhado
+   vira branco, que é o que se enxerga sobre o azul da marca. */
+.o-nav--mega .o-nav__link {
+  color: rgba(4, 30, 55, 0.72);
+}
+
+.o-nav--mega .o-nav__link:hover,
+.o-nav--mega .o-nav__link[data-open="true"],
+.o-nav--mega .o-nav__link[data-active="true"] {
+  color: var(--o-mega-ink);
+}
+
+.o-nav--mega .o-nav__link::after {
+  background: #fff;
+}
+
+.o-nav--mega .o-nav__cta {
+  background: #fff;
+  border-color: #fff;
+  color: #06304f;
+  font-weight: 600;
+}
+
+.o-nav--mega .o-nav__toggle {
+  border-color: rgba(5, 36, 64, 0.3);
+  background: rgba(255, 255, 255, 0.3);
+  color: var(--o-mega-ink);
+}
+
+.o-mega {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 7;
+  background: var(--o-mega-bg);
+  color: var(--o-mega-ink);
+  /* Os cantos de baixo arredondam porque o painel é um bloco pendurado na
+     barra — não uma segunda faixa colada nela. */
+  border-radius: 0 0 clamp(16px, 1.8vw, 26px) clamp(16px, 1.8vw, 26px);
+  box-shadow: 0 40px 90px -34px rgba(0, 0, 0, 0.85);
+  /*
+    O painel nunca passa da tela.
+
+    A suíte é longa e a janela pode ser baixa — num notebook de 800px o rodapé
+    ficava fora do quadro, e com ele os cantos arredondados. Rolar dentro do
+    painel é melhor do que cortá-lo.
+  */
+  max-height: calc(100svh - 100% - clamp(0.75rem, 2.5vh, 1.75rem));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate3d(0, -10px, 0);
+  /*
+    `visibility` não faz meio-termo: ela vira no fim da transição.
+
+    Ao fechar isso é exatamente o que se quer — o painel some só depois de
+    desaparecer. Ao abrir, é o contrário: ele precisa existir já no primeiro
+    quadro, senão o foco do teclado não tem onde pousar. Daí o atraso zero na
+    regra de aberto e o atraso cheio na de fechado.
+  */
+  transition:
+    opacity 0.22s ease,
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0.28s;
+}
+
+.o-mega[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+  transform: translate3d(0, 0, 0);
+  transition:
+    opacity 0.22s ease,
+    transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0s;
+}
+
+.o-mega__inner {
+  padding: clamp(1.8rem, 3.4vw, 2.8rem) var(--o-gutter)
+    clamp(1.2rem, 2.2vw, 1.8rem);
+}
+
+/* Texto só para leitores de tela. */
+.o-mega__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A barra de fechar só existe na folha do celular. */
+.o-mega__bar {
+  display: none;
+}
+
+.o-mega__grid {
+  display: grid;
+  /* Seis colunas desde que a suíte passou a mostrar também os módulos da loja. */
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(0.5rem, 1vw, 0.75rem) clamp(1rem, 1.8vw, 2rem);
+  align-items: start;
+}
+
+/*
+  A busca do painel.
+
+  Com 28 ferramentas, achar com o olho ficou lento. O campo é claro sobre o
+  azul porque precisa parecer um campo — sobre esse fundo, um input de contorno
+  fino desapareceria.
+*/
+.o-mega__search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--o-mega-soft);
+  border-radius: 10px;
+  padding: 0.55rem 0.8rem;
+  margin-bottom: 1.1rem;
+  max-width: 26rem;
+}
+
+.o-mega__search input {
+  flex: 1;
+  border: 0;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--o-mega-ink);
+  min-width: 0;
+}
+
+.o-mega__search input::placeholder {
+  color: rgba(15, 74, 118, 0.65);
+}
+
+.o-mega__empty {
+  color: var(--o-mega-ink);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.2rem;
+}
+
+/*
+  O Método N.A.S.A. fecha o painel.
+
+  Fora da grade de propósito: ele não é mais uma ferramenta, é o que orquestra
+  as outras. Como card do mesmo tamanho do Ranking, a mensagem se perderia.
+*/
+.o-mega__method {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin-top: 1.1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  text-decoration: none;
+  background: rgba(4, 36, 64, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  transition: background 0.16s ease;
+}
+
+.o-mega__method:hover {
+  background: rgba(4, 36, 64, 0.22);
+}
+
+.o-mega__method-ico {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 11px;
+  background: #fff;
+  color: var(--o-mega-ink);
+  flex: none;
+}
+
+.o-mega__method-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.o-mega__method-name {
+  display: block;
+  color: var(--o-mega-ink);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.o-mega__method-text {
+  display: block;
+  color: var(--o-mega-soft);
+  font-size: 0.82rem;
+  margin-top: 0.1rem;
+}
+
+.o-mega__method-action {
+  color: var(--o-mega-ink);
+  font-style: normal;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.o-mega__title {
+  font-size: clamp(0.92rem, 1.05vw, 1.05rem);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: #fff;
+  margin-bottom: 0.75rem;
+  text-wrap: balance;
+}
+
+.o-mega__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+  O item é o alvo inteiro, não só o nome.
+
+  O recuo negativo alinha o texto com o título da coluna enquanto a área
+  clicável se estende para os lados — o realce de hover precisa de margem para
+  parecer uma faixa, e o texto precisa de uma régua para parecer uma lista.
+*/
+.o-mega__item {
+  appearance: none;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.45rem 0.6rem;
+  margin-left: -0.6rem;
+  border-radius: 10px;
+  transition:
+    background 0.2s ease,
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.o-mega__item:hover,
+.o-mega__item:focus-visible {
+  background: rgba(255, 255, 255, 0.42);
+  transform: translateX(2px);
+  outline: none;
+}
+
+.o-mega__item:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+}
+
+.o-mega__ico {
+  flex: none;
+  margin-top: 0.05rem;
+  color: #fff;
+  display: inline-flex;
+}
+
+.o-mega__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+}
+
+.o-mega__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.o-mega__tag {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--o-mega-soft);
+}
+
+.o-mega__badge {
+  padding: 0.1rem 0.4rem;
+  border-radius: 5px;
+  background: var(--o-mega-ink);
+  color: #fff;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+/* --- sobre nós ---------------------------------------------------------- */
+
+/*
+  Duas listas e um destaque.
+
+  A terceira coluna é mais larga porque não é uma lista: é um card. As duas
+  primeiras carregam dois itens cada e não precisam de mais espaço do que o
+  texto ocupa.
+*/
+.o-mega__about {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.1fr;
+  gap: clamp(1.25rem, 2.6vw, 3rem);
+  align-items: start;
+}
+
+.o-mega__highlight {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1.35rem 1.4rem;
+  border-radius: 16px;
+  background: #f6f7f9;
+  color: var(--o-mega-ink);
+  text-decoration: none;
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s ease;
+}
+
+.o-mega__highlight:hover,
+.o-mega__highlight:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px -14px rgba(2, 20, 40, 0.6);
+  outline: none;
+}
+
+.o-mega__highlight:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.85),
+    0 14px 26px -14px rgba(2, 20, 40, 0.6);
+}
+
+.o-mega__highlight-ico {
+  display: inline-flex;
+  color: var(--o-mega-bg);
+}
+
+/* O corpo é um bloco: sem isso os filhos do span fluem em linha e o título,
+   o texto e o convite ficam lado a lado. */
+.o-mega__highlight-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.o-mega__highlight-name {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.o-mega__highlight-text {
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: rgba(15, 74, 118, 0.9);
+}
+
+.o-mega__highlight-action {
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--o-blue-deep);
+}
+
+/* --- segmentos --------------------------------------------------------- */
+
+.o-mega__lead {
+  margin: 0 0 1.25rem;
+  font-size: 0.88rem;
+  color: var(--o-mega-soft);
+  max-width: 60ch;
+}
+
+.o-mega__segs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
+/*
+  O card é claro sobre o azul.
+
+  As cores dos segmentos vêm do material da marca e foram feitas para um fundo
+  neutro; sobre o azul do painel elas brigariam entre si. O card devolve o
+  fundo claro que elas precisam, e o painel continua sendo o painel.
+*/
+.o-mega__seg {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9rem;
+  min-height: 9.5rem;
+  padding: 1.25rem 0.6rem;
+  text-decoration: none;
+  border-radius: 14px;
+  border: 2px solid var(--o-seg, var(--o-blue));
+  background: #f6f7f9;
+  color: var(--o-seg, var(--o-blue));
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.2s ease;
+}
+
+.o-mega__seg:hover,
+.o-mega__seg:focus-visible {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 26px -14px rgba(2, 20, 40, 0.6);
+  outline: none;
+}
+
+.o-mega__seg:focus-visible {
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.85),
+    0 14px 26px -14px rgba(2, 20, 40, 0.6);
+}
+
+.o-mega__seg-ico {
+  display: inline-flex;
+}
+
+.o-mega__seg-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* --- rodapé do painel --------------------------------------------------- */
+
+.o-mega__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: clamp(1.25rem, 2.4vw, 2rem);
+  padding-top: 1.1rem;
+  border-top: 1px solid rgba(5, 36, 64, 0.22);
+}
+
+.o-mega__note {
+  font-size: 0.82rem;
+  color: var(--o-mega-soft);
+  max-width: 52ch;
+}
+
+.o-mega__cta {
+  appearance: none;
+  border: 0;
+  background: var(--o-mega-ink);
+  color: #fff;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 0.62rem 1.2rem;
+  border-radius: 999px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.25s ease;
+}
+
+.o-mega__cta:hover {
+  background: #0a3a63;
+}
+
+/* --- botão do WhatsApp -------------------------------------------------- */
+
+/*
+  Fora da narrativa do scroll de propósito: é o atalho que existe em qualquer
+  ponto da viagem. O z-index passa por cima do painel — mas no retrato ele sai
+  de cena enquanto a folha está aberta, onde só cobriria a lista.
+*/
+/*
+  O "Avançar" — só no retrato.
+
+  Some no desktop porque lá rolar já é o gesto certo: a trajetória inteira cabe
+  em poucos gestos e um botão fixo só ocuparia espaço. No celular são dezenove
+  estações, uma por deslize, e a viagem vira trabalho.
+
+  Fica acima do botão do WhatsApp e centralizado, não colado num canto: ele é o
+  gesto principal daquele trecho, e o polegar alcança o centro de baixo em
+  qualquer mão.
+*/
+.o-advance {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .o-advance {
+    position: absolute;
+    left: 50%;
+    bottom: calc(1rem + 54px + 0.8rem);
+    z-index: 8;
+
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+
+    padding: 0.7rem 1.3rem;
+    border: 0;
+    border-radius: 999px;
+    background: var(--o-blue);
+    color: #fff;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    box-shadow: 0 12px 28px -10px rgba(10, 147, 247, 0.8);
+    /* A opacidade e o deslocamento são escritos pelo loop, a 60fps: aqui só
+       a suavidade do toque. */
+    transition: filter 0.2s ease;
+  }
+
+  .o-advance:active {
+    filter: brightness(1.12);
+  }
+}
+
+.o-whatsapp {
+  position: absolute;
+  right: clamp(1rem, 2vw, 1.6rem);
+  bottom: clamp(1rem, 2vw, 1.6rem);
+  z-index: 8;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 12px 28px -10px rgba(37, 211, 102, 0.75);
+  transition:
+    box-shadow 0.25s ease,
+    filter 0.25s ease;
+}
+
+.o-whatsapp:hover {
+  filter: brightness(1.06);
+  box-shadow: 0 16px 34px -10px rgba(37, 211, 102, 0.9);
+}
+
+/* --- blocos de conteúdo ------------------------------------------------ */
+
+/*
+  .o-block posiciona; .o-stack anima.
+  A separação existe porque o motor de revelação escreve `transform` direto no
+  elemento — se ele e o posicionamento disputassem a mesma propriedade, um
+  apagaria o outro a cada frame.
+*/
+.o-stack {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.9rem, 1.8vw, 1.5rem);
+  width: 100%;
+  will-change: transform, opacity, filter;
+}
+
+.o-block {
+  position: absolute;
+  will-change: transform, opacity, filter;
+}
+
+.o-block--hero {
+  left: var(--o-gutter);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  max-width: min(38rem, 46vw);
+}
+
+.o-block--hero .o-stack {
+  align-items: flex-start;
+}
+
+.o-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.o-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 999px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.25s ease,
+    background 0.25s ease,
+    border-color 0.25s ease;
+}
+
+.o-btn--primary {
+  background: linear-gradient(135deg, var(--o-blue) 0%, var(--o-blue-deep) 100%);
+  color: var(--o-white);
+  box-shadow: 0 10px 40px -12px rgba(10, 147, 247, 0.85);
+}
+
+.o-btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 52px -12px rgba(61, 180, 255, 0.95);
+}
+
+.o-btn--ghost {
+  border-color: rgba(140, 185, 240, 0.28);
+  color: rgba(230, 240, 255, 0.92);
+  background: rgba(8, 22, 46, 0.35);
+  backdrop-filter: blur(8px);
+}
+
+.o-btn--ghost:hover {
+  border-color: rgba(160, 210, 255, 0.62);
+  transform: translateY(-2px);
+}
+
+/* --- estações da órbita ------------------------------------------------ */
+
+.o-station {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: max-content;
+  max-width: min(19rem, 62vw);
+  transform: translate3d(
+    calc(var(--ax, 0px) - 50%),
+    calc(var(--ay, 0px) - 50%),
+    0
+  );
+  transition: opacity 0.45s ease;
+  will-change: transform, opacity;
+}
+
+.o-station[data-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* O rótulo é um botão: clicar nele abre o produto, igual a clicar na esfera. */
+.o-station__inner {
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  transform-origin: center;
+  padding: 0.85rem 1.05rem 0.9rem 1.15rem;
+  border-left: 1px solid rgba(120, 180, 255, 0.45);
+  /*
+    A placa segura até depois do texto.
+
+    Um degradê que zera cedo funciona sobre o espaço, mas metade dos rótulos
+    cai sobre o planeta iluminado — e ali a última palavra some. Aqui ele
+    mantém corpo até 62% e só então abre.
+  */
+  background: linear-gradient(
+    to right,
+    rgba(4, 14, 32, 0.82),
+    rgba(4, 14, 32, 0.66) 62%,
+    rgba(4, 14, 32, 0)
+  );
+  backdrop-filter: blur(7px);
+  text-shadow: 0 1px 12px rgba(2, 8, 20, 0.75);
+  opacity: var(--focus, 0);
+  transform: scale(calc(0.84 + var(--focus, 0) * 0.16));
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+.o-station__title {
+  display: block;
+  font-size: clamp(1.05rem, 1.5vw, 1.4rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.o-station__desc {
+  font-size: 0.86rem;
+  color: rgba(200, 218, 240, 0.82);
+  margin-top: 0.25rem;
+}
+
+.o-station__detail {
+  display: block;
+  font-size: 0.8rem;
+  color: rgba(150, 178, 212, 0.85);
+  margin-top: 0.5rem;
+  max-width: 24ch;
+  opacity: var(--focus, 0);
+  max-height: calc(var(--focus, 0) * 4rem);
+  overflow: hidden;
+  transition:
+    opacity 0.35s ease,
+    max-height 0.35s ease;
+}
+
+/* --- produtos ---------------------------------------------------------- */
+
+.o-product {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 3;
+  width: min(20rem, 68vw);
+  transform: translate3d(
+    calc(-50% + var(--ax, 0px)),
+    calc(var(--ay, 0px) - 50%),
+    0
+  );
+  will-change: transform, opacity;
+}
+
+.o-product[data-hidden="true"] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.o-product__panel {
+  position: relative;
+  opacity: var(--focus, 0);
+  transform: scale(calc(0.9 + var(--focus, 0) * 0.1));
+  padding: 1.15rem 1.3rem 1.25rem;
+  border-radius: 14px;
+  border: 1px solid rgba(110, 172, 240, 0.22);
+  background: linear-gradient(
+    145deg,
+    rgba(8, 26, 56, 0.72) 0%,
+    rgba(4, 12, 30, 0.58) 100%
+  );
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 24px 70px -30px rgba(0, 0, 0, 0.9),
+    inset 0 1px 0 rgba(160, 210, 255, 0.12);
+  transition:
+    border-color 0.3s ease,
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 0.35s ease;
+}
+
+.o-product:hover .o-product__panel {
+  border-color: rgba(140, 200, 255, 0.55);
+  transform: translateY(-4px);
+  box-shadow:
+    0 30px 90px -34px rgba(10, 147, 247, 0.6),
+    inset 0 1px 0 rgba(180, 220, 255, 0.2);
+}
+
+.o-product__meta {
+  font-size: 0.6rem;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--o-blue-bright);
+}
+
+.o-product__name {
+  font-size: clamp(1.25rem, 1.9vw, 1.65rem);
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  margin-top: 0.55rem;
+}
+
+.o-product__desc {
+  font-size: 0.86rem;
+  line-height: 1.55;
+  color: rgba(190, 210, 236, 0.88);
+  margin-top: 0.4rem;
+}
+
+.o-product__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+  font-size: 0.8rem;
+  color: var(--o-blue-bright);
+  text-decoration: none;
+}
+
+.o-product__link:hover {
+  text-decoration: underline;
+}
+
+/* --- títulos de seção -------------------------------------------------- */
+
+/*
+  Depois do hero, o texto troca de lado.
+  Não é capricho de layout: a partir da entrada na órbita, o símbolo e as
+  estações percorrem a metade esquerda do quadro. O título vai para a direita
+  porque é lá que sobra espaço — o conteúdo nasce da trajetória, não o contrário.
+*/
+.o-block--section {
+  right: var(--o-gutter);
+  top: clamp(6rem, 16vh, 9rem);
+  max-width: min(28rem, 40vw);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+}
+
+.o-block--section .o-lead {
+  max-width: 30ch;
+}
+
+/*
+  No momento de impacto o objeto ocupa a direita do quadro; a frase mora à
+  esquerda, sobre espaço vazio. Centralizar o texto aqui significaria escrever
+  em cima do arco azul.
+*/
+.o-block--impact {
+  left: var(--o-gutter);
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  max-width: min(34rem, 46vw);
+}
+
+.o-block--impact .o-stack {
+  align-items: flex-start;
+}
+
+/*
+  Placa de contraste.
+  Um pseudo-elemento desfocado atrás do texto, não uma caixa: o fundo continua
+  sendo a cena, mas a leitura deixa de depender de onde a câmera está.
+*/
+.o-plate {
+  position: relative;
+  isolation: isolate;
+}
+
+.o-plate::before {
+  content: "";
+  position: absolute;
+  inset: -18% -14%;
+  z-index: -1;
+  background: radial-gradient(
+    closest-side,
+    rgba(1, 4, 12, 0.94) 0%,
+    rgba(1, 4, 12, 0.78) 46%,
+    rgba(1, 4, 12, 0.34) 76%,
+    rgba(1, 4, 12, 0) 100%
+  );
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+.o-impact__line {
+  font-size: clamp(2rem, 5.2vw, 4.2rem);
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+}
+
+.o-impact__line span {
+  display: block;
+}
+
+.o-impact__line em {
+  font-style: normal;
+  background: linear-gradient(100deg, #ffffff 20%, var(--o-blue-bright) 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- indicadores ------------------------------------------------------- */
+
+.o-block--about {
+  left: var(--o-gutter);
+  right: var(--o-gutter);
+  bottom: clamp(3rem, 12vh, 7rem);
+  display: flex;
+  justify-content: center;
+}
+
+.o-block--about .o-stack {
+  width: min(64rem, 100%);
+}
+
+.o-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(0.75rem, 2vw, 2rem);
+  position: relative;
+}
+
+/* Linha luminosa conectando os indicadores, como um traço de órbita. */
+.o-stats::before {
+  content: "";
+  position: absolute;
+  left: 4%;
+  right: 4%;
+  top: 0.35rem;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(61, 180, 255, 0.55),
+    rgba(61, 180, 255, 0.18),
+    transparent
+  );
+}
+
+.o-stat {
+  padding-top: 1.6rem;
+  position: relative;
+}
+
+.o-stat::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.1rem;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--o-blue-bright);
+  box-shadow: 0 0 14px 2px rgba(61, 180, 255, 0.6);
+}
+
+.o-stat__value {
+  font-size: clamp(1.7rem, 3.4vw, 2.9rem);
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.o-stat__label {
+  font-size: 0.78rem;
+  color: rgba(155, 180, 212, 0.9);
+  margin-top: 0.5rem;
+}
+
+/* --- CTA final --------------------------------------------------------- */
+
+.o-block--cta {
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  /* O texto sobe: no fecho, o planeta desce para a base do quadro. */
+  padding-bottom: 30vh;
+}
+
+.o-block--cta .o-stack {
+  width: min(40rem, 88vw);
+  align-items: center;
+  gap: 1.35rem;
+}
+
+.o-block--cta .o-lead {
+  max-width: 42ch;
+}
+
+/* --- footer ------------------------------------------------------------ */
+
+.o-block--footer {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* O recuo alto dá pista ao degradê: ele precisa de altura para fechar
+     antes de chegar nas colunas. */
+  padding: clamp(6rem, 16vh, 10rem) var(--o-gutter) clamp(1.25rem, 3vh, 2rem);
+  text-shadow: 0 1px 10px rgba(0, 2, 7, 0.8);
+}
+
+/*
+  O chão do rodapé.
+
+  O planeta ainda está atrás no último quadro, e as colunas cairiam em cima do
+  continente iluminado. Um degradê que fecha cedo e só abre na borda de cima
+  resolve — e, por ser um elemento com a sua própria janela de revelação, ele
+  aparece junto com o rodapé em vez de cortar a cena a viagem inteira.
+*/
+.o-footer__scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  will-change: opacity;
+  background: linear-gradient(
+    to top,
+    rgba(0, 2, 7, 0.97) 0%,
+    rgba(0, 2, 7, 0.94) 58%,
+    rgba(0, 2, 7, 0.6) 84%,
+    rgba(0, 2, 7, 0) 100%
+  );
+}
+
+/* O conteúdo fica acima do chão que o protege. */
+.o-block--footer .o-stack {
+  position: relative;
+  z-index: 1;
+}
+
+.o-footer__grid {
+  display: grid;
+  grid-template-columns: 1.4fr repeat(4, minmax(0, 1fr));
+  gap: clamp(1.25rem, 3vw, 3rem);
+  padding-bottom: 1.75rem;
+  border-bottom: 1px solid rgba(120, 170, 230, 0.1);
+}
+
+.o-footer__col-title {
+  font-size: 0.66rem;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: rgba(150, 180, 214, 0.72);
+  margin-bottom: 0.9rem;
+  /* Títulos de uma e de duas linhas: as listas começam na mesma altura. */
+  min-height: 2.6em;
+}
+
+.o-footer__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.o-footer__list a {
+  color: rgba(210, 226, 245, 0.82);
+  font-size: 0.84rem;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.o-footer__list a:hover {
+  color: var(--o-blue-bright);
+}
+
+.o-footer__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+  justify-content: space-between;
+  padding-top: 1.1rem;
+  font-size: 0.74rem;
+  color: rgba(130, 158, 190, 0.75);
+}
+
+/* --- pista de scroll --------------------------------------------------- */
+
+.o-scrollhint {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(1.4rem, 4vh, 2.4rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: rgba(150, 180, 214, 0.6);
+}
+
+.o-scrollhint__track {
+  width: 1px;
+  height: 44px;
+  background: rgba(120, 170, 230, 0.18);
+  position: relative;
+  overflow: hidden;
+}
+
+.o-scrollhint__track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, var(--o-blue-bright));
+  animation: o-drop 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes o-drop {
+  0% {
+    transform: translateY(-100%);
+  }
+  60%,
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+/* --- barra de progresso da órbita -------------------------------------- */
+
+.o-progress {
+  position: absolute;
+  right: var(--o-gutter);
+  top: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.85rem;
+  pointer-events: none;
+}
+
+.o-progress__rail {
+  width: 1px;
+  height: clamp(6rem, 18vh, 11rem);
+  background: rgba(120, 170, 230, 0.16);
+  position: relative;
+}
+
+.o-progress__fill {
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 3px;
+  background: linear-gradient(to bottom, var(--o-blue-bright), var(--o-blue));
+  box-shadow: 0 0 12px rgba(61, 180, 255, 0.7);
+  height: calc(var(--p, 0) * 100%);
+}
+
+.o-progress__label {
+  font-size: 0.58rem;
+  letter-spacing: 0.28em;
+  color: rgba(150, 180, 214, 0.6);
+  writing-mode: vertical-rl;
+}
+
+/* --- responsivo -------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+  .o-footer__grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 1180px) {
+  /*
+    Seis colunas não cabem em telas médias sem espremer os nomes.
+    Três mantêm a leitura, e a busca compensa a rolagem que sobra.
+  */
+  .o-mega__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.25rem 1.5rem;
+  }
+
+  .o-mega__method-action {
+    display: none;
+  }
+
+  .o-mega__title {
+    margin-top: 0.75rem;
+  }
+
+  .o-mega__segs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* O destaque desce e vira uma faixa: em duas colunas ele ficaria estreito
+     demais para o texto que carrega. */
+  .o-mega__about {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .o-mega__highlight {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    gap: 1.1rem;
+  }
+}
+
+@media (max-width: 860px) {
+  .orbita-root {
+    --o-length: 11;
+  }
+
+  /*
+    No retrato o painel vira uma folha rolável.
+
+    A suíte inteira não cabe numa tela de celular, e cortar itens seria pior
+    do que rolar: quem abriu o menu está procurando uma ferramenta específica.
+  */
+  .o-mega {
+    max-height: min(72svh, calc(100svh - 100% - 1rem));
+    border-radius: 0 0 18px 18px;
+  }
+
+  .o-mega__inner {
+    padding-top: 0;
+  }
+
+  .o-mega__bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 calc(var(--o-gutter) * -1) 0.9rem;
+    padding: 0.8rem var(--o-gutter);
+    background: var(--o-mega-bg);
+    border-bottom: 1px solid rgba(5, 36, 64, 0.18);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: rgba(5, 36, 64, 0.72);
+  }
+
+  .o-mega__close {
+    appearance: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: none;
+    border-radius: 999px;
+    border: 1px solid rgba(5, 36, 64, 0.3);
+    background: rgba(255, 255, 255, 0.35);
+    color: var(--o-mega-ink);
+    cursor: pointer;
+  }
+
+  .o-mega__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.1rem;
+  }
+
+  .o-mega__title {
+    margin-top: 0.9rem;
+  }
+
+  .o-mega__item {
+    padding: 0.42rem 0.7rem;
+  }
+
+  .o-mega__about {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.4rem;
+  }
+
+  .o-mega__segs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+
+  .o-mega__seg {
+    min-height: 7.5rem;
+    gap: 0.6rem;
+    padding: 1rem 0.5rem;
+  }
+
+  .o-mega__seg svg {
+    width: 32px;
+    height: 32px;
+  }
+
+  .o-mega__seg-name {
+    font-size: 0.76rem;
+  }
+
+  .o-mega__foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .o-whatsapp {
+    width: 48px;
+    height: 48px;
+  }
+
+  .o-whatsapp svg {
+    width: 25px;
+    height: 25px;
+  }
+
+  .o-mega__grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.4rem;
+  }
+
+  .o-mega__foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .o-mega__note {
+    font-size: 0.78rem;
+  }
+
+  .o-nav__links {
+    display: none;
+  }
+
+  /*
+    No retrato a barra guarda só um botão.
+
+    Três cabem em 1440px, não em 390. "Entrar" e "Começar gratuitamente"
+    descem para a gaveta do hambúrguer, onde têm largura inteira; o
+    "Agendar Demonstração" fica, porque é a conversão principal.
+  */
+  .o-nav__right .o-nav__signin,
+  .o-nav__right .o-nav__signup {
+    display: none;
+  }
+
+  .o-nav__links .o-nav__auth-drawer {
+    display: inline-flex;
+    margin-top: 0.2rem;
+  }
+
+  .o-nav__toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    border: 1px solid rgba(120, 180, 255, 0.28);
+    background: rgba(8, 24, 50, 0.5);
+    color: var(--o-white);
+    cursor: pointer;
+  }
+
+  .o-nav--open .o-nav__links {
+    display: flex;
+    position: absolute;
+    top: 100%;
+    right: var(--o-gutter);
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.9rem;
+    padding: 1.1rem 1.3rem;
+    border-radius: 14px;
+    border: 1px solid rgba(110, 172, 240, 0.22);
+    background: rgba(4, 12, 30, 0.92);
+    backdrop-filter: blur(16px);
+  }
+
+  /* No celular a composição muda: o texto ocupa a base, o planeta respira
+     na metade de cima e o objeto orbital continua visível entre os dois. */
+  .o-block--hero {
+    left: var(--o-gutter);
+    right: var(--o-gutter);
+    top: auto;
+    bottom: clamp(5rem, 16vh, 8rem);
+    align-items: flex-end;
+    max-width: none;
+  }
+
+  .o-block--impact {
+    left: var(--o-gutter);
+    right: var(--o-gutter);
+    max-width: none;
+    align-items: flex-end;
+    padding-bottom: clamp(5rem, 16vh, 8rem);
+  }
+
+  .o-block--section {
+    left: var(--o-gutter);
+    right: var(--o-gutter);
+    top: auto;
+    bottom: clamp(6rem, 20vh, 9rem);
+    max-width: none;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .o-lead {
+    max-width: none;
+  }
+
+  .o-station {
+    max-width: min(15rem, 70vw);
+  }
+
+  .o-station__inner {
+    margin-left: 1rem;
+    padding: 0.6rem 0.75rem 0.65rem 0.85rem;
+  }
+
+  .o-station__detail {
+    display: none;
+  }
+
+  .o-product {
+    width: min(15.5rem, 76vw);
+  }
+
+  .o-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.1rem 1rem;
+  }
+
+  .o-progress {
+    display: none;
+  }
+
+  /*
+    No celular o rodapé encolhe de verdade: o CTA e o footer dividem a mesma
+    tela do palco, então listas longas empurrariam um por cima do outro.
+  */
+  .o-footer__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem 1.25rem;
+    padding-bottom: 1rem;
+  }
+
+  .o-block--footer .o-brand + p {
+    display: none;
+  }
+
+  .o-footer__list {
+    gap: 0.35rem;
+  }
+
+  .o-footer__list a {
+    font-size: 0.76rem;
+  }
+
+  .o-footer__col-title {
+    margin-bottom: 0.5rem;
+  }
+
+  .o-footer__bottom {
+    padding-top: 0.7rem;
+    font-size: 0.66rem;
+  }
+
+  .o-block--cta {
+    padding-bottom: 34vh;
+  }
+}
+
+/* --- movimento reduzido ------------------------------------------------ */
+
+/* --- movimento reduzido ------------------------------------------------ */
+
+/*
+  Quem pede movimento reduzido nem chega a montar este palco — a experiência
+  entrega o caminho estático. A regra abaixo cobre só o caso de a preferência
+  mudar com a página já aberta.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .o-scrollhint__track::after {
+    animation: none;
+    transform: none;
+    opacity: 0.5;
+  }
+}
+
+/* --- véu de carregamento ----------------------------------------------- */
+
+.o-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  background: var(--o-void);
+  transition:
+    opacity 0.6s ease,
+    visibility 0.6s ease;
+}
+
+.o-veil[data-done="true"] {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/*
+  O texto "Entrando em órbita" saiu: quem espera agora vê o símbolo girando,
+  que diz a mesma coisa sem pedir leitura. O aviso continua existindo para
+  quem usa leitor de tela.
+*/
+.o-veil__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.o-veil__bar {
+  width: min(14rem, 44vw);
+  height: 1px;
+  background: rgba(120, 170, 230, 0.16);
+  overflow: hidden;
+}
+
+.o-veil__bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(to right, var(--o-blue), var(--o-blue-bright));
+  box-shadow: 0 0 12px rgba(61, 180, 255, 0.8);
+  transition: width 0.35s ease;
+}
+
+/* --- abertura: a cortina azul ------------------------------------------ */
+
+/*
+  A cortina fica acima da cena e dos blocos, e abaixo da navegação — o menu e
+  o logotipo continuam legíveis do primeiro ao último frame, exatamente como
+  nos quadros de referência.
+*/
+.o-intro {
+  --o-intro-r: min(38svh, 40vw);
+
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.o-intro[data-done="true"] {
+  display: none;
+}
+
+.o-intro__curtain {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100%;
+  overflow: hidden;
+  background: #009ef7;
+  will-change: height;
+}
+
+/*
+  O arco é posicionado em relação à tela inteira, não à cortina.
+  Sem esta moldura de altura fixa, encolher a cortina arrastaria o desenho
+  junto — e o que se quer é o contrário: o arco fica parado e a borda o corta.
+*/
+.o-intro__frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100svh;
+}
+
+/*
+  O símbolo da abertura é o arquivo oficial da marca.
+
+  O recorte é quadrado e centrado no centro do círculo, com meia largura igual
+  ao raio externo do arco — por isso a animação pode tratar `width / 2` como
+  esse raio e encaixar o anel no planeta sem nenhuma constante mágica.
+
+  O tamanho inicial é limitado pelos dois lados da tela: num retrato 9:19 a
+  altura sobra e a largura não, então `min()` deixa a dimensão mais estreita
+  mandar.
+*/
+.o-intro__arc {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--o-intro-r) * 2);
+  height: calc(var(--o-intro-r) * 2);
+  will-change: transform, width, height;
+}
+
+.o-intro__orb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 50%;
+  background: #fefefe;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  will-change: transform, width, height, opacity;
+}
+
+.o-intro__hint {
+  font-size: clamp(0.9rem, 1.3vw, 1.15rem);
+  line-height: 1.3;
+  font-weight: 400;
+  color: #0b1a2e;
+  max-width: 8ch;
+  text-wrap: balance;
+  /* Some cedo: a esfera cresce, e o texto dentro dela não deve crescer junto. */
+  opacity: calc(1 - var(--o-intro-hint, 0));
+  transition: opacity 0.35s ease;
+}
+
+@media (max-width: 860px) {
+  .o-intro {
+    --o-intro-r: min(30svh, 38vw);
+  }
+}
+
+/* =========================================================================
+   Modo produto — a esfera vira o produto, a roleta assume o scroll
+   ========================================================================= */
+
+.o-product-mode {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.2s linear;
+}
+
+/*
+  A metade da esfera é o caminho de volta.
+  Não é um "fundo clicável" genérico: é a área onde o produto está, e clicar
+  nela devolve o objeto à órbita — o mesmo gesto que o trouxe até aqui.
+*/
+.o-product-mode__back {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 46%;
+  height: 100%;
+  appearance: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.o-product-mode__brand {
+  position: absolute;
+  left: clamp(2rem, 7vw, 7rem);
+  top: 26%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.o-product-mode__logo {
+  display: block;
+  height: clamp(28px, 3.4vw, 44px);
+  width: auto;
+}
+
+.o-product-mode__badge {
+  align-self: flex-end;
+  padding: 0.24rem 0.6rem;
+  border-radius: 6px;
+  background: var(--o-blue);
+  color: #fff;
+  font-size: clamp(0.6rem, 0.85vw, 0.78rem);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+/*
+  O recuo superior reserva a faixa do cabeçalho.
+
+  A roleta se centraliza no espaço que sobra: sem isso ela ocupava a altura
+  inteira e o item de cima subia por cima do resumo do produto.
+*/
+.o-product-mode__panel {
+  position: absolute;
+  right: var(--o-gutter);
+  top: 0;
+  bottom: 0;
+  width: min(38rem, 48vw);
+  padding-top: clamp(15rem, 32vh, 21rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/*
+  O cabeçalho segue o mesmo eixo da roleta.
+
+  Alinhá-lo à direita criava dois eixos concorrentes no mesmo painel — o título
+  encostado na borda e as funcionalidades encostadas no trilho. Com o mesmo
+  recuo da roleta, o olho desce por uma única linha vertical.
+*/
+.o-product-mode__head {
+  position: absolute;
+  top: clamp(7.5rem, 19vh, 11rem);
+  right: 0;
+  left: 0;
+  padding-left: 2.4rem;
+  text-align: left;
+}
+
+.o-product-mode__title {
+  font-size: clamp(1.4rem, 2.4vw, 2.1rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-weight: 600;
+  margin-top: 0.5rem;
+  max-width: 24ch;
+}
+
+.o-product-mode__summary {
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--o-mist);
+  margin-top: 0.6rem;
+  max-width: 42ch;
+}
+
+.o-product-mode__close {
+  position: absolute;
+  right: var(--o-gutter);
+  top: clamp(4.5rem, 11vh, 6.5rem);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.95rem;
+  border-radius: 999px;
+  border: 1px solid rgba(120, 180, 255, 0.3);
+  background: rgba(8, 24, 50, 0.55);
+  backdrop-filter: blur(10px);
+  color: rgba(226, 238, 255, 0.86);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease;
+}
+
+.o-product-mode__close:hover {
+  border-color: rgba(160, 210, 255, 0.7);
+  color: #fff;
+}
+
+/* --- a roleta ----------------------------------------------------------- */
+
+.o-wheel {
+  --o-wheel-step: clamp(104px, 12vh, 138px);
+
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding-left: 2.4rem;
+  /* As pontas dissolvem: é uma roleta, não uma lista com começo e fim. */
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 11%,
+    #000 89%,
+    transparent 100%
+  );
+}
+
+.o-wheel__list {
+  position: absolute;
+  top: 50%;
+  left: 2.4rem;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  transform-style: preserve-3d;
+}
+
+/*
+  Todos os itens ocupam o mesmo ponto; o que os separa é a transform escrita a
+  cada frame. É o que permite a lista girar por um índice fracionário em vez de
+  depender da posição de rolagem de um contêiner.
+*/
+.o-wheel__item {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.1rem;
+  transform-origin: center;
+  will-change: transform, opacity;
+}
+
+.o-wheel__ring {
+  flex: none;
+  width: clamp(3rem, 4.6vw, 4.4rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: clamp(0.7rem, 0.95vw, 0.9rem);
+  letter-spacing: 0.1em;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid rgba(150, 190, 235, 0.28);
+  color: rgba(190, 215, 245, 0.7);
+  transition: none;
+}
+
+.o-wheel__item[style*="--focus"] .o-wheel__ring {
+  border-color: color-mix(
+    in oklab,
+    rgba(150, 190, 235, 0.28),
+    var(--o-blue-bright) calc(var(--focus, 0) * 100%)
+  );
+  color: color-mix(
+    in oklab,
+    rgba(190, 215, 245, 0.7),
+    var(--o-blue-bright) calc(var(--focus, 0) * 100%)
+  );
+  box-shadow: 0 0 calc(var(--focus, 0) * 30px)
+    rgba(61, 180, 255, calc(var(--focus, 0) * 0.45));
+}
+
+.o-wheel__title {
+  font-size: clamp(1.15rem, 1.9vw, 1.75rem);
+  line-height: 1.12;
+  letter-spacing: -0.028em;
+  font-weight: 500;
+  color: rgba(214, 230, 250, 0.78);
+  /* biome-ignore lint/suspicious/noDuplicateProperties: a linha acima é o fallback de quem não tem color-mix */
+  color: color-mix(
+    in oklab,
+    rgba(214, 230, 250, 0.68),
+    var(--o-blue-bright) calc(var(--focus, 0) * 100%)
+  );
+}
+
+.o-wheel__desc {
+  font-size: clamp(0.82rem, 1vw, 0.95rem);
+  line-height: 1.55;
+  margin-top: 0.35rem;
+  max-width: 34ch;
+  color: rgba(170, 195, 225, 0.6);
+  /* biome-ignore lint/suspicious/noDuplicateProperties: a linha acima é o fallback de quem não tem color-mix */
+  color: color-mix(
+    in oklab,
+    rgba(170, 195, 225, 0.55),
+    var(--o-blue-bright) calc(var(--focus, 0) * 78%)
+  );
+}
+
+/* Trilho: mostra em que ponto da lista a roleta está. */
+.o-wheel__rail {
+  position: absolute;
+  left: 0;
+  top: 18%;
+  bottom: 18%;
+  width: 1px;
+  background: rgba(120, 170, 230, 0.16);
+}
+
+.o-wheel__rail::after {
+  content: "";
+  position: absolute;
+  left: -1px;
+  width: 3px;
+  height: 22%;
+  top: calc(var(--o-wheel-progress, 0) * 78%);
+  background: linear-gradient(to bottom, var(--o-blue-bright), var(--o-blue));
+  box-shadow: 0 0 12px rgba(61, 180, 255, 0.7);
+  transition: top 0.12s linear;
+}
+
+@media (max-width: 860px) {
+  .o-product-mode__back {
+    width: 100%;
+    height: 38%;
+  }
+
+  .o-product-mode__brand {
+    left: var(--o-gutter);
+    top: clamp(5rem, 13vh, 7rem);
+  }
+
+  /* A marca já está na barra logo acima; aqui basta o nome do produto. */
+  .o-product-mode__logo {
+    display: none;
+  }
+
+  /* No retrato o cabeçalho volta ao fluxo, então o recuo do desktop sai. */
+  .o-product-mode__panel {
+    left: var(--o-gutter);
+    right: var(--o-gutter);
+    width: auto;
+    top: 46%;
+    padding-top: 0;
+  }
+
+  .o-product-mode__head {
+    position: static;
+    padding-left: 1.5rem;
+  }
+
+  .o-wheel {
+    --o-wheel-step: clamp(84px, 11.5vh, 104px);
+    padding-left: 1.5rem;
+  }
+
+  /*
+    No retrato a roleta não se centraliza: o foco sobe.
+    Centralizada num painel alto, ela abria um vão morto entre o resumo do
+    produto e o primeiro item.
+  */
+  .o-wheel__list {
+    left: 1.5rem;
+    top: 38%;
+  }
+
+  .o-wheel__desc {
+    max-width: none;
+  }
+}

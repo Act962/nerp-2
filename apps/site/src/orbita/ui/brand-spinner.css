@@ -1,0 +1,40 @@
+/*
+  O tamanho e o ritmo do carregador da marca, num lugar só.
+
+  7% da largura: discreto de propósito. O símbolo marca a espera sem virar o
+  assunto da tela — quem está esperando olha para ele, não o admira.
+*/
+
+.o-spin {
+  width: 7%;
+  aspect-ratio: 1;
+  display: block;
+  animation: o-spin-turn 1.5s linear infinite;
+}
+
+/*
+  Em tela estreita, 7% da largura vira um símbolo pequeno demais para o giro
+  ser percebido; a medida passa a ser da altura, que ali sobra.
+*/
+@media (max-width: 720px) {
+  .o-spin {
+    width: auto;
+    height: 7%;
+  }
+}
+
+@keyframes o-spin-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/*
+  Quem pediu menos movimento continua tendo o sinal de que algo acontece — só
+  que devagar o bastante para não incomodar.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .o-spin {
+    animation-duration: 6s;
+  }
+}

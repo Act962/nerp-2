@@ -5081,6 +5081,146 @@ model GoogleDriveConnection {
 }
 
 // ============================================
+// SITE INSTITUCIONAL — ÓRBITA HUB
+//
+// Estas tabelas são GLOBAIS, sem `organizationId`, e essa é a única exceção
+// consciente à regra de multi-tenancy manual do projeto: o site institucional
+// é um só para todo mundo, não o site "de uma organização". Quem escreve nelas
+// não é um member de org, é um administrador do site (`SiteAdmin`), e toda
+// procedure passa por `requireSiteAdminMiddleware` em vez de
+// `requireOrgMiddleware`. Se um dia existir site por inquilino, o caminho é
+// adicionar `organizationId` aqui e trocar a guarda — não reaproveitar estas
+// tabelas para dois significados.
+// ============================================
+
+enum SiteAdminRole {
+  SUPER_ADMIN // fixo em SITE_SUPER_ADMIN_EMAIL; não sai da lista pela tela
+  EDITOR // menu, soluções, páginas e mídia
+  REDATOR // só texto e imagem das páginas já existentes
+}
+
+enum SiteMenuPanel {
+  SOLUCOES
+  SEGMENTOS
+  SOBRE
+}
+
+enum SitePageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/** Em que trecho do site a página vive — é o primeiro segmento da URL. */
+enum SitePageSection {
+  SOLUCOES
+  SEGMENTOS
+  SOBRE
+}
+
+// Quem entra no admin do site. A chave é o E-MAIL, e não o userId, porque o
+// convite acontece antes de a pessoa ter conta: ela é convidada, cria o login
+// depois e o `userId` é preenchido no primeiro acesso.
+model SiteAdmin {
+  id        String        @id @default(cuid())
+  email     String        @unique
+  name      String?
+  role      SiteAdminRole @default(EDITOR)
+  userId    String? // preenchido no primeiro acesso, só para exibição
+  invitedBy String? // e-mail de quem convidou
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@map("site_admins")
+}
+
+// Um item de um dos três painéis da barra. `panel` + `groupTitle` é o que
+// desenha as colunas — a coluna é o título do grupo, não uma tabela à parte,
+// porque grupo sem item não existe no site.
+model SiteMenuItem {
+  id         String        @id @default(cuid())
+  panel      SiteMenuPanel
+  groupTitle String // "Relacionamento", "Institucional", "Parcerias"…
+  slug       String // identidade estável do item; casa com o catálogo atual
+  name       String
+  summary    String        @default("")
+  // Ícone: uma das chaves desenhadas em `ui/icons.tsx` OU uma imagem enviada.
+  iconKey    String?
+  iconImage  String? // key do R2
+  color      String? // usado pelos cards de Segmentos
+  // Destino. Vazio = comportamento atual do site (leva à órbita / WhatsApp).
+  href       String?
+  pageId     String? // se aponta para uma página interna deste admin
+  position   Int           @default(0)
+  visible    Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  page SitePage? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+
+  @@unique([panel, slug])
+  @@index([panel, position])
+  @@map("site_menu_items")
+}
+
+// Página interna de uma solução/segmento. O conteúdo é uma LISTA DE BLOCOS em
+// JSON, e não colunas, porque a página é montada arrastando blocos: coluna por
+// campo viraria migração a cada bloco novo. O formato dos blocos é validado por
+// Zod em `src/features/site/blocks.ts` — o banco guarda, o Zod garante.
+//
+// `blocks` é o rascunho e `publishedBlocks` é o que o site lê. Salvar mexe só
+// no rascunho; publicar copia um no outro. Assim uma página meio editada nunca
+// aparece para o visitante.
+model SitePage {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  section         SitePageSection @default(SOLUCOES)
+  title           String
+  status          SitePageStatus @default(DRAFT)
+  blocks          Json           @default("[]")
+  publishedBlocks Json?
+  seoTitle        String?
+  seoDescription  String?
+  ogImage         String? // key do R2
+  publishedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  menuItems SiteMenuItem[]
+
+  @@index([status])
+  @@map("site_pages")
+}
+
+// As imagens do site. Mesmo bucket que o resto do nerp usa; aqui fica só o
+// registro, para a tela de Mídia poder listar sem varrer o bucket.
+model SiteMedia {
+  id          String   @id @default(cuid())
+  key         String   @unique // key do objeto no R2
+  fileName    String
+  contentType String
+  size        Int
+  width       Int?
+  height      Int?
+  alt         String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@map("site_media")
+}
+
+// Ajustes soltos do site (números da seção "Orbitamos com você", contato do
+// rodapé, WhatsApp). Chave/valor porque são poucos e mudam de forma
+// independente — uma tabela de uma linha só ficaria com dezenas de colunas
+// opcionais.
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+
+  @@map("site_settings")
+}
+
 // CRM — funil de atendimento (port do Órbita/nasaex-wey)
 //
 // Nomes prefixados com `Crm` de propósito: no Órbita estes models se chamam

@@ -1,0 +1,44 @@
+/*
+  O carregamento entre páginas.
+
+  Fica fora do `orbita.css` porque não é da cena: vale para qualquer página do
+  site, inclusive as internas, que não carregam a experiência 3D.
+*/
+
+.o-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 90; /* acima da barra (20) e de qualquer painel da cena */
+  display: grid;
+  place-items: center;
+
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease;
+
+  /* Escurecer e desfocar tira o site da frente sem apagá-lo: a página
+     continua ali atrás, fora de foco, e a viagem tem para onde voltar. */
+  background: rgba(4, 12, 26, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.o-loading[data-on="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/*
+  O símbolo em si (tamanho, giro, movimento reduzido) mora em
+  `orbita/ui/brand-spinner.css`: é o mesmo carregador do véu de abertura, e
+  duas cópias acabariam divergindo.
+*/
+
+.o-loading__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
