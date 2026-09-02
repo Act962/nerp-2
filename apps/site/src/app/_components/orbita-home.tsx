@@ -1,8 +1,10 @@
 "use client";
 
 import { OrbitaExperience } from "@/orbita";
+import type { SitePartnersResponse } from "@nerp/site-content";
 import type { SiteContent } from "@/orbita/data/content";
 import { SiteContentProvider } from "@/orbita/lib/content-context";
+import { PartnersProvider } from "@/orbita/lib/partners-context";
 
 /**
  * Ponte entre o site e o produto.
@@ -14,16 +16,20 @@ import { SiteContentProvider } from "@/orbita/lib/content-context";
  */
 export function OrbitaHome({
   content,
+  partners,
   loginHref,
   signupHref,
 }: {
   content: SiteContent;
+  partners: SitePartnersResponse;
   loginHref: string;
   signupHref: string;
 }) {
   return (
     <SiteContentProvider content={content}>
-      <OrbitaExperience appHref={loginHref} signupHref={signupHref} />
+      <PartnersProvider value={partners}>
+        <OrbitaExperience appHref={loginHref} signupHref={signupHref} />
+      </PartnersProvider>
     </SiteContentProvider>
   );
 }

@@ -5193,6 +5193,48 @@ model SitePage {
 
 // As imagens do site. Mesmo bucket que o resto do nerp usa; aqui fica só o
 // registro, para a tela de Mídia poder listar sem varrer o bucket.
+// Um parceiro do site institucional — o "case de sucesso" que aparece sobre o
+// planeta na descida à Terra. Global, sem organizationId, como as demais
+// site_*: o site é um só, não é "o site de uma organização".
+//
+// Foto e logo são OPCIONAIS de propósito. O cartão se vira com o que tiver, e
+// um retângulo cinza esperando upload é pior do que a ausência da imagem.
+model SitePartner {
+  id        String   @id @default(cuid())
+  name      String
+  // Key do R2. Vazio = o cartão usa o espaço para o texto.
+  photo     String?
+  logo      String?
+  // O parágrafo do case. Curto: ele é lido dentro da viagem, não numa página.
+  story     String   @db.Text
+  href      String?
+  position  Int      @default(0)
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([visible, position])
+  @@map("site_partners")
+}
+
+// Uma marca da grade de vidro sobre o mar. Tabela separada de SitePartner
+// porque são duas coisas: parceiro tem história e foto, marca tem só logotipo.
+// Um campo `kind` numa tabela só deixaria metade das colunas nulas em metade
+// das linhas.
+model SiteBrand {
+  id        String   @id @default(cuid())
+  name      String
+  logo      String // key do R2 — sem logo não há quadro
+  href      String?
+  position  Int      @default(0)
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([visible, position])
+  @@map("site_brands")
+}
+
 model SiteMedia {
   id          String   @id @default(cuid())
   key         String   @unique // key do objeto no R2

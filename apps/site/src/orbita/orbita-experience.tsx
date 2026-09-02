@@ -19,6 +19,8 @@ import { AdvanceButton } from "./ui/advance";
 import { WhatsAppButton } from "./ui/whatsapp";
 import { BrandSpinner } from "./ui/brand-spinner";
 import { Intro } from "./ui/intro";
+import { LightChrome } from "./ui/light-chrome";
+import { PartnerBrands, SuccessCases } from "./ui/partners";
 import { ProductMode } from "./ui/product-mode";
 import { ProgressRail } from "./ui/chrome";
 import "./orbita.css";
@@ -82,6 +84,16 @@ export function OrbitaExperience({
           <ToolLabels />
           <Impact />
           <About />
+
+          {/* Os cases entram sobre o planeta, antes de a nuvem fechar. */}
+          <SuccessCases />
+
+          {/* A travessia é cena 3D; no DOM sobra a cor do texto sobre ela. */}
+          <LightChrome />
+
+          {/* As marcas entram depois, sobre o mar que a asa abriu. */}
+          <PartnerBrands />
+
           <FinalCTA />
           <Footer />
 

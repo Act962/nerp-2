@@ -4,4 +4,6 @@ export * from "./catalog";
 export * from "./content";
 export * from "./metodo";
 export * from "./pages";
+export * from "./partners";
+export * from "./partners-sample";
 export * from "./segments";

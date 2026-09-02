@@ -4,8 +4,23 @@
     {
       "name": "nerp",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@nerp/web", "dev"],
+      "runtimeArgs": [
+        "--filter",
+        "@nerp/web",
+        "dev"
+      ],
       "port": 3000,
+      "autoPort": false
+    },
+    {
+      "name": "site",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "@nerp/site",
+        "dev"
+      ],
+      "port": 3001,
       "autoPort": false
     },
     {
@@ -16,7 +31,9 @@
     {
       "name": "inngest",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["inngest:dev"],
+      "runtimeArgs": [
+        "inngest:dev"
+      ],
       "port": 8299
     }
   ]

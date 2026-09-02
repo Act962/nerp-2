@@ -1,4 +1,5 @@
 import { Vector3 } from "three";
+import { legacy } from "./timeline";
 
 /**
  * A órbita é a estrutura da página.
@@ -58,7 +59,7 @@ export function orbitTangent(angle: number, out = new Vector3()) {
  * (hero, impacto, CTA) e acelera nas transições, que é o que dá a sensação
  * de câmera cinematográfica em vez de rotação de banner.
  */
-const ANGLE_KEYS: Array<[number, number]> = [
+const LEGACY_ANGLE_KEYS: Array<[number, number]> = [
   [0.0, 0.62],
   [0.16, 1.05],
   [0.25, 1.25],
@@ -74,6 +75,17 @@ const ANGLE_KEYS: Array<[number, number]> = [
   [0.89, 5.3],
   [1.0, 6.28],
 ];
+
+/*
+  A órbita inteira acontece no primeiro trecho da viagem esticada.
+
+  As chaves acima continuam escritas na escala antiga — é nela que se lê a
+  desaceleração nos momentos de leitura. `legacy()` as reposiciona de uma vez,
+  então mover uma cena aqui não exige recalcular nada à mão.
+*/
+const ANGLE_KEYS: Array<[number, number]> = LEGACY_ANGLE_KEYS.map(
+  ([progress, angle]): [number, number] => [legacy(progress), angle],
+);
 
 export function orbitAngleAt(progress: number) {
   const p = progress <= 0 ? 0 : progress >= 1 ? 1 : progress;

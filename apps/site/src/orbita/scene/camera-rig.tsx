@@ -7,6 +7,8 @@ import { sampleCamera } from "../lib/keyframes";
 import { scroll } from "../lib/store";
 import { orbitPosition, PLANET_RADIUS } from "../lib/orbit";
 import { clamp, damp, smoothstep } from "../lib/cn";
+import { oceanAmount, oceanPhase } from "../lib/timeline";
+import { OCEAN_FAR, OCEAN_NEAR, sampleOceanCamera } from "../lib/ocean-camera";
 
 /**
  * Enquadramento do modo produto.
@@ -66,7 +68,16 @@ export function CameraRig({
       caibam juntos, preservando a composição.
     */
     const aspect = size.height > 0 ? size.width / size.height : 1.6;
-    const fit = Math.max(1, Math.sqrt(1.85 / Math.max(aspect, 0.3)));
+    const fitByAspect = Math.max(1, Math.sqrt(1.85 / Math.max(aspect, 0.3)));
+    /*
+      O ajuste por proporção vale para enquadrar, não para descer.
+
+      Cada estado diz o quanto obedece a ele (`fit`). De longe, obedece
+      inteiro — é o que faz o conjunto caber num retrato. Colado na
+      superfície, não obedece nada: ali a distância é o assunto, e recuar
+      2× deixaria a câmera longe demais para a nuvem tomar a tela.
+    */
+    const fit = 1 + (fitByAspect - 1) * s.fit;
 
     /*
       Abertura: a câmera chega de longe.
@@ -115,6 +126,15 @@ export function CameraRig({
       órbita no meio do caminho.
     */
     const openT = smoothstep(clamp(scroll.product.t));
+    /*
+      O sobrevoo tem câmera própria, em escala própria.
+
+      Ela não é mais um estado da tabela do espaço: o mar tem 2400 de lado e a
+      câmera desce a 11 de altura, enquanto os estados de lá vivem a 4 unidades
+      de um planeta de raio 1. Por isso é uma segunda tabela, misturada por
+      `seaT` nas bordas da janela — o mesmo recurso que o modo produto usa.
+    */
+    const seaT = smoothstep(clamp(oceanAmount(scroll.smooth)));
     let finalX = targetX + sway.current.x;
     let finalY = targetY + sway.current.y;
     let finalZ = targetZ;
@@ -165,6 +185,34 @@ export function CameraRig({
       lookZ += (productTarget.current.z - lookZ) * openT;
     }
 
+    if (seaT > 0.001) {
+      const sea = sampleOceanCamera(oceanPhase(scroll.smooth));
+      finalX += (sea.position.x - finalX) * seaT;
+      finalY += (sea.position.y - finalY) * seaT;
+      finalZ += (sea.position.z - finalZ) * seaT;
+      lookX += (sea.target.x - lookX) * seaT;
+      lookY += (sea.target.y - lookY) * seaT;
+      lookZ += (sea.target.z - lookZ) * seaT;
+    }
+
+    /*
+      O plano de recorte segue a escala em cena.
+
+      Com `far` em 140 o mar terminaria numa borda reta bem antes da névoa; com
+      2600 o espaço perderia precisão de profundidade à toa. Trocar junto com a
+      câmera é o que deixa as duas escalas conviverem.
+    */
+    const far = 140 + (OCEAN_FAR - 140) * seaT;
+    const near = 0.05 + (OCEAN_NEAR - 0.05) * seaT;
+    if (
+      Math.abs(camera.far - far) > 0.5 ||
+      Math.abs(camera.near - near) > 0.01
+    ) {
+      camera.far = far;
+      camera.near = near;
+      camera.updateProjectionMatrix();
+    }
+
     current.current.x = damp(current.current.x, finalX, 4.5, dt);
     current.current.y = damp(current.current.y, finalY, 4.5, dt);
     current.current.z = damp(current.current.z, finalZ, 4.5, dt);
@@ -177,10 +225,16 @@ export function CameraRig({
 
     // Roll leve nos momentos de virada — a "pequena rotação de câmera" do
     // briefing, forte o bastante para sentir e discreta o bastante para não enjoar.
-    camera.rotation.z += s.roll * (1 - openT);
+    // Sobre o mar não há roll: o horizonte torto denuncia na hora.
+    camera.rotation.z += s.roll * (1 - openT) * (1 - seaT);
 
     const baseFov = compact ? s.fov * 1.18 : s.fov;
-    const targetFov = baseFov + (PRODUCT_VIEW.fov - baseFov) * openT;
+    let targetFov = baseFov + (PRODUCT_VIEW.fov - baseFov) * openT;
+    if (seaT > 0.001) {
+      const sea = sampleOceanCamera(oceanPhase(scroll.smooth));
+      const seaFov = compact ? sea.fov * 1.18 : sea.fov;
+      targetFov += (seaFov - targetFov) * seaT;
+    }
     if (Math.abs(camera.fov - targetFov) > 0.01) {
       camera.fov = damp(camera.fov, targetFov, 4, dt);
       camera.updateProjectionMatrix();
@@ -199,7 +253,9 @@ export function CameraRig({
       do globo pousa exatamente na metade da tela e a metade de baixo fica
       livre para o texto.
     */
-    const shiftUp = compact ? 1 - openT : 0;
+    // O deslocamento de frustum também se desfaz na descida: com o planeta
+    // tomando a tela, subir a composição só corta o que interessa.
+    const shiftUp = compact ? (1 - openT) * (1 - seaT) * s.fit : 0;
     if (shiftUp > 0.001 && size.height > 0) {
       const halfHeight =
         Math.tan((camera.fov * Math.PI) / 360) * camera.position.length();

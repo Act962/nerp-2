@@ -8,6 +8,7 @@ import { openProduct } from "../lib/product-store";
 import { useReveal } from "../hooks/use-reveal";
 import { useAnchor } from "../hooks/use-anchor";
 import { scrollToProgress } from "../hooks/use-scroll-timeline";
+import { legacy } from "../lib/timeline";
 
 /**
  * As seções não são blocos empilhados: são janelas de progresso da órbita.
@@ -25,10 +26,10 @@ export function Hero({
   secondaryHref?: string;
 }) {
   const ref = useReveal({
-    inStart: -0.04,
-    inEnd: -0.01,
-    outStart: 0.05,
-    outEnd: 0.115,
+    inStart: legacy(-0.04),
+    inEnd: legacy(-0.01),
+    outStart: legacy(0.05),
+    outEnd: legacy(0.115),
     y: 18,
     blur: 8,
   });
@@ -50,7 +51,7 @@ export function Hero({
           <button
             type="button"
             className="o-btn o-btn--primary"
-            onClick={() => scrollToProgress(0.3)}
+            onClick={() => scrollToProgress(legacy(0.3))}
           >
             Conheça nossas soluções
             <Arrow />
@@ -113,10 +114,10 @@ function CategoryTitle({
   index: number;
 }) {
   const ref = useReveal({
-    inStart: category.first - 0.055,
-    inEnd: category.first - 0.012,
-    outStart: category.last + 0.012,
-    outEnd: category.last + 0.05,
+    inStart: category.first - legacy(0.055),
+    inEnd: category.first - legacy(0.012),
+    outStart: category.last + legacy(0.012),
+    outEnd: category.last + legacy(0.05),
     y: 24,
     blur: 7,
   });
@@ -185,10 +186,10 @@ function ToolLabel({
 
 export function Impact() {
   const ref = useReveal({
-    inStart: 0.775,
-    inEnd: 0.815,
-    outStart: 0.845,
-    outEnd: 0.878,
+    inStart: legacy(0.775),
+    inEnd: legacy(0.815),
+    outStart: legacy(0.845),
+    outEnd: legacy(0.878),
     y: 30,
     blur: 12,
     scale: 0.94,
@@ -210,11 +211,21 @@ export function Impact() {
 
 export function About() {
   const { stats } = useSiteContent();
+  /*
+    O "Sobre" tem a mesma duração dos títulos da suíte.
+
+    Ele ficava nítido por 0.020 de progresso, contra 0.115 a 0.182 de cada
+    categoria — sumia antes de ser lido. A janela não podia crescer para trás,
+    onde está o impacto, então cresceu para a frente: a saída agora cai no
+    começo da descida, que é um trecho em que a câmera ainda não se move e não
+    há nada mais na tela. O texto acompanha o planeta começando a crescer, e
+    sai quando a descida de fato começa.
+  */
   const ref = useReveal({
-    inStart: 0.862,
-    inEnd: 0.888,
-    outStart: 0.908,
-    outEnd: 0.928,
+    inStart: legacy(0.845),
+    inEnd: legacy(0.88),
+    outStart: legacy(0.995),
+    outEnd: legacy(1.03),
     y: 22,
     blur: 6,
   });
@@ -250,20 +261,18 @@ function Stat({
   /*
     Os números entram um a um, e todos ficam nítidos antes de sair.
 
-    A janela anterior tinha um defeito de sobreposição: com o stagger cheio, o
-    quarto indicador começava a entrar em 0.910 e a saída já corria desde
-    0.908. Ele passava a seção inteira no meio da transição — ou seja, borrado
-    de ponta a ponta, sem nunca ter sido legível.
+    A janela original tinha um defeito de sobreposição: com o stagger cheio, o
+    quarto indicador começava a entrar depois de a saída já ter começado, e
+    passava a seção inteira borrado, sem nunca ter sido legível.
 
-    Agora a entrada é mais cedo e o passo do stagger é menor, então os quatro
-    resolvem por volta de 0.891; a saída só começa em 0.912 e termina quando o
-    CTA final entra, em 0.928. O desfoque virou despedida, não estado.
+    Hoje eles acompanham o título — mesma janela larga, poucos milésimos antes
+    dele, para o bloco todo entrar e sair junto.
   */
   const ref = useReveal({
-    inStart: 0.856,
-    inEnd: 0.878,
-    outStart: 0.912,
-    outEnd: 0.932,
+    inStart: legacy(0.85),
+    inEnd: legacy(0.885),
+    outStart: legacy(0.99),
+    outEnd: legacy(1.025),
     y: 18,
     blur: 5,
     stagger: index * 0.3,

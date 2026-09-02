@@ -8,16 +8,12 @@ import { scroll } from "../lib/store";
 import { closeProduct } from "../lib/product-store";
 import { updateReveals, settleReveals } from "../lib/reveal";
 import { clamp, damp, smoothstep } from "../lib/cn";
+import { INTRO_SHARE } from "../lib/timeline";
 
 let registered = false;
 
-/**
- * Fatia do scroll que pertence à abertura.
- *
- * Precisa bater com `--o-length` no CSS: a raiz tem 10 telas de altura e a
- * primeira é a cortina. Mudar um sem o outro desalinha a passagem de bastão.
- */
-export const INTRO_SHARE = 0.1;
+// A fatia da abertura mora em `lib/timeline.ts`, junto do comprimento total
+// da viagem e do remapeamento — as três coisas mudam sempre juntas.
 
 /** Instância viva do Lenis — a navegação precisa dela para viajar suavemente. */
 let activeLenis: Lenis | null = null;

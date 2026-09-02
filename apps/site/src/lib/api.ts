@@ -5,9 +5,11 @@ import type {
   SiteContent,
   SiteContentResponse,
   SitePageResponse,
+  SitePartnersResponse,
   SiteSection,
 } from "@nerp/site-content";
-import { parseBlocks } from "@nerp/site-content";
+import { parseBlocks, parsePartners } from "@nerp/site-content";
+import { assetUrl } from "./assets";
 import { DEFAULT_CONTENT } from "../orbita/data/content";
 import { findDefaultPage } from "./default-pages";
 
@@ -136,6 +138,33 @@ export async function getProductPage(
     // Validado de novo deste lado: entre os dois apps há uma rede, e confiar
     // no formato sem conferir é o que faz uma página inteira cair por um campo.
     blocks: parseBlocks(data.blocks),
+  };
+}
+
+/**
+ * Os parceiros e as marcas da descida à Terra.
+ *
+ * Sem fallback de conteúdo, ao contrário de todo o resto deste arquivo: aqui o
+ * padrão é o vazio. Logotipo de terceiro num site comercial afirma uma relação
+ * que só existe com autorização, então nada disso pode nascer no código — e
+ * lista vazia não é um erro a contornar, é o estado inicial certo. Quem
+ * consome tira a seção da viagem.
+ *
+ * As chaves do R2 viram endereço aqui, do lado do servidor, para a pasta
+ * `orbita/` seguir sem saber que existe bucket.
+ */
+export async function getSitePartners(): Promise<SitePartnersResponse> {
+  const data = await getJson<unknown>("/api/site/partners");
+  if (!data) return { partners: [], brands: [] };
+
+  const { partners, brands } = parsePartners(data);
+  return {
+    partners: partners.map((partner) => ({
+      ...partner,
+      photo: assetUrl(partner.photo),
+      logo: assetUrl(partner.logo),
+    })),
+    brands: brands.map((brand) => ({ ...brand, logo: assetUrl(brand.logo) })),
   };
 }
 

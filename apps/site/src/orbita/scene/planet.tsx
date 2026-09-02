@@ -203,8 +203,11 @@ const cloudsFragment = /* glsl */ `
   varying vec3 vViewDir;
 
   void main() {
-    float c = texture2D(cloudMap, vUv).r;
-    c = smoothstep(0.24, 0.92, c);
+    // O mapa marca a nuvem no ESCURO: ~76% do arquivo e quase branco, que e o
+    // ceu limpo. Lendo o canal direto, o planeta ficava coberto de nuvem onde
+    // deveria estar limpo -- dai o ar de bola de neve. Por isso o 1.0 - c.
+    float c = 1.0 - texture2D(cloudMap, vUv).r;
+    c = smoothstep(0.16, 0.70, c);
     if (c < 0.01) discard;
 
     float ndl = dot(normalize(vNormalW), sunDir);

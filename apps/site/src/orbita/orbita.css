@@ -22,10 +22,16 @@
   --o-gutter: clamp(1.25rem, 4vw, 4.5rem);
 
   /*
-   * Altura total em telas: 1 de cortina de abertura + 9 de órbita.
-   * O valor 0.1 em `INTRO_SHARE` (use-scroll-timeline) é o inverso disto.
+   * Altura total em telas: 1 de cortina de abertura + 17 de viagem.
+   *
+   * Era 10 (1 + 9). Cresceu para caber a descida à Terra — a seção dos
+   * parceiros não é um bloco a mais, é uma descida e uma subida inteiras.
+   *
+   * `SCREENS` em `lib/timeline.ts` é este mesmo número, e `INTRO_SHARE` é o
+   * inverso dele. Mudar um sem o outro desalinha a passagem de bastão da
+   * cortina de abertura.
    */
-  --o-length: 10;
+  --o-length: 18;
 
   /* Escurecimento sob a navegação — a abertura zera enquanto o azul cobre. */
   --o-nav-scrim: 1;
@@ -1296,23 +1302,6 @@
   position: relative;
 }
 
-/* Linha luminosa conectando os indicadores, como um traço de órbita. */
-.o-stats::before {
-  content: "";
-  position: absolute;
-  left: 4%;
-  right: 4%;
-  top: 0.35rem;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    rgba(61, 180, 255, 0.55),
-    rgba(61, 180, 255, 0.18),
-    transparent
-  );
-}
-
 .o-stat {
   padding-top: 1.6rem;
   position: relative;
@@ -1583,7 +1572,8 @@
 
 @media (max-width: 860px) {
   .orbita-root {
-    --o-length: 11;
+    /* Uma tela a mais que no desktop: no retrato cada trecho pede mais dedo. */
+    --o-length: 19;
   }
 
   /*
@@ -2318,5 +2308,314 @@
 
   .o-wheel__desc {
     max-width: none;
+  }
+}
+
+/* --- a travessia: o branco e a nave ------------------------------------- */
+
+/*
+  O branco fica acima da cena e dos blocos, e abaixo da barra — a mesma
+  hierarquia da cortina de abertura. A barra continua legível do primeiro ao
+  último quadro, agora em tinta escura (ver `[data-claro]` abaixo).
+*/
+/* --- cromo sobre fundo claro -------------------------------------------- */
+
+/*
+  Do branco até o fim do sobrevoo, o fundo é claro por quatro tempos seguidos.
+
+  É o mesmo problema que o painel da barra já resolvia (`.o-nav--mega`), com
+  uma diferença: lá o fundo claro é da própria barra, aqui é a cena inteira.
+  Por isso a marcação mora na raiz e vale para todo o cromo — barra, logotipo
+  e trilho —, e não só para o menu.
+
+  A troca é discreta, escrita quando o progresso cruza a borda da janela. Ela
+  cai dentro do branco cheio, onde não há o que ver: ninguém pega a virada.
+*/
+.orbita-root[data-claro="true"] .o-brand__logo {
+  filter: brightness(0) opacity(0.88);
+}
+
+.orbita-root[data-claro="true"] .o-nav__link,
+.orbita-root[data-claro="true"] .o-nav__signin {
+  color: rgba(5, 36, 64, 0.78);
+}
+
+.orbita-root[data-claro="true"] .o-nav__link[data-active="true"],
+.orbita-root[data-claro="true"] .o-nav__link:hover,
+.orbita-root[data-claro="true"] .o-nav__signin:hover {
+  color: var(--o-mega-ink);
+}
+
+.orbita-root[data-claro="true"] .o-nav__signup {
+  border-color: rgba(5, 36, 64, 0.35);
+  color: var(--o-mega-ink);
+}
+
+/*
+  O CTA vira botão sólido no claro.
+
+  Sobre o espaço ele é um vidro azul com texto branco, que basta. Sobre o
+  branco esse mesmo vidro some: sem fundo escuro por trás, o texto branco fica
+  em cima de quase nada. Aqui ele assume o azul cheio da marca — o mesmo
+  tratamento de `.o-btn--primary`, que é o botão de ação do site.
+*/
+.orbita-root[data-claro="true"] .o-nav__cta {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--o-blue) 0%, var(--o-blue-deep) 100%);
+  color: var(--o-white);
+  box-shadow: 0 10px 30px -14px rgba(2, 100, 196, 0.9);
+}
+
+.orbita-root[data-claro="true"] .o-progress__rail {
+  background: rgba(5, 36, 64, 0.18);
+}
+
+.orbita-root[data-claro="true"] .o-progress__label {
+  color: rgba(5, 36, 64, 0.55);
+}
+
+.orbita-root[data-claro="true"] .o-advance {
+  border-color: rgba(5, 36, 64, 0.28);
+  background: rgba(255, 255, 255, 0.55);
+  color: var(--o-mega-ink);
+}
+
+/*
+  Com um painel do menu aberto, quem manda é o painel.
+
+  Ele traz o próprio azul e o próprio contraste; deixar as duas marcações
+  disputando deixaria o logotipo escuro sobre azul escuro.
+*/
+.orbita-root[data-claro="true"] .o-nav--mega .o-nav__link,
+.orbita-root[data-claro="true"] .o-nav--mega .o-nav__signin {
+  color: var(--o-mega-ink);
+}
+
+/* --- a descida: cases e marcas ------------------------------------------ */
+
+/*
+  Os cartões de case ficam sobre o planeta, que a essa altura da viagem toma a
+  tela inteira e é claro. Cada cartão traz a própria placa escura — a vinheta
+  não dá conta de um fundo que é continente e nuvem ao mesmo tempo.
+*/
+.o-block--cases {
+  left: var(--o-gutter);
+  right: var(--o-gutter);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: center;
+}
+
+.o-block--cases .o-stack {
+  width: min(72rem, 100%);
+  align-items: center;
+  /*
+    A grade não pode passar da tela.
+
+    São seis cartões com foto, e a viagem não rola por dentro deles: o que não
+    couber na altura simplesmente some por baixo da barra. O teto reserva a
+    barra em cima e uma folga embaixo, e quem encolhe é a foto — o texto fica.
+  */
+  max-height: calc(100svh - 8.5rem);
+}
+
+.o-cases__head {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.o-cases__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(0.7rem, 1.4vw, 1.15rem);
+  width: 100%;
+}
+
+/* Com menos de quatro, três colunas deixariam a segunda linha órfã. */
+.o-cases__grid[data-poucos="true"] {
+  grid-template-columns: repeat(auto-fit, minmax(0, 16rem));
+  justify-content: center;
+}
+
+.o-case {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: clamp(0.7rem, 1.2vw, 1rem);
+  border-radius: 14px;
+  border: 1px solid var(--o-line);
+  background: rgba(2, 8, 20, 0.72);
+  backdrop-filter: blur(10px);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    border-color 0.25s ease;
+}
+
+a.o-case:hover {
+  transform: translateY(-3px);
+  border-color: rgba(120, 180, 255, 0.42);
+}
+
+.o-case__photo {
+  width: 100%;
+  /* Em vh, não em proporção: é a altura da tela que manda aqui. */
+  height: clamp(64px, 12.5vh, 128px);
+  object-fit: cover;
+  border-radius: 9px;
+  display: block;
+  flex: none;
+}
+
+.o-case__body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.o-case__logo {
+  height: clamp(16px, 1.7vw, 22px);
+  width: auto;
+  max-width: 60%;
+  object-fit: contain;
+  object-position: left center;
+  margin-bottom: 0.15rem;
+}
+
+.o-case__name {
+  font-size: clamp(0.9rem, 1vw, 1.02rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.o-case__story {
+  font-size: clamp(0.76rem, 0.85vw, 0.86rem);
+  line-height: 1.55;
+  color: var(--o-mist);
+  /* Três linhas: o case é uma vitrine, não a página do case. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+}
+
+/*
+  As marcas ficam sobre o mar visto de cima — fundo claro. Por isso a tinta
+  escura, e por isso os quadros são de vidro: sobre a água, um cartão opaco
+  viraria um adesivo colado na tela.
+*/
+.o-block--brands {
+  left: var(--o-gutter);
+  right: var(--o-gutter);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: center;
+}
+
+.o-block--brands .o-stack {
+  width: min(64rem, 100%);
+  align-items: center;
+  gap: clamp(1.2rem, 2.4vw, 2rem);
+}
+
+.o-brands__head {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.o-eyebrow--ink {
+  color: var(--o-mega-soft);
+}
+
+.o-title--ink {
+  color: var(--o-mega-ink);
+}
+
+/*
+  A grade se ajusta à quantidade.
+
+  Com três marcas, uma linha de três — o quadro do storyboard. Com doze, ela
+  quebra em quatro colunas em vez de empilhar quatro linhas que não caberiam
+  na tela. Nenhuma marca é escondida: quem mudou foi o número de colunas.
+*/
+.o-brands__grid {
+  /*
+    Flex, e não grid, por causa da última linha.
+
+    Numa grade, `justify-content` centraliza o conjunto de colunas — mas os
+    itens da última linha continuam ocupando as primeiras, e ela fica
+    encostada à esquerda. Com quebra de linha em flex, toda linha se
+    centraliza, inclusive a incompleta. É o caso comum aqui: dificilmente o
+    número de marcas será múltiplo do número de colunas.
+  */
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: clamp(0.6rem, 1.3vw, 1.1rem);
+  width: 100%;
+  max-height: calc(100svh - 12rem);
+}
+
+.o-brand-frame {
+  flex: 0 0 clamp(9.5rem, 13vw, 12.5rem);
+  display: grid;
+  place-items: center;
+  aspect-ratio: 3 / 1;
+  padding: clamp(0.8rem, 1.6vw, 1.4rem);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(7px);
+  box-shadow: 0 12px 30px -20px rgba(5, 36, 64, 0.75);
+  transition:
+    transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background 0.25s ease;
+}
+
+a.o-brand-frame:hover {
+  transform: translateY(-3px);
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.o-brand-frame__logo {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 860px) {
+  /* Seis cartões em 390px viram seis tiras ilegíveis; duas colunas seguram. */
+  .o-cases__grid,
+  .o-cases__grid[data-poucos="true"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .o-case__photo {
+    aspect-ratio: 3 / 2;
+  }
+
+  .o-case__story {
+    display: none;
+  }
+
+  .o-brands__grid {
+    max-height: none;
+  }
+
+  .o-brand-frame {
+    flex: 0 0 calc(50% - 0.6rem);
   }
 }

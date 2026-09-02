@@ -21,6 +21,11 @@ export type QualitySettings = {
     spec: string | null;
   };
   planetSegments: number;
+  /**
+   * Densidade da malha do mar. A onda grande sobrevive em qualquer valor;
+   * o que cai com ele é o recorte fino da crista.
+   */
+  oceanSegments: number;
   stars: number;
   clouds: boolean;
   glow: boolean;
@@ -44,6 +49,7 @@ const HIGH: QualitySettings = {
     spec: texture("earth-spec.webp"),
   },
   planetSegments: 128,
+  oceanSegments: 900,
   stars: 2600,
   clouds: true,
   glow: true,
@@ -60,6 +66,7 @@ const MEDIUM: QualitySettings = {
     spec: texture("earth-spec.webp"),
   },
   planetSegments: 96,
+  oceanSegments: 620,
   stars: 1500,
   clouds: true,
   glow: true,
@@ -76,6 +83,7 @@ const LOW: QualitySettings = {
     spec: null,
   },
   planetSegments: 64,
+  oceanSegments: 420,
   stars: 700,
   clouds: false,
   glow: false,

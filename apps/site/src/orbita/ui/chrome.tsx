@@ -3,14 +3,15 @@
 import { useEffect, useRef } from "react";
 import { scroll } from "../lib/store";
 import { useReveal } from "../hooks/use-reveal";
+import { legacy } from "../lib/timeline";
 
 /** Convite discreto para a primeira rolagem. Some assim que a viagem começa. */
 export function ScrollHint() {
   const ref = useReveal({
-    inStart: -0.03,
-    inEnd: -0.005,
-    outStart: 0.008,
-    outEnd: 0.04,
+    inStart: legacy(-0.03),
+    inEnd: legacy(-0.005),
+    outStart: legacy(0.008),
+    outEnd: legacy(0.04),
     y: 8,
     blur: 3,
   });
@@ -29,8 +30,10 @@ export function ScrollHint() {
 export function ProgressRail() {
   const rail = useRef<HTMLDivElement>(null);
   const wrap = useReveal<HTMLDivElement>({
-    inStart: 0.03,
-    inEnd: 0.08,
+    inStart: legacy(0.03),
+    inEnd: legacy(0.08),
+    // A saída não é remapeada: o trilho acompanha a viagem inteira, e ela
+    // agora termina depois da descida à Terra.
     outStart: 0.94,
     outEnd: 0.985,
     y: 0,
