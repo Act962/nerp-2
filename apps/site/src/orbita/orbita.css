@@ -2659,6 +2659,18 @@ a.o-brand-frame:hover {
   top: 0;
   z-index: 100;
   isolation: isolate;
+
+  /*
+    Fundo SÓLIDO, não o gradiente da cena.
+
+    Na home a barra flutua sobre o espaço escuro, e um gradiente que morre em
+    transparente basta. Aqui ela é `sticky` sobre uma página de fundo CLARO: o
+    gradiente sumia já no primeiro terço e o texto, quase branco, ficava
+    ilegível assim que a primeira faixa branca subia por baixo. É o mesmo fundo
+    que o cabeçalho anterior destas páginas usava, com a mesma linha embaixo.
+  */
+  background: var(--o-void);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /*
