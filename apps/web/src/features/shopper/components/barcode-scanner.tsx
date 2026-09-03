@@ -2,6 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { cn } from "@/lib/utils";
 import { CameraOff } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -61,8 +62,21 @@ async function resolveDetector(): Promise<BarcodeDetectorLike> {
 export function BarcodeScanner({
   onDetect,
   continuous = false,
+  fill = false,
 }: {
   onDetect: (code: string) => void;
+  /**
+   * Ocupa toda a altura disponível do pai em vez do quadrado padrão.
+   *
+   * O quadrado serve às telas em que o scanner é UM elemento entre outros
+   * (Shopper, coletor de estoque). Já no celular usado como leitor do PDV a
+   * câmera É a tela: o quadrado espremido entre cabeçalho, lista de enviados e
+   * botão deixava pouco vídeo, e de longe o operador não achava a mira.
+   *
+   * O pai precisa ter altura definida (ex.: `min-h-0 flex-1` dentro de um
+   * flex-col de altura fixa).
+   */
+  fill?: boolean;
   /**
    * Segue lendo depois do primeiro código, em vez de parar a câmera.
    *
@@ -218,7 +232,12 @@ export function BarcodeScanner({
   }
 
   return (
-    <div className="relative aspect-square w-full overflow-hidden rounded-xl border bg-black">
+    <div
+      className={cn(
+        "relative w-full overflow-hidden rounded-xl border bg-black",
+        fill ? "h-full min-h-0" : "aspect-square",
+      )}
+    >
       <video
         ref={videoRef}
         className="size-full object-cover"
@@ -233,7 +252,10 @@ export function BarcodeScanner({
         <style>{`
 @keyframes tg-scan-laser { from { top: 6%; } to { top: 92%; } }
 `}</style>
-        <div className="relative h-40 w-64 overflow-hidden rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
+        {/* Mira RELATIVA ao vídeo. Era 160x256 fixos: num quadro grande virava
+            um selinho no meio e, como o decodificador lê o frame INTEIRO, ela
+            ainda induzia o operador a encaixar o código naquela caixinha. */}
+        <div className="relative h-[38%] max-h-64 min-h-28 w-[84%] max-w-md overflow-hidden rounded-lg border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
           {status === "scanning" && (
             <span className="absolute inset-x-2 h-0.5 rounded-full bg-red-500 shadow-[0_0_12px_3px_rgba(239,68,68,0.85)] [animation:tg-scan-laser_2.2s_ease-in-out_infinite_alternate]" />
           )}

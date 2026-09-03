@@ -5,6 +5,7 @@ import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import { createSaleFinanceEntries } from "@/features/financeiro/server/sale-entries";
+import { round2 } from "@/utils/pricing";
 import z from "zod";
 
 export const createSale = base
@@ -22,6 +23,13 @@ export const createSale = base
       priceListId: z.string().nullable().optional(),
       subtotal: z.number(),
       discount: z.number(),
+      /**
+       * Como ler `discount`. Ausente = reais, que era o único comportamento do
+       * servidor: ele fazia `subtotal - discount` sempre. Com o PDV mandando
+       * percentual nesse mesmo campo, o total do servidor divergia do da tela e
+       * a venda era RECUSADA por pagamento fora do total.
+       */
+      discountType: z.enum(["percent", "value"]).default("value"),
       total: z.number(),
       status: z.enum(SaleStatus),
       // Pagamento por forma. Uma forma só = array de um item; várias = misto.
@@ -130,15 +138,32 @@ export const createSale = base
     const resolvedByIndex = resolved.map((r) => r.unitPrice);
     const usedPriceListId = resolved[0]?.priceListId ?? null;
 
-    const computedSubtotal = input.items.reduce(
-      (sum, item, i) => sum + resolvedByIndex[i] * item.quantity,
-      0,
+    const computedSubtotal = round2(
+      input.items.reduce(
+        (sum, item, i) => sum + resolvedByIndex[i] * item.quantity,
+        0,
+      ),
+    );
+    // O desconto é resolvido AQUI: percentual só vira dinheiro depois que o
+    // servidor sabe o subtotal de verdade. `Sale.discount` é coluna de dinheiro
+    // (`Decimal(10,2)`) — gravar um percentual nela seria um valor mentiroso no
+    // histórico e no financeiro.
+    const discountAmount = Math.min(
+      Math.max(
+        0,
+        round2(
+          input.discountType === "percent"
+            ? (computedSubtotal * input.discount) / 100
+            : input.discount,
+        ),
+      ),
+      computedSubtotal,
     );
     // Server é autoritativo — usa computedTotal em vez do total do client.
     // Enquanto o PDV não re-resolve preços ao vivo (spec futura), o valor
     // exibido no balcão pode divergir do que grava; o snapshot no `SaleItem`
     // sempre reflete o que o server calculou.
-    const computedTotal = computedSubtotal - input.discount;
+    const computedTotal = round2(computedSubtotal - discountAmount);
     // Silencia unused-var do map (mantido pro caso de debug futuro).
     void resolvedPriceByProduct;
 
@@ -176,7 +201,7 @@ export const createSale = base
           createdById: context.user.id,
           paymentMethod: dominantMethod,
           subtotal: computedSubtotal,
-          discount: input.discount,
+          discount: discountAmount,
           total: computedTotal,
           saleNumber: nextNumber,
           status: input.status,

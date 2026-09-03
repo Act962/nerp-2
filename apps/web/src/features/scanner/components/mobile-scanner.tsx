@@ -3,32 +3,30 @@
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { BarcodeScanner } from "@/features/shopper/components/barcode-scanner";
-import { CheckCircle2, TriangleAlert } from "lucide-react";
+import { CheckCircle2, RotateCcw, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   useClaimScannerPairing,
   usePushScannerScan,
 } from "../hooks/use-scanner";
-
-/**
- * Ignora releitura do MESMO código dentro desta janela.
- *
- * Em modo contínuo a câmera enxerga o mesmo item a cada ~350ms enquanto
- * apontada para ele — sem isto, parar em cima de um produto lançaria três
- * unidades por segundo. A janela cobre a rajada e ainda deixa o operador
- * bipar dois itens iguais em seguida: basta afastar e voltar, que é o gesto
- * natural e leva mais que isso.
- */
-const DEDUPE_MS = 900;
+import {
+  ehLeituraRepetida,
+  NENHUMA_LEITURA,
+  type UltimaLeitura,
+} from "../lib/scan-dedupe";
 
 export function MobileScanner({ token }: { token: string }) {
   const claim = useClaimScannerPairing();
   const push = usePushScannerScan();
   const [pareado, setPareado] = useState<boolean | null>(null);
   const [motivo, setMotivo] = useState<string | null>(null);
-  const [enviados, setEnviados] = useState<string[]>([]);
+  // Só o último código e QUANTOS foram. A lista completa não cabe mais na tela
+  // (a câmera ocupa a altura), e um `slice(0, 8)` sobre ela deixaria o
+  // contador travado em 8 — número errado no lugar de nenhum.
+  const [ultimoEnviado, setUltimoEnviado] = useState<string | null>(null);
+  const [totalEnviados, setTotalEnviados] = useState(0);
 
-  const ultimoRef = useRef<{ code: string; at: number }>({ code: "", at: 0 });
+  const ultimoRef = useRef<UltimaLeitura>(NENHUMA_LEITURA);
   const claimedRef = useRef(false);
 
   useEffect(() => {
@@ -53,8 +51,7 @@ export function MobileScanner({ token }: { token: string }) {
 
   const enviar = (code: string) => {
     const agora = Date.now();
-    const ultimo = ultimoRef.current;
-    if (ultimo.code === code && agora - ultimo.at < DEDUPE_MS) return;
+    if (ehLeituraRepetida(ultimoRef.current, code, agora)) return;
     ultimoRef.current = { code, at: agora };
 
     push.mutate(
@@ -66,7 +63,8 @@ export function MobileScanner({ token }: { token: string }) {
             setMotivo(result.reason ?? "Leitor desconectado");
             return;
           }
-          setEnviados((prev) => [code, ...prev].slice(0, 8));
+          setUltimoEnviado(code);
+          setTotalEnviados((prev) => prev + 1);
           // Confirmação tátil: no balcão ninguém olha a tela do celular.
           navigator.vibrate?.(60);
         },
@@ -94,43 +92,50 @@ export function MobileScanner({ token }: { token: string }) {
     );
   }
 
+  // `h-dvh` (não `min-h-dvh`): a câmera só pode esticar dentro de uma altura
+  // FECHADA. Tudo que não é vídeo encolheu para uma linha em cima e uma
+  // embaixo — antes eram cabeçalho de duas linhas, lista de até 8 códigos e um
+  // botão de largura inteira espremendo o quadrado da câmera no meio.
   return (
-    <div className="flex min-h-dvh flex-col gap-4 p-4">
-      <div className="text-center">
-        <p className="font-semibold">Leitor conectado</p>
-        <p className="text-sm text-muted-foreground">
-          Aponte para o código de barras do produto
-        </p>
+    <div className="flex h-dvh flex-col gap-2 overflow-hidden p-3">
+      <div className="flex shrink-0 items-center gap-2">
+        <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+        <p className="text-sm font-medium">Leitor conectado</p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="ml-auto"
+          // Recuperação: a câmera segue lendo sozinha, isto é só para o caso
+          // de o navegador travar o vídeo.
+          onClick={() => window.location.reload()}
+        >
+          <RotateCcw className="size-4" />
+          Reiniciar
+        </Button>
       </div>
 
-      <BarcodeScanner onDetect={enviar} continuous />
+      <div className="min-h-0 flex-1">
+        <BarcodeScanner onDetect={enviar} continuous fill />
+      </div>
 
-      {enviados.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted-foreground">
-            Enviados ({enviados.length})
-          </p>
-          {enviados.map((code, index) => (
-            <div
-              key={`${code}-${index}`}
-              className="flex items-center gap-2 rounded-lg border px-3 py-2 font-mono text-sm"
-            >
-              <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
-              {code}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Recuperação: a câmera segue lendo sozinha, isto é só para o caso de
-          o navegador travar o vídeo. */}
-      <Button
-        variant="outline"
-        className="mt-auto"
-        onClick={() => window.location.reload()}
-      >
-        Reiniciar câmera
-      </Button>
+      {/* O histórico virou UMA linha: no balcão só importa "entrou?" e quantos
+          já foram. A lista inteira custava altura de câmera, que é o que o
+          operador realmente usa. */}
+      <div className="flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-sm">
+        {ultimoEnviado ? (
+          <>
+            <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
+            <span className="truncate font-mono">{ultimoEnviado}</span>
+            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+              {totalEnviados} {totalEnviados === 1 ? "item" : "itens"}
+            </span>
+          </>
+        ) : (
+          <span className="text-muted-foreground">
+            Aponte para o código de barras do produto
+          </span>
+        )}
+      </div>
     </div>
   );
 }

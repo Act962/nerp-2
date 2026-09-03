@@ -43,6 +43,11 @@ import { toReceiptOrg } from "@/features/receipt-designer/lib/org-receipt";
 import type { ReceiptSaleData } from "@/features/receipt-designer/lib/types";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import { useScannerStream } from "@/features/scanner/hooks/use-scanner";
+import {
+  ehLeituraRepetida,
+  NENHUMA_LEITURA,
+  type UltimaLeitura,
+} from "@/features/scanner/lib/scan-dedupe";
 import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { orpc } from "@/lib/orpc";
@@ -214,6 +219,52 @@ export default function CreateSalePage({
 
   const mutation = useMutationCreateSale();
 
+  // Última leitura ACEITA — base do descarte de bipe duplicado.
+  const ultimaLeituraRef = useRef<UltimaLeitura>(NENHUMA_LEITURA);
+
+  /**
+   * Executa um bipe SEM NUNCA falhar em silêncio e SEM lançar duas vezes.
+   *
+   * As duas entradas de leitura faziam `void (async () => …)()` sem `catch`:
+   * qualquer erro de rede, sessão ou servidor virava promise rejeitada que
+   * ninguém tratava — nenhum toast, nenhum fallback. O operador bipava e não
+   * acontecia nada, e a venda fechava sem o item. Código inexistente e falha de
+   * consulta são coisas diferentes e cada uma tem o seu aviso.
+   */
+  const scanOuAvisar = async (
+    code: string,
+    aoNaoEncontrar: (code: string) => void,
+  ): Promise<void> => {
+    const agora = Date.now();
+    if (ehLeituraRepetida(ultimaLeituraRef.current, code, agora)) {
+      // Descartar em silêncio recriaria o problema oposto — o operador
+      // achando que a segunda unidade entrou.
+      toast.info("Leitura repetida ignorada. Bipe de novo para somar 1.", {
+        id: "leitura-repetida",
+      });
+      return;
+    }
+    // Carimba ANTES do await: dois bipes com 100ms de diferença disparam duas
+    // consultas em paralelo, e sem o carimbo aqui as duas passariam pela
+    // janela e o item entraria em dobro do mesmo jeito.
+    ultimaLeituraRef.current = { code, at: agora };
+
+    const liberarRepeticao = () => {
+      ultimaLeituraRef.current = NENHUMA_LEITURA;
+    };
+
+    try {
+      if (await tryScan(code)) return;
+      // Não achou: repetir na hora é legítimo (pode ter sido leitura torta).
+      liberarRepeticao();
+      aoNaoEncontrar(code);
+    } catch (error) {
+      liberarRepeticao();
+      console.error(error);
+      toast.error(`Falha ao consultar o código ${code}. Bipe de novo.`);
+    }
+  };
+
   // Bipe vai DIRETO para a busca exata por código. Antes ele só preenchia o
   // campo de busca, o que disparava uma consulta textual ao servidor por
   // caractere e só resolvia o produto no Enter — era a lentidão relatada.
@@ -221,18 +272,14 @@ export default function CreateSalePage({
   // balcão, então promoção, estoque e pesável valem igual.
   const scannerToken = usePdvUiStore((state) => state.scannerToken);
   useScannerStream(scannerToken, (code) => {
-    void (async () => {
-      if (await tryScan(code)) return;
-      toast.error(`Código não encontrado: ${code}`);
-    })();
+    void scanOuAvisar(code, (naoAchado) =>
+      toast.error(`Código não encontrado: ${naoAchado}`),
+    );
   });
 
   useBarcodeScan(true, (barcode) => {
-    void (async () => {
-      if (await tryScan(barcode)) return;
-      // Não é código conhecido: cai na busca, que é o comportamento antigo.
-      setSearchTerm(barcode);
-    })();
+    // Não é código conhecido: cai na busca, que é o comportamento antigo.
+    void scanOuAvisar(barcode, setSearchTerm);
   });
 
   const filteredProducts = products
@@ -519,6 +566,20 @@ export default function CreateSalePage({
   const saveCart = usePdvCartStore((state) => state.save);
   const clearPersistedCart = usePdvCartStore((state) => state.clear);
 
+  /**
+   * O que havia para recuperar, lido na PRIMEIRA renderização.
+   *
+   * Precisa ser aqui, e não dentro do efeito de recuperação: o espelho abaixo
+   * grava em efeito e, como estava declarado ANTES, o `saveCart([])` da
+   * montagem apagava o sessionStorage segundos antes de alguém ler — a
+   * recuperação nunca podia funcionar, e o toast nunca podia aparecer. Lendo no
+   * render, a ordem dos efeitos deixa de importar.
+   */
+  const recuperadosRef = useRef<CartItem[] | null>(null);
+  if (recuperadosRef.current === null) {
+    recuperadosRef.current = recoverableItems(usePdvCartStore.getState());
+  }
+
   // Espelho do carrinho fora da memória do React: se a tela morrer no meio da
   // venda (crash, deploy trocando os chunks, aba recarregada sem querer), o
   // operador não recomeça a passar os itens.
@@ -533,7 +594,7 @@ export default function CreateSalePage({
     if (cartRestoredRef.current) return;
     cartRestoredRef.current = true;
     if (form.getValues("cartItems").length > 0) return;
-    const recuperados = recoverableItems(usePdvCartStore.getState());
+    const recuperados = recuperadosRef.current ?? [];
     if (recuperados.length === 0) return;
     form.setValue("cartItems", recuperados, { shouldDirty: false });
     toast.info("Carrinho recuperado de antes do recarregamento");
@@ -627,8 +688,17 @@ export default function CreateSalePage({
       addProductAndReset(list[selectedIndex]);
       return;
     }
-    if (term && /^\d+$/.test(term) && (await tryScan(term))) {
-      return;
+    if (term && /^\d+$/.test(term)) {
+      try {
+        if (await tryScan(term)) return;
+      } catch (error) {
+        // Falha de consulta não é "nada digitado": abrir o pagamento aqui
+        // levaria o operador a fechar a venda sem o item que ele acabou de
+        // tentar lançar.
+        console.error(error);
+        toast.error(`Falha ao consultar o código ${term}. Tente de novo.`);
+        return;
+      }
     }
     await handleOpenPayment();
   };
@@ -682,6 +752,8 @@ export default function CreateSalePage({
         items,
         customerId: customer?.id,
         discount,
+        // Sem isto o servidor lia "10" como R$ 10,00 num desconto de 10%.
+        discountType: form.getValues("discountType"),
         subtotal,
         total,
         status: SaleStatus.COMPLETED,

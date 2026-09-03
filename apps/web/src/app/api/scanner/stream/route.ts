@@ -17,6 +17,17 @@ const POLL_MS = 250;
 const HEARTBEAT_MS = 15_000;
 /** Teto de vida do fluxo: sem isso, aba esquecida segura conexão para sempre. */
 const MAX_LIFETIME_MS = 30 * 60_000;
+/**
+ * Idade a partir da qual um código pendente é considerado de OUTRO atendimento.
+ *
+ * O `EventSource` reconecta sozinho — queda de rede, timeout de proxy, e o
+ * próprio `MAX_LIFETIME_MS` acima derrubando o fluxo. A limpeza de abertura
+ * descartava TUDO que estava pendente, então o código bipado durante a
+ * reconexão sumia sem chegar ao carrinho: o operador lia de novo e "não
+ * acontecia nada". Descartar por IDADE preserva o bipe de segundos atrás (é da
+ * venda em curso) e continua jogando fora o de minutos atrás (não é).
+ */
+const STALE_SCAN_MS = 30_000;
 
 export const dynamic = "force-dynamic";
 
@@ -51,15 +62,20 @@ export async function GET(request: Request) {
         );
       };
 
-      // Descarta o que ficou pendente ANTES desta conexão.
+      // Descarta o que ficou pendente ANTES desta conexão — mas só o que já
+      // está VELHO (ver `STALE_SCAN_MS`).
       //
       // O celular continua enviando mesmo com o PDV fechado ou em outra tela.
       // Sem esta limpeza, tudo isso seria entregue de uma vez ao reconectar —
       // e itens bipados durante o atendimento anterior cairiam na venda
-      // seguinte, na conta do cliente errado. O pareamento é um canal AO VIVO:
-      // o que não foi consumido na hora não vale mais.
+      // seguinte, na conta do cliente errado. O que a limpeza NÃO pode fazer é
+      // engolir o bipe de agora só porque o fluxo reconectou no meio dele.
       await prisma.scannerScan.updateMany({
-        where: { pairingId: pairing.id, consumedAt: null },
+        where: {
+          pairingId: pairing.id,
+          consumedAt: null,
+          createdAt: { lt: new Date(Date.now() - STALE_SCAN_MS) },
+        },
         data: { consumedAt: new Date() },
       });
 
