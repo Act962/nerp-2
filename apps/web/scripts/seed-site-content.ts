@@ -23,10 +23,34 @@ import { type Prisma, PrismaClient } from "@/generated/prisma/client";
  * texto original. Assim rodar de novo depois de uma edição não desfaz o
  * trabalho de ninguém.
  *
- *   pnpm --filter @nerp/web exec tsx scripts/seed-site-content.ts
+ * Duas variáveis mandam nele:
+ *
+ * - `SEED_DATABASE_URL` (obrigatória) — o banco de destino. Sem ela o script
+ *   se recusa a rodar, em vez de escrever no banco do `.env`.
+ * - `SEED_SITE_REFRESH=1` (opcional) — traz o catálogo atualizado para páginas
+ *   que JÁ existem e as publica. Sem ela, página existente é pulada e só as
+ *   que faltam são criadas.
+ *
+ *   SEED_DATABASE_URL="postgres://..." SEED_SITE_REFRESH=1 \
+ *     pnpm --filter @nerp/web exec tsx scripts/seed-site-content.ts
  */
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+/*
+  Conexão EXPLÍCITA, como nos demais seeds do repositório.
+
+  Antes vinha de `DATABASE_URL`, que o `dotenv/config` acima carrega do `.env`
+  do app — então rodar isto apontando para produção escrevia, calado, no banco
+  de desenvolvimento. Quem pede um seed sempre sabe em qual banco quer mexer;
+  exigir a variável transforma um erro silencioso em uma recusa na primeira
+  linha.
+*/
+const connectionString = process.env.SEED_DATABASE_URL;
+if (!connectionString) {
+  throw new Error(
+    "Defina SEED_DATABASE_URL com o banco de destino antes de rodar o seed.",
+  );
+}
+const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
 /** O mesmo número do site. Fica aqui porque o seed também escreve os ajustes. */
