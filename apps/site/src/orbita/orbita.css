@@ -2619,3 +2619,65 @@ a.o-brand-frame:hover {
     flex: 0 0 calc(50% - 0.6rem);
   }
 }
+
+/*
+  Escopo do menu FORA da cena 3D (páginas internas).
+
+  O `.o-nav` e o mega menu leem dezenas de variáveis `--o-*` que só existiam em
+  `.orbita-root`. Nas páginas internas o wrapper é `.sp-root`, então sem estas
+  definições o painel abria transparente (cor virava vazio) e sumia. Aqui as
+  variáveis usadas pela BARRA e pelo PAINEL são redeclaradas no próprio `.o-nav`
+  standalone — na home ele fica dentro de `.orbita-root` e herda como sempre,
+  então nada muda lá.
+*/
+.o-nav--standalone {
+  --o-void: #01040c;
+  --o-deep: #030b1a;
+  --o-blue: #0a93f7;
+  --o-blue-bright: #3db4ff;
+  --o-blue-deep: #0264c4;
+  --o-white: #ffffff;
+  --o-mist: #9db2cd;
+  --o-mist-dim: #6d84a3;
+  --o-line: rgba(120, 170, 230, 0.14);
+  --o-gutter: clamp(1.25rem, 4vw, 4.5rem);
+  --o-nav-scrim: 1;
+  --o-mega-bg: #3db4ff;
+  --o-mega-ink: #052440;
+  --o-mega-soft: #0f4a76;
+  --o-font: var(--font-geist-sans), Inter, -apple-system, sans-serif;
+
+  /* Na home a barra é `position: absolute` sobre a cena. Na página interna ela
+     precisa reservar a própria altura no topo — senão o herói começa embaixo
+     dela. `sticky` mantém o menu no topo ao rolar, como um header comum.
+
+     `z-index` ALTO e `isolation` são o que põe a barra e o painel ACIMA do
+     conteúdo. Alguns blocos (herói com efeito de flutuar/brilho) criam o
+     próprio contexto de empilhamento via `transform`, e sem isto o título
+     deles vazava por cima do menu aberto. */
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  isolation: isolate;
+}
+
+/*
+  O painel, fora da cena.
+
+  O `max-height` original é `calc(100svh - 100% - …)`, onde `100%` é a altura
+  do nav no contexto da órbita. Fora dela esse cálculo colapsa para zero e o
+  painel some. Aqui a conta é direta: a viewport menos a barra sticky.
+
+  O `opacity`/`visibility` do estado aberto também são reforçados porque o
+  seletor com a classe do escopo precisa ganhar de qualquer herança residual.
+*/
+/* `vh` e não `svh`: alguns navegadores (o do preview, por exemplo)
+   resolvem `svh` para 0 fora da cena, e o painel colapsava. */
+.o-nav--standalone .o-mega {
+  max-height: calc(100vh - 4.5rem);
+}
+
+.o-nav--standalone .o-mega[data-open="true"] {
+  opacity: 1;
+  visibility: visible;
+}

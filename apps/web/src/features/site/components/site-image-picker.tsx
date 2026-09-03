@@ -117,7 +117,7 @@ export function SiteImagePicker({
             <span className="text-xs">PNG, JPG, WebP ou AVIF — até 15 MB</span>
             <input
               type="file"
-              accept="image/png,image/jpeg,image/webp,image/avif"
+              accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
               className="hidden"
               disabled={uploading}
               onChange={(event) => {

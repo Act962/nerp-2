@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BRAND, NAV } from "../data/site";
 import { useSiteContent } from "../lib/content-context";
@@ -24,10 +25,21 @@ import { legacy } from "../lib/timeline";
 export function Nav({
   ctaHref = "/login",
   signupHref = "/cadastro",
+  standalone = false,
 }: {
   /** Para onde "Entrar" leva: o painel, se já houver sessão; senão o login. */
   ctaHref?: string;
   signupHref?: string;
+  /**
+   * Modo fora da home 3D (páginas internas de solução/segmento/sobre).
+   *
+   * A barra é a MESMA — os painéis com ícones continuam idênticos, porque só
+   * dependem de `href` (que todas as ferramentas já têm). O que muda: os itens
+   * de âncora deixam de viajar pela órbita e passam a NAVEGAR — "Início" vai
+   * para a home, "Contato" abre o WhatsApp — e o loop que lê o scroll da cena
+   * fica desligado, já que aqui não existe órbita para acompanhar.
+   */
+  standalone?: boolean;
 }) {
   const { whatsapp } = useSiteContent();
   const [open, setOpen] = useState(false);
@@ -40,6 +52,8 @@ export function Nav({
   const active = useRef<React.RefObject<HTMLElement | null>>({ current: null });
 
   useEffect(() => {
+    // Fora da home não há órbita para acompanhar — o loop leria sempre 0.
+    if (standalone) return;
     let raf = 0;
     let last = -1;
     const loop = () => {
@@ -59,7 +73,7 @@ export function Nav({
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [standalone]);
 
   const go = (at: number) => {
     setOpen(false);
@@ -77,17 +91,32 @@ export function Nav({
 
   return (
     <nav
-      className={cn("o-nav", open && "o-nav--open", mega && "o-nav--mega")}
+      className={cn(
+        "o-nav",
+        standalone && "o-nav--standalone",
+        open && "o-nav--open",
+        mega && "o-nav--mega",
+      )}
       aria-label="Principal"
     >
-      <button
-        type="button"
-        className="o-brand"
-        onClick={() => go(0)}
-        aria-label={`${BRAND.name} — ir para o início`}
-      >
-        <OrbitaLogo className="o-brand__logo" />
-      </button>
+      {standalone ? (
+        <Link
+          className="o-brand"
+          href="/"
+          aria-label={`${BRAND.name} — ir para o início`}
+        >
+          <OrbitaLogo className="o-brand__logo" />
+        </Link>
+      ) : (
+        <button
+          type="button"
+          className="o-brand"
+          onClick={() => go(0)}
+          aria-label={`${BRAND.name} — ir para o início`}
+        >
+          <OrbitaLogo className="o-brand__logo" />
+        </button>
+      )}
 
       <div className="o-nav__links">
         {NAV.map((item, i) =>
@@ -131,6 +160,20 @@ export function Nav({
                 />
               </svg>
             </button>
+          ) : standalone ? (
+            // Fora da home, "Início" navega para a home e "Contato" abre o
+            // WhatsApp — não há órbita para viajar. Os demais itens são `mega`
+            // e caem no ramo de cima, com os painéis idênticos.
+            <a
+              key={item.label}
+              className="o-nav__link"
+              href={item.label === "Contato" ? whatsapp.href : "/"}
+              {...(item.label === "Contato"
+                ? { target: "_blank", rel: "noreferrer noopener" }
+                : {})}
+            >
+              {item.label}
+            </a>
           ) : (
             <button
               key={item.label}

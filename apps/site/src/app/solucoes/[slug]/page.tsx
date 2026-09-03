@@ -53,6 +53,7 @@ export default async function SolutionPage({
       whatsappHref={content.whatsapp.href}
       whatsappLabel={content.whatsapp.label}
       loginHref={APP_LINKS.login}
+      content={content}
     />
   );
 }
