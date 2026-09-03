@@ -1065,6 +1065,41 @@ function slugFor(tool: Tool) {
   return PAGE_COPY[tool.id]?.slug ?? tool.id;
 }
 
+/*
+  O template visual — o mesmo que foi aprovado na página do CRM Tracking.
+
+  Fica aqui, no gerador, e não no banco: assim TODA página de solução nasce
+  estilizada, sem ninguém abrir o admin para pintar cor a cor. O que muda de
+  uma para outra é só a copy; o desenho é este, para todas.
+
+  A edição no admin continua vencendo — salvar uma página grava por cima destes
+  valores. Isto é o ponto de partida, não uma trava.
+*/
+const HERO_STYLE = {
+  background: "#1e9dfb",
+  backgroundTo: "#0d5c91",
+  title: { color: "#ffffff" },
+  effect: { enabled: true, kind: "pulso", intensity: 50 },
+  image: { float: true, smoothness: 60, shadow: true, shadowStrength: 45 },
+} as const;
+
+const HERO_FRAME = {
+  inset: 40,
+  radius: { topLeft: 80, topRight: 80, bottomRight: 0, bottomLeft: 0 },
+  border: { width: 0, color: "#1a8de0" },
+} as const;
+
+const STATEMENT_STYLE = {
+  background: "#ffffff",
+  title: { color: "#141d20" },
+  text: { color: "#30aafd" },
+  button: { color: "#ffffff" },
+} as const;
+
+const COMPARE_STYLE = { background: "#ffffff" } as const;
+
+const VIDEO_STYLE = { background: "#f4f7fa" } as const;
+
 export function buildSolutionPage(
   tool: Tool,
   options: { whatsappHref: string },
@@ -1089,6 +1124,8 @@ export function buildSolutionPage(
         href: "#funcionalidades",
       },
       image: { key: "", alt: "" },
+      style: HERO_STYLE,
+      frame: HERO_FRAME,
     },
     {
       id: "statement",
@@ -1100,6 +1137,7 @@ export function buildSolutionPage(
         label: copy.statementCta ?? "Falar com um especialista",
         href: options.whatsappHref,
       },
+      style: STATEMENT_STYLE,
     },
     {
       id: "compare",
@@ -1111,6 +1149,7 @@ export function buildSolutionPage(
       more: copy.compare?.more ?? [],
       lessTitle: "MENOS",
       less: copy.compare?.less ?? [],
+      style: COMPARE_STYLE,
     },
     {
       id: "features",
@@ -1136,11 +1175,15 @@ export function buildSolutionPage(
     {
       id: "video",
       type: "video",
-      // Ligado sem endereço, o painel azul apareceria vazio.
+      // Ligado sem endereço, o painel apareceria vazio — nasce desligado, mas
+      // já com o arranjo do template para quando o operador colar a URL.
       enabled: false,
       title: "Mais que um sistema, uma parceria",
       text: "",
       youtubeUrl: "",
+      layout: "lado",
+      background: "claro",
+      style: VIDEO_STYLE,
     },
     {
       id: "clients",
@@ -1149,6 +1192,35 @@ export function buildSolutionPage(
       enabled: false,
       title: "Nossos clientes",
       logos: [],
+    },
+    {
+      // "Recursos": a lista conferida sai das próprias funcionalidades do
+      // catálogo — conteúdo real por ferramenta, sem inventar frase. A imagem
+      // fica vazia; só o operador tem a captura de tela de cada produto.
+      id: "checklist",
+      type: "checklist",
+      enabled: tool.features.length > 0,
+      title: "Recursos feitos para o",
+      titleStrong: "seu negócio",
+      image: { key: "", alt: "" },
+      cta: {
+        label: `Conheça mais recursos do ${tool.name}`,
+        href: "#funcionalidades",
+      },
+      items: tool.features.map((f) => f.description),
+    },
+    {
+      // "Vantagens": os mesmos recursos, agora em cartão com título e
+      // parágrafo — o "por que importa" ao lado do "o que é".
+      id: "benefits",
+      type: "benefits",
+      enabled: tool.features.length > 0,
+      title: "Vantagens",
+      items: tool.features.map((f) => ({
+        icon: { key: "", alt: "" },
+        title: f.title,
+        text: f.description,
+      })),
     },
     {
       id: "contact",
