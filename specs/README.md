@@ -45,6 +45,8 @@ feature depois de trabalhar em outra coisa.
 
 - [`whatsapp-crm-campanhas.md`](./whatsapp-crm-campanhas.md) — Port do Órbita (nasaex-wey): atendimento por WhatsApp (API oficial da Meta) + CRM em funil + Campanhas + Agenda + Stars, com o lead amarrado ao `Customer` do ERP · `feat/whatsapp-crm-campanhas` · 🟢 Fases 0–10 feitas · **quem for mesclar: ler a seção "Antes do merge e do deploy" da spec** (ordem das migrations, envs novas, webhook do Stripe)
 
+- [`pdv-leitura-codigo-barras.md`](./pdv-leitura-codigo-barras.md) — **Correção**: PDV perde bipes e não incrementa quantidade na segunda leitura (descarte na reconexão do SSE, erro de scan engolido, 401 mudo, dígitos vazados zerando a quantidade) · `fix/pdv-leitura-codigo-barras` · 🟢 corrigido, aguardando teste do dev
+
 ## ERP — Núcleo de varejo (roadmap)
 
 > Roadmap de paridade de mercado (referências SIC/CEFAS), mantendo a UI simples. Ordem recomendada: 1 → 2 → 3 → 4 → 5 → 6 → 7 → 8. Cada spec = 1 branch = 1 PR.
