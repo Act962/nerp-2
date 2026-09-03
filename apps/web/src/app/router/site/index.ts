@@ -18,6 +18,18 @@ import { listMedia, registerMedia, removeMedia } from "./media";
 import { inviteAccess, listAccess, removeAccess } from "./access";
 import { getSettings, saveSettings } from "./settings";
 import { siteOverview } from "./overview";
+import {
+  deleteBrand,
+  deletePartner,
+  listBrands,
+  listPartners,
+  reorderBrands,
+  reorderPartners,
+  saveBrand,
+  savePartner,
+  toggleBrand,
+  togglePartner,
+} from "./partners";
 
 export const siteRoutes = {
   overview: siteOverview,
@@ -50,5 +62,19 @@ export const siteRoutes = {
   settings: {
     get: getSettings,
     save: saveSettings,
+  },
+  partners: {
+    list: listPartners,
+    save: savePartner,
+    reorder: reorderPartners,
+    toggle: togglePartner,
+    delete: deletePartner,
+  },
+  brands: {
+    list: listBrands,
+    save: saveBrand,
+    reorder: reorderBrands,
+    toggle: toggleBrand,
+    delete: deleteBrand,
   },
 };

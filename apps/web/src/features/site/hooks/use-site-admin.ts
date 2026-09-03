@@ -215,3 +215,124 @@ export type SavePageInput = {
   ogImage: string;
   publish: boolean;
 };
+
+/* --- parceiros e marcas -------------------------------------------------- */
+
+/*
+  As duas listas invalidam juntas.
+
+  Elas alimentam a mesma resposta pública (`/api/site/partners`) e a mesma
+  seção da viagem: mexer numa e deixar a outra em cache mostraria metade do
+  trecho atualizado.
+*/
+function invalidatePartners(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: orpc.site.partners.list.key() });
+  queryClient.invalidateQueries({ queryKey: orpc.site.brands.list.key() });
+  queryClient.invalidateQueries({ queryKey: orpc.site.overview.key() });
+}
+
+export function useSitePartners() {
+  const { data, isPending } = useQuery(
+    orpc.site.partners.list.queryOptions({ input: {} }),
+  );
+  return { items: data?.items ?? [], isLoading: isPending };
+}
+
+export function useSaveSitePartner() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.partners.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Parceiro salvo");
+        invalidatePartners(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useToggleSitePartner() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.partners.toggle.mutationOptions({
+      onSuccess: () => invalidatePartners(queryClient),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReorderSitePartners() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.partners.reorder.mutationOptions({
+      onSuccess: () => invalidatePartners(queryClient),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteSitePartner() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.partners.delete.mutationOptions({
+      onSuccess: () => {
+        toast.success("Parceiro excluído");
+        invalidatePartners(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useSiteBrands() {
+  const { data, isPending } = useQuery(
+    orpc.site.brands.list.queryOptions({ input: {} }),
+  );
+  return { items: data?.items ?? [], isLoading: isPending };
+}
+
+export function useSaveSiteBrand() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.brands.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Marca salva");
+        invalidatePartners(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useToggleSiteBrand() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.brands.toggle.mutationOptions({
+      onSuccess: () => invalidatePartners(queryClient),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReorderSiteBrands() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.brands.reorder.mutationOptions({
+      onSuccess: () => invalidatePartners(queryClient),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteSiteBrand() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.brands.delete.mutationOptions({
+      onSuccess: () => {
+        toast.success("Marca excluída");
+        invalidatePartners(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
