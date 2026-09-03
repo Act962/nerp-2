@@ -5,12 +5,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import type { SiteBlock } from "@nerp/site-content";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  type SiteBlock,
+  VIDEO_ASPECT_LABELS,
+  VIDEO_LAYOUT_LABELS,
+  VIDEO_SIDE_LABELS,
+} from "@nerp/site-content";
 import { SiteImagePicker } from "./site-image-picker";
 
 /**
  * Os campos de um bloco. Um `switch` sobre o tipo em vez de um formulário
- * genérico dirigido por metadados: são oito blocos, cada um com o seu jeito, e
+ * genérico dirigido por metadados: são onze blocos, cada um com o seu jeito, e
  * o genérico só esconderia isso atrás de uma camada a mais.
  */
 export function SiteBlockFields({
@@ -75,6 +87,7 @@ export function SiteBlockFields({
               onChange({ ...block, image: { ...block.image, key } })
             }
           />
+          <HeroFrameFields block={block} onChange={onChange} />
         </>
       );
 
@@ -256,6 +269,138 @@ export function SiteBlockFields({
         </>
       );
 
+    case "checklist":
+      return (
+        <>
+          <Area
+            label="Título"
+            value={block.title}
+            onChange={(title) => onChange({ ...block, title })}
+          />
+          <Text
+            label="Fecho do título (em negrito)"
+            value={block.titleStrong}
+            onChange={(titleStrong) => onChange({ ...block, titleStrong })}
+          />
+          <Field>
+            <FieldLabel>Imagem ao lado do título</FieldLabel>
+            <FieldDescription>
+              Opcional. Fica embaixo do título, à esquerda da chamada.
+            </FieldDescription>
+          </Field>
+          <SiteImagePicker
+            value={block.image.key}
+            onChange={(key) =>
+              onChange({ ...block, image: { ...block.image, key } })
+            }
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Text
+              label="Chamada — texto"
+              value={block.cta.label}
+              onChange={(label) =>
+                onChange({ ...block, cta: { ...block.cta, label } })
+              }
+            />
+            <Text
+              label="Chamada — link"
+              value={block.cta.href}
+              onChange={(href) =>
+                onChange({ ...block, cta: { ...block.cta, href } })
+              }
+            />
+          </div>
+          <FieldDescription>
+            Sem link, a chamada sai como texto simples.
+          </FieldDescription>
+          <StringList
+            label="Itens da lista"
+            items={block.items}
+            multiline
+            onChange={(items) => onChange({ ...block, items })}
+          />
+        </>
+      );
+
+    case "benefits":
+      return (
+        <>
+          <Text
+            label="Título da seção"
+            value={block.title}
+            onChange={(title) => onChange({ ...block, title })}
+          />
+          <div className="flex flex-col gap-3">
+            {block.items.map((item, index) => (
+              <div
+                key={index}
+                className="flex flex-col gap-2 rounded-lg border p-3"
+              >
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={item.title}
+                    placeholder="Título da vantagem"
+                    onChange={(e) => {
+                      const items = [...block.items];
+                      items[index] = { ...item, title: e.target.value };
+                      onChange({ ...block, items });
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remover"
+                    onClick={() =>
+                      onChange({
+                        ...block,
+                        items: block.items.filter((_, i) => i !== index),
+                      })
+                    }
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+                <Textarea
+                  rows={3}
+                  value={item.text}
+                  placeholder="Por que isso importa, em um parágrafo"
+                  onChange={(e) => {
+                    const items = [...block.items];
+                    items[index] = { ...item, text: e.target.value };
+                    onChange({ ...block, items });
+                  }}
+                />
+                <SiteImagePicker
+                  value={item.icon.key}
+                  onChange={(key) => {
+                    const items = [...block.items];
+                    items[index] = { ...item, icon: { ...item.icon, key } };
+                    onChange({ ...block, items });
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() =>
+              onChange({
+                ...block,
+                items: [
+                  ...block.items,
+                  { icon: { key: "", alt: "" }, title: "", text: "" },
+                ],
+              })
+            }
+          >
+            <Plus className="size-4" />
+            Adicionar vantagem
+          </Button>
+        </>
+      );
+
     case "steps":
       return (
         <>
@@ -376,6 +521,189 @@ export function SiteBlockFields({
         </>
       );
 
+    case "image":
+      return (
+        <>
+          <Field>
+            <FieldLabel>Imagem</FieldLabel>
+            <FieldDescription>
+              Sem imagem, o bloco não aparece na página.
+            </FieldDescription>
+          </Field>
+          <SiteImagePicker
+            value={block.image.key}
+            onChange={(key) =>
+              onChange({ ...block, image: { ...block.image, key } })
+            }
+          />
+          <Text
+            label="Texto alternativo"
+            value={block.image.alt}
+            onChange={(alt) =>
+              onChange({ ...block, image: { ...block.image, alt } })
+            }
+          />
+          <Escolha
+            label="Aparelho envolvente"
+            value={block.mockup ?? "nenhum"}
+            options={{ nenhum: "Sem aparelho", iphone: "iPhone (retrato)" }}
+            onChange={(mockup) =>
+              onChange({ ...block, mockup: mockup as "nenhum" | "iphone" })
+            }
+            hint="A imagem entra dentro da tela do aparelho, encaixando pela proporção."
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Escolha
+              label="Recorte"
+              value={block.fit ?? "contain"}
+              options={{
+                contain: "Inteira (mostra tudo)",
+                cover: "Recortada (preenche a caixa)",
+              }}
+              onChange={(fit) =>
+                onChange({ ...block, fit: fit as "contain" | "cover" })
+              }
+              hint='"Recortada" preenche a caixa e corta o que sobra.'
+            />
+            <Escolha
+              label="Alinhamento"
+              value={block.align ?? "center"}
+              options={{
+                left: "Esquerda",
+                center: "Centro",
+                right: "Direita",
+              }}
+              onChange={(align) =>
+                onChange({
+                  ...block,
+                  align: align as "left" | "center" | "right",
+                })
+              }
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor={`w-${block.id}`}>Largura (px)</FieldLabel>
+              <Input
+                id={`w-${block.id}`}
+                type="number"
+                min={50}
+                max={2400}
+                placeholder="automática"
+                value={block.width ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...block,
+                    width:
+                      e.target.value === ""
+                        ? undefined
+                        : Number(e.target.value),
+                  })
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`h-${block.id}`}>Altura (px)</FieldLabel>
+              <Input
+                id={`h-${block.id}`}
+                type="number"
+                min={50}
+                max={2400}
+                placeholder="automática"
+                value={block.height ?? ""}
+                onChange={(e) =>
+                  onChange({
+                    ...block,
+                    height:
+                      e.target.value === ""
+                        ? undefined
+                        : Number(e.target.value),
+                  })
+                }
+              />
+            </Field>
+          </div>
+          <Field>
+            <FieldLabel htmlFor={`r-${block.id}`}>
+              Cantos arredondados (px)
+            </FieldLabel>
+            <Input
+              id={`r-${block.id}`}
+              type="number"
+              min={0}
+              max={9999}
+              value={block.radius ?? 0}
+              onChange={(e) =>
+                onChange({
+                  ...block,
+                  radius: e.target.value === "" ? 0 : Number(e.target.value),
+                })
+              }
+            />
+            <FieldDescription>
+              0 quadrado. Valor alto (ex.: 9999) vira círculo/pílula.
+            </FieldDescription>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field>
+              <FieldLabel htmlFor={`bw-${block.id}`}>Contorno (px)</FieldLabel>
+              <Input
+                id={`bw-${block.id}`}
+                type="number"
+                min={0}
+                max={20}
+                value={block.border?.width ?? 0}
+                onChange={(e) =>
+                  onChange({
+                    ...block,
+                    border: {
+                      color: block.border?.color ?? "#000000",
+                      width: e.target.value === "" ? 0 : Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor={`bc-${block.id}`}>
+                Cor do contorno
+              </FieldLabel>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  aria-label="Cor do contorno"
+                  value={block.border?.color ?? "#000000"}
+                  onChange={(e) =>
+                    onChange({
+                      ...block,
+                      border: {
+                        width: block.border?.width ?? 0,
+                        color: e.target.value,
+                      },
+                    })
+                  }
+                  className="size-9 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+                />
+                <Input
+                  id={`bc-${block.id}`}
+                  value={block.border?.color ?? "#000000"}
+                  onChange={(e) =>
+                    onChange({
+                      ...block,
+                      border: {
+                        width: block.border?.width ?? 0,
+                        color: e.target.value,
+                      },
+                    })
+                  }
+                  className="font-mono"
+                />
+              </div>
+            </Field>
+          </div>
+        </>
+      );
+
     case "video":
       return (
         <>
@@ -405,6 +733,41 @@ export function SiteBlockFields({
               Vazio: a seção não aparece na página.
             </FieldDescription>
           </Field>
+          <Escolha
+            label="Arranjo"
+            value={block.layout ?? "painel"}
+            options={VIDEO_LAYOUT_LABELS}
+            onChange={(layout) =>
+              onChange({ ...block, layout: layout as "painel" | "lado" })
+            }
+            hint="No lado a lado o painel azul sai e vale o fundo do bloco."
+          />
+          {(block.layout ?? "painel") === "lado" && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Escolha
+                label="Posição do vídeo"
+                value={block.videoSide ?? "left"}
+                options={VIDEO_SIDE_LABELS}
+                onChange={(videoSide) =>
+                  onChange({
+                    ...block,
+                    videoSide: videoSide as "left" | "right",
+                  })
+                }
+              />
+              <Escolha
+                label="Proporção"
+                value={block.aspect ?? "16/9"}
+                options={VIDEO_ASPECT_LABELS}
+                onChange={(aspect) =>
+                  onChange({
+                    ...block,
+                    aspect: aspect as "16/9" | "4/3" | "1/1",
+                  })
+                }
+              />
+            </div>
+          )}
         </>
       );
 
@@ -592,6 +955,256 @@ function Area({
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+      />
+    </Field>
+  );
+}
+
+/** Um select simples a partir de um mapa valor → rótulo. */
+function Escolha({
+  label,
+  value,
+  options,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: string;
+  options: Record<string, string>;
+  onChange: (value: string) => void;
+  hint?: string;
+}) {
+  return (
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {Object.entries(options).map(([valor, rotulo]) => (
+            <SelectItem key={valor} value={valor}>
+              {rotulo}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {hint && <FieldDescription>{hint}</FieldDescription>}
+    </Field>
+  );
+}
+
+type HeroBlock = Extract<SiteBlock, { type: "hero" }>;
+
+/**
+ * A "caixa" do herói: margem externa, cantos independentes e borda.
+ *
+ * Fica atrás de um `<details>` porque é ajuste fino — o operador comum não
+ * mexe, e aberto por padrão empurraria os campos de conteúdo para fora.
+ * O helper `comFrame` completa o objeto por causa dos `default` no schema:
+ * tipo lido do banco traz os campos como obrigatórios e `spread` parcial não
+ * satisfaz.
+ */
+type HeroFrame = NonNullable<HeroBlock["frame"]>;
+
+function comFrame(
+  atual: HeroFrame | undefined,
+  patch: Partial<HeroFrame>,
+): HeroFrame {
+  const base: HeroFrame = atual ?? {
+    inset: 0,
+    radius: { topLeft: 0, topRight: 0, bottomRight: 0, bottomLeft: 0 },
+    border: { width: 0, color: "#000000" },
+  };
+  return { ...base, ...patch };
+}
+
+function HeroFrameFields({
+  block,
+  onChange,
+}: {
+  block: HeroBlock;
+  onChange: (block: HeroBlock) => void;
+}) {
+  const frame = block.frame;
+  const setFrame = (patch: Partial<HeroFrame>) =>
+    onChange({ ...block, frame: comFrame(frame, patch) });
+
+  return (
+    <details className="rounded-md border p-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Caixa do herói (margem, cantos, borda)
+      </summary>
+      <div className="mt-3 flex flex-col gap-4">
+        <Field>
+          <FieldLabel htmlFor={`inset-${block.id}`}>
+            Margem externa (px)
+          </FieldLabel>
+          <Input
+            id={`inset-${block.id}`}
+            type="number"
+            min={0}
+            max={200}
+            value={frame?.inset ?? 0}
+            onChange={(e) =>
+              setFrame({
+                inset: e.target.value === "" ? 0 : Number(e.target.value),
+              })
+            }
+          />
+          <FieldDescription>
+            Descola a caixa das bordas da faixa. 0 = colado.
+          </FieldDescription>
+        </Field>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <CantoInput
+            label="Canto sup. esquerdo"
+            value={frame?.radius.topLeft ?? 0}
+            onChange={(v) =>
+              setFrame({
+                radius: {
+                  ...(frame?.radius ?? {
+                    topLeft: 0,
+                    topRight: 0,
+                    bottomRight: 0,
+                    bottomLeft: 0,
+                  }),
+                  topLeft: v,
+                },
+              })
+            }
+          />
+          <CantoInput
+            label="Canto sup. direito"
+            value={frame?.radius.topRight ?? 0}
+            onChange={(v) =>
+              setFrame({
+                radius: {
+                  ...(frame?.radius ?? {
+                    topLeft: 0,
+                    topRight: 0,
+                    bottomRight: 0,
+                    bottomLeft: 0,
+                  }),
+                  topRight: v,
+                },
+              })
+            }
+          />
+          <CantoInput
+            label="Canto inf. esquerdo"
+            value={frame?.radius.bottomLeft ?? 0}
+            onChange={(v) =>
+              setFrame({
+                radius: {
+                  ...(frame?.radius ?? {
+                    topLeft: 0,
+                    topRight: 0,
+                    bottomRight: 0,
+                    bottomLeft: 0,
+                  }),
+                  bottomLeft: v,
+                },
+              })
+            }
+          />
+          <CantoInput
+            label="Canto inf. direito"
+            value={frame?.radius.bottomRight ?? 0}
+            onChange={(v) =>
+              setFrame({
+                radius: {
+                  ...(frame?.radius ?? {
+                    topLeft: 0,
+                    topRight: 0,
+                    bottomRight: 0,
+                    bottomLeft: 0,
+                  }),
+                  bottomRight: v,
+                },
+              })
+            }
+          />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field>
+            <FieldLabel htmlFor={`bw-${block.id}`}>Borda (px)</FieldLabel>
+            <Input
+              id={`bw-${block.id}`}
+              type="number"
+              min={0}
+              max={20}
+              value={frame?.border.width ?? 0}
+              onChange={(e) =>
+                setFrame({
+                  border: {
+                    width: e.target.value === "" ? 0 : Number(e.target.value),
+                    color: frame?.border.color ?? "#000000",
+                  },
+                })
+              }
+            />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor={`bc-${block.id}`}>Cor da borda</FieldLabel>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                aria-label="Cor da borda"
+                value={frame?.border.color ?? "#000000"}
+                onChange={(e) =>
+                  setFrame({
+                    border: {
+                      width: frame?.border.width ?? 0,
+                      color: e.target.value,
+                    },
+                  })
+                }
+                className="size-9 shrink-0 cursor-pointer rounded-md border bg-transparent p-0.5"
+              />
+              <Input
+                id={`bc-${block.id}`}
+                value={frame?.border.color ?? "#000000"}
+                onChange={(e) =>
+                  setFrame({
+                    border: {
+                      width: frame?.border.width ?? 0,
+                      color: e.target.value,
+                    },
+                  })
+                }
+                className="font-mono"
+              />
+            </div>
+          </Field>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function CantoInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <Field>
+      <FieldLabel>{label} (px)</FieldLabel>
+      <Input
+        type="number"
+        min={0}
+        max={200}
+        value={value}
+        onChange={(e) =>
+          onChange(e.target.value === "" ? 0 : Number(e.target.value))
+        }
       />
     </Field>
   );

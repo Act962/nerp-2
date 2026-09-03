@@ -54,6 +54,7 @@ export default async function SegmentPage({
       whatsappHref={content.whatsapp.href}
       whatsappLabel={content.whatsapp.label}
       loginHref={APP_LINKS.login}
+      content={content}
     />
   );
 }

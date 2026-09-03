@@ -6,6 +6,11 @@
   app e um `.hero` solto atropelaria qualquer outra tela.
 */
 
+html,
+body {
+  background: #fff;
+}
+
 .sp-root {
   --sp-void: #050a14;
   --sp-ink: #0b1220;
@@ -16,8 +21,16 @@
   --sp-dim: #8fb0d0;
   --sp-gutter: clamp(1.25rem, 5vw, 5rem);
 
-  background: var(--sp-void);
-  color: #fff;
+  /*
+    Fundo do container: BRANCO agora que o tema dos blocos é claro.
+
+    Era `var(--sp-void)` (navy) do tempo em que o site era todo escuro. Nas
+    faixas normais isso não aparecia — cada `.sp-band` pintava o próprio
+    fundo. Aparecia quando alguma faixa ficava TRANSPARENTE (herói com frame
+    escolhido pelo operador), e o "vácuo" navy do sp-root vazava por baixo.
+  */
+  background: #fff;
+  color: var(--sp-ink);
   font-family:
     Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   line-height: 1.55;
@@ -110,6 +123,63 @@
   background: linear-gradient(135deg, #0f8ee8 0%, #3db4ff 100%);
 }
 
+/*
+  Variante "framed" do herói: o bloco vira uma CAIXA arredondada, deslocada da
+  faixa pelas margens externas. O padding INTERNO precisa parar de usar a
+  goteira global — senão as margens externas do frame se somariam à goteira e
+  a caixa ficaria com bordas mais grossas do que o operador escolheu.
+
+  As variáveis (`--sp-hero-inset`, `--sp-hero-radius-*`, `--sp-hero-border`)
+  vêm do próprio bloco. Sem `.sp-hero--framed` a folha original manda —
+  ninguém mais que já usa o herói é afetado.
+*/
+.sp-hero--framed {
+  /*
+    Vertical mantém o valor do operador. Lateral usa o MENOR entre o valor
+    escolhido e 24px — em telas pequenas 40px de cada lado come 20% da
+    largura e aperta o miolo. É o mesmo comportamento que sistemas de design
+    aplicam quando a "margem generosa" do desktop precisa caber num celular.
+  */
+  margin-block: var(--sp-hero-inset, 0);
+  margin-inline: min(var(--sp-hero-inset, 0px), 24px);
+  border-top-left-radius: var(--sp-hero-radius-tl, 0);
+  border-top-right-radius: var(--sp-hero-radius-tr, 0);
+  border-bottom-right-radius: var(--sp-hero-radius-br, 0);
+  border-bottom-left-radius: var(--sp-hero-radius-bl, 0);
+  border: var(--sp-hero-border, none);
+  overflow: hidden;
+}
+
+/*
+  Herói em caixa: quem pinta é a CAIXA, não a faixa em volta.
+
+  Sem estas duas regras o resultado sai invertido do desejado: minha regra
+  antiga `.sp-band.sp-b--bg > section { background: transparent }` (feita para
+  o conta-gotas mandar mais que o desenho do bloco) apagava o gradient próprio
+  do `.sp-hero`, e a cor escolhida ia parar na faixa toda, deixando o miolo
+  transparente. Aqui a lógica é: se o bloco tem frame, o operador quer o
+  desenho de dentro, não uma tinta cobrindo a página inteira.
+*/
+.sp-band.sp-b--bg > .sp-hero--framed {
+  background: var(--b-bg);
+}
+
+.sp-band.sp-b--bg:has(.sp-hero--framed) {
+  background: transparent;
+}
+
+/*
+  Contém a margem vertical do herói.
+
+  Sem `display: flow-root` a `margin-top` e `margin-bottom` do herói colapsam
+  para fora da banda — o herói cola no topo e no fundo dela, e a moldura
+  branca em volta some. `flow-root` cria um contexto próprio de bloco, e é a
+  forma moderna (sem `overflow`) de conter margens sem efeitos colaterais.
+*/
+.sp-band:has(.sp-hero--framed) {
+  display: flow-root;
+}
+
 .sp-hero__eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.22em;
@@ -149,9 +219,15 @@
   line-height: 1.15;
 }
 
+/*
+  Sem fundo próprio: quem pinta é a faixa do bloco.
+
+  Ele tinha `--sp-ink` fixo, e isso anulava o seletor de fundo justamente no
+  bloco em que a cor mais importa — a "frase escura" continua escura porque a
+  faixa é escura, e agora dá para mandá-la ficar clara ou azul.
+*/
 .sp-statement {
   text-align: center;
-  background: var(--sp-ink);
 }
 
 .sp-statement p {
@@ -255,6 +331,25 @@
   order: 2;
 }
 
+/*
+  A imagem do bloco Aplicativo sai QUADRADA: altura = largura da coluna.
+
+  Sem isto a proporção vem do arquivo, e uma captura 3:2 (a maioria) deixava
+  a caixa mais baixa do que larga, quebrando o alinhamento vertical com o texto
+  do lado. `object-fit: cover` preserva o quadro sem esticar — cabe o mesmo
+  centro da imagem original.
+*/
+.sp-split__media .sp-media {
+  /*
+    Caixa quadrada (altura = largura da coluna) e imagem INTEIRA dentro, com
+    a proporção original preservada. Sem `cover`: cortava as laterais em toda
+    captura mais larga que alta.
+  */
+  aspect-ratio: 1;
+  height: auto;
+  object-fit: contain;
+}
+
 .sp-split p {
   color: var(--sp-text);
 }
@@ -278,36 +373,94 @@
 .sp-clients {
   background: #fff;
   color: #0b2138;
-  padding: clamp(3rem, 6vw, 4.5rem) var(--sp-gutter);
+  padding: clamp(3rem, 6vw, 4.5rem) 0;
+  /* Coluna: o título CENTRALIZADO em cima, a esteira de logos ocupando a
+     largura inteira embaixo — o padding lateral sai daqui para a esteira poder
+     sangrar de borda a borda. */
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: clamp(1.5rem, 4vw, 3rem);
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(1.5rem, 3vw, 2.25rem);
 }
 
 .sp-clients h2 {
   margin: 0;
+  padding: 0 var(--sp-gutter);
+  text-align: center;
   font-size: 1.4rem;
   color: #0f6fb8;
+}
+
+/*
+  Esteira de logos que anda sozinha.
+
+  Duplicar a lista dentro do carrossel é a forma padrão de fazer um loop
+  contínuo em CSS puro — o segundo bloco entra em cena antes que o primeiro
+  saia, e ninguém percebe a emenda. A máscara nas beiras (`mask-image`) evita
+  que uma logo apareça pela metade colada na borda.
+*/
+.sp-clients__row {
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 8%,
+    #000 92%,
+    transparent
+  );
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent,
+    #000 8%,
+    #000 92%,
+    transparent
+  );
+}
+
+.sp-clients__track {
+  display: flex;
+  align-items: center;
+  gap: clamp(2rem, 5vw, 3.5rem);
+  width: max-content;
+  /* Sem `alternate`: sempre para a esquerda. O `to left` faz sentido: o olho
+     lê da esquerda para a direita, e as logos entram por onde ele espera. */
+  animation: sp-clients-scroll 28s linear infinite;
+}
+
+@keyframes sp-clients-scroll {
+  /* -50% = a largura de UMA cópia da lista; ao fim do ciclo a segunda cópia
+     está exatamente onde a primeira começou e o loop parece infinito. */
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Pausar quando o mouse entra deixa o visitante ler a logo em paz. */
+.sp-clients__row:hover .sp-clients__track {
+  animation-play-state: paused;
+}
+
+.sp-clients__track img {
+  max-height: 44px;
+  width: auto;
   flex: none;
 }
 
-.sp-clients__row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: clamp(1rem, 3vw, 2.5rem);
-}
-
-.sp-clients__row img {
-  max-height: 44px;
-  width: auto;
+@media (prefers-reduced-motion: reduce) {
+  .sp-clients__track {
+    animation: none;
+  }
 }
 
 .sp-contact {
   background: #fff;
   color: #0b2138;
-  padding: 0 var(--sp-gutter) clamp(3rem, 6vw, 4.5rem);
+  /* Padding em cima também — sem isto o margin-top do h2 ESCAPA para fora da
+     seção (margin collapsing), vira gap entre as bandas e o body preto aparece
+     no meio da página. */
+  padding: clamp(2rem, 5vw, 3rem) var(--sp-gutter) clamp(3rem, 6vw, 4.5rem);
   text-align: center;
 }
 
@@ -502,5 +655,573 @@
 
   .sp-step__mark {
     height: 68px;
+  }
+}
+
+/*
+  Recursos: título e imagem à esquerda, lista conferida à direita.
+
+  Duas colunas independentes, e não uma grade de linhas: a lista tem ritmo
+  próprio e cresce sem empurrar o título, que é o que mantém a seção legível
+  quando o cliente acrescenta mais um item.
+*/
+.sp-check {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: start;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sp-check__title {
+  margin: 0 0 2rem;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+/* O fecho em negrito é o que dá o acento da frase — sem cor, só peso. */
+.sp-check__title strong {
+  font-weight: 800;
+}
+
+.sp-check__aside {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.sp-check__aside img {
+  width: clamp(9rem, 18vw, 14rem);
+  height: auto;
+  display: block;
+}
+
+.sp-check__aside a,
+.sp-check__aside span {
+  color: var(--sp-text);
+  font-size: 1.05rem;
+  line-height: 1.3;
+  text-decoration: none;
+}
+
+.sp-check__aside a:hover {
+  color: #fff;
+  text-decoration: underline;
+}
+
+.sp-check__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35rem;
+}
+
+.sp-check__list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  color: var(--sp-text);
+  font-size: 1rem;
+}
+
+/* Círculo vazado com o traço dentro: o mesmo desenho do check em qualquer
+   tamanho, sem depender de fonte de ícone. */
+.sp-check__mark {
+  flex: none;
+  width: 2rem;
+  height: 2rem;
+  border: 1.5px solid var(--sp-blue-2);
+  border-radius: 50%;
+  color: var(--sp-blue-2);
+  display: grid;
+  place-items: center;
+}
+
+.sp-check__mark svg {
+  width: 1.05rem;
+  height: 1.05rem;
+}
+
+/*
+  Vantagens: cartões com ícone, em duas colunas.
+
+  Separado do `.sp-card` (Funcionalidades) de propósito: lá o cartão é uma
+  frase e cabem três por linha; aqui é um parágrafo com ícone ao lado, e três
+  colunas espremeriam o texto a ponto de ninguém ler.
+*/
+.sp-benefits__title {
+  margin: 0 0 clamp(1.5rem, 3vw, 2.5rem);
+  text-align: center;
+  color: var(--sp-blue-2);
+}
+
+.sp-benefits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(1rem, 2.5vw, 2rem);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sp-benefit {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.25rem;
+  border: 1px solid var(--sp-line);
+  border-radius: 18px;
+  padding: clamp(1.5rem, 2.5vw, 2rem);
+  background: linear-gradient(160deg, rgba(30, 157, 251, 0.07), transparent);
+}
+
+.sp-benefit__icon {
+  flex: none;
+  width: 3.5rem;
+  height: 3.5rem;
+  object-fit: contain;
+}
+
+.sp-benefit h3 {
+  margin: 0 0 0.75rem;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.sp-benefit p {
+  margin: 0;
+  color: var(--sp-text);
+  font-size: 0.95rem;
+}
+
+@media (max-width: 860px) {
+  .sp-check,
+  .sp-benefits {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+  A faixa de cada bloco.
+
+  O fundo fica no ENVOLTÓRIO e não na seção porque ele precisa sangrar de borda
+  a borda enquanto o conteúdo respeita a goteira — a seção já tem o padding, e
+  pintar nela deixaria a cor presa dentro dele.
+
+  `base` e `contraste` são os dois tons do rodízio automático. A diferença é
+  deliberadamente pequena: o suficiente para separar duas seções, longe de
+  virar listra.
+*/
+/*
+  Tema claro dos BLOCOS.
+
+  Os tokens são redefinidos aqui, na faixa, e não em `.sp-root`: a barra do topo
+  e o rodapé continuam escuros porque o logotipo oficial só existe em branco —
+  num cabeçalho branco ele simplesmente sumiria. E é o que o pedido diz, à
+  letra: fundo branco nos BLOCOS da página.
+*/
+.sp-band {
+  --sp-text: #41525c;
+  --sp-dim: #667a85;
+  --sp-line: rgba(20, 29, 32, 0.12);
+  --sp-blue: #30aafd;
+  --sp-blue-2: #30aafd;
+
+  color: #141d20;
+}
+
+/*
+  Blocos que pintam o próprio fundo escuro ou colorido continuam com texto
+  claro — herdar o #141d20 da faixa deixaria texto quase preto sobre azul.
+*/
+.sp-band .sp-hero,
+.sp-band .sp-video,
+.sp-band .sp-duo__more {
+  --sp-text: rgba(255, 255, 255, 0.88);
+  --sp-dim: rgba(255, 255, 255, 0.72);
+
+  color: #fff;
+}
+
+.sp-band--base {
+  background: #fff;
+}
+
+/*
+  Tom próprio, e não `--sp-ink`.
+  
+  O `--sp-ink` (#0b1220) está a seis pontos do `--sp-void` no vermelho: no papel
+  é um degrau, na tela é a mesma cor. Uma faixa que ninguém enxerga não separa
+  seção nenhuma — o degrau precisa ser visível a olho nu, e é isso que este
+  valor entrega sem sair do azul-noite do site.
+*/
+.sp-band--contraste {
+  background: #f4f7fa;
+}
+
+.sp-band--destaque {
+  background: linear-gradient(135deg, var(--sp-blue) 0%, var(--sp-blue-2) 100%);
+}
+
+/* Faixa clara: o texto do site é feito para fundo escuro, então aqui as cores
+   de tipo são reescritas — sem isso o conteúdo sairia branco no branco. */
+.sp-band--claro {
+  background: #fff;
+  color: var(--sp-ink);
+}
+
+.sp-band--claro h2,
+.sp-band--claro h3 {
+  color: var(--sp-ink);
+}
+
+.sp-band--claro p,
+.sp-band--claro li {
+  color: #33506e;
+}
+
+/*
+  Vídeo lado a lado.
+
+  Sem o painel azul do `.sp-video`: aqui quem pinta é a faixa do bloco, e é isso
+  que permite a mesma seção sair clara ou escura sem uma segunda regra de cor.
+
+  O player vem primeiro no HTML e troca de lado por `order` — a ordem de leitura
+  não muda com o arranjo, e no celular as duas variantes empilham na mesma
+  sequência.
+*/
+.sp-video-side {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr;
+  gap: clamp(2rem, 5vw, 4rem);
+  align-items: center;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.sp-video-side--right .sp-video-side__media {
+  order: 2;
+}
+
+.sp-video-side__media .sp-video__frame {
+  margin-top: 0;
+}
+
+.sp-video-side__copy h2 {
+  margin: 0 0 1.25rem;
+  color: var(--sp-blue-2);
+}
+
+.sp-video-side__copy p {
+  margin: 0;
+  color: var(--sp-text);
+  font-size: 1.05rem;
+}
+
+/* Na faixa clara o título perde o azul claro, que sumiria no branco. */
+.sp-band--claro .sp-video-side__copy h2 {
+  color: var(--sp-blue);
+}
+
+@media (max-width: 860px) {
+  .sp-video-side {
+    grid-template-columns: 1fr;
+  }
+
+  .sp-video-side--right .sp-video-side__media {
+    order: 0;
+  }
+}
+
+/*
+  Ajuste fino da faixa clara.
+
+  Fica no FIM do arquivo e sempre com dois seletores porque as regras de cor de
+  cada bloco (`.sp-video-side__copy p` e companhia) têm a mesma especificidade
+  das regras genéricas da faixa — no empate vence a última, e sem isto o texto
+  sai cinza-claro sobre branco, ilegível.
+*/
+.sp-band--claro .sp-video-side__copy p,
+.sp-band--claro .sp-check__list li,
+.sp-band--claro .sp-check__aside a,
+.sp-band--claro .sp-check__aside span,
+.sp-band--claro .sp-benefit p,
+.sp-band--claro .sp-duo li {
+  color: #33506e;
+}
+
+.sp-band--claro .sp-check__mark {
+  border-color: var(--sp-blue);
+  color: var(--sp-blue);
+}
+
+.sp-band--claro .sp-benefit,
+.sp-band--claro .sp-card {
+  border-color: rgba(11, 33, 56, 0.14);
+  background: #fff;
+}
+
+/* ==========================================================================
+   Aparência por bloco.
+
+   Tudo aqui lê `var(--b-…, <o de sempre>)`: bloco sem estilo configurado cai no
+   segundo argumento e desenha idêntico ao que desenhava. É o que permite ligar
+   este sistema numa página já publicada sem mexer em nada dela.
+   ========================================================================== */
+
+/* Cor/degradê do conta-gotas vence a faixa semântica — a escolha explícita
+   manda mais que a alternância automática. */
+.sp-band.sp-b--bg {
+  background: var(--b-bg);
+}
+
+/*
+  Cor escolhida à mão vence o desenho do bloco.
+
+  Vários blocos pintam o próprio fundo (`.sp-hero` e `.sp-statement` são os
+  mais visíveis), e uma faixa atrás deles nunca apareceria. Para a alternância
+  automática isso é aceitável — é o desenho de fábrica. Para o conta-gotas não
+  é: quem escolheu a cor espera vê-la, e não descobrir que aquele bloco em
+  particular ignora o painel.
+
+  Só o filho DIRETO — a seção do bloco. Cartões e painéis lá dentro seguem com
+  as cores deles.
+*/
+.sp-band.sp-b--bg > section {
+  background: transparent;
+}
+
+/* --- Tipografia por slot -------------------------------------------------
+   Cada regra vive atrás da SUA classe, emitida só quando o campo foi
+   preenchido. É o que impede o painel de apagar a cor própria de um bloco só
+   por existir. Dois nomes de classe no seletor também garantem que a escolha
+   explícita vença as regras de cada bloco. */
+
+.sp-band.sp-b--title-color h1,
+.sp-band.sp-b--title-color h2 {
+  color: var(--b-title-color);
+}
+
+.sp-band.sp-b--title-size h1,
+.sp-band.sp-b--title-size h2 {
+  font-size: var(--b-title-size);
+}
+
+.sp-band.sp-b--title-family h1,
+.sp-band.sp-b--title-family h2 {
+  font-family: var(--b-title-family);
+}
+
+.sp-band.sp-b--title-weight h1,
+.sp-band.sp-b--title-weight h2 {
+  font-weight: var(--b-title-weight);
+}
+
+.sp-band.sp-b--text-color p,
+.sp-band.sp-b--text-color .sp-hero__eyebrow {
+  color: var(--b-text-color);
+}
+
+.sp-band.sp-b--text-size p,
+.sp-band.sp-b--text-size .sp-hero__eyebrow {
+  font-size: var(--b-text-size);
+}
+
+.sp-band.sp-b--text-family p,
+.sp-band.sp-b--text-family .sp-hero__eyebrow {
+  font-family: var(--b-text-family);
+}
+
+.sp-band.sp-b--text-weight p,
+.sp-band.sp-b--text-weight .sp-hero__eyebrow {
+  font-weight: var(--b-text-weight);
+}
+
+.sp-band.sp-b--items-color li,
+.sp-band.sp-b--items-color h3 {
+  color: var(--b-items-color);
+}
+
+.sp-band.sp-b--items-size li,
+.sp-band.sp-b--items-size h3 {
+  font-size: var(--b-items-size);
+}
+
+.sp-band.sp-b--items-family li,
+.sp-band.sp-b--items-family h3 {
+  font-family: var(--b-items-family);
+}
+
+.sp-band.sp-b--items-weight li,
+.sp-band.sp-b--items-weight h3 {
+  font-weight: var(--b-items-weight);
+}
+
+/* --- Botões -------------------------------------------------------------- */
+
+.sp-band.sp-b--btn .sp-btn,
+.sp-band.sp-b--btn .sp-cta {
+  background: var(--b-btn-bg);
+  border-color: transparent;
+}
+
+.sp-band.sp-b--btn-color .sp-btn,
+.sp-band.sp-b--btn-color .sp-cta {
+  color: var(--b-btn-color);
+}
+
+/* --- Efeitos de destaque -------------------------------------------------
+   `--b-fx` é a intensidade em fração (0–1) e entra na própria animação, então
+   o mesmo keyframe serve do sutil ao berrante sem duplicar regra. */
+
+@keyframes sp-fx-pulso {
+  50% {
+    transform: scale(calc(1 + 0.06 * var(--b-fx, 0.5)));
+  }
+}
+
+@keyframes sp-fx-brilho {
+  50% {
+    filter: brightness(calc(1 + 0.35 * var(--b-fx, 0.5)));
+  }
+}
+
+@keyframes sp-fx-flutuar {
+  50% {
+    transform: translateY(calc(-14px * var(--b-fx, 0.5)));
+  }
+}
+
+.sp-fx .sp-btn,
+.sp-fx .sp-cta {
+  animation: sp-fx-pulso 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.sp-fx--brilho .sp-btn,
+.sp-fx--brilho .sp-cta {
+  animation-name: sp-fx-brilho;
+}
+
+.sp-fx--flutuar .sp-btn,
+.sp-fx--flutuar .sp-cta {
+  animation-name: sp-fx-flutuar;
+}
+
+/* --- Imagem flutuante ----------------------------------------------------
+   A sombra é um pseudo-elemento embaixo da imagem, e não `box-shadow`: ela
+   precisa encolher quando a imagem sobe, que é o que vende a suspensão. Um
+   `box-shadow` acompanharia o objeto e o movimento pareceria de adesivo. */
+
+@keyframes sp-float-up {
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes sp-float-shadow {
+  50% {
+    transform: translateX(-50%) scaleX(0.82);
+    opacity: 0.55;
+  }
+}
+
+.sp-float .sp-media,
+.sp-float .sp-check__aside img,
+.sp-float .sp-benefit__icon,
+.sp-float .sp-video__frame {
+  animation: sp-float-up var(--b-float-dur, 5s) ease-in-out infinite;
+  will-change: transform;
+}
+
+.sp-float-shadow .sp-media,
+.sp-float-shadow .sp-check__aside img,
+.sp-float-shadow .sp-video__frame {
+  position: relative;
+}
+
+.sp-float-shadow .sp-media::after,
+.sp-float-shadow .sp-video-side__media::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -18px;
+  width: 76%;
+  height: 22px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, var(--b-shadow, 0.45)) 0%,
+    transparent 70%
+  );
+  animation: sp-float-shadow var(--b-float-dur, 5s) ease-in-out infinite;
+  pointer-events: none;
+}
+
+.sp-video-side__media {
+  position: relative;
+}
+
+/* Quem pediu para o sistema não animar, não animar. */
+@media (prefers-reduced-motion: reduce) {
+  .sp-fx .sp-btn,
+  .sp-fx .sp-cta,
+  .sp-float .sp-media,
+  .sp-float .sp-check__aside img,
+  .sp-float .sp-benefit__icon,
+  .sp-float .sp-video__frame,
+  .sp-float-shadow .sp-media::after,
+  .sp-float-shadow .sp-video-side__media::after {
+    animation: none;
+  }
+}
+
+/*
+  Harmonia no celular.
+
+  Regra separada, e não uma alteração em cada bloco, por dois motivos: manter
+  o desenho do desktop intacto (as decisões de alinhamento por bloco foram
+  tomadas com a página larga em mente) e resolver os onze blocos com uma
+  agulha só — se amanhã aparecer o décimo segundo, ele já nasce alinhado.
+
+  Título CENTRAL vira o eixo visual do bloco no celular; parágrafo introdutório
+  (o que fica logo abaixo do h2 ou do h1, sem ser lista) acompanha.
+*/
+@media (max-width: 640px) {
+  .sp-band h1,
+  .sp-band h2,
+  .sp-band .sp-hero__eyebrow,
+  .sp-check__title {
+    text-align: center;
+  }
+
+  /* Só o parágrafo IMEDIATAMENTE após o título — o resto (texto dentro de
+     cartão, lista, etapa) mantém o próprio alinhamento, que costuma ser à
+     esquerda para o olho conseguir varrer. */
+  .sp-band h1 + p,
+  .sp-band h2 + p,
+  .sp-hero__eyebrow + h1 + p {
+    text-align: center;
+  }
+
+  /* Os botões do herói alinham com o título centralizado — ficam colados à
+     esquerda no desktop porque a coluna de texto é estreita, no celular é a
+     tela inteira. */
+  .sp-hero__actions {
+    justify-content: center;
+  }
+}
+
+/*
+  Bloco Imagem no celular acompanha o Split, que empilha para uma coluna só
+  abaixo de 860px. Como a largura padrão é `50% - gap/2`, no celular ela seria
+  ainda menor — o max-width força 100% dentro da faixa.
+*/
+@media (max-width: 860px) {
+  .sp-image > img {
+    max-width: 100% !important;
+    width: 100% !important;
   }
 }

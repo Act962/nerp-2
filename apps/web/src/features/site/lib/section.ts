@@ -21,7 +21,7 @@ export const SECTION_LABEL = {
 } as const;
 
 const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001"
+  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
 ).replace(/\/$/, "");
 
 /** O caminho da página dentro do site: `/segmentos/clinicas`. */

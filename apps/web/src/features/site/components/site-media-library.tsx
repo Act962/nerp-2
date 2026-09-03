@@ -82,7 +82,7 @@ export function SiteMediaLibrary() {
             <input
               type="file"
               multiple
-              accept="image/png,image/jpeg,image/webp,image/avif"
+              accept="image/png,image/jpeg,image/webp,image/avif,image/gif"
               className="hidden"
               disabled={uploading}
               onChange={(event) => {

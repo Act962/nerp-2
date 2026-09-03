@@ -7,3 +7,4 @@ export * from "./pages";
 export * from "./partners";
 export * from "./partners-sample";
 export * from "./segments";
+export * from "./style-vars";
