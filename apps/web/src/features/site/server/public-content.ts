@@ -7,6 +7,14 @@ import type {
 } from "@nerp/site-content";
 import prisma from "@/lib/db";
 import { siteSettingsSchema } from "@/app/router/site/settings";
+import {
+  ASTRO_PRECOS_KEY,
+  lerTabelaDePrecos,
+} from "@/features/astro-consultor/server/preco";
+import {
+  ASTRO_CONFIG_KEY,
+  lerConfig,
+} from "@/features/astro-consultor/server/provider";
 
 /**
  * O conteúdo publicado do site, do jeito que ele sai do banco.
@@ -23,24 +31,28 @@ const SECAO_URL = {
 } as const;
 
 export async function getPublicSiteContent(): Promise<SiteContentResponse> {
-  const [items, settingRow] = await Promise.all([
-    prisma.siteMenuItem.findMany({
-      where: { visible: true },
-      orderBy: [{ position: "asc" }],
-      select: {
-        panel: true,
-        groupTitle: true,
-        slug: true,
-        name: true,
-        summary: true,
-        color: true,
-        href: true,
-        iconImage: true,
-        page: { select: { slug: true, section: true, status: true } },
-      },
-    }),
-    prisma.siteSetting.findUnique({ where: { key: "site" } }),
-  ]);
+  const [items, settingRow, astroConfigRow, astroPrecosRow] = await Promise.all(
+    [
+      prisma.siteMenuItem.findMany({
+        where: { visible: true },
+        orderBy: [{ position: "asc" }],
+        select: {
+          panel: true,
+          groupTitle: true,
+          slug: true,
+          name: true,
+          summary: true,
+          color: true,
+          href: true,
+          iconImage: true,
+          page: { select: { slug: true, section: true, status: true } },
+        },
+      }),
+      prisma.siteSetting.findUnique({ where: { key: "site" } }),
+      prisma.siteSetting.findUnique({ where: { key: ASTRO_CONFIG_KEY } }),
+      prisma.siteSetting.findUnique({ where: { key: ASTRO_PRECOS_KEY } }),
+    ],
+  );
 
   const toEntry = (item: (typeof items)[number]): MenuEntry => ({
     id: item.slug,
@@ -89,5 +101,14 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
     stats: settings?.stats ?? [],
     contact: settings?.contact.email ? settings.contact : null,
     whatsapp: settings?.whatsapp.number ? settings.whatsapp : null,
+    // Dois booleanos, nunca a tabela: o preço é calculado no servidor, na hora
+    // da estimativa. O site só precisa saber se pode oferecer a pergunta.
+    astro: {
+      ativo: lerConfig(astroConfigRow?.value).ativo,
+      precos: (() => {
+        const tabela = lerTabelaDePrecos(astroPrecosRow?.value);
+        return tabela.ativo && tabela.portes.length > 0;
+      })(),
+    },
   };
 }

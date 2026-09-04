@@ -4,7 +4,12 @@ import { base } from "@/app/middlewares/base";
 import { requireSiteAdminMiddleware } from "@/app/middlewares/site-admin";
 import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
-import { parseBlocks, siteBlocks } from "@nerp/site-content";
+import {
+  astroPaginaSchema,
+  lerAstroPagina,
+  parseBlocks,
+  siteBlocks,
+} from "@nerp/site-content";
 
 const siteAdmin = base
   .use(requireAuthMiddleware)
@@ -39,6 +44,7 @@ export const listPages = siteAdmin
         title: true,
         status: true,
         blocks: true,
+        astro: true,
         publishedBlocks: true,
         updatedAt: true,
       },
@@ -69,6 +75,7 @@ export const getPage = siteAdmin
       title: z.string(),
       status: z.enum(["DRAFT", "PUBLISHED"]),
       blocks: siteBlocks,
+      astro: astroPaginaSchema,
       seoTitle: z.string(),
       seoDescription: z.string(),
       ogImage: z.string(),
@@ -92,6 +99,7 @@ export const getPage = siteAdmin
       title: page.title,
       status: page.status,
       blocks: parseBlocks(page.blocks),
+      astro: lerAstroPagina(page.astro),
       seoTitle: page.seoTitle ?? "",
       seoDescription: page.seoDescription ?? "",
       ogImage: page.ogImage ?? "",
@@ -144,6 +152,7 @@ export const savePage = siteAdmin
       id: z.string(),
       title: z.string().min(1, "Informe o título"),
       blocks: siteBlocks,
+      astro: astroPaginaSchema,
       seoTitle: z.string().default(""),
       seoDescription: z.string().default(""),
       ogImage: z.string().default(""),
@@ -169,18 +178,21 @@ export const savePage = siteAdmin
     if (!existing) throw errors.NOT_FOUND({ message: "Página não encontrada" });
 
     const blocks = input.blocks as unknown as Prisma.InputJsonValue;
+    const astro = input.astro as unknown as Prisma.InputJsonValue;
 
     const page = await prisma.sitePage.update({
       where: { id: input.id },
       data: {
         title: input.title,
         blocks,
+        astro,
         seoTitle: input.seoTitle || null,
         seoDescription: input.seoDescription || null,
         ogImage: input.ogImage || null,
         ...(input.publish
           ? {
               publishedBlocks: blocks,
+              astroPublished: astro,
               status: "PUBLISHED" as const,
               publishedAt: new Date(),
             }
@@ -198,7 +210,7 @@ export const publishPage = siteAdmin
   .handler(async ({ input, errors }) => {
     const page = await prisma.sitePage.findUnique({
       where: { id: input.id },
-      select: { blocks: true },
+      select: { blocks: true, astro: true },
     });
     if (!page) throw errors.NOT_FOUND({ message: "Página não encontrada" });
 
@@ -206,6 +218,7 @@ export const publishPage = siteAdmin
       where: { id: input.id },
       data: {
         publishedBlocks: page.blocks as Prisma.InputJsonValue,
+        astroPublished: page.astro as Prisma.InputJsonValue,
         status: "PUBLISHED",
         publishedAt: new Date(),
       },
@@ -229,7 +242,11 @@ export const unpublishPage = siteAdmin
 
     await prisma.sitePage.update({
       where: { id: input.id },
-      data: { status: "DRAFT", publishedBlocks: Prisma.DbNull },
+      data: {
+        status: "DRAFT",
+        publishedBlocks: Prisma.DbNull,
+        astroPublished: Prisma.DbNull,
+      },
     });
     return { ok: true as const };
   });

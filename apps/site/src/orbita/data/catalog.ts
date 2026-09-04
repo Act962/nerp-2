@@ -32,19 +32,13 @@ export { CATEGORIES, MENU_COLUMNS, RAW_TOOLS };
  * usuário até a estação da ferramenta na órbita e abre o modo produto.
  *
  * Todas apontam para a própria página interna, que existe para as 28 — gerada
- * do catálogo em `@nerp/site-content` e editável no admin. `nerp` é a exceção:
- * é a ponte com o ERP, e leva ao login.
+ * do catálogo em `@nerp/site-content` e editável no admin. O NERP entrou nessa
+ * conta: ele é a ponte com o ERP, mas é produto, e produto tem vitrine.
  */
 export const TOOL_LINKS: Record<string, string | undefined> =
   Object.fromEntries(
     RAW_TOOLS.map((tool) => [tool.id, `/solucoes/${solutionSlug(tool.id)}`]),
   );
-
-// O NERP é a ponte com o ERP: não tem página de vitrine, leva ao login — que
-// vive no outro app, então é endereço absoluto e abre em aba nova.
-TOOL_LINKS.nerp = `${(
-  process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"
-).replace(/\/$/, "")}/login`;
 
 /** O catálogo com o destino já resolvido. */
 export const TOOLS: Tool[] = RAW_TOOLS.map((tool) => ({

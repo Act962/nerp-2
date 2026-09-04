@@ -60,4 +60,7 @@ export const DEFAULT_CONTENT: SiteContent = {
   stats: STATS,
   contact: { email: "contato@orbitahub.com.br", phone: "+55 (85) 0000-0000" },
   whatsapp: WHATSAPP,
+  // O consultor nasce desligado no conteúdo de reserva: quem liga é o painel,
+  // e o site não deve prometer uma conversa que o ERP fora do ar não sustenta.
+  astro: { ativo: false, precos: false },
 };

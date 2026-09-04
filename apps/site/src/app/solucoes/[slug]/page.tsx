@@ -54,6 +54,7 @@ export default async function SolutionPage({
       whatsappLabel={content.whatsapp.label}
       loginHref={APP_LINKS.login}
       content={content}
+      pagina={{ slug: page.slug, titulo: page.title, config: page.astro }}
     />
   );
 }
