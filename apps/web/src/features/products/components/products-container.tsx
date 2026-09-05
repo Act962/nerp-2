@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ImageIcon, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 import { ProductsTable } from "./products-table";
-import { useConstructUrl } from "@/hooks/use-construct-url";
+import { constructUrl } from "@/hooks/use-construct-url";
 import { useQueryState } from "nuqs";
 import dayjs from "dayjs";
 import { useEffect } from "react";
@@ -144,9 +144,12 @@ export function ProductsContainer() {
       </div>
 
       <ProductsTable
+        // `constructUrl`, não o wrapper `useConstructUrl`: aqui a chamada está
+        // dentro de um `.map()` e atrás de um ternário — como hook, a contagem
+        // mudaria conforme quantos produtos têm foto.
         products={products.map((product) => ({
           ...product,
-          image: product.image ? useConstructUrl(product.image) : "",
+          image: product.image ? constructUrl(product.image) : "",
         }))}
         categories={categories}
         hasNextPage={hasNextPage}
