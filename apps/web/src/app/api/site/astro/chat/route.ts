@@ -64,6 +64,20 @@ const corpoSchema = z.object({
     .array(z.object({ slug: z.string().max(120), titulo: z.string().max(200) }))
     .max(12)
     .optional(),
+  /**
+   * Quem já se apresentou, nesta visita.
+   *
+   * Vem do navegador pelo mesmo motivo da trilha: o nome de quem ainda não
+   * virou lead não fica no banco. Aqui ele serve a uma coisa só — o Astro não
+   * perguntar de novo o que a pessoa já respondeu duas páginas atrás.
+   */
+  visitante: z
+    .object({
+      nome: z.string().max(80).optional(),
+      empresa: z.string().max(160).optional(),
+      cnpj: z.string().max(20).optional(),
+    })
+    .optional(),
 });
 
 /** Tamanho máximo de uma mensagem do visitante. */
@@ -193,6 +207,7 @@ export async function POST(request: NextRequest) {
     modelo,
     mensagens,
     navegacao: { pagina: corpo.data.pagina, trilha: corpo.data.trilha },
+    visitante: corpo.data.visitante,
     onFinish: async ({ tokensIn, tokensOut }) => {
       // O gasto é medido desde o primeiro dia: sem isto, o custo do consultor
       // só aparece na fatura.

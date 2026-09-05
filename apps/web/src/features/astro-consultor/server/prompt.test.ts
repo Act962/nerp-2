@@ -143,3 +143,62 @@ describe("promessa de resultado", () => {
     expect(prompt).toMatch(/piada pode, promessa não/i);
   });
 });
+
+describe("com quem ele está falando", () => {
+  it("descobre o nome sem virar formulário", () => {
+    const prompt = montarPrompt({ escopo: "site", agora: AGORA });
+    expect(prompt).toContain("PRIMEIRO SERVE, DEPOIS PERGUNTA");
+    expect(prompt).toMatch(/pergunte UMA vez/i);
+    // O ponto do pedido: insistir é o que torna a coleta intromissiva.
+    expect(prompt).toMatch(/NÃO pergunte de novo/i);
+  });
+
+  // A regra antiga proibia coletar CNPJ junto com CPF e senha. CNPJ é dado
+  // público de empresa, e é dele que sai a atividade econômica; CPF continua
+  // fora. Separar os dois foi uma decisão, não um relaxamento.
+  it("separa CNPJ de documento pessoal", () => {
+    const prompt = montarPrompt({ escopo: "site", agora: AGORA });
+    expect(prompt).toContain("consultarCnpj");
+    expect(prompt).toMatch(/CPF, senha, cartão e documento pessoal/i);
+    expect(prompt).toMatch(/nunca insista/i);
+  });
+
+  it("proíbe recitar a ficha da Receita de volta", () => {
+    const prompt = montarPrompt({ escopo: "site", agora: AGORA });
+    expect(prompt).toMatch(/nome de sócio que a pessoa não citou/i);
+    expect(prompt).toMatch(/não está na base pública/i);
+  });
+
+  it("oferece o formulário quando há interesse", () => {
+    const prompt = montarPrompt({ escopo: "site", agora: AGORA });
+    expect(prompt).toContain("oferecerFormulario");
+    expect(prompt).toContain("Preencher formulário");
+  });
+
+  it("sem visitante conhecido, o bloco nem aparece", () => {
+    expect(montarPrompt({ escopo: "site", agora: AGORA })).not.toContain(
+      "[QUEM ESTÁ FALANDO]",
+    );
+  });
+
+  it("sabendo o nome, manda não perguntar de novo", () => {
+    const prompt = montarPrompt({
+      escopo: "site",
+      agora: AGORA,
+      visitante: { nome: "Rafa", empresa: "Santa Clara" },
+    });
+    expect(prompt).toContain("[QUEM ESTÁ FALANDO]");
+    expect(prompt).toContain("O nome dela é Rafa");
+    expect(prompt).toContain("Santa Clara");
+  });
+
+  it("com CNPJ na mão, não pede de novo nem escreve o número na resposta", () => {
+    const prompt = montarPrompt({
+      escopo: "site",
+      agora: AGORA,
+      visitante: { cnpj: "19131243000197" },
+    });
+    expect(prompt).toMatch(/não escreva o número/i);
+    expect(prompt).toContain("19131243000197");
+  });
+});

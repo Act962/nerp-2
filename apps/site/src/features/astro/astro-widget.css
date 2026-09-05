@@ -38,33 +38,19 @@
     0 0 0 1px rgba(255, 255, 255, 0.08) inset;
   transition: box-shadow 0.2s ease;
   /*
-    Flutuando. A animação é do disco inteiro e cuida sozinha do `transform` —
-    por isso o hover mexe só na sombra: os dois disputando a mesma propriedade,
-    o hover cancelaria a flutuação no meio do caminho.
-  */
-  animation: o-astro-flutua 4.5s ease-in-out infinite;
-}
+    A flutuação e o tremor são escritos pelo laço do mascote, em JS, e não por
+    `animation`: animação vence estilo em linha na cascata, e o tremor da
+    zanga simplesmente não aparecia enquanto o disco flutuava. Com um dono só
+    para o `transform`, os dois se somam.
 
-@keyframes o-astro-flutua {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-6px);
-  }
+    Por isso o hover mexe apenas na sombra.
+  */
 }
 
 .o-astro-btn:hover {
   box-shadow:
     0 16px 30px -8px rgba(0, 0, 0, 0.65),
     0 0 0 1px rgba(255, 255, 255, 0.16) inset;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .o-astro-btn {
-    animation: none;
-  }
 }
 
 /*
@@ -477,4 +463,46 @@
   .o-astro-balao {
     animation: none;
   }
+}
+
+/*
+  O convite para o formulário.
+
+  Diferente dos cartões de link de propósito: aqueles são "dá uma olhada", e
+  este é o único ponto da conversa em que se pede uma ação. Botão cheio, azul,
+  uma vez só — se ele tivesse a mesma cara dos cartões, sumiria entre eles.
+*/
+.o-astro-cta {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border: 1px solid #d7e0f5;
+  border-radius: 14px;
+  background: #f5f8ff;
+}
+
+.o-astro-cta__linha {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #475467;
+}
+
+.o-astro-cta__btn {
+  display: block;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
+
+.o-astro-cta__btn:hover {
+  background: #1d4fd7;
 }

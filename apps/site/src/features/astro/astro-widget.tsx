@@ -5,11 +5,13 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import {
   Fragment,
   type ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import { findToolBySlug } from "@/orbita/data/catalog";
 import { useSiteContent } from "@/orbita/lib/content-context";
 import { AstroMark } from "./astro-mark";
 import type { PaginaDoAstro } from "./pagina";
@@ -153,6 +155,96 @@ function solucoesDaMensagem(mensagem: {
 }
 
 /**
+ * O convite para o formulário, quando ele aparece numa resposta.
+ *
+ * Vem da tool, nunca do texto do modelo — a mesma regra dos cartões de link, e
+ * aqui ela pesa mais: o endereço é longo e cheio de parâmetro de campanha, e
+ * um caractere trocado no meio manda um lead interessado para lugar nenhum.
+ */
+type ConviteDeFormulario = { url: string; rotulo: string; motivo: string };
+
+/** Quem está do outro lado, na medida em que ele foi descobrindo. */
+type Visitante = { nome?: string; empresa?: string; cnpj?: string };
+
+/** As saídas de tool de uma mensagem, já filtradas pelas que deram certo. */
+function saidasDeTool(mensagem: { parts: Array<{ type: string }> }): unknown[] {
+  const saidas: unknown[] = [];
+  for (const parte of mensagem.parts) {
+    if (!parte.type.startsWith("tool-")) continue;
+    const comSaida = parte as { state?: string; output?: unknown };
+    if (comSaida.state !== "output-available") continue;
+    if (typeof comSaida.output === "object" && comSaida.output !== null) {
+      saidas.push(comSaida.output);
+    }
+  }
+  return saidas;
+}
+
+function formularioDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): ConviteDeFormulario | null {
+  for (const saida of saidasDeTool(mensagem)) {
+    const convite = (saida as { formulario?: unknown }).formulario;
+    if (typeof convite !== "object" || convite === null) continue;
+    const campos = convite as Record<string, unknown>;
+    const url = textoDe(campos.url);
+    // Endereço que não é endereço não vira botão.
+    if (!url.startsWith("https://")) continue;
+    return {
+      url,
+      rotulo: textoDe(campos.rotulo) || "Preencher formulário",
+      motivo: textoDe(campos.motivo),
+    };
+  }
+  return null;
+}
+
+function identidadeDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): Visitante | null {
+  for (const saida of saidasDeTool(mensagem)) {
+    const anotado = (saida as { visitante?: unknown }).visitante;
+    if (typeof anotado !== "object" || anotado === null) continue;
+    const campos = anotado as Record<string, unknown>;
+    const quem: Visitante = {};
+    if (textoDe(campos.nome)) quem.nome = textoDe(campos.nome);
+    if (textoDe(campos.empresa)) quem.empresa = textoDe(campos.empresa);
+    if (textoDe(campos.cnpj)) quem.cnpj = textoDe(campos.cnpj);
+    if (Object.keys(quem).length > 0) return quem;
+  }
+  return null;
+}
+
+/**
+ * O nome fica no navegador, não no banco.
+ *
+ * Mesma escolha da trilha, pelo mesmo motivo: guardar no servidor o nome de
+ * quem só conversou e foi embora é cadastrar visitante que nunca pediu para
+ * ser cadastrado. Ele sobe junto de cada mensagem e serve a uma coisa só — o
+ * Astro não perguntar duas vezes o que já lhe disseram. Quem vira lead de
+ * verdade é gravado pelo fecho, com o consentimento que veio junto.
+ */
+const QUEM = "orbita:astro:quem";
+
+function lerVisitante(): Visitante {
+  try {
+    const cru = sessionStorage.getItem(QUEM);
+    return cru ? (JSON.parse(cru) as Visitante) : {};
+  } catch {
+    return {};
+  }
+}
+
+function guardarVisitante(quem: Visitante) {
+  try {
+    sessionStorage.setItem(QUEM, JSON.stringify(quem));
+  } catch {
+    // Sem memória ele pergunta o nome de novo numa página nova. Chato, não
+    // quebrado — e é por isso que a pergunta é "uma vez", não "nunca mais".
+  }
+}
+
+/**
  * Onde a conversa fica entre uma página e outra.
  *
  * `sessionStorage` e não `localStorage`: a conversa é da visita, não da
@@ -249,6 +341,37 @@ function marcarQueFalou(slug: string) {
   }
 }
 
+/**
+ * O que ele diz onde não há página cadastrada — a home, principalmente.
+ *
+ * A home não é uma `SitePage`, então não passa pelo admin e não tem balão
+ * próprio. Em vez de ficar mudo justamente onde quase todo mundo entra, ele
+ * puxa assunto com uma dessas, sorteadas a cada visita: genéricas de
+ * propósito, porque ali ele ainda não sabe do que a pessoa veio atrás.
+ */
+const FALAS_SOLTAS = [
+  "Qualquer coisa, tô aqui!",
+  "Ei, tô aqui 👋",
+  "Top hein?!",
+  "Tá gostando?",
+  "Se perder, me chama",
+  "Bora achar o que serve pra você?",
+];
+
+/** Duas das soltas, sorteadas e sem repetir. */
+function sortearFalas(quantas = 2): string[] {
+  const baralho = [...FALAS_SOLTAS];
+  const escolhidas: string[] = [];
+  while (escolhidas.length < quantas && baralho.length > 0) {
+    const [fala] = baralho.splice(
+      Math.floor(Math.random() * baralho.length),
+      1,
+    );
+    escolhidas.push(fala);
+  }
+  return escolhidas;
+}
+
 /** Espera antes do primeiro balão: tempo de a página assentar e ser lida. */
 const ATRASO_PRIMEIRO_BALAO = 2200;
 
@@ -266,6 +389,16 @@ const BALAO_NA_TELA = 7000;
  */
 const ESPERA_POR_RESPOSTA = 6000;
 
+/**
+ * A queixa de quem foi deixado no vácuo.
+ *
+ * Fechar o painel com a última palavra sendo dele é o vácuo mais literal que
+ * existe aqui, e esta é a única fala que ele solta sem ter sido chamado. Por
+ * isso é queixa de brincadeira: cobrança de verdade, num mascote, vira
+ * chateação.
+ */
+const FALA_SOZINHO = "Me deixou falando sozinho!";
+
 /** A saudação muda com a hora, como na referência. */
 function perguntaDaHora(): string {
   const hora = new Date().getHours();
@@ -282,6 +415,7 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
   const [semResposta, setSemResposta] = useState(false);
   const [balao, setBalao] = useState<string | null>(null);
   const trilhaRef = useRef<Passo[]>([]);
+  const visitanteRef = useRef<Visitante>({});
   /*
     O transporte é montado uma vez só (`useMemo` sem dependências) e ficaria
     preso na página em que o widget nasceu. A referência é o que mantém o
@@ -302,11 +436,39 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
       : undefined;
   }, [pagina]);
   const corpoRef = useRef<HTMLDivElement>(null);
+  const botaoRef = useRef<HTMLButtonElement>(null);
   const sessaoRef = useRef<string | null>(null);
 
   // A hora só é conhecida no cliente: montar isto no servidor daria hidratação
   // divergente sempre que a build e a visita caíssem em períodos diferentes.
   useEffect(() => setPergunta(perguntaDaHora()), []);
+
+  /*
+    De que produto esta página fala.
+
+    Nem toda página é de solução: segmentos e o método não têm ferramenta, e
+    aí a abertura do painel volta a ser a geral.
+  */
+  const ferramentaDaPagina = useMemo(
+    () => (pagina ? findToolBySlug(pagina.slug) : null),
+    [pagina],
+  );
+
+  /*
+    Uma funcionalidade da ferramenta, sorteada uma vez por montagem.
+
+    Sorteada, e não a primeira, porque quem volta à página encontra um convite
+    diferente — e porque a primeira do catálogo não é necessariamente a mais
+    interessante de perguntar.
+  */
+  const funcionalidadeEmDestaque = useMemo(() => {
+    const lista = ferramentaDaPagina?.features ?? [];
+    if (lista.length === 0) return "";
+    return lista[Math.floor(Math.random() * lista.length)].title.toLowerCase();
+  }, [ferramentaDaPagina]);
+
+  /** Onde ele fala, para não repetir a mesma graça na mesma página. */
+  const ondeEstou = pagina?.slug ?? "home";
 
   /**
    * O Astro puxa assunto quando alguém chega.
@@ -319,22 +481,34 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
    * que transforma um mascote simpático num pop-up.
    */
   useEffect(() => {
-    if (!pagina) return;
-    trilhaRef.current = anotarNaTrilha({
-      slug: pagina.slug,
-      titulo: pagina.titulo,
-    });
+    if (pagina) {
+      trilhaRef.current = anotarNaTrilha({
+        slug: pagina.slug,
+        titulo: pagina.titulo,
+      });
+    }
 
-    const falas = pagina.config.baloes
-      .map((fala) => fala.trim())
-      .filter(Boolean);
+    /*
+      Onde há página cadastrada, valem os balões dela — e se o admin deixou a
+      lista vazia com o Astro ligado, é porque não há o que dizer ali; ele
+      respeita o silêncio.
+
+      Sem página nenhuma (a home) ele usa as falas soltas, sorteadas. É o único
+      lugar onde a fala não passa pelo admin, porque a home não é uma página
+      cadastrável.
+    */
+    const falas = pagina
+      ? pagina.config.baloes.map((fala) => fala.trim()).filter(Boolean)
+      : sortearFalas();
+    const podeFalar = pagina ? pagina.config.ativo : true;
+
     if (
       !astro.ativo ||
       // Painel aberto: a conversa já está acontecendo, o balão não tem função.
       aberto ||
-      !pagina.config.ativo ||
+      !podeFalar ||
       falas.length === 0 ||
-      jaFalouAqui(pagina.slug)
+      jaFalouAqui(ondeEstou)
     ) {
       return;
     }
@@ -349,7 +523,7 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
             // verdade. Marcar no agendamento queimava a página de quem passou
             // rápido por ela: o balão nunca chegou a existir, e mesmo assim
             // ele nunca mais falava ali.
-            if (indice === 0) marcarQueFalou(pagina.slug);
+            if (indice === 0) marcarQueFalou(ondeEstou);
           },
           ATRASO_PRIMEIRO_BALAO + indice * INTERVALO_ENTRE_BALOES,
         ),
@@ -367,7 +541,7 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
     return () => {
       for (const relogio of relogios) clearTimeout(relogio);
     };
-  }, [pagina, astro.ativo, aberto]);
+  }, [pagina, astro.ativo, aberto, ondeEstou]);
 
   // Abriu a conversa, o balão já cumpriu o papel dele.
   useEffect(() => {
@@ -390,6 +564,12 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
             // navegação de quem nunca falou com a gente.
             pagina: paginaRef.current,
             trilha: trilhaRef.current,
+            // Quem já se apresentou. Vai vazio quando ninguém se apresentou —
+            // e é assim que ele sabe que ainda pode perguntar uma vez.
+            visitante:
+              Object.keys(visitanteRef.current).length > 0
+                ? visitanteRef.current
+                : undefined,
           },
         }),
         fetch: async (input, init) => {
@@ -425,6 +605,7 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
   useEffect(() => {
     if (restaurado.current) return;
     restaurado.current = true;
+    visitanteRef.current = lerVisitante();
 
     const guardada = lerConversa();
     if (!guardada || guardada.messages.length === 0) return;
@@ -458,6 +639,23 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
     corpo.scrollTo({ top: corpo.scrollHeight, behavior: "smooth" });
   }, [escrito]);
 
+  /**
+   * O que ele anotou sobre quem fala.
+   *
+   * A janela do orquestrador corta o histórico em dezesseis mensagens, então
+   * um nome dito no primeiro turno some sozinho numa conversa longa. Aqui ele
+   * é copiado da saída da tool para o navegador, e volta em toda requisição.
+   */
+  useEffect(() => {
+    const ultima = messages.at(-1);
+    if (!ultima || ultima.role !== "assistant") return;
+    const achado = identidadeDaMensagem(ultima);
+    if (!achado) return;
+    const proximo = { ...visitanteRef.current, ...achado };
+    visitanteRef.current = proximo;
+    guardarVisitante(proximo);
+  }, [messages]);
+
   // Guardar a cada pedaço do stream é barato (uma escrita em memória do
   // navegador) e evita perder a última resposta se a pessoa clicar num link
   // no meio dela.
@@ -490,46 +688,107 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
     // verdadeiro no envio e volta a falso quando o Astro termina de escrever.
   }, [carregando, ultimaEDoAstro, digitando]);
 
+  /**
+   * Fechar o painel — e reclamar, se a última palavra tiver sido dele.
+   *
+   * Mora num lugar só porque fechar tem dois caminhos (o × e o Esc), e a
+   * queixa vale para os dois. É manipulador de evento, e não um efeito de
+   * `aberto`, por causa da ordem: o efeito rodaria DEPOIS do que agenda os
+   * balões da página, e a fala programada cobriria a queixa dois segundos
+   * mais tarde.
+   *
+   * Marcar a página como falada é o que fecha essa porta — e faz sentido por
+   * si: quem acabou de conversar aqui não precisa ouvir "essa é top hein" em
+   * seguida.
+   */
+  const fechar = useCallback(() => {
+    setAberto(false);
+    if (!ultimaEDoAstro) return;
+    setBalao(FALA_SOZINHO);
+    marcarQueFalou(ondeEstou);
+  }, [ultimaEDoAstro, ondeEstou]);
+
+  // A queixa sai de cena sozinha, como qualquer balão — e na hora, se a pessoa
+  // voltar: reabrir o painel limpa o balão, o que cancela este relógio.
+  useEffect(() => {
+    if (balao !== FALA_SOZINHO) return;
+    const relogio = setTimeout(() => setBalao(null), BALAO_NA_TELA);
+    return () => clearTimeout(relogio);
+  }, [balao]);
+
   // Fechar com Esc é o que todo mundo tenta primeiro num painel sobreposto.
   useEffect(() => {
     if (!aberto) return;
     const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setAberto(false);
+      if (e.key === "Escape") fechar();
     };
     window.addEventListener("keydown", aoTeclar);
     return () => window.removeEventListener("keydown", aoTeclar);
-  }, [aberto]);
+  }, [aberto, fechar]);
 
   // Desligado no painel, o botão não aparece — quem atende é o WhatsApp, que
   // continua montado na experiência.
   if (!astro.ativo) return null;
 
-  const sugestoes: Sugestao[] = [
-    {
-      texto: "Descobrir o que serve pro meu negócio",
-      envio:
-        "Quero descobrir o que da ÓRBITA serve para o meu negócio. Pode me perguntar o que precisar.",
-      icone: ICONE_BUSCA,
-    },
-    {
-      texto: "Entender o Método N.A.S.A.",
-      envio: "Como funciona o Método N.A.S.A.?",
-      icone: ICONE_METODO,
-    },
-    // A terceira sai da mesma fonte que a estimativa: o painel nunca convida
-    // para uma pergunta que o Astro não pode responder.
-    astro.precos
-      ? {
-          texto: "Estimar quanto ficaria",
-          envio: "Quanto ficaria para a minha operação?",
-          icone: ICONE_PRECO,
-        }
-      : {
-          texto: "Ver as ferramentas por segmento",
-          envio: "Quais ferramentas vocês têm para o meu segmento?",
+  /*
+    Quem abre o painel lendo sobre um produto já disse do que veio atrás.
+
+    Perguntar "o que está travando sua operação?" para quem está na página do
+    CRM Tracking é ignorar o que a pessoa acabou de fazer. Então nas páginas de
+    solução a abertura é sobre AQUELE produto, e as três sugestões viram as
+    perguntas que alguém faz olhando para ele — inclusive uma sobre uma
+    funcionalidade real, sorteada do catálogo.
+
+    Fora delas (a home, os segmentos, o método) vale a abertura geral: ali ele
+    ainda não sabe do que a pessoa veio atrás.
+  */
+  const abertura = ferramentaDaPagina
+    ? `O que você espera de ${ferramentaDaPagina.name}?`
+    : pergunta;
+  const sugestoes: Sugestao[] = ferramentaDaPagina
+    ? [
+        {
+          texto: "Descobrir como pode servir pro meu negócio",
+          envio: `Como o ${ferramentaDaPagina.name} pode servir pro meu negócio?`,
+          icone: ICONE_BUSCA,
+        },
+        {
+          texto: "Saber os diferenciais",
+          envio: `Quais são os diferenciais do ${ferramentaDaPagina.name}?`,
+          icone: ICONE_METODO,
+        },
+        {
+          texto: `Saber sobre ${funcionalidadeEmDestaque}`,
+          envio: `Me explica ${funcionalidadeEmDestaque}, do ${ferramentaDaPagina.name}.`,
           icone: ICONE_SEGMENTO,
         },
-  ];
+      ]
+    : [
+        {
+          texto: "Descobrir o que serve pro meu negócio",
+          envio:
+            "Quero descobrir o que da ÓRBITA serve para o meu negócio. Pode me perguntar o que precisar.",
+          icone: ICONE_BUSCA,
+        },
+        {
+          texto: "Entender o Método N.A.S.A.",
+          envio: "Como funciona o Método N.A.S.A.?",
+          icone: ICONE_METODO,
+        },
+        // A terceira sai da mesma fonte que a estimativa: o painel nunca
+        // convida para uma pergunta que o Astro não pode responder.
+        astro.precos
+          ? {
+              texto: "Estimar quanto ficaria",
+              envio: "Quanto ficaria para a minha operação?",
+              icone: ICONE_PRECO,
+            }
+          : {
+              texto: "Ver as ferramentas por segmento",
+              envio: "Quais ferramentas vocês têm para o meu segmento?",
+              icone: ICONE_SEGMENTO,
+            },
+      ];
 
   const enviar = (mensagem: string) => {
     const limpo = mensagem.trim();
@@ -559,12 +818,17 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
           </button>
         )}
         <button
+          ref={botaoRef}
           type="button"
           className="o-astro-btn"
           onClick={() => setAberto(true)}
           aria-label="Falar com o Astro"
         >
-          <AstroMark />
+          {/*
+            O botão se entrega ao mascote: é o DISCO que treme e esquenta
+            quando ele se dá por ignorado, não só o desenho lá dentro.
+          */}
+          <AstroMark vigiaInercia corpo={botaoRef} />
         </button>
       </>
     );
@@ -578,12 +842,17 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
       aria-label="Astro, consultor da ÓRBITA"
     >
       <header className="o-astro-head">
-        <AstroMark className="o-astro-head__mark" zangado={semResposta} />
+        <AstroMark
+          className="o-astro-head__mark"
+          // Falando, ele não fica bravo: `carregando` corta a zanga na
+          // origem, sem depender de o relógio dos 6s já ter sido zerado.
+          zangado={semResposta && !carregando}
+        />
         <span className="o-astro-head__name">Astro</span>
         <button
           type="button"
           className="o-astro-head__close"
-          onClick={() => setAberto(false)}
+          onClick={fechar}
           aria-label="Fechar"
         >
           ×
@@ -593,7 +862,7 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
       <div className="o-astro-body" ref={corpoRef}>
         {messages.length === 0 ? (
           <div className="o-astro-empty">
-            <h2 className="o-astro-empty__title">{pergunta}</h2>
+            <h2 className="o-astro-empty__title">{abertura}</h2>
             {sugestoes.map((sugestao) => (
               <button
                 type="button"
@@ -614,7 +883,11 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
                 .join("");
               const solucoes =
                 mensagem.role === "user" ? [] : solucoesDaMensagem(mensagem);
-              if (!texto && solucoes.length === 0) return null;
+              const formulario =
+                mensagem.role === "user"
+                  ? null
+                  : formularioDaMensagem(mensagem);
+              if (!texto && solucoes.length === 0 && !formulario) return null;
 
               return (
                 <Fragment key={mensagem.id}>
@@ -671,6 +944,29 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
                           </svg>
                         </a>
                       ))}
+                    </div>
+                  )}
+
+                  {formulario && (
+                    /*
+                      Abre em aba nova de propósito: o formulário mora em outro
+                      domínio, e sair do site levaria a conversa junto. Assim a
+                      pessoa preenche e volta para o Astro ainda aberto.
+                    */
+                    <div className="o-astro-cta">
+                      {formulario.motivo && (
+                        <p className="o-astro-cta__linha">
+                          {formulario.motivo}
+                        </p>
+                      )}
+                      <a
+                        className="o-astro-cta__btn"
+                        href={formulario.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {formulario.rotulo}
+                      </a>
                     </div>
                   )}
                 </Fragment>
