@@ -10,6 +10,7 @@ import {
   type ContextoDeNavegacao,
   type EscopoConsultor,
   montarPrompt,
+  type Visitante,
 } from "./prompt";
 import type { ModeloResolvido } from "./provider";
 import { construirTools } from "./tools";
@@ -35,6 +36,29 @@ import { construirTools } from "./tools";
  * tokens é a diferença entre centavos e reais por visitante.
  */
 const JANELA_DE_MENSAGENS = 16;
+
+/**
+ * Quantas mensagens da ABERTURA sobrevivem ao corte.
+ *
+ * Cortar só pelo fim custava caro numa coisa específica: a pessoa se apresenta
+ * no começo ("aqui é o Weydson, do Santa Clara"), e no décimo sétimo turno
+ * aquilo simplesmente sumia do contexto — e o Astro perguntava o nome de novo,
+ * que é exatamente o que ele não pode fazer.
+ *
+ * Duas mensagens custam quase nada e cobrem a apresentação, que é onde ela
+ * quase sempre acontece. Não substituem `anotarQuemFala`: o memorando atravessa
+ * a navegação entre páginas, este corte atravessa a conversa longa.
+ */
+const ABERTURA_PRESERVADA = 2;
+
+/** A janela do modelo: a abertura, mais o fim recente. */
+function janela(mensagens: UIMessage[]): UIMessage[] {
+  if (mensagens.length <= JANELA_DE_MENSAGENS) return mensagens;
+  return [
+    ...mensagens.slice(0, ABERTURA_PRESERVADA),
+    ...mensagens.slice(-(JANELA_DE_MENSAGENS - ABERTURA_PRESERVADA)),
+  ];
+}
 
 /**
  * Quantas falas do visitante alimentam a busca por ferramenta.
@@ -68,6 +92,8 @@ export type EntradaConsultor = {
   organizacao?: string;
   /** Onde a pessoa está no site e por onde passou nesta visita. */
   navegacao?: ContextoDeNavegacao;
+  /** Nome, empresa e CNPJ que ela já deu — para ele não perguntar de novo. */
+  visitante?: Visitante;
   onFinish?: (dados: { tokensIn: number; tokensOut: number }) => Promise<void>;
 };
 
@@ -75,7 +101,7 @@ export type EntradaConsultor = {
 // Órbita, era síncrono). Sem o await, o que chega em `streamText` é uma
 // Promise e o erro sai lá dentro, como "messages.some is not a function".
 export async function streamAstroConsultor(entrada: EntradaConsultor) {
-  const recentes = entrada.mensagens.slice(-JANELA_DE_MENSAGENS);
+  const recentes = janela(entrada.mensagens);
   const tools = construirTools({
     sessaoId: entrada.sessaoId,
     tabelaPrecos: entrada.tabelaPrecos,
@@ -88,6 +114,7 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
       escopo: entrada.escopo,
       organizacao: entrada.organizacao,
       navegacao: entrada.navegacao,
+      visitante: entrada.visitante,
     }),
     // As tools vão junto: é assim que o conversor reconhece as partes de
     // chamada de ferramenta que já estão no histórico do cliente.
