@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { cn } from "@/lib/utils";
 import { currencyFormatter } from "@/utils/currency-formatter";
+import { toDateInput } from "@/utils/date-input";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { EditorItem } from "../lib/editor-item";
@@ -46,7 +47,11 @@ interface HeaderState {
 const HEADER_INICIAL: HeaderState = {
   supplierId: null,
   invoiceNumber: "",
-  orderDate: new Date().toISOString().slice(0, 10),
+  // Vazio, e preenchido só depois de montar (ver `useEffect` do "hoje"). No
+  // escopo do módulo a data congelava na PRIMEIRA avaliação: no servidor isso
+  // é quando o processo subiu — dias atrás, e diferente do que o navegador
+  // renderiza na hidratação.
+  orderDate: "",
   shipping: 0,
   discount: 0,
   installments: 1,
@@ -80,6 +85,18 @@ export function PurchaseEditor({ purchaseId }: { purchaseId?: string }) {
 
   const readOnly = nota !== undefined && nota.status !== "PENDING";
   const salvando = criar.isPending || atualizar.isPending;
+
+  // Nota nova nasce com a data de HOJE, resolvida no navegador e em horário
+  // LOCAL. `toISOString().slice(0, 10)` é UTC: em Fortaleza, a partir das 21h
+  // a nota já abria datada de amanhã.
+  useEffect(() => {
+    if (purchaseId) return;
+    setHeader((h) =>
+      h.orderDate
+        ? h
+        : { ...h, orderDate: toDateInput(new Date().toISOString()) },
+    );
+  }, [purchaseId]);
 
   useEffect(() => {
     if (!nota || hidratado) return;
