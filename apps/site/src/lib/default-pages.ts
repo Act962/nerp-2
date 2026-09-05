@@ -21,10 +21,8 @@ import { WHATSAPP } from "../orbita/data/site";
  */
 const opcoes = { whatsappHref: WHATSAPP.href };
 
-// O NERP fica de fora das soluções: é a ponte com o ERP, leva ao login e não
-// tem página de vitrine.
 const PAGES: SitePageSeed[] = [
-  ...buildAllSolutionPages(opcoes).filter((page) => page.toolId !== "nerp"),
+  ...buildAllSolutionPages(opcoes),
   ...buildAllSegmentPages(opcoes),
   ...buildAllAboutPages(opcoes),
   buildMetodoPage(opcoes),

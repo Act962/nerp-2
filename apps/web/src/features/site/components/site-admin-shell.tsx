@@ -11,6 +11,8 @@ import {
   Handshake,
   Menu as MenuIcon,
   Shield,
+  Sparkles,
+  UserRoundSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +24,8 @@ const SITE_ENTRIES: Entry[] = [
   { href: "/site/paginas", label: "Páginas", icon: ListTree },
   { href: "/site/midia", label: "Mídia", icon: ImageIcon },
   { href: "/site/parceiros", label: "Parceiros", icon: Handshake },
+  { href: "/site/leads", label: "Leads", icon: UserRoundSearch },
+  { href: "/site/precos", label: "Faixas do Astro", icon: Sparkles },
 ];
 
 export function SiteAdminShell({
