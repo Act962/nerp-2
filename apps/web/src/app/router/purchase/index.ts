@@ -1,5 +1,6 @@
 import { cancelPurchase } from "./cancel";
 import { createPurchase } from "./create";
+import { findProductsByCodes } from "./find-products-by-codes";
 import { getPurchase } from "./get";
 import { listPurchases } from "./list";
 import { processPurchase } from "./process";
@@ -15,4 +16,6 @@ export const purchaseRoutes = {
   process: processPurchase,
   cancel: cancelPurchase,
   quickCreateProduct,
+  // Resolve os códigos de uma planilha de itens numa consulta só.
+  findProductsByCodes,
 };
