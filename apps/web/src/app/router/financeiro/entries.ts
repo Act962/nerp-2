@@ -123,6 +123,18 @@ export const listEntries = p
     }),
   )
   .handler(async ({ input, context }) => {
+    // `onlyOverdue` e o período recortam o MESMO campo. Como dois spreads, o
+    // último apagava o outro em silêncio — e o filtro de período agora vem
+    // SEMPRE preenchido, então "só vencidos" passaria a listar o que ainda vai
+    // vencer. Acumular num objeto só mantém as duas condições valendo juntas.
+    const dueDate: Prisma.DateTimeFilter = {};
+    if (input.from) dueDate.gte = new Date(`${input.from}T00:00:00Z`);
+    // Fim do dia, como o DRE e o DRO já fazem. `new Date("2026-09-30")` é
+    // meia-noite: parcela de nota nasce com a HORA do processamento
+    // (`receivedAt`), então o último dia do período era descartado.
+    if (input.to) dueDate.lte = new Date(`${input.to}T23:59:59.999Z`);
+    if (input.onlyOverdue) dueDate.lt = new Date();
+
     const where = {
       organizationId: context.org.id,
       ...(input.type ? { type: input.type } : {}),
@@ -135,7 +147,6 @@ export const listEntries = p
             status: {
               in: ["PENDING", "PARTIAL"] as FinancialEntryStatus[],
             },
-            dueDate: { lt: new Date() },
           }
         : {}),
       ...(input.search
@@ -146,14 +157,7 @@ export const listEntries = p
             },
           }
         : {}),
-      ...(input.from || input.to
-        ? {
-            dueDate: {
-              ...(input.from ? { gte: new Date(input.from) } : {}),
-              ...(input.to ? { lte: new Date(input.to) } : {}),
-            },
-          }
-        : {}),
+      ...(Object.keys(dueDate).length > 0 ? { dueDate } : {}),
     };
 
     const rows = await prisma.paymentEntry.findMany({

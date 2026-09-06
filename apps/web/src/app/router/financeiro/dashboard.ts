@@ -169,8 +169,11 @@ export const getCashflow = p
     }),
   )
   .handler(async ({ input, context }) => {
-    const from = new Date(input.from);
-    const to = new Date(input.to);
+    const from = new Date(`${input.from}T00:00:00Z`);
+    // Fim do dia, como o DRE e o DRO já fazem. Sem isso, um vencimento com
+    // HORA no último dia ficava de fora e o gráfico contradizia o intervalo
+    // escrito no filtro.
+    const to = new Date(`${input.to}T23:59:59.999Z`);
     // Projeção pelo vencimento: saldo em aberto por dia (não cancelado).
     const rows = await prisma.paymentEntry.findMany({
       where: {

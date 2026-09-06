@@ -1,29 +1,17 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useDre } from "@/features/financeiro/hooks/use-financeiro";
+import type { Periodo } from "@/features/financeiro/lib/periodo";
 import { formatCents } from "@/features/financeiro/lib/money";
 import { cn } from "@/lib/utils";
 import { computePriceMetrics, formatPercent } from "@/utils/pricing";
-import { useState } from "react";
 
 interface DreNode {
   id: string;
   name: string;
   total: number;
   children: DreNode[];
-}
-
-function monthBounds() {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return {
-    from: first.toISOString().slice(0, 10),
-    to: last.toISOString().slice(0, 10),
-  };
 }
 
 function DreRows({
@@ -141,10 +129,8 @@ function ResultCard({
   );
 }
 
-export function DreTab() {
-  const bounds = monthBounds();
-  const [from, setFrom] = useState(bounds.from);
-  const [to, setTo] = useState(bounds.to);
+export function DreTab({ periodo }: { periodo: Periodo }) {
+  const { from, to } = periodo;
 
   const { data, isPending } = useDre(from, to);
 
@@ -157,27 +143,7 @@ export function DreTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="dre-from">De</Label>
-          <Input
-            id="dre-from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="w-44"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="dre-to">Até</Label>
-          <Input
-            id="dre-to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="w-44"
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-xs text-muted-foreground">
           Por competência (na falta, usa o vencimento). Não inclui cancelados.
         </p>

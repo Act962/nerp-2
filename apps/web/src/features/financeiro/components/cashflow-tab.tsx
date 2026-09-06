@@ -1,12 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useCashflow } from "@/features/financeiro/hooks/use-financeiro";
+import type { Periodo } from "@/features/financeiro/lib/periodo";
 import { formatCents, formatDate } from "@/features/financeiro/lib/money";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
 import {
   Bar,
   BarChart,
@@ -18,25 +16,12 @@ import {
   YAxis,
 } from "recharts";
 
-function monthBounds() {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return {
-    from: first.toISOString().slice(0, 10),
-    to: last.toISOString().slice(0, 10),
-  };
-}
+export function CashflowTab({ periodo }: { periodo: Periodo }) {
+  const { from, to } = periodo;
 
-export function CashflowTab() {
-  const bounds = monthBounds();
-  const [from, setFrom] = useState(bounds.from);
-  const [to, setTo] = useState(bounds.to);
-
-  const { data, isPending } = useCashflow(
-    from ? new Date(from).toISOString() : "",
-    to ? new Date(to).toISOString() : "",
-  );
+  // Dia puro ("YYYY-MM-DD"), como o DRE e o DRO — quem fecha o intervalo no
+  // fim do dia é o servidor.
+  const { data, isPending } = useCashflow(from, to);
 
   const chartData =
     data?.days.map((d) => ({
@@ -50,29 +35,6 @@ export function CashflowTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="cf-from">De</Label>
-          <Input
-            id="cf-from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="w-44"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="cf-to">Até</Label>
-          <Input
-            id="cf-to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="w-44"
-          />
-        </div>
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="pb-2">

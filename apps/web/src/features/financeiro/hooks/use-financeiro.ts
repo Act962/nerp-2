@@ -54,6 +54,9 @@ interface EntriesFilters {
   contactId?: string;
   categoryId?: string;
   accountId?: string;
+  /** Recorte por vencimento, em "YYYY-MM-DD" inclusivo nas duas pontas. */
+  from?: string;
+  to?: string;
 }
 
 export function useEntries(filters: EntriesFilters = {}) {
