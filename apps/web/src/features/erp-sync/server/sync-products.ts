@@ -5,6 +5,7 @@ import { createProductForOrg } from "@/features/products/server/create-product";
 import { loadOracleConfig } from "./connectors";
 import { fetchWinthorProducts } from "./connectors/winthor-products";
 import { normalizeBarcode, reconcileProducts } from "./reconcile-products";
+import { syncErpProductStock } from "./sync-product-stock";
 
 // Sync do cadastro de produtos do ERP → banco da organização.
 //
@@ -153,6 +154,18 @@ export async function syncErpProducts(
           error,
         );
       }
+    }
+  }
+
+  // Estoque por filial: passada própria, DEPOIS do cadastro — depende do
+  // `erpCode` que o bloco acima acabou de gravar. Falha aqui não derruba o sync
+  // do cadastro: cliente sem permissão de leitura em PCEST continua com o
+  // cadastro em dia, só sem o filtro por filial.
+  if (!dryRun) {
+    try {
+      await syncErpProductStock(organizationId);
+    } catch (error) {
+      console.error("[erp-sync/produtos] falha no estoque por filial:", error);
     }
   }
 

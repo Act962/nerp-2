@@ -752,6 +752,7 @@ model Product {
   storeProducts       StoreProduct[]
   batches             ProductBatch[]
   productPrices       ProductPrice[]
+  branchStocks        ProductBranchStock[]
 
   @@unique([organizationId, slug])
   // @@unique([organizationId, sku])
@@ -768,6 +769,35 @@ model Product {
   @@index([isActive])
   @@index([supplierId])
   @@map("products")
+}
+
+/// Estoque do produto POR FILIAL do ERP, espelhado do Winthor (`PCEST`).
+///
+/// Só existe linha quando há estoque — `QTESTGER >= 1`. Guardar as zeradas
+/// triplicaria a tabela (o cadastro tem ~24 mil produtos e três filiais) para
+/// responder a mesma pergunta pelo avesso: "tem linha" É "tem estoque". Quem
+/// precisar distinguir "zerado" de "nunca sincronizado" olha o
+/// `ErpSyncReport`, não esta tabela.
+///
+/// Separada de `StoreProduct` de propósito: `Store` é a loja CLIENTE do trade
+/// marketing (quem recebe o encarte), e filial é a unidade do próprio ERP.
+/// Misturar os dois faria a mesma coluna significar duas coisas.
+model ProductBranchStock {
+  id             String   @id @default(cuid())
+  organizationId String
+  productId      String
+  /// CODFILIAL no Winthor. String porque no Oracle é VARCHAR2 e há filial "01".
+  branchCode     String
+  /// PCFILIAL.FANTASIA no momento da sincronização — evita uma segunda ida ao
+  /// Oracle só para desenhar o seletor de filial.
+  branchName     String?
+  stock          Decimal  @db.Decimal(14, 3)
+  syncedAt       DateTime
+  product        Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, branchCode])
+  @@index([organizationId, branchCode])
+  @@map("product_branch_stocks")
 }
 
 // ============================================

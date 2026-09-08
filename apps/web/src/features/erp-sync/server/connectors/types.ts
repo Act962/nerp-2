@@ -47,6 +47,23 @@ export interface ExternalProductDTO {
   isActive: boolean;
 }
 
+/**
+ * Estoque de um produto numa FILIAL do ERP.
+ *
+ * Só é emitido para filial com estoque — "não veio" significa "sem estoque",
+ * que é a pergunta que o catálogo faz. Distinguir zerado de não-sincronizado é
+ * papel do relatório de sincronização, não deste contrato.
+ */
+export interface ExternalProductStockDTO {
+  /** Código do produto no ERP (CODPROD no Winthor). */
+  externalCode: string;
+  /** Código da filial (CODFILIAL). String: no Oracle é VARCHAR2 e há "01". */
+  branchCode: string;
+  /** Nome fantasia da filial, quando o ERP tem o cadastro. */
+  branchName: string | null;
+  stock: number;
+}
+
 export interface SalesFactDTO {
   /** Dia da venda, normalizado para 00:00 UTC. */
   date: Date;
