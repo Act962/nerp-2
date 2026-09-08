@@ -1,14 +1,15 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { SiteProductPage } from "@/features/product-page";
-import { APP_LINKS, getProductPage, getSiteContent } from "@/lib/api";
-import { assetUrl } from "@/lib/assets";
+import {
+  metadataDaPaginaInterna,
+  renderPaginaInterna,
+} from "@/lib/pagina-interna";
 
 /**
  * A página interna de uma solução, montada pelo admin em `/site`.
  *
- * Só o publicado chega aqui — o `apps/web` responde 404 para rascunho, e um
- * rascunho realmente não existe para quem está de fora.
+ * Só o publicado chega aqui pelo banco — o `apps/web` responde 404 para
+ * rascunho — e o que não está no banco cai na versão que mora no código. A
+ * máquina das três seções é a mesma: ver `lib/pagina-interna.tsx`.
  */
 export async function generateMetadata({
   params,
@@ -16,22 +17,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const page = await getProductPage("solucoes", slug);
-  if (!page) return {};
-
-  const title = page.seoTitle || `${page.title} — ÓRBITA HUB`;
-  const description = page.seoDescription || undefined;
-  const image = page.ogImage ? assetUrl(page.ogImage) : "";
-
-  return {
-    title,
-    description,
-    openGraph: {
-      title,
-      description,
-      images: image ? [image] : undefined,
-    },
-  };
+  return metadataDaPaginaInterna("solucoes", slug);
 }
 
 export default async function SolutionPage({
@@ -40,21 +26,5 @@ export default async function SolutionPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const [page, content] = await Promise.all([
-    getProductPage("solucoes", slug),
-    getSiteContent(),
-  ]);
-
-  if (!page) notFound();
-
-  return (
-    <SiteProductPage
-      blocks={page.blocks}
-      whatsappHref={content.whatsapp.href}
-      whatsappLabel={content.whatsapp.label}
-      loginHref={APP_LINKS.login}
-      content={content}
-      pagina={{ slug: page.slug, titulo: page.title, config: page.astro }}
-    />
-  );
+  return renderPaginaInterna("solucoes", slug);
 }

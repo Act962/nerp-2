@@ -59,8 +59,8 @@ export function Footer() {
               <p className="o-footer__col-title">{column.title}</p>
               <ul className="o-footer__list">
                 {column.links.map((link) => (
-                  <li key={link}>
-                    <a href="#contato">{link}</a>
+                  <li key={link.href}>
+                    <a href={link.href}>{link.label}</a>
                   </li>
                 ))}
               </ul>

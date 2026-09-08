@@ -50,6 +50,31 @@
   margin: 0.5rem 0 0.35rem;
 }
 
+/*
+  O título de uma ferramenta é `h4`, não `h3`: o `h3` é o título do GRUPO, e o
+  card está dentro dele. A aparência é a mesma de antes — o que mudou foi só o
+  nível, que é o que o leitor de tela e o rastreador leem.
+*/
+.of-root h4 {
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+  margin: 0.5rem 0 0.35rem;
+  font-weight: 600;
+}
+
+/*
+  Os títulos das listas de "Sobre nós" viraram `h3` (eram `<p>`, que não é
+  título de nada). Aqui eles recuperam a aparência de rótulo que sempre
+  tiveram: o ganho é semântico, não visual.
+*/
+.of-root h3.of-footer__col-title {
+  font-size: 1rem;
+  font-weight: 600;
+  letter-spacing: normal;
+  color: var(--o-mist);
+  margin: 0 0 0.6rem;
+}
+
 .of-root p {
   margin: 0;
   color: var(--o-mist);
@@ -670,4 +695,27 @@
   .of-about {
     grid-template-columns: 1fr;
   }
+}
+
+/*
+  O link para a página de trecho, no fim de cada seção.
+
+  Ele não é decoração: é o único caminho da home para `/solucoes`,
+  `/segmentos` e `/sobre`. A barra desta versão usa âncoras (`#solucoes`), que
+  rolam dentro da própria página — sem este link as três páginas de trecho
+  ficariam alcançáveis só pelo sitemap, que é o mesmo que dizer que ninguém
+  chega nelas.
+*/
+.of-verTudo {
+  display: inline-block;
+  margin-top: 1.8rem;
+  color: var(--o-blue-bright);
+  font-size: 0.95rem;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.of-verTudo:hover,
+.of-verTudo:focus-visible {
+  border-bottom-color: currentColor;
 }

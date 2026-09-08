@@ -31,6 +31,16 @@ const PAGES: SitePageSeed[] = [
 export type { SitePageSeed };
 
 /**
+ * Toda página que o site serve a partir do código.
+ *
+ * O sitemap precisa desta lista: como o fallback responde 200 mesmo com o
+ * `apps/web` fora do ar ou com a página ainda em rascunho, TODO slug daqui é
+ * um endereço vivo — e endereço vivo que não está no sitemap é endereço que o
+ * buscador só encontra por sorte.
+ */
+export const TODAS_AS_PAGINAS: readonly SitePageSeed[] = PAGES;
+
+/**
  * A seção faz parte da identidade da página: sem ela, `/solucoes/supermercados`
  * abriria o segmento, e o mesmo conteúdo existiria em dois endereços.
  */
