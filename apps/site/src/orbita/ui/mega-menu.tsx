@@ -46,8 +46,16 @@ function PanelLink({
     );
   }
 
+  /*
+    O painel NÃO fecha no clique.
+
+    Fechar aqui roda `setMega(null)` no mesmo tique do clique e DESMONTA este
+    link enquanto o App Router ainda está no meio da transição — a navegação
+    era abortada e a pessoa ficava na mesma página, depois de ver o carregador
+    aparecer e sumir. Quem fecha o painel é a troca de rota, no `Nav`.
+  */
   return (
-    <Link className={className} style={style} href={href} onClick={onNavigate}>
+    <Link className={className} style={style} href={href}>
       {children}
     </Link>
   );
