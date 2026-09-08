@@ -48,7 +48,8 @@ function limpar(valor: string | null, maximo: number): string {
 }
 
 export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
+  const { searchParams, host: hostDoPedido } = new URL(request.url);
+  const host = SITE_URL ? new URL(SITE_URL).host : hostDoPedido;
   const titulo =
     limpar(searchParams.get("titulo"), 120) ||
     "Tecnologia que orbita possibilidades";
@@ -138,10 +139,13 @@ export async function GET(request: NextRequest) {
           color: MIST,
         }}
       >
-        {/* O host sai da configuração, não de uma string: um cartão que afirma
-            um domínio diferente do que serve a página é o tipo de detalhe que
-            só aparece depois de já ter sido compartilhado. */}
-        <div style={{ display: "flex" }}>{new URL(SITE_URL).host}</div>
+        {/* O host sai da configuração; sem ela, do próprio pedido.
+
+            Um cartão que afirma um domínio diferente do que serve a página é o
+            tipo de detalhe que só aparece depois de já ter sido compartilhado —
+            e `SITE_URL` pode não estar definida, caso em que o host de quem
+            pediu a imagem é a melhor resposta disponível. */}
+        <div style={{ display: "flex" }}>{host}</div>
         <div style={{ display: "flex", color: BRIGHT }}>
           Tecnologia que orbita possibilidades
         </div>

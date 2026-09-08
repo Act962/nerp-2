@@ -29,9 +29,21 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/"],
       },
     ],
-    sitemap: `${SITE_URL}/sitemap.xml`,
-    // O host canônico: com o site respondendo em mais de um endereço (o
-    // domínio e o do provedor, por exemplo), é ele que diz qual é o oficial.
-    host: SITE_URL,
+    /*
+      `Sitemap` e `Host` só com o endereço público conhecido.
+
+      Um `Sitemap: http://localhost:3001/sitemap.xml` não é inofensivo: é uma
+      linha que o Google lê, tenta buscar e descarta. Sem a variável, o
+      robots.txt fica só com as regras — que continuam valendo e são o que
+      realmente importa aqui.
+    */
+    ...(SITE_URL
+      ? {
+          sitemap: `${SITE_URL}/sitemap.xml`,
+          // O host canônico: com o site respondendo em mais de um endereço (o
+          // domínio e o do provedor), é ele que diz qual é o oficial.
+          host: SITE_URL,
+        }
+      : {}),
   };
 }

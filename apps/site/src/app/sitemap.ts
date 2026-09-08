@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { getSitePages } from "@/lib/api";
 import { TODAS_AS_PAGINAS } from "@/lib/default-pages";
-import { absoluteUrl, SECTION_ORDER } from "@/lib/seo";
+import { absoluteUrl, SECTION_ORDER, SITE_URL } from "@/lib/seo";
 
 /**
  * O `sitemap.xml`.
@@ -33,6 +33,17 @@ export const revalidate = 3600;
 const PRIORIDADE = { home: 1, secao: 0.8, pagina: 0.7 } as const;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  /*
+    Sem endereço público, sitemap VAZIO.
+
+    Um sitemap com `<loc>http://localhost:3001/...</loc>` é inválido por
+    definição — o protocolo exige que as URLs sejam do mesmo host que serve o
+    arquivo — e o Google descarta o documento inteiro. Vazio é o mesmo
+    resultado prático, sem ensinar endereço errado a ninguém. O aviso de que
+    a variável falta sai de `lib/seo.ts`, uma vez, no arranque.
+  */
+  if (!SITE_URL) return [];
+
   const publicadas = await getSitePages();
 
   // Quando a página existe nas duas fontes, a data do admin manda: ela é a de
@@ -56,21 +67,25 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const agora = new Date();
 
+  // `absoluteUrl` devolve `string | undefined`; acima já garantimos a base,
+  // então aqui o `!` é a afirmação de que ela existe — e não um palpite.
+  const url = (path: string) => absoluteUrl(path) as string;
+
   return [
     {
-      url: absoluteUrl("/"),
+      url: url("/"),
       lastModified: agora,
       changeFrequency: "weekly",
       priority: PRIORIDADE.home,
     },
     ...SECTION_ORDER.map((section) => ({
-      url: absoluteUrl(`/${section}`),
+      url: url(`/${section}`),
       lastModified: agora,
       changeFrequency: "weekly" as const,
       priority: PRIORIDADE.secao,
     })),
     ...[...caminhos.entries()].map(([chave, lastModified]) => ({
-      url: absoluteUrl(`/${chave}`),
+      url: url(`/${chave}`),
       lastModified: lastModified ?? agora,
       changeFrequency: "monthly" as const,
       priority: PRIORIDADE.pagina,
