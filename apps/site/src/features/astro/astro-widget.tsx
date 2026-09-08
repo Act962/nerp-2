@@ -21,8 +21,8 @@ import "./astro-widget.css";
  * O consultor no site.
  *
  * O botão fica no lugar onde o do WhatsApp ficava — e o WhatsApp não some do
- * site: virou a saída "falar com uma pessoa" dentro do painel, e o que aparece
- * quando o Astro está desligado ou sem resposta. Sem isso, trocar o ícone
+ * site: virou a saída "falar com uma pessoa" dentro do painel, o CTA da barra e
+ * o que aparece quando o Astro está sem resposta. Sem isso, trocar o ícone
  * tiraria o único canal de contato que o site tem.
  *
  * O painel é o leiaute aprovado: cabeçalho, uma pergunta grande enquanto não
@@ -830,8 +830,8 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
     return () => window.removeEventListener("keydown", aoTeclar);
   }, [aberto, fechar]);
 
-  // Desligado no painel, o botão não aparece — quem atende é o WhatsApp, que
-  // continua montado na experiência.
+  // Desligado no painel, o botão não aparece — quem atende é o WhatsApp dos
+  // CTAs (barra, painéis e rodapé).
   if (!astro.ativo) return null;
 
   /*

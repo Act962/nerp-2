@@ -3,7 +3,7 @@
 import { TOOLS_BY_COLUMN } from "../data/catalog";
 import { BRAND, FOOTER } from "../data/site";
 import { useSiteContent } from "../lib/content-context";
-import { AboutIcon, SegmentIcon, WhatsAppGlyph } from "../ui/icons";
+import { AboutIcon, SegmentIcon } from "../ui/icons";
 import { OrbitaLogo } from "../ui/orbita-logo";
 import "./fallback.css";
 
@@ -230,16 +230,6 @@ export function OrbitaFallback({
           {whatsapp.label}
         </a>
       </section>
-
-      <a
-        className="of-whatsapp"
-        href={whatsapp.href}
-        target="_blank"
-        rel="noreferrer noopener"
-        aria-label="Falar no WhatsApp"
-      >
-        <WhatsAppGlyph size={26} />
-      </a>
 
       <footer className="of-footer">
         <div className="of-footer__grid">

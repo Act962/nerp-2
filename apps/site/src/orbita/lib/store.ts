@@ -50,7 +50,7 @@ export type ScrollState = {
    * sobrevive à troca de produto, para a esfera nunca voltar ao tamanho pequeno
    * no meio do caminho.
    */
-  /** Um painel da barra está aberto — o botão flutuante sai de cena. */
+  /** Um painel da barra está aberto — o botão de avançar sai de cena. */
   menuOpen: boolean;
 
   product: {

@@ -232,7 +232,7 @@ export function About() {
 
   return (
     <>
-      <div className="o-block o-block--section" id="sobre">
+      <div className="o-block o-block--section o-block--sobre" id="sobre">
         <div className="o-stack o-plate" ref={ref}>
           <span className="o-eyebrow">Sobre nós</span>
           <h2 className="o-title">Orbitamos com você em cada desafio.</h2>
