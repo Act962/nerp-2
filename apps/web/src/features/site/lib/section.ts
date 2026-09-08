@@ -20,9 +20,15 @@ export const SECTION_LABEL = {
   SOBRE: "Sobre nós",
 } as const;
 
-const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3002"
-).replace(/\/$/, "");
+const SITE_URL =
+  // 3001, que é a porta em que o `apps/site` roda (`dev` e `start` do
+  // package.json dele, e o alvo `site` do `.claude/launch.json`). Era 3002:
+  // sem `NEXT_PUBLIC_SITE_URL` definida, a pré-visualização do editor e o
+  // botão "Pré-visualizar" batiam numa porta em que não há nada.
+  (process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001").replace(
+    /\/$/,
+    "",
+  );
 
 /** O caminho da página dentro do site: `/segmentos/clinicas`. */
 export function sitePath(section: SiteSectionKey, slug: string) {
