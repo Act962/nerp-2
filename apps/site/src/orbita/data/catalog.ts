@@ -50,6 +50,17 @@ export function findTool(id: string | null) {
   return id ? (TOOLS.find((tool) => tool.id === id) ?? null) : null;
 }
 
+/**
+ * A ferramenta de uma página de solução, pelo slug da PÁGINA.
+ *
+ * O slug nem sempre é o id (`crm-tracking` é a página de `tracking`), e quem
+ * está no site conhece o endereço, não o id. Serve ao Astro, que precisa saber
+ * de que produto a pessoa está lendo para abrir a conversa nele.
+ */
+export function findToolBySlug(slug: string) {
+  return TOOLS.find((tool) => solutionSlug(tool.id) === slug) ?? null;
+}
+
 /* ------------------------------------------------------------------ a cena */
 
 /**

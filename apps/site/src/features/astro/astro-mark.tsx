@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 /**
  * O rosto do Astro: a marca da ÓRBITA, com os olhos vivos.
@@ -54,6 +54,14 @@ const DURACAO_DA_PISCADA = 170;
 const PISCADA_MIN = 2600;
 const PISCADA_MAX = 6400;
 
+/**
+ * Silêncio até o Astro se dar por ignorado.
+ *
+ * Os mesmos seis segundos que o painel espera por uma resposta: é o mesmo
+ * sentimento medido de dois jeitos — ninguém respondeu, ninguém nem mexeu.
+ */
+const ESPERA_ATE_ZANGAR = 6000;
+
 /** Quanto cada olho inclina quando zangado. A base vai para dentro. */
 const ANGULO_ZANGADO = 14;
 
@@ -65,6 +73,10 @@ const OLHO_ZANGADO = [255, 77, 77] as const;
  * O tremor de quem quer atenção: um solavanco curto que se repete, e não um
  * chacoalhar contínuo — parado o mouse, contínuo nunca terminaria.
  */
+/** A flutuação do disco: sobe e desce de leve, sem sair do lugar. */
+const PERIODO_DA_FLUTUACAO = 4500;
+const ALTURA_DA_FLUTUACAO = 3;
+
 const TREMOR_DURACAO = 460;
 const TREMOR_INTERVALO = 2600;
 const TREMOR_AMPLITUDE = 3.2;
@@ -87,16 +99,30 @@ function corDoOlho(zanga: number) {
 export function AstroMark({
   className,
   zangado = false,
+  vigiaInercia = false,
+  corpo,
 }: {
   className?: string;
   /**
-   * Quem decide a zanga é quem conhece a conversa, não o rosto.
-   *
-   * Antes ela nascia aqui, do ponteiro parado — e o botão flutuante ficava
-   * emburrado com quem só estava lendo a página. Agora só o painel a liga, e
-   * por um motivo concreto: o Astro perguntou e ninguém respondeu.
+   * A zanga vinda de fora: o painel liga quando o Astro fala e ninguém
+   * responde. É a única que existe dentro da conversa.
    */
   zangado?: boolean;
+  /**
+   * Liga a zanga por inércia — ninguém mexeu o ponteiro há um tempo.
+   *
+   * Só o botão flutuante usa: é ele que fica na tela sendo ignorado. No
+   * cabeçalho do painel isso não faz sentido, porque lá a conversa já começou.
+   */
+  vigiaInercia?: boolean;
+  /**
+   * O elemento que treme e recebe o degradê da zanga.
+   *
+   * O botão passa a si mesmo, para o DISCO inteiro reagir — e não só o
+   * desenho dentro dele. Sem isso, a marca sacudia sozinha dentro de um
+   * círculo parado, que é estranho de ver.
+   */
+  corpo?: RefObject<HTMLElement | null>;
 }) {
   const casaRef = useRef<HTMLSpanElement>(null);
   const olharRef = useRef<SVGGElement>(null);
@@ -119,6 +145,10 @@ export function AstroMark({
     // pisca e se zanga, mas não olha nem se alegra.
     const temPonteiro = window.matchMedia("(pointer: fine)").matches;
     const casa = casaRef.current;
+    // Quem treme e ganha o degradê: o disco, quando o botão se identifica.
+    const pele = corpo?.current ?? casa;
+    // Só o botão flutua; a marca do cabeçalho fica quieta no lugar dela.
+    const flutuante = !!corpo?.current;
 
     let raf = 0;
     let alvoX = 0;
@@ -129,8 +159,10 @@ export function AstroMark({
     let alegria = 0;
     let sobOCursor = false;
     let zangadoDesde = 0;
+    let ultimoMovimento = performance.now();
     let piscaEm = proximaPiscada(performance.now());
     let piscandoDesde = 0;
+    let ultimaRolagem = window.scrollY;
 
     const aoMover = (evento: PointerEvent) => {
       const svg = alvoRef.current;
@@ -143,6 +175,7 @@ export function AstroMark({
         limite(evento.clientX - (caixa.left + caixa.width / 2)) * ALCANCE_X;
       alvoY =
         limite(evento.clientY - (caixa.top + caixa.height / 2)) * ALCANCE_Y;
+      ultimoMovimento = performance.now();
     };
 
     const aoEntrar = () => {
@@ -155,6 +188,24 @@ export function AstroMark({
     const laco = () => {
       raf = requestAnimationFrame(laco);
       const agora = performance.now();
+
+      /*
+        Rolar é atenção — e a posição é lida, não escutada.
+
+        A inércia media presença só pelo ponteiro, e quem lia a página inteira
+        sem encostar no mouse era tomado por ausente: ele emburrava justamente
+        com quem estava prestando atenção.
+
+        Um ouvinte de `scroll` resolveria em quase todo lugar, menos onde mais
+        importa: a home é conduzida pelo Lenis, que roda a viagem no próprio
+        laço e NÃO emite `scroll` na janela — medido, zero eventos numa
+        rolagem de dezessete mil pixels. Comparar a posição a cada quadro não
+        depende de evento nenhum e vale para as duas páginas.
+      */
+      if (window.scrollY !== ultimaRolagem) {
+        ultimaRolagem = window.scrollY;
+        ultimoMovimento = agora;
+      }
 
       // 1. o olhar persegue o ponteiro com atraso — é o que faz parecer olhar,
       //    e não espelhar o mouse.
@@ -170,8 +221,25 @@ export function AstroMark({
       const querAlegria = temPonteiro && sobOCursor;
       alegria += ((querAlegria ? 1 : 0) - alegria) * 0.18;
 
-      const querZanga = zangadoRef.current && !sobOCursor;
-      zanga += ((querZanga ? 1 : 0) - zanga) * 0.05;
+      // Duas origens, e elas dizem a mesma coisa por caminhos diferentes: o
+      // painel avisa que ninguém respondeu; a inércia percebe que ninguém
+      // está nem mexendo o mouse nem rolando a página. Passar o cursor por
+      // cima desarma as duas.
+      const inerte =
+        vigiaInercia &&
+        temPonteiro &&
+        agora - ultimoMovimento > ESPERA_ATE_ZANGAR;
+      const querZanga = (zangadoRef.current || inerte) && !sobOCursor;
+      /*
+        Sobe devagar, desce rápido — e a assimetria não é enfeite.
+
+        Emburrar leva tempo porque é um sentimento que se acumula. Sair da
+        zanga é imediato porque ela some por um motivo: alguém respondeu, ou
+        ele próprio começou a falar. Com a mesma taxa dos dois lados, ele
+        continuava vermelho no meio da própria resposta — que é a cara de quem
+        está bravo com quem acabou de lhe dar atenção.
+      */
+      zanga += ((querZanga ? 1 : 0) - zanga) * (querZanga ? 0.05 : 0.3);
       if (querZanga && !zangadoDesde) zangadoDesde = agora;
       if (!querZanga) zangadoDesde = 0;
 
@@ -208,24 +276,51 @@ export function AstroMark({
       olhoEsqRef.current?.setAttribute("transform", gira(CENTRO_ESQ, -1));
       olhoDirRef.current?.setAttribute("transform", gira(CENTRO_DIR, 1));
 
-      // 5. o vermelho da zanga, e o tremor que pede atenção.
-      if (casa) {
-        casa.style.color = corDoOlho(zanga);
+      // 5. a cor dos olhos.
+      if (casa) casa.style.color = corDoOlho(zanga);
 
-        let deslocamento = 0;
+      // 6. o corpo: flutuação, tremor e o degradê da zanga.
+      if (pele) {
+        let tremor = 0;
         if (zangadoDesde && zanga > 0.5) {
           const ciclo = (agora - zangadoDesde) % TREMOR_INTERVALO;
           if (ciclo < TREMOR_DURACAO) {
             // O seno externo é o envelope (entra e sai do solavanco); o
             // interno é a vibração em si.
             const envelope = Math.sin((ciclo / TREMOR_DURACAO) * Math.PI);
-            deslocamento =
+            tremor =
               Math.sin(ciclo * 0.09) * TREMOR_AMPLITUDE * envelope * zanga;
           }
         }
-        casa.style.transform = deslocamento
-          ? `translateX(${deslocamento.toFixed(2)}px)`
-          : "";
+
+        /*
+          A flutuação saiu do CSS e veio para cá.
+
+          Ela era uma `animation`, e animação vence estilo em linha na cascata:
+          o tremor escrito por JS simplesmente não aparecia enquanto o disco
+          flutuava. Com os dois na mesma escrita, eles se somam em vez de
+          disputar — e é por isso que o `transform` tem um dono só.
+        */
+        const flutua = flutuante
+          ? Math.sin((agora / PERIODO_DA_FLUTUACAO) * Math.PI * 2) *
+            ALTURA_DA_FLUTUACAO
+          : 0;
+
+        pele.style.transform =
+          tremor || flutua
+            ? `translate(${tremor.toFixed(2)}px, ${flutua.toFixed(2)}px)`
+            : "";
+
+        /*
+          Zangado, o disco esquenta por cima: vermelho no topo desmaiando para
+          a cor de sempre na metade de baixo. Só o `background-image` é escrito
+          — a cor de fundo continua no CSS, então não há o que restaurar
+          quando a zanga passa.
+        */
+        pele.style.backgroundImage =
+          zanga > 0.01
+            ? `linear-gradient(180deg, rgba(255, 77, 77, ${zanga.toFixed(3)}) 0%, rgba(255, 77, 77, 0) 55%)`
+            : "";
       }
     };
 
@@ -241,7 +336,9 @@ export function AstroMark({
       casa?.removeEventListener("pointerleave", aoSair);
       cancelAnimationFrame(raf);
     };
-  }, []);
+    // As duas são estáveis pela vida do componente — o botão nunca vira
+    // cabeçalho no meio do caminho —, então listá-las não remonta o laço.
+  }, [corpo, vigiaInercia]);
 
   return (
     <span
