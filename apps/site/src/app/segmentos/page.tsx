@@ -23,20 +23,23 @@ export default async function SegmentosPage() {
     .filter((item) => item.href?.startsWith("/"))
     .map((item) => ({ nome: item.name, path: item.href as string }));
 
+  // `null` sem endereço público conhecido — ver `lib/seo.ts`.
+  const grafo = secaoLd({
+    section: "segmentos",
+    titulo: SECTION_LABEL.segmentos,
+    descricao: metadata.description as string,
+    itens,
+  });
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD é a única forma de emitir structured data; o conteúdo é serializado e escapado em `jsonLdScript`
-        dangerouslySetInnerHTML={jsonLdScript(
-          secaoLd({
-            section: "segmentos",
-            titulo: SECTION_LABEL.segmentos,
-            descricao: metadata.description as string,
-            itens,
-          }),
-        )}
-      />
+      {grafo && (
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD é a única forma de emitir structured data; o conteúdo é serializado e escapado em `jsonLdScript`
+          dangerouslySetInnerHTML={jsonLdScript(grafo)}
+        />
+      )}
       <SectionIndexPage
         section="segmentos"
         content={content}

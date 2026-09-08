@@ -57,21 +57,24 @@ export async function renderPaginaInterna(section: SiteSection, slug: string) {
   const path = caminhoDaPagina(section, slug);
   const descricao = descricaoDaPagina(page.seoDescription, page.blocks);
 
+  // `null` sem endereço público conhecido — ver `lib/seo.ts`.
+  const grafo = paginaInternaLd({
+    section,
+    slug,
+    titulo: page.title,
+    descricao,
+    path,
+  });
+
   return (
     <>
-      <script
-        type="application/ld+json"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD é a única forma de emitir structured data; o conteúdo é serializado e escapado em `jsonLdScript`
-        dangerouslySetInnerHTML={jsonLdScript(
-          paginaInternaLd({
-            section,
-            slug,
-            titulo: page.title,
-            descricao,
-            path,
-          }),
-        )}
-      />
+      {grafo && (
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD é a única forma de emitir structured data; o conteúdo é serializado e escapado em `jsonLdScript`
+          dangerouslySetInnerHTML={jsonLdScript(grafo)}
+        />
+      )}
       <SiteProductPage
         blocks={page.blocks}
         whatsappHref={content.whatsapp.href}

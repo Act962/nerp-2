@@ -63,7 +63,15 @@ const CARTAO = ogImage({ titulo: "Tecnologia que orbita possibilidades" });
  */
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
+  /*
+    `metadataBase` só quando o endereço público é conhecido.
+
+    Ele é a base contra a qual o Next resolve URL relativa. Apontá-lo para
+    `localhost` em produção é o que fazia toda imagem e todo canonical relativo
+    sair com endereço de máquina local. Sem ele, o Next avisa no build e
+    resolve o que puder — barulhento, mas honesto.
+  */
+  ...(SITE_URL ? { metadataBase: new URL(SITE_URL) } : {}),
   /*
     Sem `template`.
 
@@ -80,7 +88,7 @@ export const metadata: Metadata = {
     type: "website",
     siteName: SITE_NAME,
     locale: SITE_LOCALE,
-    url: `${SITE_URL}/`,
+    ...(SITE_URL ? { url: `${SITE_URL}/` } : {}),
     title: TITULO,
     description: DESCRICAO,
     images: CARTAO,

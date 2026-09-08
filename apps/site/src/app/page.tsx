@@ -25,9 +25,11 @@ import { OrbitaHome } from "./_components/orbita-home";
  * criar dois lugares para a mesma frase mudar. O canonical, esse não pode
  * morar no layout: lá ele valeria para toda página que não o sobrescrevesse.
  */
-export const metadata: Metadata = {
-  alternates: { canonical: absoluteUrl("/") },
-};
+const canonical = absoluteUrl("/");
+
+export const metadata: Metadata = canonical
+  ? { alternates: { canonical } }
+  : {};
 
 export default async function Home({
   searchParams,
@@ -49,15 +51,23 @@ export default async function Home({
   const ensaio =
     process.env.NODE_ENV !== "production" && params.parceiros === "demo";
 
+  const grafo = homeLd(content);
+
   return (
     <>
       {/* Organization + WebSite + WebPage. É na home que a empresa é
-          declarada uma vez; as páginas internas só referenciam o `@id`. */}
-      <script
-        type="application/ld+json"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD é a única forma de emitir structured data; o conteúdo é serializado e escapado em `jsonLdScript`
-        dangerouslySetInnerHTML={jsonLdScript(homeLd(content))}
-      />
+          declarada uma vez; as páginas internas só referenciam o `@id`.
+
+          `null` quando não há endereço público conhecido: um grafo cujos `@id`
+          apontam para `localhost` afirma que a empresa vive num host que
+          ninguém alcança. Ver `lib/seo.ts`. */}
+      {grafo && (
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD é a única forma de emitir structured data; o conteúdo é serializado e escapado em `jsonLdScript`
+          dangerouslySetInnerHTML={jsonLdScript(grafo)}
+        />
+      )}
       <OrbitaHome
         content={content}
         partners={ensaio ? PARTNERS_PREVIEW : partners}

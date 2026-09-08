@@ -11,23 +11,75 @@ import { assetUrl } from "./assets";
  * inventado: título, descrição e imagem saem do que a página realmente mostra.
  */
 
+const CONFIGURADO = (process.env.NEXT_PUBLIC_SITE_URL ?? "")
+  .trim()
+  .replace(/\/$/, "");
+
 /**
- * O endereço público do site.
+ * O endereço público do site — ou `null` quando ninguém disse qual é.
  *
- * É a base de TUDO que precisa ser absoluto: canonical, `og:url`, as imagens
- * de compartilhamento e o sitemap. Sem ela o Next resolve URL relativa contra
- * `localhost` e o canonical vai errado para produção — por isso o valor mora
- * numa variável e não numa constante.
+ * É a base de TUDO que precisa ser absoluto: canonical, `og:url`, a imagem de
+ * compartilhamento, o sitemap e o `robots.txt`.
+ *
+ * **Por que `null` em vez de cair em `localhost`.** Esta função já teve um
+ * fallback para `http://localhost:3001`, e ele foi ao ar: por semanas o site
+ * publicado serviu `<link rel="canonical" href="http://localhost:3001/...">`
+ * em todas as páginas, além de um sitemap inteiro de endereços `localhost`.
+ * Canonical é uma AFIRMAÇÃO — "a versão oficial desta página é aquela" — e
+ * apontá-la para um host que o buscador não alcança é pior do que não afirmar
+ * nada: sem canonical a página é indexada normalmente; com um canonical
+ * inalcançável ela pode sair do índice.
+ *
+ * Em DESENVOLVIMENTO o fallback continua, porque ali `localhost:3001` é a
+ * resposta certa e é o que permite conferir canonical e Open Graph na máquina.
+ * Em PRODUÇÃO, sem a variável, o valor é `null` e quem consome simplesmente
+ * não emite a tag — ver `metadataDaPagina`, `robots.ts` e `sitemap.ts`.
  */
-export const SITE_URL = (
-  process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3001"
-).replace(/\/$/, "");
+export const SITE_URL: string | null =
+  CONFIGURADO ||
+  (process.env.NODE_ENV === "production" ? null : "http://localhost:3001");
+
+/*
+  E o silêncio não pode ser silencioso.
+
+  A degradação acima é segura, mas segue sendo um deploy mal configurado: sem
+  canonical, sem sitemap e sem prévia de link. O aviso existe para aparecer no
+  log do build, que é onde alguém tem chance de ver.
+
+  A marca no `globalThis` limita o aviso a uma vez POR PROCESSO. Ela não o
+  reduz a uma linha só no build: o Next gera as páginas em vários workers, cada
+  um com o próprio `globalThis`, então a mensagem aparece algumas vezes. Isso é
+  aceitável — é um erro de configuração, e ele deve ser difícil de ignorar. O
+  que a trava evita é a repetição dentro de um mesmo processo, que é o caso do
+  servidor em execução.
+*/
+const MARCA_DO_AVISO = Symbol.for("orbita.site.aviso-site-url");
+type ComAviso = typeof globalThis & { [MARCA_DO_AVISO]?: true };
+
+if (!SITE_URL && !(globalThis as ComAviso)[MARCA_DO_AVISO]) {
+  (globalThis as ComAviso)[MARCA_DO_AVISO] = true;
+  console.error(
+    "[site] NEXT_PUBLIC_SITE_URL não está definida. Canonical, Open Graph, " +
+      "sitemap, robots.txt e JSON-LD NÃO serão emitidos — é degradação " +
+      "deliberada, porque apontá-los para localhost tira as páginas do índice. " +
+      "ATENÇÃO: é uma variável `NEXT_PUBLIC_*`, então o Next a embute no " +
+      "bundle em tempo de BUILD; defini-la só no runtime do container não " +
+      "resolve, é preciso rebuildar.",
+  );
+}
 
 export const SITE_NAME = "ÓRBITA HUB";
 export const SITE_LOCALE = "pt_BR";
 
-/** O endereço absoluto de um caminho interno. */
-export function absoluteUrl(path: string): string {
+/**
+ * O endereço absoluto de um caminho interno, ou `undefined` sem base conhecida.
+ *
+ * O `undefined` é proposital e atravessa todo o arquivo: quem monta metadata
+ * usa spread condicional para OMITIR o campo, em vez de preenchê-lo com uma
+ * URL inventada.
+ */
+export function absoluteUrl(path: string): string | undefined {
+  if (!SITE_URL) return undefined;
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
@@ -110,6 +162,10 @@ export function descricaoDaPagina(
  * título da própria página — 1200×630, a proporção que o Facebook, o LinkedIn
  * e o X esperam. Um cartão gerado é melhor do que nenhum: sem `og:image` o
  * link compartilhado vira uma linha de texto.
+ *
+ * A imagem do admin sobrevive sem `SITE_URL` — ela já é uma URL absoluta do
+ * bucket. O cartão gerado, não: ele mora em `/og` deste site, e sem saber o
+ * endereço do site não há como apontar para ele. Aí a lista volta vazia.
  */
 export function ogImage(opcoes: {
   ogImageKey?: string;
@@ -124,9 +180,12 @@ export function ogImage(opcoes: {
   const params = new URLSearchParams({ titulo: opcoes.titulo });
   if (opcoes.chapeu) params.set("chapeu", opcoes.chapeu);
 
+  const cartao = absoluteUrl(`/og?${params.toString()}`);
+  if (!cartao) return [];
+
   return [
     {
-      url: absoluteUrl(`/og?${params.toString()}`),
+      url: cartao,
       width: 1200,
       height: 630,
       alt: opcoes.titulo,
@@ -212,13 +271,22 @@ export function metadataDaPagina(opcoes: {
   return {
     title: titulo,
     description: descricao,
-    // O canonical é ABSOLUTO e sem query: é ele que diz ao buscador que
-    // `/solucoes/chat?utm_source=x` e `/solucoes/chat` são a mesma página.
-    alternates: { canonical: url },
+    /*
+      Canonical e `og:url` só existem se o endereço público for conhecido.
+
+      O spread condicional é o ponto do arquivo inteiro: sem `SITE_URL` o campo
+      SOME, em vez de sair apontando para `localhost`. Canonical é uma
+      afirmação sobre qual é a versão oficial da página — errada, ela tira a
+      página do índice; ausente, ela só deixa de ajudar.
+
+      Sem query no canonical, de propósito: é ele que diz ao buscador que
+      `/solucoes/chat?utm_source=x` e `/solucoes/chat` são a mesma página.
+    */
+    ...(url ? { alternates: { canonical: url } } : {}),
     robots: ROBOTS_INDEXAVEL,
     openGraph: {
       type: opcoes.tipo ?? "website",
-      url,
+      ...(url ? { url } : {}),
       siteName: SITE_NAME,
       locale: SITE_LOCALE,
       title: titulo,
@@ -236,9 +304,17 @@ export function metadataDaPagina(opcoes: {
 
 /* -------------------------------------------------------------- structured */
 
-/** O `@id` da organização — referenciado por todo o resto do grafo. */
-export const ORG_ID = `${SITE_URL}/#organizacao`;
-export const SITE_ID = `${SITE_URL}/#site`;
+/**
+ * Os `@id` do grafo — `null` sem endereço público conhecido.
+ *
+ * Um `@id` é um identificador GLOBAL: `http://localhost:3001/#organizacao`
+ * declara ao buscador que a ÓRBITA HUB é a entidade que vive num endereço
+ * inalcançável. Structured data errado não é neutro; é uma afirmação falsa
+ * sobre quem a empresa é. Sem base, os construtores abaixo devolvem `null` e
+ * quem chama simplesmente não emite o `<script>`.
+ */
+export const ORG_ID = SITE_URL ? `${SITE_URL}/#organizacao` : null;
+export const SITE_ID = SITE_URL ? `${SITE_URL}/#site` : null;
 
 /**
  * Telefone e e-mail de exemplo não entram no structured data.
@@ -261,7 +337,8 @@ type Json = Record<string, unknown>;
  * `sameAs` para nada é pior do que não declarar. Sem `address`: o site não
  * mostra endereço nenhum, e o schema tem de descrever o que está na página.
  */
-export function organizationLd(content: SiteContent): Json {
+export function organizationLd(content: SiteContent): Json | null {
+  if (!SITE_URL) return null;
   const contatos: Json[] = [];
 
   if (!ehExemplo(content.contact.phone) || !ehExemplo(content.contact.email)) {
@@ -300,7 +377,8 @@ export function organizationLd(content: SiteContent): Json {
  * uma caixa de busca que não responde por URL é exatamente o schema artificial
  * que não se deve escrever.
  */
-export function webSiteLd(): Json {
+export function webSiteLd(): Json | null {
+  if (!SITE_URL) return null;
   return {
     "@type": "WebSite",
     "@id": SITE_ID,
@@ -342,8 +420,11 @@ export function paginaInternaLd(opcoes: {
   descricao: string;
   path: string;
   imagem?: string;
-}): Json {
+}): Json | null {
   const url = absoluteUrl(opcoes.path);
+  // Sem endereço público não há grafo: `@id` e `url` seriam identificadores
+  // globais apontando para um host que ninguém alcança.
+  if (!url) return null;
   const tipo =
     opcoes.section === "sobre" && opcoes.slug === "sobre-o-orbita-hub"
       ? "AboutPage"
@@ -387,12 +468,15 @@ export function paginaInternaLd(opcoes: {
 }
 
 /** O grafo da home. */
-export function homeLd(content: SiteContent): Json {
+export function homeLd(content: SiteContent): Json | null {
+  const organizacao = organizationLd(content);
+  const site = webSiteLd();
+  if (!SITE_URL || !organizacao || !site) return null;
   return {
     "@context": "https://schema.org",
     "@graph": [
-      organizationLd(content),
-      webSiteLd(),
+      organizacao,
+      site,
       {
         "@type": "WebPage",
         "@id": `${SITE_URL}/#pagina`,
@@ -412,8 +496,9 @@ export function secaoLd(opcoes: {
   titulo: string;
   descricao: string;
   itens: Array<{ nome: string; path: string }>;
-}): Json {
+}): Json | null {
   const url = absoluteUrl(`/${opcoes.section}`);
+  if (!url) return null;
   return {
     "@context": "https://schema.org",
     "@graph": [
