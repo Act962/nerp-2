@@ -3,6 +3,8 @@
 import type { SiteContent } from "@nerp/site-content";
 import { Nav } from "@/orbita/ui/nav";
 import { SiteContentProvider } from "@/orbita/lib/content-context";
+import { AstroWidget } from "@/features/astro/astro-widget";
+import type { PaginaDoAstro } from "@/features/astro/pagina";
 // O `o-nav` e o mega menu são estilizados pelo CSS da órbita. As páginas
 // internas não carregam a cena, então o CSS precisa vir junto do menu.
 import "@/orbita/orbita.css";
@@ -21,13 +23,18 @@ import "@/orbita/orbita.css";
 export function SiteHeaderNav({
   content,
   loginHref,
+  pagina,
 }: {
   content: SiteContent;
   loginHref: string;
+  pagina?: PaginaDoAstro;
 }) {
   return (
     <SiteContentProvider content={content}>
       <Nav ctaHref={loginHref} signupHref={loginHref} standalone />
+      {/* O consultor acompanha a página interna: é lendo sobre uma ferramenta
+          que a dúvida aparece. */}
+      <AstroWidget pagina={pagina} />
     </SiteContentProvider>
   );
 }

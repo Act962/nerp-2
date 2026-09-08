@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { parseBlocks } from "@nerp/site-content";
+import { lerAstroPagina, parseBlocks } from "@nerp/site-content";
 import prisma from "@/lib/db";
 
 /**
@@ -45,6 +45,7 @@ export async function GET(
         slug: true,
         title: true,
         publishedBlocks: true,
+        astroPublished: true,
         seoTitle: true,
         seoDescription: true,
         ogImage: true,
@@ -68,6 +69,9 @@ export async function GET(
         // Validado aqui, e não do outro lado: quem guardou o JSON é quem sabe
         // descartar o bloco que não bate mais com o formato.
         blocks: parseBlocks(page.publishedBlocks),
+        // O que o Astro fala aqui. Validado no mesmo lugar e pelo mesmo
+        // motivo dos blocos: quem guardou o JSON é quem sabe descartá-lo.
+        astro: lerAstroPagina(page.astroPublished),
       },
       { headers: CORS },
     );

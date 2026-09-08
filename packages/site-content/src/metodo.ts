@@ -15,6 +15,69 @@ import type { SitePageSeed } from "./pages";
 
 export const METODO_SLUG = "metodo-nasa";
 
+export type MetodoEtapa = {
+  /** A letra da sigla. Duas etapas são "A" — a ordem é que as distingue. */
+  mark: string;
+  title: string;
+  question: string;
+  text: string;
+  bullets: string[];
+};
+
+/**
+ * As quatro etapas, fora do construtor da página.
+ *
+ * Quem precisa do método sem montar blocos — o consultor de IA é o caso — lê
+ * daqui. É a mesma lista que a página desenha, então não existe uma segunda
+ * versão do texto para divergir da primeira.
+ */
+export const METODO_ETAPAS: MetodoEtapa[] = [
+  {
+    mark: "N",
+    title: "Necessidade",
+    question: "O que precisa ser resolvido ou alcançado?",
+    text: "Identificar claramente qual é o problema, a necessidade, o objetivo ou a oportunidade que precisa ser trabalhado. A necessidade deve ser definida de forma objetiva, estabelecendo o ponto de partida e o resultado desejado.",
+    bullets: [],
+  },
+  {
+    mark: "A",
+    title: "Análise",
+    question: "O que está acontecendo, e por quê?",
+    text: "Coletar, organizar e interpretar dados, informações e contexto relacionados à necessidade identificada. A análise transforma informações dispersas em inteligência para tomada de decisão.",
+    bullets: [
+      "O que está acontecendo?",
+      "Por que está acontecendo?",
+      "Quais dados comprovam isso?",
+      "Quais são as causas, oportunidades e limitações?",
+      "Quem está envolvido?",
+    ],
+  },
+  {
+    mark: "S",
+    title: "Sistematização",
+    question: "Como vamos estruturar a solução?",
+    text: "Transformar a análise em um plano estruturado, organizando estratégias, prioridades, processos, recursos, responsáveis, indicadores e etapas. Nesta etapa, a estratégia deixa de ser uma ideia e passa a ser um sistema organizado e executável.",
+    bullets: [],
+  },
+  {
+    mark: "A",
+    title: "Ação",
+    question: "O que será feito, por quem, quando e como será medido?",
+    text: "Executar o que foi planejado, acompanhar os resultados e utilizar os aprendizados para realizar ajustes. A ação fecha o ciclo e gera novos dados, que podem alimentar novamente a etapa de Análise.",
+    bullets: [
+      "O que será feito?",
+      "Quem fará?",
+      "Quando?",
+      "Como será medido?",
+      "O resultado esperado foi alcançado?",
+    ],
+  },
+];
+
+/** O princípio fundamental. A página o exibe entre aspas; o texto é este. */
+export const METODO_PRINCIPIO =
+  "Não agir antes de entender a necessidade; não decidir antes de analisar; não executar sem sistematizar; e não encerrar a ação sem medir os resultados.";
+
 export function buildMetodoPage(options: {
   whatsappHref: string;
 }): SitePageSeed {
@@ -40,55 +103,13 @@ export function buildMetodoPage(options: {
       title: "As quatro etapas",
       cycle: true,
       text: "Na ordem, sempre. Cada uma só começa quando a anterior entregou o que tinha de entregar.",
-      items: [
-        {
-          mark: "N",
-          title: "Necessidade",
-          question: "O que precisa ser resolvido ou alcançado?",
-          text: "Identificar claramente qual é o problema, a necessidade, o objetivo ou a oportunidade que precisa ser trabalhado. A necessidade deve ser definida de forma objetiva, estabelecendo o ponto de partida e o resultado desejado.",
-          bullets: [],
-        },
-        {
-          mark: "A",
-          title: "Análise",
-          question: "O que está acontecendo, e por quê?",
-          text: "Coletar, organizar e interpretar dados, informações e contexto relacionados à necessidade identificada. A análise transforma informações dispersas em inteligência para tomada de decisão.",
-          bullets: [
-            "O que está acontecendo?",
-            "Por que está acontecendo?",
-            "Quais dados comprovam isso?",
-            "Quais são as causas, oportunidades e limitações?",
-            "Quem está envolvido?",
-          ],
-        },
-        {
-          mark: "S",
-          title: "Sistematização",
-          question: "Como vamos estruturar a solução?",
-          text: "Transformar a análise em um plano estruturado, organizando estratégias, prioridades, processos, recursos, responsáveis, indicadores e etapas. Nesta etapa, a estratégia deixa de ser uma ideia e passa a ser um sistema organizado e executável.",
-          bullets: [],
-        },
-        {
-          mark: "A",
-          title: "Ação",
-          question: "O que será feito, por quem, quando e como será medido?",
-          text: "Executar o que foi planejado, acompanhar os resultados e utilizar os aprendizados para realizar ajustes. A ação fecha o ciclo e gera novos dados, que podem alimentar novamente a etapa de Análise.",
-          bullets: [
-            "O que será feito?",
-            "Quem fará?",
-            "Quando?",
-            "Como será medido?",
-            "O resultado esperado foi alcançado?",
-          ],
-        },
-      ],
+      items: METODO_ETAPAS,
     },
     {
       id: "principio",
       type: "statement",
       enabled: true,
-      title:
-        "“Não agir antes de entender a necessidade; não decidir antes de analisar; não executar sem sistematizar; e não encerrar a ação sem medir os resultados.”",
+      title: `“${METODO_PRINCIPIO}”`,
       text: "O princípio fundamental do método.",
       cta: { label: "", href: "" },
     },

@@ -73,8 +73,7 @@ const SECAO = {
 async function seedPages() {
   const opcoes = { whatsappHref: WHATSAPP_HREF };
   const pages: SitePageSeed[] = [
-    // O NERP é a ponte com o ERP: leva ao login, não tem página de vitrine.
-    ...buildAllSolutionPages(opcoes).filter((page) => page.toolId !== "nerp"),
+    ...buildAllSolutionPages(opcoes),
     ...buildAllSegmentPages(opcoes),
     ...buildAllAboutPages(opcoes),
     buildMetodoPage(opcoes),

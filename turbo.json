@@ -22,7 +22,9 @@
     "OPENAI_*",
     "FREE_MARKET_*",
     "INNGEST_*",
-    "FISCAL_*"
+    "FISCAL_*",
+    "SITE_ASTRO_*",
+    "ASTRO_CONSULTOR_MODEL"
   ],
   "tasks": {
     "db:generate": {

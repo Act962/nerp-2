@@ -5,6 +5,7 @@ import type { SitePartnersResponse } from "@nerp/site-content";
 import type { SiteContent } from "@/orbita/data/content";
 import { SiteContentProvider } from "@/orbita/lib/content-context";
 import { PartnersProvider } from "@/orbita/lib/partners-context";
+import { AstroWidget } from "@/features/astro/astro-widget";
 
 /**
  * Ponte entre o site e o produto.
@@ -29,6 +30,12 @@ export function OrbitaHome({
     <SiteContentProvider content={content}>
       <PartnersProvider value={partners}>
         <OrbitaExperience appHref={loginHref} signupHref={signupHref} />
+        {/*
+          Fora da `OrbitaExperience` de propósito: sem WebGL ela renderiza o
+          fallback, e o consultor tem de continuar ali — é justamente quem não
+          consegue ver a cena que mais precisa de alguém para explicar.
+        */}
+        <AstroWidget />
       </PartnersProvider>
     </SiteContentProvider>
   );

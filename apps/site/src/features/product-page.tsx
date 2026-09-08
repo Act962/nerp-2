@@ -7,6 +7,7 @@ import {
 } from "@nerp/site-content";
 import type { SiteContent } from "@nerp/site-content";
 import { assetUrl } from "@/lib/assets";
+import type { PaginaDoAstro } from "./astro/pagina";
 import { SiteHeaderNav } from "./site-header-nav";
 import { ScrollToBlockListener } from "./scroll-to-block";
 import { BRAND } from "@/orbita/ui/brand";
@@ -26,11 +27,14 @@ export function SiteProductPage({
   whatsappLabel,
   loginHref,
   content,
+  pagina,
 }: {
   blocks: SiteBlock[];
   whatsappHref: string;
   whatsappLabel: string;
   loginHref: string;
+  /** Que página é esta, para o Astro saber onde a pessoa está. */
+  pagina?: PaginaDoAstro;
   /** Conteúdo do site — alimenta o menu principal (igual ao da home). */
   content?: SiteContent;
 }) {
@@ -42,7 +46,11 @@ export function SiteProductPage({
           standalone. Sem `content`, cai no cabeçalho enxuto de reserva — o
           site nunca fica sem topo. */}
       {content ? (
-        <SiteHeaderNav content={content} loginHref={loginHref} />
+        <SiteHeaderNav
+          content={content}
+          loginHref={loginHref}
+          pagina={pagina}
+        />
       ) : (
         <header className="sp-nav">
           <Link className="sp-nav__brand" href="/" aria-label="ÓRBITA HUB">
