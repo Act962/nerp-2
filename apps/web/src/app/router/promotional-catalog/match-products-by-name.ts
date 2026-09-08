@@ -5,6 +5,8 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import {
   codeCandidates,
+  indexProducts,
+  lookupByName,
   normalizeCode,
   normalizeName,
 } from "@/features/promotional-catalog/lib/product-match";
@@ -15,8 +17,14 @@ import {
 //   1. barcode  — exato, em lote. `@@unique([organizationId, barcode])` ⇒ nunca ambíguo.
 //   2. sku      — exato, em lote. Sem unique ⇒ pode ser ambíguo.
 //   3. nome completo normalizado — exato (sem acento/pontuação).
-//   4. prefixo (2 primeiras palavras) — o comportamento HISTÓRICO, mantido
-//      byte a byte: mesma query, mesmo `orderBy`, mesmo primeiro resultado.
+//   4. palavras em comum (Dice) acima de `MIN_NAME_SCORE`, com a gramatura
+//      como desempate obrigatório.
+//
+// Os tiers 3 e 4 comparam nomes NORMALIZADOS dos dois lados, num índice em
+// memória montado com UMA query. A versão antiga normalizava só o termo e
+// procurava com `contains` na coluna crua — o que jamais casa quando o nome
+// tem acento ou pontuação nas duas primeiras palavras. `searchKey` sobrevive
+// só no plano B, para cadastro maior que o índice.
 //
 // Compatibilidade: `names` continua funcionando e a resposta continua trazendo
 // os mesmos 4 campos de sempre. `items`/`code` e os campos de diagnóstico
@@ -35,6 +43,18 @@ function searchKey(name: string): string {
 }
 
 type Candidate = { id: string; name: string; thumbnail: string | null };
+
+// Teto do índice em memória do cadastro (id + nome + thumbnail por produto).
+// Acima disso o casamento por nome cai no plano B, que consulta o banco.
+const NAME_INDEX_CAP = 20_000;
+
+function toCandidate(p: {
+  id: string;
+  name: string;
+  thumbnail: string | null;
+}): Candidate {
+  return { id: p.id, name: p.name, thumbnail: p.thumbnail || null };
+}
 
 type MatchResult = {
   name: string;
@@ -196,56 +216,89 @@ export const matchProductsByName = base
       pendingByName.push(i);
     });
 
-    // ── Tiers 3 e 4: nome. Uma query por linha, em blocos de 8 (como antes) ──
-    const CHUNK = 8;
-    for (let i = 0; i < pendingByName.length; i += CHUNK) {
-      const slice = pendingByName.slice(i, i + CHUNK);
-      await Promise.all(
-        slice.map(async (index) => {
-          const rawName = entries[index].name;
-          const key = searchKey(rawName);
-          if (!key) return;
+    // Plano B — uma query por linha, em blocos de 8, como era antes.
+    async function matchByPrefixInDb(indexes: number[]) {
+      const CHUNK = 8;
+      for (let i = 0; i < indexes.length; i += CHUNK) {
+        const slice = indexes.slice(i, i + CHUNK);
+        await Promise.all(
+          slice.map(async (index) => {
+            const rawName = entries[index].name;
+            const key = searchKey(rawName);
+            if (!key) return;
 
-          // `orderBy` idêntico ao histórico: `rows[0]` é exatamente o produto
-          // que o `findFirst` antigo devolvia. O `take` só limita o leque de
-          // alternativas — não muda a escolha.
-          const rows = await prisma.product.findMany({
-            where: {
-              organizationId: orgId,
-              isActive: true,
-              name: { contains: key, mode: "insensitive" as const },
-            },
-            select: { id: true, name: true, thumbnail: true },
-            orderBy: { name: "asc" },
-            take: 50,
-          });
-          if (rows.length === 0) return;
+            const rows = await prisma.product.findMany({
+              where: {
+                organizationId: orgId,
+                isActive: true,
+                name: { contains: key, mode: "insensitive" as const },
+              },
+              select: { id: true, name: true, thumbnail: true },
+              orderBy: { name: "asc" },
+              take: 50,
+            });
+            if (rows.length === 0) return;
 
-          const candidates: Candidate[] = rows.map((r) => ({
-            id: r.id,
-            name: r.name,
-            thumbnail: r.thumbnail || null,
-          }));
+            const candidates = rows.map(toCandidate);
+            const target = normalizeName(rawName);
+            const exact = candidates.find(
+              (c) => normalizeName(c.name) === target,
+            );
+            const chosen = exact ?? candidates[0];
 
-          const target = normalizeName(rawName);
-          const exact = candidates.find(
-            (c) => normalizeName(c.name) === target,
-          );
-          const chosen = exact ?? candidates[0];
+            results[index] = {
+              ...results[index],
+              productId: chosen.id,
+              matchedName: chosen.name,
+              thumbnail: chosen.thumbnail,
+              source: exact ? "name-exact" : "name-prefix",
+              ambiguous: !exact && candidates.length > 1,
+              alternatives: exact
+                ? []
+                : candidates.filter((c) => c.id !== chosen.id).slice(0, 5),
+            };
+          }),
+        );
+      }
+    }
 
-          results[index] = {
-            ...results[index],
-            productId: chosen.id,
-            matchedName: chosen.name,
-            thumbnail: chosen.thumbnail,
-            source: exact ? "name-exact" : "name-prefix",
-            ambiguous: !exact && candidates.length > 1,
-            alternatives: exact
-              ? []
-              : candidates.filter((c) => c.id !== chosen.id).slice(0, 5),
-          };
-        }),
-      );
+    // ── Tiers 3 e 4: nome, normalizado dos DOIS lados ──────────────────────
+    if (pendingByName.length > 0) {
+      const rows = await prisma.product.findMany({
+        where: { organizationId: orgId, isActive: true },
+        select: { id: true, name: true, thumbnail: true },
+        orderBy: { name: "asc" },
+        take: NAME_INDEX_CAP + 1,
+      });
+      const index = indexProducts(rows.slice(0, NAME_INDEX_CAP));
+
+      const unresolved: number[] = [];
+      for (const i of pendingByName) {
+        const hit = lookupByName(index, entries[i].name);
+        if (!hit) {
+          unresolved.push(i);
+          continue;
+        }
+        results[i] = {
+          ...results[i],
+          productId: hit.product.id,
+          matchedName: hit.product.name,
+          thumbnail: hit.product.thumbnail || null,
+          // "name-prefix" continua nomeando o PALPITE (selo "conferir" na
+          // tela). O nome vem do casamento por prefixo, mas está gravado em
+          // `matchSource` de catálogos já salvos — renomear invalidaria.
+          source: hit.exact ? "name-exact" : "name-prefix",
+          ambiguous: hit.ambiguous,
+          alternatives: hit.alternatives.map(toCandidate),
+        };
+      }
+
+      // Cadastro maior que o índice: o resto volta pela busca por prefixo no
+      // banco. Pior (é o comportamento que este arquivo veio corrigir), mas
+      // varre a tabela inteira em vez de só o pedaço carregado.
+      if (rows.length > NAME_INDEX_CAP && unresolved.length > 0) {
+        await matchByPrefixInDb(unresolved);
+      }
     }
 
     return results;
