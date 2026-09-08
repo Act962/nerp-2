@@ -16,9 +16,31 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/**
+ * O metadata da raiz do `apps/web`.
+ *
+ * **`noindex` é o PADRÃO, e é a decisão importante deste arquivo.**
+ *
+ * Este app tem 131 páginas e quase todas são tela de sistema: o ERP inteiro,
+ * o admin do site, o PDV, o app do promotor, as telas de autorização. Nada
+ * disso é conteúdo — são portas que respondem redirecionando para o login, e
+ * cada uma indexada é uma página vazia no resultado de busca com o nome da
+ * casa em cima.
+ *
+ * A alternativa seria uma lista de caminhos bloqueados no `robots.txt`, e ela
+ * envelhece mal: a rota criada na semana que vem não está na lista, e ninguém
+ * percebe. Aqui é o contrário — o padrão protege, e quem é público diz que é.
+ * Hoje dizem: a vitrine (`(storefront)/[subdomain]/layout.tsx`) e as páginas
+ * públicas do TradeGram.
+ *
+ * O metadata do Next sobrescreve `robots` por completo no segmento mais
+ * profundo, então basta a página ou o layout declarar o dele.
+ */
 export const metadata: Metadata = {
-  title: "TradeGram",
-  description: "ERP para gestão de estoque e vendas",
+  title: "NERP — ERP para varejo e trade marketing",
+  description:
+    "Gestão de estoque, vendas, PDV e trade marketing em um sistema só.",
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
@@ -27,7 +49,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    // `pt-BR`: o app inteiro é em português. Com `lang="en"` o navegador
+    // oferece traduzir a página, o corretor ortográfico dos campos usa o
+    // dicionário errado e o leitor de tela lê tudo com fonemas de inglês.
+    <html lang="pt-BR" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -157,6 +157,49 @@ export async function getProductPage(
   };
 }
 
+/** Um endereço publicado no admin, do jeito que o sitemap precisa dele. */
+export type PaginaPublicada = {
+  section: SiteSection;
+  slug: string;
+  /** ISO. A data da PUBLICAÇÃO, não a do último rascunho salvo. */
+  lastModified: string;
+};
+
+const SECOES: SiteSection[] = ["solucoes", "segmentos", "sobre"];
+
+/**
+ * O índice das páginas publicadas, para o sitemap.
+ *
+ * Lista vazia quando o `apps/web` não responde — e isso não é um erro a
+ * contornar: o sitemap ainda tem as 40 páginas que nascem do código, que são o
+ * grosso do site. O que se perde é só a página criada no admin.
+ *
+ * Cada linha é conferida antes de entrar: uma seção desconhecida ou um slug
+ * vazio viraria uma URL quebrada dentro do sitemap, que é o tipo de erro que o
+ * Search Console reporta semanas depois.
+ */
+export async function getSitePages(): Promise<PaginaPublicada[]> {
+  const data = await getJson<{ pages?: unknown }>("/api/site/pages");
+  if (!data || !Array.isArray(data.pages)) return [];
+
+  const paginas: PaginaPublicada[] = [];
+  for (const bruto of data.pages) {
+    if (typeof bruto !== "object" || bruto === null) continue;
+    const { section, slug, lastModified } = bruto as Record<string, unknown>;
+    if (typeof slug !== "string" || !slug) continue;
+    if (!SECOES.includes(section as SiteSection)) continue;
+    const data_ = typeof lastModified === "string" ? lastModified : "";
+    paginas.push({
+      section: section as SiteSection,
+      slug,
+      lastModified: Number.isNaN(Date.parse(data_))
+        ? new Date().toISOString()
+        : data_,
+    });
+  }
+  return paginas;
+}
+
 /**
  * Os parceiros e as marcas da descida à Terra.
  *

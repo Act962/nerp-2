@@ -844,6 +844,30 @@
   font-size: 0.82rem;
   color: var(--o-mega-soft);
   max-width: 52ch;
+  /* Ocupa a folga do pé para o link e o CTA ficarem juntos à direita, em vez
+     de o `space-between` espalhar os três em três pontos da linha. */
+  flex: 1 1 22ch;
+}
+
+/*
+  "Ver todas as soluções →", no pé do painel.
+
+  Fica ao lado do CTA e com o peso de um link, não de um botão: quem chega
+  aqui já sabe o que quer, e o botão do painel continua sendo o de conversar
+  com a gente.
+*/
+.o-mega__todas {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--o-mega-ink);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 1px solid transparent;
+}
+
+.o-mega__todas:hover,
+.o-mega__todas:focus-visible {
+  border-bottom-color: currentColor;
 }
 
 .o-mega__cta {

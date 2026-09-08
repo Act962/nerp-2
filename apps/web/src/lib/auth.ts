@@ -7,11 +7,16 @@ import { enqueueSyncOutbox } from "./sync-outbox";
 import { crossLoginPlugin } from "./cross-login-plugin";
 // If your Prisma file is located elsewhere, you can change the path
 
-// Base host (sem porta) e origin do app. Em dev: "localhost" / http://localhost:3001.
+// Base host (sem porta) e origin do app. Em dev: "localhost" / http://localhost:3000.
+//
+// 3000 e não 3001: é a porta em que este app roda (`next dev` sem `-p`, e o
+// alvo `nerp` do `.claude/launch.json`). A 3001 é do `apps/site`, e um padrão
+// apontando para outro app é pior do que um padrão ausente — sem o `.env` o
+// login passaria a confiar na origem do site institucional.
 const baseHost = (
-  process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "localhost:3001"
+  process.env.NEXT_PUBLIC_BASE_DOMAIN ?? "localhost:3000"
 ).split(":")[0];
-const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3001";
+const baseUrl = process.env.BETTER_AUTH_URL ?? "http://localhost:3000";
 const scheme = baseUrl.startsWith("https") ? "https" : "http";
 const baseOrigin = baseUrl.replace(/\/$/, "");
 
@@ -20,7 +25,7 @@ export const auth = betterAuth({
     provider: "postgresql", // or "mysql", "postgresql", ...etc
   }),
   // Aceita requisições do host apex e de subdomínios multi-tenant
-  // (ex.: gotham.localhost:3001). Sem isso, Better Auth rejeita requests
+  // (ex.: gotham.localhost:3000). Sem isso, Better Auth rejeita requests
   // com origin diferente do BETTER_AUTH_URL.
   // Observação: cookie continua host-only (sem Domain). Compartilhamento
   // entre subdomínios via crossSubDomainCookies foi removido porque alguns

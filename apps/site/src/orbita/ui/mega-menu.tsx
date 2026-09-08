@@ -316,6 +316,22 @@ export function MegaMenu({
                 Vinte e oito ferramentas na mesma base: o que uma escreve, a
                 outra já enxerga.
               </p>
+              {/*
+                O caminho para a página do trecho.
+
+                O painel é navegação: ele lista as ferramentas e some. A página
+                de `/{kind}` é o endereço permanente daquela família — é ela que
+                o buscador indexa e que alguém manda por link. Sem esta linha o
+                painel seria o único lugar do site que conhece a lista inteira,
+                e a página de trecho não receberia link de página nenhuma.
+              */}
+              <PanelLink
+                className="o-mega__todas"
+                href="/solucoes"
+                onNavigate={onClose}
+              >
+                Ver todas as soluções →
+              </PanelLink>
               <button
                 type="button"
                 className="o-mega__cta"
@@ -379,6 +395,22 @@ export function MegaMenu({
                 A empresa por trás da suíte, quem constrói junto e como aprender
                 a usar.
               </p>
+              {/*
+                O caminho para a página do trecho.
+
+                O painel é navegação: ele lista as ferramentas e some. A página
+                de `/{kind}` é o endereço permanente daquela família — é ela que
+                o buscador indexa e que alguém manda por link. Sem esta linha o
+                painel seria o único lugar do site que conhece a lista inteira,
+                e a página de trecho não receberia link de página nenhuma.
+              */}
+              <PanelLink
+                className="o-mega__todas"
+                href="/sobre"
+                onNavigate={onClose}
+              >
+                Ver tudo sobre a empresa →
+              </PanelLink>
               <a
                 className="o-mega__cta"
                 href={whatsapp.href}
@@ -410,6 +442,22 @@ export function MegaMenu({
                 Cada segmento traz a suíte configurada para o que aquela
                 operação faz todo dia.
               </p>
+              {/*
+                O caminho para a página do trecho.
+
+                O painel é navegação: ele lista as ferramentas e some. A página
+                de `/{kind}` é o endereço permanente daquela família — é ela que
+                o buscador indexa e que alguém manda por link. Sem esta linha o
+                painel seria o único lugar do site que conhece a lista inteira,
+                e a página de trecho não receberia link de página nenhuma.
+              */}
+              <PanelLink
+                className="o-mega__todas"
+                href="/segmentos"
+                onNavigate={onClose}
+              >
+                Ver todos os segmentos →
+              </PanelLink>
               <a
                 className="o-mega__cta"
                 href={whatsapp.href}

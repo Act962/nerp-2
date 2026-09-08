@@ -3,12 +3,15 @@ import {
   blockStyleVars,
   resolveBackgrounds,
   type SiteBlock,
+  type SiteSection,
   youtubeId,
 } from "@nerp/site-content";
 import type { SiteContent } from "@nerp/site-content";
 import { assetUrl } from "@/lib/assets";
+import { SECTION_LABEL } from "@/lib/seo";
 import type { PaginaDoAstro } from "./astro/pagina";
 import { SiteHeaderNav } from "./site-header-nav";
+import { SiteFooter, Trilha } from "./site-chrome";
 import { ScrollToBlockListener } from "./scroll-to-block";
 import { BRAND } from "@/orbita/ui/brand";
 import "./product-page.css";
@@ -28,6 +31,7 @@ export function SiteProductPage({
   loginHref,
   content,
   pagina,
+  trilha,
 }: {
   blocks: SiteBlock[];
   whatsappHref: string;
@@ -37,8 +41,23 @@ export function SiteProductPage({
   pagina?: PaginaDoAstro;
   /** Conteúdo do site — alimenta o menu principal (igual ao da home). */
   content?: SiteContent;
+  /**
+   * Onde esta página fica na hierarquia do site. Desenha a trilha visível e é
+   * o par do `BreadcrumbList` do JSON-LD — os dois têm de contar a mesma coisa.
+   */
+  trilha?: { section: SiteSection; titulo: string };
 }) {
   const fundos = resolveBackgrounds(blocks);
+
+  /*
+    Qual imagem é a candidata a LCP.
+
+    O maior elemento acima da dobra é, quase sempre, a imagem do primeiro bloco.
+    Ela precisa carregar cedo (`eager` + prioridade alta) e todas as outras
+    precisam ficar para depois (`lazy`) — sem essa distinção o navegador baixa
+    as dez ao mesmo tempo e a primeira, que é a que conta, chega por último.
+  */
+  const primeiroVisivel = blocks.findIndex((block) => block.enabled);
 
   return (
     <div className="sp-root">
@@ -55,7 +74,7 @@ export function SiteProductPage({
         <header className="sp-nav">
           <Link className="sp-nav__brand" href="/" aria-label="ÓRBITA HUB">
             {/* biome-ignore lint/performance/noImgElement: asset fixo do site, sem otimização a fazer */}
-            <img src={BRAND.lockup} alt="" />
+            <img src={BRAND.lockup} alt="" width={987} height={220} />
           </Link>
           <span className="sp-nav__spacer" />
           <a className="sp-btn sp-btn--ghost sp-nav__hide" href={loginHref}>
@@ -70,6 +89,19 @@ export function SiteProductPage({
             {whatsappLabel}
           </a>
         </header>
+      )}
+
+      {trilha && (
+        <Trilha
+          passos={[
+            { nome: "Início", href: "/" },
+            {
+              nome: SECTION_LABEL[trilha.section],
+              href: `/${trilha.section}`,
+            },
+            { nome: trilha.titulo },
+          ]}
+        />
       )}
 
       {/* A faixa é resolvida sobre a lista INTEIRA e só depois filtrada: a
@@ -87,20 +119,27 @@ export function SiteProductPage({
               .trim()}
             style={vars as React.CSSProperties}
           >
-            <Block block={block} whatsappHref={whatsappHref} />
+            <Block
+              block={block}
+              whatsappHref={whatsappHref}
+              acimaDaDobra={index === primeiroVisivel}
+            />
           </div>
         );
       })}
 
-      <footer className="sp-foot">
-        <Link className="sp-foot__brand" href="/" aria-label="ÓRBITA HUB">
-          {/* biome-ignore lint/performance/noImgElement: asset fixo do site, sem otimização a fazer */}
-          <img src={BRAND.lockup} alt="" />
-        </Link>
-        <Link href="/">← Voltar ao site</Link>
-        <span className="sp-nav__spacer" />
-        <span>© {new Date().getFullYear()} ÓRBITA HUB</span>
-      </footer>
+      <SiteFooter
+        links={
+          trilha
+            ? [
+                {
+                  nome: SECTION_LABEL[trilha.section],
+                  href: `/${trilha.section}`,
+                },
+              ]
+            : []
+        }
+      />
       <ScrollToBlockListener />
     </div>
   );
@@ -109,9 +148,12 @@ export function SiteProductPage({
 function Block({
   block,
   whatsappHref,
+  acimaDaDobra = false,
 }: {
   block: SiteBlock;
   whatsappHref: string;
+  /** Primeiro bloco visível: a imagem dele é a candidata a LCP. */
+  acimaDaDobra?: boolean;
 }) {
   switch (block.type) {
     case "hero": {
@@ -169,7 +211,7 @@ function Block({
               )}
             </div>
           </div>
-          <Media image={block.image} />
+          <Media image={block.image} prioridade={acimaDaDobra} />
         </section>
       );
     }
@@ -238,7 +280,7 @@ function Block({
           }`}
         >
           <div className="sp-split__media">
-            <Media image={block.image} />
+            <Media image={block.image} prioridade={acimaDaDobra} />
           </div>
           <div>
             <h2>{block.title}</h2>
@@ -306,7 +348,12 @@ function Block({
               <div className="sp-check__aside">
                 {block.image.key && (
                   // biome-ignore lint/performance/noImgElement: imagem por key do R2, sem dimensão conhecida
-                  <img src={assetUrl(block.image.key)} alt={block.image.alt} />
+                  <img
+                    src={assetUrl(block.image.key)}
+                    alt={block.image.alt}
+                    loading="lazy"
+                    decoding="async"
+                  />
                 )}
                 {block.cta.label &&
                   (block.cta.href ? (
@@ -352,6 +399,8 @@ function Block({
                     className="sp-benefit__icon"
                     src={assetUrl(item.icon.key)}
                     alt={item.icon.alt}
+                    loading="lazy"
+                    decoding="async"
                   />
                 )}
                 <div>
@@ -454,6 +503,8 @@ function Block({
               <img
                 src={assetUrl(block.image.key)}
                 alt={block.image.alt}
+                loading={acimaDaDobra ? "eager" : "lazy"}
+                decoding="async"
                 style={{
                   position: "absolute",
                   top: "2.071%",
@@ -469,6 +520,10 @@ function Block({
                 src="/mockups/iphone.png"
                 alt=""
                 aria-hidden="true"
+                width={1293}
+                height={2656}
+                loading="lazy"
+                decoding="async"
                 style={{
                   position: "absolute",
                   inset: 0,
@@ -491,6 +546,9 @@ function Block({
           <img
             src={assetUrl(block.image.key)}
             alt={block.image.alt}
+            loading={acimaDaDobra ? "eager" : "lazy"}
+            fetchPriority={acimaDaDobra ? "high" : "auto"}
+            decoding="async"
             style={{
               width: largura,
               height: altura,
@@ -519,6 +577,7 @@ function Block({
           title={block.title || "Vídeo"}
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
+          loading="lazy"
         />
       );
 
@@ -571,6 +630,8 @@ function Block({
                   src={assetUrl(logo.key)}
                   alt={i < logos.length ? logo.alt : ""}
                   aria-hidden={i >= logos.length ? true : undefined}
+                  loading="lazy"
+                  decoding="async"
                 />
               ))}
             </div>
@@ -726,10 +787,24 @@ function Action({
   );
 }
 
-function Media({ image }: { image: { key: string; alt: string } }) {
+function Media({
+  image,
+  prioridade = false,
+}: {
+  image: { key: string; alt: string };
+  /** A imagem do primeiro bloco: carrega já, e na frente das outras. */
+  prioridade?: boolean;
+}) {
   if (!image.key) return <div className="sp-media sp-media--empty" />;
   return (
     // biome-ignore lint/performance/noImgElement: imagem por key do R2, sem dimensão conhecida
-    <img className="sp-media" src={assetUrl(image.key)} alt={image.alt} />
+    <img
+      className="sp-media"
+      src={assetUrl(image.key)}
+      alt={image.alt}
+      loading={prioridade ? "eager" : "lazy"}
+      fetchPriority={prioridade ? "high" : "auto"}
+      decoding={prioridade ? "sync" : "async"}
+    />
   );
 }

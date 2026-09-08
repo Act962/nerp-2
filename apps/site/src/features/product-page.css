@@ -1225,3 +1225,174 @@ body {
     width: 100% !important;
   }
 }
+
+/* ==========================================================================
+   Trilha de navegação e páginas de trecho.
+
+   A trilha entra ENTRE a barra e a primeira faixa: a barra é `sticky` e
+   reserva a própria altura, então esta faixa fina cai no fundo do container
+   (branco) sem cobrir nada nem empurrar o herói para fora do lugar.
+   ========================================================================== */
+
+.sp-trilha {
+  padding: 0.75rem var(--sp-gutter);
+  background: #fff;
+  border-bottom: 1px solid rgba(11, 33, 56, 0.08);
+  font-size: 0.8rem;
+}
+
+.sp-trilha ol {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sp-trilha li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sp-trilha a {
+  color: #5b7186;
+  text-decoration: none;
+}
+
+.sp-trilha a:hover {
+  color: var(--sp-blue);
+  text-decoration: underline;
+}
+
+/* O passo atual não é link, e o contraste menor é o que sinaliza isso sem
+   depender só da cor — ele também perde o sublinhado do hover. */
+.sp-trilha [aria-current="page"] {
+  color: #0b2138;
+  font-weight: 500;
+}
+
+.sp-trilha__sep {
+  color: #a8b8c6;
+}
+
+/* Herói de uma página de trecho: uma coluna só.
+
+   O `.sp-hero` é uma grade de duas colunas porque o herói de um bloco tem
+   imagem ao lado. Aqui não há imagem — sem isto o texto ficaria espremido em
+   metade da faixa, com a outra metade vazia. */
+.sp-hero--secao {
+  grid-template-columns: 1fr;
+  max-width: 62rem;
+}
+
+.sp-secao {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(2rem, 4vw, 3rem);
+}
+
+.sp-secao__grupo h2 {
+  margin: 0 0 1.2rem;
+  font-size: clamp(1.15rem, 2vw, 1.4rem);
+  text-align: center;
+}
+
+/* As grades de trecho alinham à esquerda: com `center` a última linha de uma
+   coluna de cinco cards ficava centralizada sob quatro, e a leitura quebrava. */
+.sp-secao .sp-cards {
+  justify-content: flex-start;
+}
+
+/*
+  No celular o card ocupa a largura inteira.
+
+  O `.sp-card` tem `max-width: 19rem` (304px), que numa tela de 375px deixa uma
+  faixa vazia à direita de toda a lista — o alinhamento à esquerda, que é o
+  certo no desktop, vira um desalinho aqui. Só nas páginas de trecho: o card
+  dentro de um bloco continua como está.
+*/
+@media (max-width: 640px) {
+  .sp-secao .sp-card {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
+
+/* Card que é link. A borda e o leve subir no hover são o único acréscimo
+   visual — o desenho do card continua sendo o `.sp-card` de sempre. */
+.sp-card--link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease;
+}
+
+.sp-card--link:hover,
+.sp-card--link:focus-visible {
+  border-color: var(--sp-blue);
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-card--link {
+    transition: none;
+  }
+
+  .sp-card--link:hover,
+  .sp-card--link:focus-visible {
+    transform: none;
+  }
+}
+
+/* A tela de 404. Reaproveita a faixa clara e os botões do resto das páginas —
+   é a mesma casa, não uma tela de erro de outro sistema. */
+.sp-404 {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding-top: clamp(4rem, 10vw, 7rem);
+  padding-bottom: clamp(4rem, 10vw, 7rem);
+  text-align: center;
+}
+
+.sp-404 h1 {
+  margin: 0 0 1rem;
+  font-size: clamp(1.8rem, 4vw, 2.8rem);
+  line-height: 1.1;
+}
+
+.sp-404 > p {
+  margin: 0 auto 2rem;
+  max-width: 34rem;
+  color: var(--sp-dim);
+}
+
+.sp-404__links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+/*
+  Os três links de seção, sobre a faixa clara.
+
+  O `.sp-btn--outline` do resto do site é branco com borda branca — ele existe
+  para o herói azul. Nesta faixa, que é branca, ele desaparecia por completo:
+  os três links estavam no HTML e ninguém os via. Aqui o mesmo botão é
+  reescrito no azul da marca, que é o que se lê sobre branco.
+*/
+.sp-404__links .sp-btn--outline {
+  color: var(--sp-blue);
+  border-color: var(--sp-blue);
+}
+
+.sp-404__links .sp-btn--outline:hover,
+.sp-404__links .sp-btn--outline:focus-visible {
+  background: var(--sp-blue);
+  color: #fff;
+}

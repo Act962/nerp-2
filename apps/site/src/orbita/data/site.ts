@@ -1,4 +1,5 @@
 import { legacy } from "../lib/timeline";
+import { findTool, type Tool } from "./catalog";
 
 /** O WhatsApp comercial — botão flutuante, CTA da barra e painéis. */
 export const WHATSAPP = {
@@ -59,25 +60,53 @@ export const STATS = [
   As colunas saem do catálogo real da suíte, não de uma lista de marketing.
   Antes havia aqui "Órbita CRM", "Órbita Store" e "Órbita Pay" — produtos que
   não existem. Agora são as ferramentas que existem, agrupadas como na órbita.
+
+  E são IDS, não rótulos escritos à mão.
+
+  Antes cada linha era uma string e todas apontavam para `#contato`: dezenove
+  nomes de produto no rodapé, nenhum levando à página do produto. Num rodapé,
+  que é o que aparece em toda página do site, isso é a maior concentração de
+  ligação interna que existe — e ela estava desperdiçada. Resolvendo pelo id, o
+  nome e o destino saem do mesmo catálogo que o menu usa, então rodapé e painel
+  não têm como divergir.
 */
+const colunaDoRodape = (title: string, ids: string[]) => ({
+  title,
+  links: ids
+    .map((id) => findTool(id))
+    .filter((tool): tool is Tool => tool !== null)
+    .map((tool) => ({ label: tool.name, href: tool.href ?? "#contato" })),
+});
+
 export const FOOTER = {
   columns: [
-    {
-      title: "O cliente chega e avança",
-      links: ["Tracking", "Chat", "Forms", "Agendas", "Forge"],
-    },
-    {
-      title: "A casa funciona por dentro",
-      links: ["Workspaces", "Payment", "N-box", "Ranking"],
-    },
-    {
-      title: "A empresa aparece e capta",
-      links: ["Planner", "Pages", "Linnker", "Comments", "Disparo"],
-    },
-    {
-      title: "O que só existe aqui",
-      links: ["Astro", "Space Station", "Route", "TradeGram", "NERP"],
-    },
+    colunaDoRodape("O cliente chega e avança", [
+      "tracking",
+      "chat",
+      "forms",
+      "agendas",
+      "forge",
+    ]),
+    colunaDoRodape("A casa funciona por dentro", [
+      "workspaces",
+      "payment",
+      "nbox",
+      "ranking",
+    ]),
+    colunaDoRodape("A empresa aparece e capta", [
+      "planner",
+      "pages",
+      "linnker",
+      "comments",
+      "disparo",
+    ]),
+    colunaDoRodape("O que só existe aqui", [
+      "astro",
+      "space-station",
+      "route",
+      "tradegram",
+      "nerp",
+    ]),
   ],
   contact: {
     title: "Contato",

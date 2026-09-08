@@ -89,7 +89,11 @@ export function OrbitaFallback({
               {group.tools.map((tool) => (
                 <article key={tool.id} className="of-card">
                   <span className="of-eyebrow">{tool.tagline}</span>
-                  <h3>{tool.fullName}</h3>
+                  {/* `h4` e não `h3`: o `h3` acima é o título do GRUPO, e o
+                      card é conteúdo dele. Com os dois em h3 o leitor de tela
+                      — e o rastreador — leem trinta e quatro títulos irmãos,
+                      sem hierarquia nenhuma. */}
+                  <h4>{tool.fullName}</h4>
                   <p>{tool.summary}</p>
                   <ul className="of-card__features">
                     {tool.features.map((feature) => (
@@ -108,6 +112,10 @@ export function OrbitaFallback({
             </div>
           </div>
         ))}
+
+        <a className="of-verTudo" href="/solucoes">
+          Ver todas as soluções →
+        </a>
       </section>
 
       {/* Os mesmos segmentos do painel da barra, em cards. */}
@@ -135,6 +143,10 @@ export function OrbitaFallback({
             </a>
           ))}
         </div>
+
+        <a className="of-verTudo" href="/segmentos">
+          Ver todos os segmentos →
+        </a>
       </section>
 
       <section className="of-impact">
@@ -160,7 +172,9 @@ export function OrbitaFallback({
         <div className="of-about">
           {sobre.groups.map((group) => (
             <div key={group.title}>
-              <p className="of-footer__col-title">{group.title}</p>
+              {/* Título de verdade: é o que dá ao "Sobre nós" a mesma estrutura
+                  que as outras seções têm — h2 da seção, h3 de cada grupo. */}
+              <h3 className="of-footer__col-title">{group.title}</h3>
               <ul className="of-about__list">
                 {group.items.map((item) => (
                   <li key={item.id}>
@@ -195,6 +209,10 @@ export function OrbitaFallback({
             <em>{sobre.highlight.action} →</em>
           </a>
         </div>
+
+        <a className="of-verTudo" href="/sobre">
+          Ver tudo sobre a empresa →
+        </a>
       </section>
 
       <section className="of-cta" id="contato">
@@ -235,8 +253,8 @@ export function OrbitaFallback({
               <p>{c.title}</p>
               <ul>
                 {c.links.map((l) => (
-                  <li key={l}>
-                    <a href="#contato">{l}</a>
+                  <li key={l.href}>
+                    <a href={l.href}>{l.label}</a>
                   </li>
                 ))}
               </ul>
