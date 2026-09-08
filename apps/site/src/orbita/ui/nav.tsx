@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BRAND, NAV } from "../data/site";
 import { useSiteContent } from "../lib/content-context";
@@ -82,6 +83,22 @@ export function Nav({
   };
 
   const closeMega = useCallback(() => setMega(null), []);
+
+  /*
+    O painel fecha quando a ROTA muda — não no clique do item.
+
+    Fechar no clique desmontava o link no mesmo tique em que o App Router
+    começava a transição, e a navegação era abortada: o carregador aparecia,
+    sumia, e a pessoa continuava na mesma página. Reagir à rota fecha o painel
+    exatamente quando a página nova entrou, que é quando ele deixa de fazer
+    sentido.
+  */
+  const pathname = usePathname();
+  // biome-ignore lint/correctness/useExhaustiveDependencies: o efeito existe para reagir à troca de rota, não ao painel aberto.
+  useEffect(() => {
+    setMega(null);
+    setOpen(false);
+  }, [pathname]);
 
   /* O botão do WhatsApp lê esta bandeira no próprio loop e sai de cena
      enquanto um painel cobre a tela. */

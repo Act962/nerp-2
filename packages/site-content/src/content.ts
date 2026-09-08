@@ -1,3 +1,5 @@
+import type { AstroPagina } from "./astro-pagina";
+
 /**
  * O conteúdo dos painéis da barra e dos ajustes do site.
  *
@@ -30,6 +32,21 @@ export type SiteContent = {
   stats: Array<{ value: string; label: string }>;
   contact: { email: string; phone: string };
   whatsapp: { number: string; href: string; label: string };
+  astro: AstroDisponibilidade;
+};
+
+/**
+ * O que o site precisa saber sobre o consultor antes de desenhar o botão.
+ *
+ * Só dois booleanos, e nenhum deles é preço: o site nunca recebe a tabela —
+ * ela é lida no servidor, na hora da estimativa. `precos` existe para o painel
+ * não oferecer uma pergunta que o Astro não pode responder.
+ */
+export type AstroDisponibilidade = {
+  /** Desligado, o botão do site vira o contato por WhatsApp. */
+  ativo: boolean;
+  /** Há faixa cadastrada, então dá para perguntar quanto custa. */
+  precos: boolean;
 };
 
 /**
@@ -48,6 +65,8 @@ export type SiteContentResponse = {
   stats: Array<{ value: string; label: string }>;
   contact: { email: string; phone: string } | null;
   whatsapp: { number: string; label: string } | null;
+  /** Ausente numa resposta antiga: quem lê assume o consultor desligado. */
+  astro?: AstroDisponibilidade;
 };
 
 /** O que `/api/site/page/[slug]` devolve. */
@@ -59,4 +78,9 @@ export type SitePageResponse = {
   ogImage: string;
   /** Já validados por `parseBlocks` do lado de quem serve. */
   blocks: unknown[];
+  /**
+   * O que o Astro fala nesta página. Ausente quando nada foi cadastrado —
+   * e aí ele passa em silêncio por ela.
+   */
+  astro?: AstroPagina;
 };

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type {
+  AstroPagina,
   SiteBlock,
   SiteContent,
   SiteContentResponse,
@@ -8,7 +9,12 @@ import type {
   SitePartnersResponse,
   SiteSection,
 } from "@nerp/site-content";
-import { parseBlocks, parsePartners } from "@nerp/site-content";
+import {
+  ASTRO_PAGINA_VAZIA,
+  lerAstroPagina,
+  parseBlocks,
+  parsePartners,
+} from "@nerp/site-content";
 import { assetUrl } from "./assets";
 import { DEFAULT_CONTENT } from "../orbita/data/content";
 import { findDefaultPage } from "./default-pages";
@@ -98,6 +104,9 @@ function applyFallback(data: SiteContentResponse | null): SiteContent {
           label: data.whatsapp.label,
         }
       : DEFAULT_CONTENT.whatsapp,
+    // Sem o campo — resposta antiga, ou este app à frente do outro — o
+    // consultor fica desligado. Silêncio é melhor que um botão que não abre.
+    astro: data.astro ?? { ativo: false, precos: false },
   };
 }
 
@@ -112,6 +121,8 @@ export type ProductPage = {
   seoDescription: string;
   ogImage: string;
   blocks: SiteBlock[];
+  /** O que o Astro fala e sabe aqui. Vazio quando nada foi cadastrado. */
+  astro: AstroPagina;
 };
 
 export async function getProductPage(
@@ -126,7 +137,11 @@ export async function getProductPage(
   // admin sempre ganha desta.
   if (!data) {
     const fallback = findDefaultPage(section, slug);
-    return fallback ? { ...fallback, ogImage: "" } : null;
+    // O conteúdo de reserva mora no código e não tem fala do mascote: quem
+    // escreve os balões é o admin, e sem ele o Astro passa em silêncio.
+    return fallback
+      ? { ...fallback, ogImage: "", astro: ASTRO_PAGINA_VAZIA }
+      : null;
   }
 
   return {
@@ -138,6 +153,7 @@ export async function getProductPage(
     // Validado de novo deste lado: entre os dois apps há uma rede, e confiar
     // no formato sem conferir é o que faz uma página inteira cair por um campo.
     blocks: parseBlocks(data.blocks),
+    astro: lerAstroPagina(data.astro),
   };
 }
 

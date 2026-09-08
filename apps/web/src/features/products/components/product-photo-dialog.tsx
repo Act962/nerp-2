@@ -36,24 +36,32 @@ export function ProductPhotoDialog({
   const salvar = useSetProductThumbnail();
   const recortar = useRemoveProductBackground();
 
+  // O último produto aberto continua desenhado enquanto o diálogo fecha. Sem
+  // isto, `produto` virando `null` desmontava o `Dialog` INTEIRO de uma vez —
+  // portal, trava de rolagem e guardas de foco do Radix — em vez de deixar o
+  // Radix conduzir o fechamento pelo `open`.
+  const [ultimo, setUltimo] = useState(produto);
+
   // Cada produto abre com a própria foto; sem isto o diálogo herdaria a chave
   // do item anterior.
   useEffect(() => {
-    if (produto) setChave(produto.image || "");
+    if (!produto) return;
+    setUltimo(produto);
+    setChave(produto.image || "");
   }, [produto]);
 
-  if (!produto) return null;
+  if (!ultimo) return null;
 
-  const temFotoSalva = Boolean(produto.image);
-  const mudouAFoto = chave !== "" && chave !== produto.image;
+  const temFotoSalva = Boolean(ultimo.image);
+  const mudouAFoto = chave !== "" && chave !== ultimo.image;
   const suspeita =
     recortar.data && !recortar.data.applied ? recortar.data.reason : null;
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog open={produto !== null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="truncate">{produto.name}</DialogTitle>
+          <DialogTitle className="truncate">{ultimo.name}</DialogTitle>
           <DialogDescription>
             Envie a foto e, depois de salvar, recorte o fundo.
           </DialogDescription>
@@ -66,7 +74,7 @@ export function ProductPhotoDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={() => recortar.mutate({ productId: produto.id })}
+              onClick={() => recortar.mutate({ productId: ultimo.id })}
               disabled={recortar.isPending || mudouAFoto}
             >
               {recortar.isPending ? <Spinner /> : <Eraser className="size-4" />}
@@ -99,11 +107,11 @@ export function ProductPhotoDialog({
           <Button
             onClick={() =>
               salvar.mutate(
-                { productId: produto.id, key: chave },
+                { productId: ultimo.id, key: chave },
                 { onSuccess: () => onOpenChange(false) },
               )
             }
-            disabled={!chave || salvar.isPending || chave === produto.image}
+            disabled={!chave || salvar.isPending || chave === ultimo.image}
           >
             {salvar.isPending && <Spinner />}
             Salvar foto

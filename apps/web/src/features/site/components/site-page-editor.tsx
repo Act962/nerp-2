@@ -32,6 +32,8 @@ import {
   emptyBlock,
   type SiteBlock,
   type SiteBlockType,
+  ASTRO_PAGINA_VAZIA,
+  type AstroPagina,
 } from "@nerp/site-content";
 import { useSavePage, useSitePage } from "../hooks/use-site-admin";
 import { sitePath, siteUrl } from "../lib/section";
@@ -40,6 +42,7 @@ import { SiteBlockFields } from "./site-block-fields";
 import { SitePagePreview } from "./site-page-preview";
 import { SiteBlockStyle } from "./site-block-style";
 import { SiteImagePicker } from "./site-image-picker";
+import { SitePageAstro } from "./site-page-astro";
 
 const ALL_TYPES = Object.keys(BLOCK_LABELS) as SiteBlockType[];
 
@@ -55,6 +58,7 @@ export function SitePageEditor({ pageId }: { pageId: string }) {
   const [seoTitle, setSeoTitle] = useState("");
   const [seoDescription, setSeoDescription] = useState("");
   const [ogImage, setOgImage] = useState("");
+  const [astro, setAstro] = useState<AstroPagina>(ASTRO_PAGINA_VAZIA);
   const [selected, setSelected] = useState(0);
   const [publishedAt, setPublishedAt] = useState<number | undefined>(undefined);
 
@@ -71,6 +75,7 @@ export function SitePageEditor({ pageId }: { pageId: string }) {
     setSeoTitle(page.seoTitle);
     setSeoDescription(page.seoDescription);
     setOgImage(page.ogImage);
+    setAstro(page.astro);
     setSelected(0);
   }, [page, pageId]);
 
@@ -86,6 +91,7 @@ export function SitePageEditor({ pageId }: { pageId: string }) {
         id: pageId,
         title,
         blocks,
+        astro,
         seoTitle,
         seoDescription,
         ogImage,
@@ -257,6 +263,8 @@ export function SitePageEditor({ pageId }: { pageId: string }) {
                 ))}
               </CardContent>
             </Card>
+
+            <SitePageAstro valor={astro} onChange={setAstro} />
 
             <Card>
               <CardHeader>

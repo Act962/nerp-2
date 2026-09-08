@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import type { SiteBlock } from "@nerp/site-content";
+import type { SiteLeadStatus } from "@/generated/prisma/enums";
 
 /**
  * Todas as chamadas do admin do site. Componente nenhum fala com `orpc`
@@ -331,6 +332,110 @@ export function useDeleteSiteBrand() {
       onSuccess: () => {
         toast.success("Marca excluída");
         invalidatePartners(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// ─── Astro consultor ──────────────────────────────────────────────────────────
+
+export function useAstroPricing() {
+  const { data, isPending } = useQuery(
+    orpc.site.astro.getPricing.queryOptions({ input: {} }),
+  );
+  return { pricing: data?.pricing, config: data?.config, isLoading: isPending };
+}
+
+function invalidateAstro(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: orpc.site.astro.getPricing.key() });
+}
+
+export function useSaveAstroPricing() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.astro.savePricing.mutationOptions({
+      onSuccess: () => {
+        toast.success("Faixas salvas");
+        invalidateAstro(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useSaveAstroConfig() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.astro.saveConfig.mutationOptions({
+      onSuccess: () => {
+        toast.success("Consultor atualizado");
+        invalidateAstro(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+/** A simulação não invalida nada: é conferência, não gravação. */
+export function useSimularPreco() {
+  return useMutation(
+    orpc.site.astro.simular.mutationOptions({
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// ─── Leads do site ────────────────────────────────────────────────────────────
+
+export function useSiteLeads(input: {
+  status?: SiteLeadStatus;
+  cursor?: string;
+}) {
+  const { data, isPending } = useQuery(
+    orpc.site.leads.list.queryOptions({ input }),
+  );
+  return {
+    leads: data?.leads ?? [],
+    nextCursor: data?.nextCursor ?? null,
+    novos: data?.novos ?? 0,
+    isLoading: isPending,
+  };
+}
+
+export function useSiteLead(id: string | null) {
+  const { data, isPending } = useQuery({
+    ...orpc.site.leads.get.queryOptions({ input: { id: id ?? "" } }),
+    enabled: !!id,
+  });
+  return { lead: data?.lead, isLoading: isPending };
+}
+
+function invalidateLeads(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: orpc.site.leads.list.key() });
+  queryClient.invalidateQueries({ queryKey: orpc.site.leads.get.key() });
+}
+
+export function useUpdateSiteLead() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.leads.update.mutationOptions({
+      onSuccess: () => {
+        toast.success("Lead atualizado");
+        invalidateLeads(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteSiteLead() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.leads.delete.mutationOptions({
+      onSuccess: () => {
+        toast.success("Lead excluído");
+        invalidateLeads(queryClient);
       },
       onError: (error) => toast.error(error.message),
     }),

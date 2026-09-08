@@ -46,8 +46,16 @@ function PanelLink({
     );
   }
 
+  /*
+    O painel NÃO fecha no clique.
+
+    Fechar aqui roda `setMega(null)` no mesmo tique do clique e DESMONTA este
+    link enquanto o App Router ainda está no meio da transição — a navegação
+    era abortada e a pessoa ficava na mesma página, depois de ver o carregador
+    aparecer e sumir. Quem fecha o painel é a troca de rota, no `Nav`.
+  */
   return (
-    <Link className={className} style={style} href={href} onClick={onNavigate}>
+    <Link className={className} style={style} href={href}>
       {children}
     </Link>
   );
@@ -392,11 +400,7 @@ export function MegaMenu({
             <ul className="o-mega__segs">
               {content.segmentos.map((segment) => (
                 <li key={segment.id}>
-                  <SegmentCard
-                    segment={segment}
-                    fallbackHref={whatsapp.href}
-                    onNavigate={onClose}
-                  />
+                  <SegmentCard segment={segment} onNavigate={onClose} />
                 </li>
               ))}
             </ul>
@@ -484,11 +488,9 @@ function ToolItem({
 
 function SegmentCard({
   segment,
-  fallbackHref,
   onNavigate,
 }: {
   segment: MenuEntry;
-  fallbackHref: string;
   onNavigate: () => void;
 }) {
   const body = (
@@ -503,36 +505,25 @@ function SegmentCard({
 
   const style = { ["--o-seg" as string]: segment.color };
 
-  if (segment.href) {
-    return (
-      <PanelLink
-        className="o-mega__seg"
-        style={style}
-        href={segment.href}
-        onNavigate={onNavigate}
-      >
-        {body}
-      </PanelLink>
-    );
-  }
-
   /*
-    Sem página própria, o card leva ao contato.
+    Sem `href` vindo do painel, o card vai para a página do segmento assim
+    mesmo: ela existe sempre. As seis são geradas por `default-pages.ts` a
+    partir do catálogo, então `/segmentos/<id>` responde mesmo com o banco
+    vazio ou o `apps/web` fora do ar.
 
-    É o destino honesto: a página do segmento ainda não existe, e mandar para
-    um lugar que existe vale mais do que um link morto ou um card inerte.
+    Este caminho já levou ao WhatsApp, e mandar quem clicou em "Supermercados"
+    para outro aplicativo, em aba nova, é surpresa demais para um item de menu
+    — ainda por cima escondendo o link faltando em vez de mostrá-lo.
   */
   return (
-    <a
+    <PanelLink
       className="o-mega__seg"
       style={style}
-      href={fallbackHref}
-      target="_blank"
-      rel="noreferrer noopener"
-      onClick={onNavigate}
+      href={segment.href ?? `/segmentos/${segment.id}`}
+      onNavigate={onNavigate}
     >
       {body}
-    </a>
+    </PanelLink>
   );
 }
 

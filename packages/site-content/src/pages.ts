@@ -4,8 +4,8 @@ import { CATEGORIES, findCatalogTool, RAW_TOOLS, type Tool } from "./catalog";
 /**
  * A página interna de uma solução, montada a partir do catálogo.
  *
- * Existe para as 19 soluções nascerem com a mesma estrutura sem ninguém
- * escrever 19 páginas à mão — e para os dois apps concordarem sobre o que é
+ * Existe para as 28 soluções nascerem com a mesma estrutura sem ninguém
+ * escrever 28 páginas à mão — e para os dois apps concordarem sobre o que é
  * essa estrutura: o `apps/site` usa como conteúdo de reserva e o `apps/web`
  * usa para semear o banco, de onde o admin passa a editar.
  *
@@ -1253,7 +1253,7 @@ export function buildSolutionPage(
   };
 }
 
-/** As 19 páginas de solução, na ordem do catálogo. */
+/** As 28 páginas de solução, na ordem do catálogo. */
 export function buildAllSolutionPages(options: {
   whatsappHref: string;
 }): SitePageSeed[] {
@@ -1264,4 +1264,17 @@ export function buildAllSolutionPages(options: {
 export function solutionSlug(toolId: string): string | null {
   const tool = findCatalogTool(toolId);
   return tool ? slugFor(tool) : null;
+}
+
+/**
+ * O par MAIS/MENOS de uma ferramenta, sem montar a página inteira.
+ *
+ * O `less` é a lista literal de dores que aquela ferramenta resolve — por isso
+ * é a melhor pista que existe no repositório para casar "o que o cliente
+ * reclama" com "que ferramenta serve". O consultor de IA busca por aqui.
+ */
+export function compareFor(
+  toolId: string,
+): { more: string[]; less: string[] } | null {
+  return PAGE_COPY[toolId]?.compare ?? null;
 }

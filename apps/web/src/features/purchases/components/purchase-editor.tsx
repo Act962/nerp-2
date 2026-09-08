@@ -16,7 +16,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { cn } from "@/lib/utils";
 import { currencyFormatter } from "@/utils/currency-formatter";
+import { toDateInput } from "@/utils/date-input";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import type { EditorItem } from "../lib/editor-item";
 import { purchaseTotals } from "../lib/purchase-totals";
@@ -26,6 +28,7 @@ import {
   useProcessPurchase,
   useUpdatePurchase,
 } from "../hooks/use-purchases";
+import type { ItemImportado } from "./import-items-dialog";
 import { ItemSearch, type PickedProduct } from "./item-search";
 import { ITEM_GRID, PurchaseItemRow } from "./purchase-item-row";
 import { ProcessPurchaseDialog } from "./process-purchase-dialog";
@@ -46,7 +49,11 @@ interface HeaderState {
 const HEADER_INICIAL: HeaderState = {
   supplierId: null,
   invoiceNumber: "",
-  orderDate: new Date().toISOString().slice(0, 10),
+  // Vazio, e preenchido só depois de montar (ver `useEffect` do "hoje"). No
+  // escopo do módulo a data congelava na PRIMEIRA avaliação: no servidor isso
+  // é quando o processo subiu — dias atrás, e diferente do que o navegador
+  // renderiza na hidratação.
+  orderDate: "",
   shipping: 0,
   discount: 0,
   installments: 1,
@@ -80,6 +87,18 @@ export function PurchaseEditor({ purchaseId }: { purchaseId?: string }) {
 
   const readOnly = nota !== undefined && nota.status !== "PENDING";
   const salvando = criar.isPending || atualizar.isPending;
+
+  // Nota nova nasce com a data de HOJE, resolvida no navegador e em horário
+  // LOCAL. `toISOString().slice(0, 10)` é UTC: em Fortaleza, a partir das 21h
+  // a nota já abria datada de amanhã.
+  useEffect(() => {
+    if (purchaseId) return;
+    setHeader((h) =>
+      h.orderDate
+        ? h
+        : { ...h, orderDate: toDateInput(new Date().toISOString()) },
+    );
+  }, [purchaseId]);
 
   useEffect(() => {
     if (!nota || hidratado) return;
@@ -144,6 +163,39 @@ export function PurchaseEditor({ purchaseId }: { purchaseId?: string }) {
         },
       },
     ]);
+  };
+
+  /**
+   * Itens vindos de planilha, de uma vez.
+   *
+   * ACRESCENTA à nota em vez de substituir: importar duas planilhas do mesmo
+   * fornecedor, ou completar a mão o que a planilha não trouxe, é o caso comum
+   * — e apagar o que já estava digitado seria destrutivo sem aviso.
+   */
+  const adicionarVarios = (itens: ItemImportado[]) => {
+    setItems((atual) => [
+      ...atual,
+      ...itens.map((item, indice) => ({
+        lineId: `${item.product.id}-${atual.length + indice}-${performance.now()}`,
+        productId: item.product.id,
+        name: item.product.name,
+        code: item.product.sku ?? item.product.barcode,
+        unit: item.product.unit,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        discount: item.discount,
+        newSalePrice: item.newSalePrice,
+        product: {
+          costPrice: item.product.costPrice,
+          salePrice: item.product.salePrice,
+          currentStock: item.product.currentStock,
+          trackStock: item.product.trackStock,
+        },
+      })),
+    ]);
+    toast.success(
+      `${itens.length} ${itens.length === 1 ? "item adicionado" : "itens adicionados"} à nota`,
+    );
   };
 
   const payload = () => ({
@@ -324,6 +376,7 @@ export function PurchaseEditor({ purchaseId }: { purchaseId?: string }) {
         {!readOnly && (
           <ItemSearch
             onPick={adicionar}
+            onImport={adicionarVarios}
             supplierId={header.supplierId}
             disabled={salvando || processar.isPending}
           />

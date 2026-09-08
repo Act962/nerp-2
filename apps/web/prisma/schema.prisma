@@ -338,9 +338,9 @@ model Organization {
   // Saldo único, sem separar bônus: o extrato (`StarTransaction`) já registra
   // de onde cada crédito veio, e duas contas paralelas só fariam sentido se
   // alguma delas tivesse regra de uso diferente — o que não existe aqui.
-  starsBalance    Int           @default(0) @map("stars_balance")
+  starsBalance    Int              @default(0) @map("stars_balance")
   /// Início do ciclo mensal. Nulo enquanto a organização nunca recebeu crédito.
-  starsCycleStart DateTime?     @map("stars_cycle_start")
+  starsCycleStart DateTime?        @map("stars_cycle_start")
   agendas         Agenda[]
   crmWorkflows    CrmWorkflow[]
   crmWorkflowRuns CrmWorkflowRun[]
@@ -1608,15 +1608,15 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id          String   @id @default(cuid())
-  purchaseId  String
-  productId   String
+  id           String   @id @default(cuid())
+  purchaseId   String
+  productId    String
   // Dados
-  productName String
-  quantity    Decimal  @db.Decimal(10, 3)
-  unitPrice   Decimal  @db.Decimal(10, 2)
-  discount    Decimal  @default(0) @db.Decimal(10, 2)
-  total       Decimal  @db.Decimal(10, 2)
+  productName  String
+  quantity     Decimal  @db.Decimal(10, 3)
+  unitPrice    Decimal  @db.Decimal(10, 2)
+  discount     Decimal  @default(0) @db.Decimal(10, 2)
+  total        Decimal  @db.Decimal(10, 2)
   // Preço de venda que o operador ACEITOU para este produto ao conferir a nota.
   // NULL = não mexer no preço. Persiste porque o rascunho é reaberto: sem isso
   // a precificação seria refeita do zero a cada abertura.
@@ -1624,10 +1624,10 @@ model PurchaseItem {
   // Não existe `createdAt` aqui. Sem ordem explícita as linhas voltam do banco
   // em ordem indefinida — a conferência contra o papel fica inviável e o
   // "último custo" do mesmo produto repetido deixa de ser determinístico.
-  sortOrder   Int      @default(0)
+  sortOrder    Int      @default(0)
   // Relações
-  purchase    Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  product     Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  purchase     Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([purchaseId])
   @@index([productId])
@@ -4712,23 +4712,23 @@ model PaymentBankAccount {
 }
 
 model PaymentCategory {
-  id             String                @id @default(cuid())
-  organizationId String                @map("organization_id")
-  name           String
-  type           FinancialCategoryType
-  color          String?               @default("#1E90FF")
-  icon           String?
-  parentId       String?               @map("parent_id")
-  isActive       Boolean               @default(true) @map("is_active")
+  id                String                @id @default(cuid())
+  organizationId    String                @map("organization_id")
+  name              String
+  type              FinancialCategoryType
+  color             String?               @default("#1E90FF")
+  icon              String?
+  parentId          String?               @map("parent_id")
+  isActive          Boolean               @default(true) @map("is_active")
   // DRO: operacional (padrão) x não-operacional/financeiro (juros, multas, etc.)
-  isOperational  Boolean               @default(true) @map("is_operational")
+  isOperational     Boolean               @default(true) @map("is_operational")
   // Classifica, mas não entra no DRE nem no DRO. Comprar mercadoria é trocar
   // caixa por ativo: o resultado só é atingido na venda, via CMV — lançar a
   // compra como custo contaria o mesmo dinheiro duas vezes. Serve igual para
   // empréstimo, aporte de sócio e compra de imobilizado.
-  excludeFromResult Boolean            @default(false) @map("exclude_from_result")
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
+  excludeFromResult Boolean               @default(false) @map("exclude_from_result")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  updatedAt         DateTime              @updatedAt @map("updated_at")
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   parent       PaymentCategory?  @relation("PaymentCategoryHierarchy", fields: [parentId], references: [id])
@@ -5110,7 +5110,9 @@ enum SitePageStatus {
   PUBLISHED
 }
 
-/** Em que trecho do site a página vive — é o primeiro segmento da URL. */
+/**
+ * Em que trecho do site a página vive — é o primeiro segmento da URL.
+ */
 enum SitePageSection {
   SOLUCOES
   SEGMENTOS
@@ -5175,15 +5177,21 @@ model SitePage {
   slug            String          @unique
   section         SitePageSection @default(SOLUCOES)
   title           String
-  status          SitePageStatus @default(DRAFT)
-  blocks          Json           @default("[]")
+  status          SitePageStatus  @default(DRAFT)
+  blocks          Json            @default("[]")
   publishedBlocks Json?
+  // O que o Astro sabe desta página: palavras-chave, os balões que ele solta
+  // ao visitante chegar, e um resumo que entra no prompt quando a conversa
+  // começa aqui. Segue o mesmo par rascunho/publicado dos blocos — senão
+  // editar uma fala do Astro a colocaria no ar antes de a página estar.
+  astro           Json?
+  astroPublished  Json?
   seoTitle        String?
   seoDescription  String?
   ogImage         String? // key do R2
   publishedAt     DateTime?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   menuItems SiteMenuItem[]
 
@@ -5261,6 +5269,100 @@ model SiteSetting {
   updatedAt DateTime @updatedAt
 
   @@map("site_settings")
+}
+
+enum SiteLeadStatus {
+  NOVO
+  EM_CONTATO
+  QUALIFICADO
+  GANHO
+  PERDIDO
+  ARQUIVADO
+
+  @@map("site_lead_status")
+}
+
+enum SiteChatChannel {
+  SITE // visitante anônimo no site institucional
+  APP // cliente logado no ERP
+
+  @@map("site_chat_channel")
+}
+
+// Uma conversa com o Astro consultor.
+//
+// Globais como as demais `site_*`: o lead é da ÓRBITA, não de um inquilino.
+// `organizationId` só existe no canal logado, e é informação de quem já é
+// cliente — não é escopo de multi-tenancy.
+//
+// A TRANSCRIÇÃO NÃO É GUARDADA, de propósito. O que serve ao comercial é o
+// diagnóstico estruturado e o resumo; a conversa crua é dado pessoal não
+// estruturado que ninguém pediu. O precedente é o `PublicChatSession` do
+// Órbita, que guarda a sessão e não as mensagens.
+//
+// O IP também não: `ipHash` é sha256(ip + sal). O limite por IP funciona igual
+// com o hash, e um vazamento do banco não entrega endereço de visitante.
+model SiteChatSession {
+  id             String          @id @default(cuid())
+  channel        SiteChatChannel @default(SITE)
+  organizationId String?
+  userId         String?
+  ipHash         String?
+  userAgent      String?
+  landingPage    String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  messageCount   Int             @default(0)
+  tokensIn       Int             @default(0)
+  tokensOut      Int             @default(0)
+  diagnostic     Json?
+  // Por onde a pessoa passou antes de falar. Chega junto da primeira mensagem,
+  // vinda do navegador — o site não grava navegação de quem nunca conversou.
+  trilha         Json?
+  summary        String?
+  leadId         String?
+  consentAt      DateTime?
+  expiresAt      DateTime
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  lead SiteLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+
+  @@index([expiresAt])
+  @@index([ipHash, createdAt]) // é este índice que o limite por IP usa
+  @@index([leadId])
+  @@map("site_chat_sessions")
+}
+
+// O interessado que saiu de uma conversa.
+//
+// `quotedMin/MaxCents` congela a faixa que o Astro falou: se a tabela de preços
+// mudar amanhã, ainda dá para saber o que foi dito a esta pessoa.
+model SiteLead {
+  id             String         @id @default(cuid())
+  name           String
+  company        String?
+  email          String?
+  phone          String?
+  segment        String?
+  stores         Int?
+  users          Int?
+  toolIds        String[]       @default([])
+  quotedMinCents Int?
+  quotedMaxCents Int?
+  briefing       Json?
+  status         SiteLeadStatus @default(NOVO)
+  notes          String?
+  handoffAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  sessions SiteChatSession[]
+
+  @@index([status, createdAt])
+  @@index([email])
+  @@map("site_leads")
 }
 
 // CRM — funil de atendimento (port do Órbita/nasaex-wey)
@@ -6581,13 +6683,13 @@ model CrmWorkflow {
   funnelId       String  @map("funnel_id")
   createdById    String? @map("created_by_id")
 
-  name        String
-  description String?
-  isActive    Boolean @default(false) @map("is_active")
+  name           String
+  description    String?
+  isActive       Boolean @default(false) @map("is_active")
   /// Teto de execuções por hora. Existe porque automação que manda mensagem
   /// pode ser disparada pela resposta que ela mesma provocou; sem teto, um
   /// grafo mal montado vira loop com custo por mensagem.
-  maxRunsPerHour Int  @default(60) @map("max_runs_per_hour")
+  maxRunsPerHour Int     @default(60) @map("max_runs_per_hour")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
