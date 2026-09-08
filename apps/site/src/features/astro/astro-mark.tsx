@@ -162,6 +162,7 @@ export function AstroMark({
     let ultimoMovimento = performance.now();
     let piscaEm = proximaPiscada(performance.now());
     let piscandoDesde = 0;
+    let ultimaRolagem = window.scrollY;
 
     const aoMover = (evento: PointerEvent) => {
       const svg = alvoRef.current;
@@ -177,20 +178,6 @@ export function AstroMark({
       ultimoMovimento = performance.now();
     };
 
-    /*
-      Rolar é atenção.
-
-      A inércia media presença pelo ponteiro, e quem lê a página inteira sem
-      encostar no mouse era lido como ausente: ele emburrava justamente com
-      quem estava prestando atenção no site.
-
-      Em captura porque `scroll` não borbulha — assim a rolagem de qualquer
-      contêiner interno chega aqui, e não só a da janela.
-    */
-    const aoRolar = () => {
-      ultimoMovimento = performance.now();
-    };
-
     const aoEntrar = () => {
       sobOCursor = true;
     };
@@ -201,6 +188,24 @@ export function AstroMark({
     const laco = () => {
       raf = requestAnimationFrame(laco);
       const agora = performance.now();
+
+      /*
+        Rolar é atenção — e a posição é lida, não escutada.
+
+        A inércia media presença só pelo ponteiro, e quem lia a página inteira
+        sem encostar no mouse era tomado por ausente: ele emburrava justamente
+        com quem estava prestando atenção.
+
+        Um ouvinte de `scroll` resolveria em quase todo lugar, menos onde mais
+        importa: a home é conduzida pelo Lenis, que roda a viagem no próprio
+        laço e NÃO emite `scroll` na janela — medido, zero eventos numa
+        rolagem de dezessete mil pixels. Comparar a posição a cada quadro não
+        depende de evento nenhum e vale para as duas páginas.
+      */
+      if (window.scrollY !== ultimaRolagem) {
+        ultimaRolagem = window.scrollY;
+        ultimoMovimento = agora;
+      }
 
       // 1. o olhar persegue o ponteiro com atraso — é o que faz parecer olhar,
       //    e não espelhar o mouse.
@@ -324,18 +329,9 @@ export function AstroMark({
       casa?.addEventListener("pointerenter", aoEntrar);
       casa?.addEventListener("pointerleave", aoSair);
     }
-    // Só quem vigia a inércia usa `ultimoMovimento`; no cabeçalho do painel
-    // este ouvinte não teria a quem servir.
-    if (vigiaInercia) {
-      window.addEventListener("scroll", aoRolar, {
-        passive: true,
-        capture: true,
-      });
-    }
     raf = requestAnimationFrame(laco);
     return () => {
       window.removeEventListener("pointermove", aoMover);
-      window.removeEventListener("scroll", aoRolar, { capture: true });
       casa?.removeEventListener("pointerenter", aoEntrar);
       casa?.removeEventListener("pointerleave", aoSair);
       cancelAnimationFrame(raf);

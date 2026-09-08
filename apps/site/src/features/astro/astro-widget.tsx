@@ -342,6 +342,58 @@ function marcarQueFalou(slug: string) {
 }
 
 /**
+ * Se o convite do fim da viagem já foi feito nesta visita.
+ *
+ * Uma vez por visita e ponto: painel que abre sozinho toda vez que alguém
+ * chega ao fim de uma página é pop-up, não convite.
+ */
+const RODAPE = "orbita:astro:rodape";
+
+function jaConvidouNoRodape(): boolean {
+  try {
+    return sessionStorage.getItem(RODAPE) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function marcarConviteNoRodape() {
+  try {
+    sessionStorage.setItem(RODAPE, "1");
+  } catch {
+    // Sem memória ele convida de novo na próxima página. Chato, não quebrado.
+  }
+}
+
+/** Quão perto do fim já conta como "chegou ao rodapé". */
+const MARGEM_DO_FIM = 120;
+
+/**
+ * O quanto a página precisa ser maior que a tela para ter havido viagem.
+ *
+ * Numa página curta o fim é o próprio começo, e sem esta trava o painel
+ * abriria sozinho no carregamento — que é o oposto de recompensar quem rolou
+ * o site inteiro.
+ */
+const VIAGEM_MINIMA = 1.5;
+
+/** De quanto em quanto tempo ele confere se a viagem acabou. */
+const INTERVALO_DE_ESPREITA = 300;
+
+/**
+ * Quantas leituras seguidas no fim valem como "chegou".
+ *
+ * Uma só não vale: a home é pinada pelo ScrollTrigger, e num salto brusco de
+ * rolagem a altura da página oscila por um quadro — medido, o painel abriu na
+ * METADE da viagem porque naquele instante o fim da página tinha encolhido
+ * até debaixo dos pés de quem rolava.
+ *
+ * Quase um segundo parado no rodapé também é melhor como gesto: quem bate no
+ * fim e volta correndo não estava procurando conversa.
+ */
+const CONFIRMACOES_DO_FIM = 3;
+
+/**
  * O que ele diz onde não há página cadastrada — a home, principalmente.
  *
  * A home não é uma `SitePage`, então não passa pelo admin e não tem balão
@@ -547,6 +599,58 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
   useEffect(() => {
     if (aberto) setBalao(null);
   }, [aberto]);
+
+  /**
+   * Quem rolou até o fim ganha a conversa aberta.
+   *
+   * Chegar ao rodapé é ter visto tudo o que a página tinha a dizer — é o
+   * momento em que puxar assunto deixa de ser interrupção e passa a ser a
+   * próxima coisa a fazer.
+   *
+   * A conta é sobre a posição da página, e não sobre um elemento `<footer>`:
+   * a home é cena 3D e não tem rodapé nenhum no DOM, e o único `<footer>` de
+   * toda página é o do próprio painel do Astro — observá-lo abriria o painel
+   * por causa do painel.
+   *
+   * E é RELÓGIO, não ouvinte de `scroll`. A home é conduzida pelo Lenis, que
+   * roda a viagem no próprio laço e não emite `scroll` na janela: medido, zero
+   * eventos numa rolagem de dezessete mil pixels, contra um evento na mesma
+   * sonda dentro de uma página de solução. Perguntar de tempos em tempos não
+   * depende de quem conduz a rolagem.
+   *
+   * Três décimos de segundo porque `scrollHeight` obriga o navegador a
+   * recalcular layout, e a cena 3D não precisa disso sessenta vezes por
+   * segundo. O relógio morre no instante do convite: ele é um só.
+   */
+  useEffect(() => {
+    if (!astro.ativo || aberto || jaConvidouNoRodape()) return;
+
+    let seguidas = 0;
+    const relogio = setInterval(() => {
+      const pagina = document.documentElement;
+      const tela = window.innerHeight;
+      // Sem tela medida (aba oculta, painel embutido) toda página tem altura
+      // zero, e "chegou ao fim" viraria verdade no carregamento.
+      if (tela === 0) return;
+      // A home cresce enquanto se rola, então o fim é recalculado sempre.
+      const houveViagem = pagina.scrollHeight >= tela * VIAGEM_MINIMA;
+      const noFim =
+        window.scrollY + tela >= pagina.scrollHeight - MARGEM_DO_FIM;
+
+      if (!houveViagem || !noFim) {
+        seguidas = 0;
+        return;
+      }
+      seguidas += 1;
+      if (seguidas < CONFIRMACOES_DO_FIM) return;
+
+      clearInterval(relogio);
+      marcarConviteNoRodape();
+      setAberto(true);
+    }, INTERVALO_DE_ESPREITA);
+
+    return () => clearInterval(relogio);
+  }, [astro.ativo, aberto]);
 
   const transport = useMemo(
     () =>
