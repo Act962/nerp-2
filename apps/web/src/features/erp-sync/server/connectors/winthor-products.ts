@@ -6,7 +6,7 @@ import {
   type OracleConfig,
   type OracleQuery,
 } from "../oracle-client";
-import type { ExternalProductDTO } from "./types";
+import type { ExternalProductDTO, ExternalProductStockDTO } from "./types";
 
 // Cadastro de PRODUTOS do Winthor.
 //
@@ -85,6 +85,70 @@ export async function fetchWinthorProducts(
       for (const row of rows) out.push(toDTO(row));
       lastCode = Number(rows[rows.length - 1].CODPROD);
       // Página incompleta = acabou; evita uma ida a mais ao banco.
+      if (rows.length < PAGE_SIZE) break;
+    }
+
+    return out;
+  });
+}
+
+interface StockRow {
+  CODPROD: number | string;
+  CODFILIAL: number | string;
+  FANTASIA: string | null;
+  QTESTGER: number | null;
+}
+
+/**
+ * Estoque por filial (`PCEST`), só o que TEM estoque.
+ *
+ * `QTESTGER >= 1` no WHERE, não no cliente: é o recorte que interessa ao
+ * catálogo ("produto ativo é o que tem pelo menos 1 em estoque") e é o que
+ * mantém o volume na casa dos milhares em vez de `produtos × filiais`.
+ *
+ * A paginação avança pela TUPLA (codprod, codfilial), não só pelo produto:
+ * paginar só por `codprod` cortaria um produto no meio quando as filiais dele
+ * caem em páginas diferentes, e as que sobrassem sumiriam do espelho.
+ */
+export async function fetchWinthorProductStock(
+  config: OracleConfig,
+): Promise<ExternalProductStockDTO[]> {
+  const schema = assertIdentifier(config.schema);
+
+  return withOracleReadOnly(config, async (query: OracleQuery) => {
+    const out: ExternalProductStockDTO[] = [];
+    let lastCode = -1;
+    let lastBranch = "";
+
+    while (out.length < MAX_ROWS) {
+      const rows = await query<StockRow>(
+        `SELECT e.codprod    AS "CODPROD",
+                e.codfilial  AS "CODFILIAL",
+                f.fantasia   AS "FANTASIA",
+                e.qtestger   AS "QTESTGER"
+           FROM ${schema}.pcest e
+           LEFT JOIN ${schema}.pcfilial f ON f.codigo = e.codfilial
+          WHERE e.qtestger >= 1
+            AND (e.codprod > :lastCode
+                 OR (e.codprod = :lastCode AND e.codfilial > :lastBranch))
+          ORDER BY e.codprod, e.codfilial
+          FETCH FIRST ${PAGE_SIZE} ROWS ONLY`,
+        { lastCode, lastBranch },
+      );
+      if (rows.length === 0) break;
+
+      for (const row of rows) {
+        out.push({
+          externalCode: String(row.CODPROD),
+          branchCode: String(row.CODFILIAL).trim(),
+          branchName: row.FANTASIA?.trim() || null,
+          stock: Number(row.QTESTGER ?? 0),
+        });
+      }
+
+      const last = rows[rows.length - 1];
+      lastCode = Number(last.CODPROD);
+      lastBranch = String(last.CODFILIAL).trim();
       if (rows.length < PAGE_SIZE) break;
     }
 

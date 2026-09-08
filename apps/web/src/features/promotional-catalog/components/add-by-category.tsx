@@ -35,6 +35,10 @@ interface AddByCategoryProps {
   filters?: ProductFilters;
   // Capacidade da página atual (ex.: 12), para converter produtos em páginas.
   pageCapacity: number;
+  // Busca por nome da categoria. Vem de FORA porque a barra de busca do
+  // diálogo é compartilhada pelas duas abas — o campo é o mesmo, só muda o que
+  // ele filtra.
+  busca: string;
   onApply: (groups: CategoryGroup[]) => void;
   onDone: () => void;
 }
@@ -43,6 +47,7 @@ export function AddByCategory({
   excludeIds,
   filters,
   pageCapacity,
+  busca,
   onApply,
   onDone,
 }: AddByCategoryProps) {
@@ -52,9 +57,6 @@ export function AddByCategory({
   const [limitMode, setLimitMode] = useState<"all" | "count">("all");
   const [count, setCount] = useState(String(pageCapacity));
   const [confirming, setConfirming] = useState(false);
-  // Busca LOCAL: a lista inteira já veio do `categorySummary`, então filtrar
-  // aqui não custa uma ida nova ao servidor.
-  const [busca, setBusca] = useState("");
 
   const summary = useQuery(
     orpc.promotionalCatalog.categorySummary.queryOptions({
@@ -144,13 +146,6 @@ export function AddByCategory({
           {allSelected ? "Limpar seleção" : "Selecionar todas"}
         </Button>
       </div>
-
-      <Input
-        placeholder="Buscar categoria…"
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        className="h-8 text-xs"
-      />
 
       <ScrollArea className="h-[240px] rounded-md border">
         {summary.isLoading ? (

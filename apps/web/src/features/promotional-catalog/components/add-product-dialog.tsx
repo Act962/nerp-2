@@ -336,6 +336,21 @@ export function AddProductDialog({
   const [filters, setFilters] = useState<NonNullable<ProductFilters>>({
     onlyActive: true,
   });
+  // Aba corrente. Controlada porque a barra de busca é COMPARTILHADA pelas duas
+  // abas: o campo é o mesmo, o que ele filtra depende de onde o usuário está.
+  const [tab, setTab] = useState<"busca" | "categoria">("busca");
+  // Filiais com estoque espelhado. Vazio = org sem ERP ligado (ou sync que
+  // ainda não rodou), e aí o seletor de filial nem aparece.
+  const branches = useQuery({
+    ...orpc.promotionalCatalog.branchList.queryOptions(),
+    enabled: open,
+    // Sem retentativa: org sem ERP (ou com a migration ainda por aplicar)
+    // devolve erro sempre, e insistir só enche o log. Sem filial, o seletor
+    // some e o resto do diálogo segue igual.
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const [categoriaBusca, setCategoriaBusca] = useState("");
   const setFilter = (patch: Partial<NonNullable<ProductFilters>>) =>
     setFilters((f) => ({ ...f, ...patch }));
   const nFiltros = activeFilterCount(filters);
@@ -358,6 +373,19 @@ export function AddProductDialog({
     fichasFiltro.push({
       label: "Com promoção",
       clear: () => setFilter({ withPromotion: false }),
+    });
+  if (filters.branchCode)
+    fichasFiltro.push({
+      label: `Filial: ${
+        branches.data?.find((b) => b.code === filters.branchCode)?.name ??
+        filters.branchCode
+      }`,
+      clear: () => setFilter({ branchCode: undefined }),
+    });
+  else if (filters.withStock)
+    fichasFiltro.push({
+      label: "Com estoque",
+      clear: () => setFilter({ withStock: undefined }),
     });
   if (filters.inOnlineCatalog)
     fichasFiltro.push({
@@ -658,7 +686,11 @@ export function AddProductDialog({
             </Select>
           </div>
         )}
-        <Tabs defaultValue="busca" className="flex flex-col gap-4">
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as "busca" | "categoria")}
+          className="flex flex-col gap-4"
+        >
           {onApplyCategories && (
             <TabsList className="grid h-10 w-full grid-cols-2">
               <TabsTrigger value="busca" className="gap-1.5">
@@ -671,15 +703,27 @@ export function AddProductDialog({
               </TabsTrigger>
             </TabsList>
           )}
-          <TabsContent value="busca" className="mt-0 flex flex-col gap-4">
+          {/* Busca e Filtros ficam FORA das abas: na aba por categoria o
+              filtro continuava valendo (o "restam N" já o respeita) mas não
+              aparecia em lugar nenhum, e não havia como desligá-lo sem voltar
+              para a busca. */}
+          <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Search className="-translate-y-1/2 absolute top-1/2 left-3 size-5 text-muted-foreground" />
                 <Input
                   className="h-11 pl-10 text-base"
-                  placeholder="Buscar por nome, SKU ou código de barras..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={
+                    tab === "categoria"
+                      ? "Buscar categoria..."
+                      : "Buscar por nome, SKU ou código de barras..."
+                  }
+                  value={tab === "categoria" ? categoriaBusca : search}
+                  onChange={(e) =>
+                    tab === "categoria"
+                      ? setCategoriaBusca(e.target.value)
+                      : setSearch(e.target.value)
+                  }
                   autoFocus
                 />
               </div>
@@ -729,6 +773,47 @@ export function AddProductDialog({
                         }
                       />
                     </div>
+                    {(branches.data?.length ?? 0) > 0 && (
+                      <>
+                        <div className="h-px bg-border" />
+                        {/* "Ativo" para quem monta encarte é produto com
+                            estoque; o ERP só marca o que foi EXCLUÍDO do
+                            cadastro, então sem isto o filtro "só ativos" traz o
+                            cadastro inteiro. */}
+                        <div className="flex flex-col gap-1 text-xs">
+                          Filial (com estoque)
+                          <Select
+                            value={
+                              filters.branchCode ??
+                              (filters.withStock ? "__any__" : "__all__")
+                            }
+                            onValueChange={(v) =>
+                              setFilter({
+                                branchCode: v.startsWith("__") ? undefined : v,
+                                withStock: v === "__any__" ? true : undefined,
+                              })
+                            }
+                          >
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__all__">
+                                Todas (sem filtrar estoque)
+                              </SelectItem>
+                              <SelectItem value="__any__">
+                                Qualquer filial com estoque
+                              </SelectItem>
+                              {branches.data?.map((b) => (
+                                <SelectItem key={b.code} value={b.code}>
+                                  {b.name} ({b.products})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </>
+                    )}
                     <div className="h-px bg-border" />
                     <div className="flex items-end gap-2">
                       <div className="flex flex-1 flex-col gap-1 text-[11px] text-muted-foreground">
@@ -781,9 +866,39 @@ export function AddProductDialog({
                 </PopoverContent>
               </Popover>
             </div>
-
-            {/* Categoria à esquerda, filtros ligados à direita: quem estreitou a
-                busca vê o motivo na mesma linha em que escolhe a categoria. */}
+            {fichasFiltro.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-muted-foreground text-xs">
+                  Filtros ativos:
+                </span>
+                {fichasFiltro.map((f) => (
+                  <button
+                    key={f.label}
+                    type="button"
+                    onClick={f.clear}
+                    className="flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pr-1.5 pl-2 text-primary text-xs hover:bg-primary/20"
+                    title={`Remover o filtro "${f.label}"`}
+                  >
+                    {f.label}
+                    <X className="size-3" />
+                  </button>
+                ))}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 px-2 text-xs"
+                  onClick={() => setFilters({})}
+                >
+                  <Trash2 className="size-3.5" />
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
+          </div>
+          <TabsContent value="busca" className="mt-0 flex flex-col gap-4">
+            {/* Categoria: só da busca. As fichas de filtro ligado subiram para
+                o cabeçalho compartilhado, junto do botão que as liga. */}
             <div className="flex flex-col gap-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <Select
@@ -804,36 +919,6 @@ export function AddProductDialog({
                     ))}
                   </SelectContent>
                 </Select>
-
-                {fichasFiltro.length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-muted-foreground text-xs">
-                      Filtros ativos:
-                    </span>
-                    {fichasFiltro.map((f) => (
-                      <button
-                        key={f.label}
-                        type="button"
-                        onClick={f.clear}
-                        className="flex items-center gap-1 rounded-full bg-primary/10 py-0.5 pr-1.5 pl-2 text-primary text-xs hover:bg-primary/20"
-                        title={`Remover o filtro "${f.label}"`}
-                      >
-                        {f.label}
-                        <X className="size-3" />
-                      </button>
-                    ))}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 px-2 text-xs"
-                      onClick={() => setFilters({})}
-                    >
-                      <Trash2 className="size-3.5" />
-                      Limpar filtros
-                    </Button>
-                  </div>
-                )}
               </div>
               {categorySlug && (
                 <div className="flex items-center justify-between rounded-md border px-2 py-1.5">
@@ -994,6 +1079,7 @@ export function AddProductDialog({
                 excludeIds={config.manuallyAddedIds}
                 filters={filters}
                 pageCapacity={pageCapacity ?? 12}
+                busca={categoriaBusca}
                 onApply={onApplyCategories}
                 onDone={() => setOpen(false)}
               />

@@ -32,6 +32,23 @@ describe("productFilterWhere", () => {
     });
   });
 
+  it("withStock exige estoque em alguma filial; branchCode, naquela filial", () => {
+    // Só existe linha em `ProductBranchStock` quando há estoque, então
+    // "existe linha" É "tem estoque" — daí o `some` sem condição de valor.
+    expect(productFilterWhere({ withStock: true })).toEqual({
+      branchStocks: { some: {} },
+    });
+    expect(productFilterWhere({ branchCode: "2" })).toEqual({
+      branchStocks: { some: { branchCode: "2" } },
+    });
+  });
+
+  it("branchCode manda quando vem junto de withStock — é o mais específico", () => {
+    expect(productFilterWhere({ withStock: true, branchCode: "1" })).toEqual({
+      branchStocks: { some: { branchCode: "1" } },
+    });
+  });
+
   it("faixa de preço aceita só o mínimo, só o máximo, ou os dois", () => {
     expect(productFilterWhere({ minPrice: 5 })).toEqual({
       salePrice: { gte: 5 },
@@ -75,6 +92,14 @@ describe("productFilterWhere", () => {
       promotionalPrice: { not: null },
       salePrice: { gte: 2 },
     });
+  });
+});
+
+describe("filial no contador", () => {
+  it("estoque conta UMA ficha, escolhendo filial ou não", () => {
+    expect(activeFilterCount({ withStock: true })).toBe(1);
+    expect(activeFilterCount({ branchCode: "1" })).toBe(1);
+    expect(activeFilterCount({ withStock: true, branchCode: "1" })).toBe(1);
   });
 });
 

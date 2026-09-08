@@ -24,6 +24,13 @@ export const productFilterSchema = z
     // Visível no Catálogo Online. Campo SEPARADO do `isActive`: um produto pode
     // estar ativo no ERP e oculto do catálogo online, e vice-versa.
     inOnlineCatalog: z.boolean().optional(),
+    // Com estoque em ALGUMA filial do ERP. Só existe linha em
+    // `ProductBranchStock` quando há estoque, então "tem linha" é "tem
+    // estoque" — ver o doc do model no schema.
+    withStock: z.boolean().optional(),
+    // Estoque numa filial ESPECÍFICA (CODFILIAL). Mais específico que
+    // `withStock`: quando os dois vêm, este manda.
+    branchCode: z.string().optional(),
     minPrice: z.number().nonnegative().optional(),
     maxPrice: z.number().nonnegative().optional(),
   })
@@ -50,6 +57,10 @@ export function productFilterWhere(
   if (filters.withImage) where.thumbnail = { not: "" };
   if (filters.withPromotion) where.promotionalPrice = { not: null };
 
+  if (filters.branchCode)
+    where.branchStocks = { some: { branchCode: filters.branchCode } };
+  else if (filters.withStock) where.branchStocks = { some: {} };
+
   const { minPrice, maxPrice } = filters;
   if (minPrice !== undefined || maxPrice !== undefined) {
     where.salePrice = {
@@ -69,6 +80,7 @@ export function activeFilterCount(filters: ProductFilters): number {
     (filters.withImage ? 1 : 0) +
     (filters.withPromotion ? 1 : 0) +
     (filters.inOnlineCatalog ? 1 : 0) +
+    (filters.branchCode || filters.withStock ? 1 : 0) +
     (filters.minPrice !== undefined || filters.maxPrice !== undefined ? 1 : 0)
   );
 }
