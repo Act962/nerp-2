@@ -1,22 +1,10 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useDro } from "@/features/financeiro/hooks/use-financeiro";
+import type { Periodo } from "@/features/financeiro/lib/periodo";
 import { formatCents } from "@/features/financeiro/lib/money";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
-
-function monthBounds() {
-  const now = new Date();
-  const first = new Date(now.getFullYear(), now.getMonth(), 1);
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-  return {
-    from: first.toISOString().slice(0, 10),
-    to: last.toISOString().slice(0, 10),
-  };
-}
 
 function Line({
   label,
@@ -56,10 +44,8 @@ function Line({
   );
 }
 
-export function DroTab() {
-  const bounds = monthBounds();
-  const [from, setFrom] = useState(bounds.from);
-  const [to, setTo] = useState(bounds.to);
+export function DroTab({ periodo }: { periodo: Periodo }) {
+  const { from, to } = periodo;
 
   const { data, isPending } = useDro(from, to);
   const op = data?.operational;
@@ -67,27 +53,7 @@ export function DroTab() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="dro-from">De</Label>
-          <Input
-            id="dro-from"
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            className="w-44"
-          />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="dro-to">Até</Label>
-          <Input
-            id="dro-to"
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            className="w-44"
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
         <p className="text-xs text-muted-foreground">
           Operacional × não-operacional pela marcação da categoria. Por
           competência, sem cancelados.

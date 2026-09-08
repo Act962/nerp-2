@@ -42,6 +42,7 @@ import type {
   EntryType,
   FinanceEntry,
 } from "@/features/financeiro/lib/types";
+import type { Periodo } from "@/features/financeiro/lib/periodo";
 import { cn } from "@/lib/utils";
 import {
   BanknoteIcon,
@@ -67,7 +68,7 @@ const STATUS_OPTIONS: EntryStatus[] = [
   "PENDING_APPROVAL",
 ];
 
-export function EntriesTab() {
+export function EntriesTab({ periodo }: { periodo: Periodo }) {
   const [typeFilter, setTypeFilter] = useState<EntryType | typeof ALL>(ALL);
   const [statusFilter, setStatusFilter] = useState<EntryStatus | typeof ALL>(
     ALL,
@@ -89,6 +90,10 @@ export function EntriesTab() {
     status: statusFilter === ALL ? undefined : statusFilter,
     onlyOverdue: onlyOverdue || undefined,
     search: search || undefined,
+    // Período do filtro global, por VENCIMENTO — que é o recorte que o
+    // servidor aplica em `listEntries`.
+    from: periodo.from,
+    to: periodo.to,
   });
 
   const entries = data?.entries ?? [];

@@ -19,9 +19,10 @@ import { useBarcodeScan } from "@/hooks/use-barcode-scan";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { client } from "@/lib/orpc";
 import { currencyFormatter } from "@/utils/currency-formatter";
-import { Plus, Search } from "lucide-react";
+import { FileSpreadsheet, Plus, Search } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { ImportItemsDialog, type ItemImportado } from "./import-items-dialog";
 import { QuickCreateProductDialog } from "./quick-create-product-dialog";
 
 export interface PickedProduct {
@@ -47,14 +48,18 @@ export interface PickedProduct {
  */
 export function ItemSearch({
   onPick,
+  onImport,
   supplierId,
   disabled,
 }: {
   onPick: (product: PickedProduct) => void;
+  /** Itens vindos de planilha, adicionados de uma vez. */
+  onImport: (itens: ItemImportado[]) => void;
   supplierId: string | null;
   disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
+  const [importando, setImportando] = useState(false);
   const [term, setTerm] = useState("");
   const [codigoNovo, setCodigoNovo] = useState<string | null>(null);
   const search = useDebouncedValue(term, 200);
@@ -68,7 +73,7 @@ export function ItemSearch({
 
   // O leitor só é ouvido com o dropdown fechado: com ele aberto, a rajada de
   // teclas é para o campo de busca.
-  useBarcodeScan(!disabled && !open, async (code) => {
+  useBarcodeScan(!disabled && !open && !importando, async (code) => {
     try {
       const { product } = await client.products.findByCode({ code });
       if (product) {
@@ -153,12 +158,28 @@ export function ItemSearch({
           type="button"
           variant="outline"
           disabled={disabled}
+          onClick={() => setImportando(true)}
+        >
+          <FileSpreadsheet className="size-4" />
+          Planilha
+        </Button>
+
+        <Button
+          type="button"
+          variant="outline"
+          disabled={disabled}
           onClick={() => setCodigoNovo("")}
         >
           <Plus className="size-4" />
           Novo produto
         </Button>
       </div>
+
+      <ImportItemsDialog
+        open={importando}
+        onOpenChange={setImportando}
+        onImport={onImport}
+      />
 
       <QuickCreateProductDialog
         barcode={codigoNovo}
