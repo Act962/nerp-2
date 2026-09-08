@@ -107,14 +107,13 @@ fechar — coluna única e dois cards por linha.
 
 ### Contato
 
-`WHATSAPP`, em `data/site.ts`, é o número comercial. Ele alimenta três lugares:
-o botão flutuante no canto inferior direito (`ui/whatsapp.tsx`), o
-"Agendar Demonstração" da barra e os CTAs dos painéis.
+`WHATSAPP`, em `data/site.ts`, é o número comercial. Ele alimenta o
+"Agendar Demonstração" da barra, os CTAs dos painéis e a saída "falar com uma
+pessoa" dentro do Astro.
 
-O botão flutuante escreve a própria opacidade no loop, não pelo React: ela
-acompanha `scroll.intro` — antes da cortina subir não há o que perguntar — e
-zera quando `scroll.menuOpen` está ligado, porque com a folha aberta no celular
-ele só cobriria a lista.
+Não há botão flutuante de WhatsApp: o canto inferior direito é do Astro
+(`features/astro/astro-widget.tsx`), e ter dois discos disputando o mesmo canto
+só empilhava um sobre o outro.
 
 ### Retrato
 
@@ -133,6 +132,19 @@ E uma de leitura, em `scene/tool-nodes.tsx`: em telas estreitas a janela de
 foco encolhe de `0.42` para `0.14` rad, então só o rótulo da ferramenta em
 foco aparece. Com a janela larga, quatro placas se empilhavam em 390px e
 nenhuma ficava legível.
+
+**A pilha da base.** No desktop os blocos que dividem o mesmo momento estão em
+lados opostos do quadro — o título à direita, a frase de impacto à esquerda,
+os números embaixo — e por isso podem se cruzar à vontade. No retrato todos
+têm a largura da tela, e um cruzamento vira texto escrito por cima de texto.
+Então os três se empilham, cada um apoiado no de baixo, por variáveis em
+`orbita.css`: os indicadores no rodapé (`--o-about-bottom`), o título do
+"Sobre" acima deles (`--o-stats-rows` × `--o-stat-row`) e a frase de impacto
+acima do título (`--o-sobre-band`), com piso na faixa do título de seção
+(`--o-section-bottom` + `--o-section-band`), que é o vizinho de baixo enquanto
+ela entra. `--o-stats-rows` é a única que vem do React — ela depende de
+quantos indicadores o painel cadastrou — e é escrita na raiz da experiência
+para os dois blocos a herdarem.
 
 ### Favicon
 

@@ -1,7 +1,9 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { useAssetProgress } from "./hooks/use-asset-progress";
+import { useSiteContent } from "./lib/content-context";
 import { useEnvironment } from "./hooks/use-environment";
 import { useScrollTimeline } from "./hooks/use-scroll-timeline";
 import { OrbitaFallback } from "./fallback/orbita-fallback";
@@ -16,7 +18,6 @@ import {
 } from "./ui/sections";
 import { Footer } from "./ui/footer";
 import { AdvanceButton } from "./ui/advance";
-import { WhatsAppButton } from "./ui/whatsapp";
 import { BrandSpinner } from "./ui/brand-spinner";
 import { Intro } from "./ui/intro";
 import { LightChrome } from "./ui/light-chrome";
@@ -56,6 +57,17 @@ export function OrbitaExperience({
   const root = useRef<HTMLDivElement>(null);
   const immersive = env.ready && env.webgl && !env.reducedMotion;
 
+  /*
+    Quantas linhas a grade de indicadores tem.
+
+    Fica na raiz, e não no bloco que a desenha, porque no celular DOIS blocos
+    se apoiam nela (ver `--o-stat-row` em `orbita.css`): o título do "Sobre",
+    logo acima dos números, e a frase de impacto, acima do título. Publicada
+    aqui, a medida chega aos dois por herança.
+  */
+  const { stats } = useSiteContent();
+  const linhasDeIndicadores = Math.max(1, Math.ceil(stats.length / 2));
+
   useScrollTimeline({
     target: root,
     enabled: immersive,
@@ -65,7 +77,11 @@ export function OrbitaExperience({
   if (!immersive) return <OrbitaFallback appHref={appHref} />;
 
   return (
-    <div className="orbita-root" ref={root}>
+    <div
+      className="orbita-root"
+      ref={root}
+      style={{ "--o-stats-rows": linhasDeIndicadores } as CSSProperties}
+    >
       <div className="orbita-stage">
         <div className="orbita-canvas">
           <Suspense fallback={null}>
@@ -100,7 +116,6 @@ export function OrbitaExperience({
           <ProgressRail />
           <ProductMode />
           <AdvanceButton />
-          <WhatsAppButton />
         </div>
 
         <LoadingVeil />

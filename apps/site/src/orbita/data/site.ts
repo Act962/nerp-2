@@ -1,7 +1,7 @@
 import { legacy } from "../lib/timeline";
 import { findTool, type Tool } from "./catalog";
 
-/** O WhatsApp comercial — botão flutuante, CTA da barra e painéis. */
+/** O WhatsApp comercial — CTA da barra, painéis e a saída "falar com uma pessoa" do Astro. */
 export const WHATSAPP = {
   number: "558698221810",
   href: "https://wa.me/558698221810",

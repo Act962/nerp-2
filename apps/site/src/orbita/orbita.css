@@ -22,6 +22,27 @@
   --o-gutter: clamp(1.25rem, 4vw, 4.5rem);
 
   /*
+    As faixas da base, no celular.
+
+    No retrato tudo tem a largura da tela, então os blocos que dividem o mesmo
+    momento se empilham na base e precisam saber onde o de baixo termina. Daí
+    estas medidas serem variáveis e não números soltos: o título do "Sobre" se
+    apoia nos indicadores, e a frase de impacto se apoia no título de seção.
+
+    `--o-stat-row` é a altura de uma linha da grade de indicadores com o
+    respiro até a seguinte, e `--o-sobre-band` a do título que se apoia nela;
+    `--o-section-band` é a faixa de um título de seção — olho, título e apoio.
+    Todas já embutem a folga de quem vem por cima. `--o-stats-rows` vem do
+    React, na raiz: é a única que depende de quantos indicadores o painel
+    cadastrou.
+  */
+  --o-about-bottom: clamp(3rem, 12vh, 7rem);
+  --o-stat-row: 6.1rem;
+  --o-sobre-band: 6.75rem;
+  --o-section-bottom: clamp(6rem, 20vh, 9rem);
+  --o-section-band: 11.5rem;
+
+  /*
    * Altura total em telas: 1 de cortina de abertura + 17 de viagem.
    *
    * Era 10 (1 + 9). Cresceu para caber a descida à Terra — a seção dos
@@ -943,29 +964,6 @@
   }
 }
 
-.o-whatsapp {
-  position: absolute;
-  right: clamp(1rem, 2vw, 1.6rem);
-  bottom: clamp(1rem, 2vw, 1.6rem);
-  z-index: 8;
-  width: 54px;
-  height: 54px;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #25d366;
-  color: #fff;
-  box-shadow: 0 12px 28px -10px rgba(37, 211, 102, 0.75);
-  transition:
-    box-shadow 0.25s ease,
-    filter 0.25s ease;
-}
-
-.o-whatsapp:hover {
-  filter: brightness(1.06);
-  box-shadow: 0 16px 34px -10px rgba(37, 211, 102, 0.9);
-}
-
 /* --- blocos de conteúdo ------------------------------------------------ */
 
 /*
@@ -1310,7 +1308,7 @@
 .o-block--about {
   left: var(--o-gutter);
   right: var(--o-gutter);
-  bottom: clamp(3rem, 12vh, 7rem);
+  bottom: var(--o-about-bottom);
   display: flex;
   justify-content: center;
 }
@@ -1691,16 +1689,6 @@
     align-items: flex-start;
   }
 
-  .o-whatsapp {
-    width: 48px;
-    height: 48px;
-  }
-
-  .o-whatsapp svg {
-    width: 25px;
-    height: 25px;
-  }
-
   .o-mega__grid {
     grid-template-columns: minmax(0, 1fr);
     gap: 1.4rem;
@@ -1775,19 +1763,38 @@
     max-width: none;
   }
 
+  /*
+    A frase de impacto divide a tela com dois vizinhos, um de cada lado do
+    tempo: o título da última categoria ainda sai quando ela entra, e o título
+    do "Sobre" já entra quando ela sai. No desktop isso não se vê — um está à
+    direita, o outro à esquerda. Aqui tudo tem a largura da tela, e empilhar os
+    três na base fazia um ser escrito por cima do outro.
+
+    Então ela é o topo da pilha do celular: acima do título do "Sobre", que já
+    está acima dos indicadores. O `max` põe um piso na faixa do título de
+    seção, que é o vizinho de baixo enquanto ela entra.
+  */
   .o-block--impact {
     left: var(--o-gutter);
     right: var(--o-gutter);
     max-width: none;
     align-items: flex-end;
-    padding-bottom: clamp(5rem, 16vh, 8rem);
+    padding-bottom: max(
+      calc(var(--o-section-bottom) + var(--o-section-band)),
+      calc(
+        var(--o-about-bottom) +
+        var(--o-stats-rows, 2) *
+        var(--o-stat-row) +
+        var(--o-sobre-band)
+      )
+    );
   }
 
   .o-block--section {
     left: var(--o-gutter);
     right: var(--o-gutter);
     top: auto;
-    bottom: clamp(6rem, 20vh, 9rem);
+    bottom: var(--o-section-bottom);
     max-width: none;
     align-items: flex-start;
     text-align: left;
@@ -1817,6 +1824,20 @@
   .o-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 1.1rem 1rem;
+  }
+
+  /*
+    Os indicadores viram 2x2 aqui e crescem para cima, invadindo a faixa onde
+    mora o título de seção — "Orbitamos com você em cada desafio." saía escrito
+    por cima dos números. Só o título do Sobre sobe: os da suíte não têm nada
+    embaixo deles e continuam onde estavam.
+  */
+  .o-block--sobre {
+    bottom: calc(
+      var(--o-about-bottom) +
+      var(--o-stats-rows, 2) *
+      var(--o-stat-row)
+    );
   }
 
   .o-progress {
@@ -2413,6 +2434,33 @@
 .orbita-root[data-claro="true"] .o-nav--mega .o-nav__link,
 .orbita-root[data-claro="true"] .o-nav--mega .o-nav__signin {
   color: var(--o-mega-ink);
+}
+
+/*
+  E a gaveta do celular também traz o próprio fundo.
+
+  A tinta escura acima existe porque no trecho claro o fundo da barra é a cena
+  branca. Dentro da folha do hambúrguer o fundo é a folha — azul quase preta —,
+  e ali essa mesma tinta desaparecia: o menu abria com os itens ilegíveis do
+  branco até o fim do sobrevoo. Dentro dela vale o contraste do escuro.
+
+  A gaveta e um painel da barra nunca estão abertos juntos (abrir um painel
+  fecha a gaveta, em `ui/nav.tsx`), então as duas marcações não disputam.
+*/
+.orbita-root[data-claro="true"] .o-nav--open .o-nav__link,
+.orbita-root[data-claro="true"] .o-nav--open .o-nav__signin {
+  color: rgba(226, 238, 255, 0.78);
+}
+
+.orbita-root[data-claro="true"] .o-nav--open .o-nav__link[data-active="true"],
+.orbita-root[data-claro="true"] .o-nav--open .o-nav__link:hover,
+.orbita-root[data-claro="true"] .o-nav--open .o-nav__signin:hover {
+  color: var(--o-white);
+}
+
+.orbita-root[data-claro="true"] .o-nav--open .o-nav__signup {
+  border-color: rgba(120, 180, 255, 0.34);
+  color: var(--o-white);
 }
 
 /* --- a descida: cases e marcas ------------------------------------------ */
