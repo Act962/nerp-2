@@ -1,7 +1,10 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { getIndustryChromeBatch } from "@/features/books/server/industry-chrome";
+import {
+  chromeForBook,
+  getIndustryChromeBatch,
+} from "@/features/books/server/industry-chrome";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
@@ -26,6 +29,7 @@ export const listBook = base
         distributorLogo: true,
         coverLayout: true,
         coverBackground: true,
+        customChrome: true,
         supplier: { select: { name: true, logo: true } },
         organization: { select: { logo: true } },
         _count: { select: { items: true } },
@@ -46,7 +50,7 @@ export const listBook = base
     return {
       books: books.map((book) => {
         const industryCover = book.supplierId
-          ? chrome.get(book.supplierId)?.cover
+          ? chromeForBook(chrome.get(book.supplierId), book.customChrome).cover
           : null;
         const rejectedCount = book.items.filter(
           (item) => item.approvalStatus === "REJECTED",

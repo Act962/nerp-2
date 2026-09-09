@@ -46,25 +46,51 @@ export const listApprovedForImport = base
       },
     });
 
-    // Fotos já usadas em alguma página deste book: o picker mostra "Já usada -
-    // pág. N" (N = ordem da página + 2, pois capa=1 e o conteúdo começa em 2).
+    // Fotos já usadas em alguma página deste book: o picker mostra
+    // "Já usada - pág. N".
+    //
+    // O número sai da POSIÇÃO da página na lista ordenada (+2: a capa é 1 e o
+    // conteúdo começa em 2), e não de `order + 2`. `order` sozinho mente:
+    // apagar uma página do meio não recompacta os `order` (delete-page.ts), e
+    // aí a tarja passa a citar uma página que a tela numera de outro jeito.
+    //
+    // E a MESMA captura pode estar em várias páginas — ela vai em todas, em
+    // ordem. Antes ficava a primeira linha que o Postgres devolvesse, num
+    // findMany sem `orderBy`: quem estivesse olhando outra página via a tarja
+    // apontar para um lugar onde a foto também está, mas não o que ele vê.
     const usedInBook = new Set<string>();
-    const usedInPage = new Map<string, number>();
+    const usedInPages = new Map<string, number[]>();
     if (input.bookId) {
+      const pages = await prisma.bookPage.findMany({
+        where: {
+          bookId: input.bookId,
+          book: { organizationId: context.org.id },
+        },
+        orderBy: { order: "asc" },
+        select: { id: true },
+      });
+      const numeroDaPagina = new Map(pages.map((page, i) => [page.id, i + 2]));
+
       const used = await prisma.bookItem.findMany({
         where: {
           bookId: input.bookId,
           book: { organizationId: context.org.id },
           pdvPhotoId: { in: photos.map((p) => p.id) },
         },
-        select: { pdvPhotoId: true, bookPage: { select: { order: true } } },
+        select: { pdvPhotoId: true, bookPageId: true },
       });
       for (const item of used) {
         usedInBook.add(item.pdvPhotoId);
-        if (item.bookPage && !usedInPage.has(item.pdvPhotoId)) {
-          usedInPage.set(item.pdvPhotoId, item.bookPage.order + 2);
-        }
+        const numero = item.bookPageId
+          ? numeroDaPagina.get(item.bookPageId)
+          : undefined;
+        // Item do modelo legado não tem página própria: fica só "Já usada".
+        if (numero == null) continue;
+        const paginas = usedInPages.get(item.pdvPhotoId) ?? [];
+        if (!paginas.includes(numero)) paginas.push(numero);
+        usedInPages.set(item.pdvPhotoId, paginas);
       }
+      for (const paginas of usedInPages.values()) paginas.sort((a, b) => a - b);
     }
 
     return {
@@ -84,7 +110,7 @@ export const listApprovedForImport = base
           storeName: photo.store.name,
           supplierName: photo.supplier?.name ?? null,
           usedInBook: usedInBook.has(photo.id),
-          usedInPage: usedInPage.get(photo.id) ?? null,
+          usedInPages: usedInPages.get(photo.id) ?? [],
         })),
     };
   });

@@ -65,6 +65,16 @@ interface ImportPhotoDialogProps {
   onPick: (photo: PickedPhoto) => void;
 }
 
+// "Já usada - pág. 2, 4 e 5". A mesma captura pode estar em mais de uma página
+// do book, e citar só uma delas fazia a tarja apontar para um lugar diferente
+// daquele que o usuário está olhando.
+function rotuloJaUsada(paginas: number[]): string {
+  if (paginas.length === 0) return "Já usada";
+  if (paginas.length === 1) return `Já usada - pág. ${paginas[0]}`;
+  const ultima = paginas[paginas.length - 1];
+  return `Já usada - págs. ${paginas.slice(0, -1).join(", ")} e ${ultima}`;
+}
+
 export function ImportPhotoDialog({
   open,
   onOpenChange,
@@ -140,7 +150,17 @@ export function ImportPhotoDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col overflow-hidden sm:max-w-[95vw]">
+      <DialogContent
+        className="flex h-[95vh] max-h-[95vh] w-[95vw] max-w-[95vw] flex-col overflow-hidden sm:max-w-[95vw]"
+        // Com o preview aberto, o Esc fecha SÓ o preview. É preciso usar o
+        // gancho do próprio Radix: ele escuta o keydown em captura, na montagem
+        // do diálogo, então um listener nosso no document nunca chega antes.
+        onEscapeKeyDown={(event) => {
+          if (!previewKey) return;
+          event.preventDefault();
+          setPreviewKey(null);
+        }}
+      >
         <DialogHeader>
           <DialogTitle>Adicionar foto</DialogTitle>
           <DialogDescription>
@@ -277,9 +297,7 @@ export function ImportPhotoDialog({
                       />
                       {photo.usedInBook && (
                         <span className="absolute inset-x-0 bottom-0 bg-amber-500/90 py-0.5 text-center text-[11px] font-semibold text-white">
-                          {photo.usedInPage != null
-                            ? `Já usada - pág. ${photo.usedInPage}`
-                            : "Já usada"}
+                          {rotuloJaUsada(photo.usedInPages)}
                         </span>
                       )}
                     </button>
@@ -322,12 +340,23 @@ export function ImportPhotoDialog({
         </div>
       </DialogContent>
 
-      {/* Preview ampliado (aberto pelo ícone "ver foto"). Fecha no X ou no
-          fundo. */}
+      {/* Preview ampliado (aberto pelo ícone "ver foto"). Fecha no X, no fundo
+          ou no Esc. */}
       {open &&
         previewKey &&
         createPortal(
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-6">
+          <div
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-2"
+            // O diálogo do Radix põe `pointer-events: none` no <body> enquanto
+            // está aberto, e este portal é filho do body — sem devolver o
+            // `auto` aqui, NADA dentro do preview recebia clique: nem o X, nem
+            // o fundo. A foto abria e não tinha como fechar.
+            style={{ pointerEvents: "auto" }}
+            // E o portal fica FORA do conteúdo do diálogo: sem parar o
+            // `pointerdown` aqui, o Radix lê qualquer clique no preview como
+            // "clicou fora" e fecha o picker inteiro junto.
+            onPointerDown={(event) => event.stopPropagation()}
+          >
             {/* Fundo clicável pra fechar. */}
             <button
               type="button"
@@ -335,18 +364,22 @@ export function ImportPhotoDialog({
               onClick={() => setPreviewKey(null)}
               className="absolute inset-0 cursor-default"
             />
+            {/* 95% da tela: a caixa é fixa em 95vw × 95vh e o `contain`
+                encaixa a foto dentro, então ela ocupa 95% na dimensão que
+                manda — inclusive ampliando foto pequena, que antes abria no
+                tamanho original e parecia miniatura numa tela grande. */}
             {/* biome-ignore lint/performance/noImgElement: preview ampliado da key do R2 */}
             <img
               src={constructUrl(previewKey)}
               alt=""
-              className="pointer-events-none relative max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+              className="pointer-events-none relative h-[95vh] w-[95vw] object-contain"
             />
             <button
               type="button"
               aria-label="Fechar"
               title="Fechar"
               onClick={() => setPreviewKey(null)}
-              className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/15 text-white transition-colors hover:bg-white/25"
+              className="absolute right-4 top-4 flex size-10 items-center justify-center rounded-full bg-white/20 text-white transition-colors hover:bg-white/35"
             >
               <X className="size-5" />
             </button>

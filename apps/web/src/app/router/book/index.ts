@@ -8,6 +8,7 @@ import { removeBookItem } from "./remove-item";
 import { reorderBookItems } from "./reorder-items";
 import { generateBookPdf } from "./generate";
 import { updateBookCoverLayout } from "./update-cover-layout";
+import { resetBookChrome } from "./reset-chrome";
 import { getDefaultCoverTemplate } from "./get-default-cover-template";
 import { setDefaultCoverTemplate } from "./set-default-cover-template";
 import { listSupplierBrands } from "./list-supplier-brands";
@@ -57,6 +58,7 @@ export const bookRoutes = {
   reorderItems: reorderBookItems,
   generate: generateBookPdf,
   updateCoverLayout: updateBookCoverLayout,
+  resetChrome: resetBookChrome,
   getDefaultCoverTemplate: getDefaultCoverTemplate,
   setDefaultCoverTemplate: setDefaultCoverTemplate,
   listSupplierBrands: listSupplierBrands,

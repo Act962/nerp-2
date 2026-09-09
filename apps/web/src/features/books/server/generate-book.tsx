@@ -29,6 +29,7 @@ import {
 import {
   composeFocusPhotoForPdf,
   cropPhotoForPdf,
+  pdfSafeImageUrl,
   reencodeToJpeg,
 } from "./crop-photo";
 import { getIndustryChrome } from "./industry-chrome";
@@ -63,30 +64,55 @@ async function resolveV2PhotoSource(
   return toJpegSource(url);
 }
 
+// As logos de layout se repetem em todas as páginas do book; converter a mesma
+// uma vez por geração evita baixar e reprocessar a cada página.
+type ImageUrlCache = Map<string, Promise<string>>;
+
+function urlParaPdf(key: string, cache: ImageUrlCache): Promise<string> {
+  const url = constructUrl(key);
+  if (!url) return Promise.resolve("");
+  const emCache = cache.get(url);
+  if (emCache) return emCache;
+  const conversao = pdfSafeImageUrl(url);
+  cache.set(url, conversao);
+  return conversao;
+}
+
 // `imageKey` de cada elemento tipo "image" vira URL completa — book-document.tsx
-// só sabe renderizar, não resolve keys do R2.
-function resolveLayoutImages(
+// só sabe renderizar, não resolve keys do R2. Formato que o react-pdf não
+// decodifica (webp/heic/svg) vira data URL convertida aqui: sem isso o elemento
+// some do PDF sem aviso, que é o que fazia a logo da indústria não sair na capa.
+async function resolveLayoutImages(
   layout: unknown,
-  logos?: { organization?: string | null; supplier?: string | null },
-): CoverElement[] | null {
+  logos: { organization?: string | null; supplier?: string | null } | undefined,
+  cache: ImageUrlCache,
+): Promise<CoverElement[] | null> {
   if (!Array.isArray(layout)) return null;
-  return (layout as CoverElement[]).map((element) => {
-    if (element.type !== "image") return element;
-    const key = resolveImageKey(element, logos);
-    return key
-      ? { ...element, imageKey: constructUrl(key) }
-      : { ...element, imageKey: "" };
-  });
+  return Promise.all(
+    (layout as CoverElement[]).map(async (element) => {
+      if (element.type !== "image") return element;
+      const key = resolveImageKey(element, logos);
+      return {
+        ...element,
+        imageKey: key ? await urlParaPdf(key, cache) : "",
+      };
+    }),
+  );
 }
 
 // `imageKey` do fundo vira URL completa, igual resolveLayoutImages faz pros
 // elementos — book-document.tsx só sabe renderizar, não resolve keys do R2.
-function readBackground(value: unknown): CoverBackground | null {
+async function readBackground(
+  value: unknown,
+  cache: ImageUrlCache,
+): Promise<CoverBackground | null> {
   if (!value || typeof value !== "object") return null;
   const background = value as CoverBackground;
   return {
     ...background,
-    imageKey: background.imageKey ? constructUrl(background.imageKey) : null,
+    imageKey: background.imageKey
+      ? await urlParaPdf(background.imageKey, cache)
+      : null,
   };
 }
 
@@ -279,6 +305,7 @@ export async function generateBook(bookId: string): Promise<string> {
   const industryChrome = await getIndustryChrome(
     book.organizationId,
     book.supplierId,
+    book.customChrome,
   );
 
   const template =
@@ -321,7 +348,12 @@ export async function generateBook(bookId: string): Promise<string> {
     organization: distributorKey,
     supplier: book.supplier?.logo ?? null,
   };
-  const pageLayout = resolveLayoutImages(book.pageLayout, logos);
+  const imageUrlCache: ImageUrlCache = new Map();
+  const pageLayout = await resolveLayoutImages(
+    book.pageLayout,
+    logos,
+    imageUrlCache,
+  );
   const bookPhotoSlots = buildPhotoSlotMap(pageLayout);
 
   // Modelo novo: cada BookPage vira 1 página do PDF. Fotos vêm dos N
@@ -334,7 +366,11 @@ export async function generateBook(bookId: string): Promise<string> {
       const itemsInPage = page.items.filter((it) => it.pdvPhoto.photos[0]);
       const primary = itemsInPage[0]?.pdvPhoto;
 
-      const itemPageLayout = resolveLayoutImages(page.pageLayout, logos);
+      const itemPageLayout = await resolveLayoutImages(
+        page.pageLayout,
+        logos,
+        imageUrlCache,
+      );
       const photoSlots = itemPageLayout
         ? buildPhotoSlotMap(itemPageLayout)
         : bookPhotoSlots;
@@ -381,7 +417,7 @@ export async function generateBook(bookId: string): Promise<string> {
       return {
         pageLayout: itemPageLayout,
         pageBackground: itemPageLayout
-          ? readBackground(page.pageBackground)
+          ? await readBackground(page.pageBackground, imageUrlCache)
           : null,
         storeName: page.store?.name ?? null,
         storeManager: primary?.managerName ?? page.store?.managerName ?? null,
@@ -417,7 +453,11 @@ export async function generateBook(bookId: string): Promise<string> {
   // BookItem é uma página independente com todas as fotos do próprio PdvPhoto.
   const legacyItems = await Promise.all(
     book.items.map(async (item) => {
-      const itemPageLayout = resolveLayoutImages(item.pageLayout, logos);
+      const itemPageLayout = await resolveLayoutImages(
+        item.pageLayout,
+        logos,
+        imageUrlCache,
+      );
       const photoSlots = itemPageLayout
         ? buildPhotoSlotMap(itemPageLayout)
         : bookPhotoSlots;
@@ -425,7 +465,7 @@ export async function generateBook(bookId: string): Promise<string> {
       return {
         pageLayout: itemPageLayout,
         pageBackground: itemPageLayout
-          ? readBackground(item.pageBackground)
+          ? await readBackground(item.pageBackground, imageUrlCache)
           : null,
         storeName: item.pdvPhoto.store.name,
         storeCity: item.pdvPhoto.store.city,
@@ -481,22 +521,26 @@ export async function generateBook(bookId: string): Promise<string> {
   const data: BookDocumentData = {
     bookName: book.name,
     periodLabel: `${MONTHS[book.periodMonth - 1] ?? ""} / ${book.periodYear}`,
-    distributorLogoUrl: distributorKey ? constructUrl(distributorKey) : null,
+    distributorLogoUrl: distributorKey
+      ? await urlParaPdf(distributorKey, imageUrlCache)
+      : null,
     industryLogoUrl: book.supplier?.logo
-      ? constructUrl(book.supplier.logo)
+      ? await urlParaPdf(book.supplier.logo, imageUrlCache)
       : null,
     industryName: book.supplier?.name ?? null,
-    brandLogoUrls: (book.supplier?.brands ?? [])
-      .map((brand) => brand.logo)
-      .filter((logo): logo is string => !!logo)
-      .map(constructUrl),
+    brandLogoUrls: await Promise.all(
+      (book.supplier?.brands ?? [])
+        .map((brand) => brand.logo)
+        .filter((logo): logo is string => !!logo)
+        .map((logo) => urlParaPdf(logo, imageUrlCache)),
+    ),
     items,
-    coverLayout: resolveLayoutImages(capa, logos),
-    closingLayout: resolveLayoutImages(paginaFinal, logos),
+    coverLayout: await resolveLayoutImages(capa, logos, imageUrlCache),
+    closingLayout: await resolveLayoutImages(paginaFinal, logos, imageUrlCache),
     pageLayout,
-    coverBackground: readBackground(fundoCapa),
-    closingBackground: readBackground(fundoFinal),
-    pageBackground: readBackground(book.pageBackground),
+    coverBackground: await readBackground(fundoCapa, imageUrlCache),
+    closingBackground: await readBackground(fundoFinal, imageUrlCache),
+    pageBackground: await readBackground(book.pageBackground, imageUrlCache),
     showPhotoNumbers: book.showPhotoNumbers,
   };
 

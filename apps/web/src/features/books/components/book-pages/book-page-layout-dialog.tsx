@@ -104,7 +104,9 @@ export function BookPageLayoutDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-5xl">
+      {/* 90% da tela: o editor de layout é a tela de trabalho da página, e no
+          tamanho de diálogo padrão sobrava mais moldura que canvas. */}
+      <DialogContent className="flex h-[90vh] max-h-[90vh] w-[90vw] max-w-[90vw] flex-col overflow-y-auto sm:max-w-[90vw]">
         <DialogHeader>
           <DialogTitle>Editar layout — {storeName}</DialogTitle>
           <DialogDescription>

@@ -77,7 +77,9 @@ function ShapeElementView({
         left: element.x,
         top: element.y,
         width: element.width,
-        height: element.height,
+        // `minHeight` pelo mesmo motivo do elemento de texto: altura fixa faz o
+        // react-pdf descartar calado a linha que não couber na caixa.
+        minHeight: element.height,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -225,20 +227,33 @@ export function CoverLayoutView({
 
         if (element.type === "text") {
           const resolved = resolveTextElement(element.text, element.photoRef);
+          // `minHeight` e não `height`: com altura FIXA o react-pdf descarta em
+          // silêncio as linhas que não couberem — e uma caixa de 56pt com fonte
+          // 53 não cabe nem a primeira, então o título simplesmente sumia do
+          // PDF. O `justifyContent` reproduz o verticalAlign="middle" do editor
+          // Konva, que é quem desenha a mesma caixa na tela.
           return (
-            <Text
+            <View
               key={element.id}
               style={{
                 ...boxStyle,
-                fontSize: element.fontSize,
-                color: element.color,
-                fontFamily: element.fontFamily ?? "Helvetica",
-                fontWeight: element.fontWeight === "bold" ? "bold" : "normal",
-                textAlign: element.align,
+                height: undefined,
+                minHeight: element.height,
+                justifyContent: "center",
               }}
             >
-              {element.uppercase ? resolved.toUpperCase() : resolved}
-            </Text>
+              <Text
+                style={{
+                  fontSize: element.fontSize,
+                  color: element.color,
+                  fontFamily: element.fontFamily ?? "Helvetica",
+                  fontWeight: element.fontWeight === "bold" ? "bold" : "normal",
+                  textAlign: element.align,
+                }}
+              >
+                {element.uppercase ? resolved.toUpperCase() : resolved}
+              </Text>
+            </View>
           );
         }
 

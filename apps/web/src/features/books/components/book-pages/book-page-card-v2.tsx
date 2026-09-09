@@ -8,6 +8,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { constructUrl } from "@/hooks/use-construct-url";
@@ -18,11 +22,12 @@ import {
   Images,
   LayoutTemplate,
   Maximize2,
+  MoreHorizontal,
   Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import {
   useChangeBookPageLayout,
   useDeleteBookPage,
@@ -226,8 +231,10 @@ export function BookPageCardV2({
     removeItem.isPending || setSlot.isPending || deletePage.isPending;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
+    /* Sem moldura: a única coisa que aparece na mesa é a própria página — o
+       cartão e o cabeçalho ficam transparentes sobre o cinza. */
+    <Card className="gap-0 overflow-hidden border-0 bg-transparent py-0 shadow-none">
+      <div className="flex items-center justify-between px-1 py-2">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold">
             Página {position}/{total}
@@ -244,6 +251,9 @@ export function BookPageCardV2({
             </Badge>
           )}
         </div>
+        {/* Uma ação em destaque (editar layout), mover, e todo o resto num
+            menu só: com 11 páginas na tela, sete botões por cabeçalho viravam
+            ruído antes de virar atalho. */}
         <div className="flex items-center gap-1">
           <Button
             type="button"
@@ -256,33 +266,6 @@ export function BookPageCardV2({
             <Pencil className="size-4" />
             Editar layout
           </Button>
-          {hasPhotos && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1"
-              onClick={fitAllContain}
-              disabled={setAdjustment.isPending || isBusy}
-              title="Enquadrar todas as fotos desta página inteiras (sem corte)"
-            >
-              <Maximize2 className="size-4" />
-              Caber inteira
-            </Button>
-          )}
-          {!page.isExtra && page.storeId && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="gap-1"
-              onClick={() => setStorePhotosOpen(true)}
-              title="Ver e gerenciar as fotos aprovadas desta loja/cliente"
-            >
-              <Images className="size-4" />
-              Fotos desta loja
-            </Button>
-          )}
           <Button
             type="button"
             variant="ghost"
@@ -305,22 +288,97 @@ export function BookPageCardV2({
           >
             <ChevronDown className="size-4" />
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={removePage}
-            disabled={deletePage.isPending}
-            className="text-destructive hover:text-destructive"
-          >
-            <Trash2 className="size-4" />
-            Excluir página
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                disabled={isBusy}
+                title="Mais ações desta página"
+                aria-label={`Mais ações da página ${position}`}
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>Página {position}</DropdownMenuLabel>
+              {hasPhotos && (
+                <DropdownMenuItem
+                  onClick={fitAllContain}
+                  disabled={setAdjustment.isPending || isBusy}
+                >
+                  <Maximize2 className="size-4" />
+                  Caber inteira (todas as fotos)
+                </DropdownMenuItem>
+              )}
+              {!page.isExtra && page.storeId && (
+                <DropdownMenuItem onClick={() => setStorePhotosOpen(true)}>
+                  <Images className="size-4" />
+                  Fotos desta loja
+                </DropdownMenuItem>
+              )}
+              {!page.isExtra && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <LayoutTemplate className="size-4" />
+                    Alterar padrão da página
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {PAGE_PATTERNS.filter(
+                      (p) =>
+                        !currentPattern ||
+                        p.orientation !== currentPattern.orientation ||
+                        p.size !== currentPattern.size,
+                    ).map((p) => (
+                      <DropdownMenuItem
+                        key={`${p.orientation}-${p.size}`}
+                        disabled={changePattern.isPending}
+                        onClick={() =>
+                          changePattern.mutate({
+                            bookPageId: page.id,
+                            orientation: p.orientation,
+                            size: p.size,
+                          })
+                        }
+                      >
+                        {p.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              <DropdownMenuItem onClick={onInsertAfter}>
+                <Plus className="size-4" />
+                Inserir página depois desta
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={removePage}
+                disabled={deletePage.isPending}
+              >
+                <Trash2 className="size-4" />
+                Excluir página
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
-      <CardContent className="space-y-3 p-4">
-        <div className="relative">
+      <CardContent className="px-0 pb-0">
+        {/* Clicar em QUALQUER parte da página que não seja uma foto abre o
+            editor de layout — fundo, textos e logos se editam lá. As fotos têm
+            ação própria (trocar) e param o clique antes de chegar aqui.
+            O caminho de teclado é o botão "Editar layout" do cabeçalho, por
+            isso este container não vira alvo focável (botão dentro de botão). */}
+        {/* biome-ignore lint/a11y/noStaticElementInteractions: atalho de mouse; o teclado usa o botão "Editar layout" do cabeçalho */}
+        {/* biome-ignore lint/a11y/useKeyWithClickEvents: idem — a ação já tem botão próprio, acessível por teclado */}
+        <div
+          className="group relative cursor-pointer"
+          onClick={() => setLayoutOpen(true)}
+        >
           <HoverZoom>
             {hasLayout ? (
               <LayoutPreview
@@ -333,13 +391,21 @@ export function BookPageCardV2({
                 variableValues={pageVariables}
                 photoVariables={photoVariables}
                 logos={logos}
-                className="rounded-md border"
+                className="rounded-md shadow-sm"
                 onSlotClick={(slotIndex) =>
                   setSwapContext({
                     slotIndex,
                     itemId: itemBySlot(slotIndex)?.id ?? null,
                   })
                 }
+                slotOverlay={(slotIndex, hasPhoto) => (
+                  <PhotoControls
+                    item={hasPhoto ? itemBySlot(slotIndex) : null}
+                    disabled={isBusy}
+                    onAdjust={setAdjustItem}
+                    onRemove={(itemId) => removeItem.mutate({ bookId, itemId })}
+                  />
+                )}
               />
             ) : (
               <SimpleGrid
@@ -351,109 +417,19 @@ export function BookPageCardV2({
                     itemId: itemBySlot(slotIndex)?.id ?? null,
                   })
                 }
+                slotOverlay={(slotIndex) => (
+                  <PhotoControls
+                    item={itemBySlot(slotIndex)}
+                    disabled={isBusy}
+                    onAdjust={setAdjustItem}
+                    onRemove={(itemId) => removeItem.mutate({ bookId, itemId })}
+                  />
+                )}
               />
             )}
           </HoverZoom>
           <TradegramMark />
-          {/* Barra suspensa (estilo Catálogo): insere uma página logo após
-              esta, sem rolar até o fim do book. */}
-          <div className="absolute right-2 top-2 z-20">
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="gap-1 border bg-background/90 shadow-md backdrop-blur hover:bg-background"
-              onClick={onInsertAfter}
-              title="Inserir uma página logo após esta"
-            >
-              <Plus className="size-4" />
-              Adicionar página
-            </Button>
-          </div>
         </div>
-
-        {/* Barra de ações por foto: clicar no slot troca a foto; aqui ficam
-            Ajustar (reenquadrar) e Remover, que precisam de alvo explícito.
-            Páginas extras não têm fotos — nada a mostrar. */}
-        {!page.isExtra && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              Clique numa foto para trocá-la.
-            </span>
-            {Array.from({ length: slotCount }, (_, i) => itemBySlot(i))
-              .filter((it): it is BookPageItemV2 => !!it?.photoKey)
-              .map((it) => (
-                <div
-                  key={it.id}
-                  className="flex items-center gap-0.5 rounded-md border bg-muted/40 px-1.5 py-0.5 text-xs"
-                >
-                  <span className="px-1 font-medium">
-                    Foto {it.slotIndex + 1}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 gap-1 px-1.5"
-                    onClick={() => setAdjustItem(it)}
-                    disabled={isBusy}
-                  >
-                    <Crop className="size-3" />
-                    Ajustar
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 gap-1 px-1.5 text-destructive hover:text-destructive"
-                    onClick={() => removeItem.mutate({ bookId, itemId: it.id })}
-                    disabled={isBusy}
-                  >
-                    <Trash2 className="size-3" />
-                    Remover
-                  </Button>
-                </div>
-              ))}
-
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="ml-auto h-7 gap-1"
-                  disabled={isBusy || changePattern.isPending}
-                  title="Trocar a quantidade/orientação dos slots desta página"
-                >
-                  <LayoutTemplate className="size-3.5" />
-                  Alterar padrão da página
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>Padrão da página</DropdownMenuLabel>
-                {PAGE_PATTERNS.filter(
-                  (p) =>
-                    !currentPattern ||
-                    p.orientation !== currentPattern.orientation ||
-                    p.size !== currentPattern.size,
-                ).map((p) => (
-                  <DropdownMenuItem
-                    key={`${p.orientation}-${p.size}`}
-                    onClick={() =>
-                      changePattern.mutate({
-                        bookPageId: page.id,
-                        orientation: p.orientation,
-                        size: p.size,
-                      })
-                    }
-                  >
-                    {p.label}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        )}
       </CardContent>
 
       {swapContext !== null && (
@@ -537,14 +513,68 @@ export function BookPageCardV2({
 
 // Fallback pra páginas sem padrão montado (manuais antigas): grade simples de
 // fotos, clicável pra trocar.
+// Ajustar e remover POR FOTO, no canto superior direito dela. Ficam sobre a
+// foto (e não numa barra à parte) pra o alvo ser óbvio quando a página tem
+// várias. É DOM do editor: o PDF é montado no servidor a partir do layout
+// (react-pdf), então nada disso entra no arquivo.
+function PhotoControls({
+  item,
+  disabled,
+  onAdjust,
+  onRemove,
+}: {
+  item: BookPageItemV2 | null;
+  disabled: boolean;
+  onAdjust: (item: BookPageItemV2) => void;
+  onRemove: (itemId: string) => void;
+}) {
+  if (!item?.photoKey) return null;
+  return (
+    <div className="pointer-events-auto absolute right-1.5 top-1.5 z-10 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon"
+        className="size-7 border bg-background/90 shadow-sm backdrop-blur hover:bg-background"
+        onClick={(event) => {
+          event.stopPropagation();
+          onAdjust(item);
+        }}
+        disabled={disabled}
+        title="Ajustar enquadramento"
+        aria-label={`Ajustar enquadramento da foto ${item.slotIndex + 1}`}
+      >
+        <Crop className="size-3.5" />
+      </Button>
+      <Button
+        type="button"
+        variant="secondary"
+        size="icon"
+        className="size-7 border bg-background/90 text-destructive shadow-sm backdrop-blur hover:bg-background hover:text-destructive"
+        onClick={(event) => {
+          event.stopPropagation();
+          onRemove(item.id);
+        }}
+        disabled={disabled}
+        title="Remover foto"
+        aria-label={`Remover a foto ${item.slotIndex + 1}`}
+      >
+        <Trash2 className="size-3.5" />
+      </Button>
+    </div>
+  );
+}
+
 function SimpleGrid({
   slotCount,
   itemBySlot,
   onSwap,
+  slotOverlay,
 }: {
   slotCount: number;
   itemBySlot: (i: number) => BookPageItemV2 | null;
   onSwap: (slotIndex: number) => void;
+  slotOverlay?: (slotIndex: number) => ReactNode;
 }) {
   return (
     <div
@@ -555,27 +585,31 @@ function SimpleGrid({
     >
       {Array.from({ length: slotCount }, (_, i) => {
         const item = itemBySlot(i);
+        // Wrapper em div, não em button: os controles são botões e botão
+        // dentro de botão é HTML inválido.
         return (
-          <button
-            type="button"
-            key={i}
-            onClick={() => onSwap(i)}
-            className="group relative overflow-hidden rounded-md border bg-muted"
-          >
-            {item?.photoKey ? (
-              // biome-ignore lint/performance/noImgElement: thumbnail do R2 pré-assinada
-              <img
-                src={constructUrl(item.photoKey)}
-                alt=""
-                loading="lazy"
-                className="size-full object-cover"
-              />
-            ) : (
-              <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
-                + Foto
-              </div>
-            )}
-          </button>
+          <div key={i} className="relative">
+            <button
+              type="button"
+              onClick={() => onSwap(i)}
+              className="group size-full overflow-hidden rounded-md border bg-muted"
+            >
+              {item?.photoKey ? (
+                // biome-ignore lint/performance/noImgElement: thumbnail do R2 pré-assinada
+                <img
+                  src={constructUrl(item.photoKey)}
+                  alt=""
+                  loading="lazy"
+                  className="size-full object-cover"
+                />
+              ) : (
+                <div className="flex size-full items-center justify-center text-xs text-muted-foreground">
+                  + Foto
+                </div>
+              )}
+            </button>
+            {slotOverlay?.(i)}
+          </div>
         );
       })}
     </div>

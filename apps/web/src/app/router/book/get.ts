@@ -1,7 +1,10 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { getIndustryChrome } from "@/features/books/server/industry-chrome";
+import {
+  chromeForBook,
+  getIndustryChrome,
+} from "@/features/books/server/industry-chrome";
 import prisma from "@/lib/db";
 import { memberCan } from "@/lib/permissions";
 import { z } from "zod";
@@ -101,6 +104,9 @@ export const getBook = base
     // Capa e página final ATUAIS da indústria vencem o snapshot do book —
     // trocar a logo em /padroes reflete no editor sem regerar nada.
     const chrome = await getIndustryChrome(context.org.id, book.supplierId);
+    // Capa própria manda o padrão da indústria embora, mas a tela ainda precisa
+    // saber que ele existe pra oferecer o caminho de volta.
+    const chromeEfetivo = chromeForBook(chrome, book.customChrome);
 
     return {
       id: book.id,
@@ -118,11 +124,16 @@ export const getBook = base
       periodYear: book.periodYear,
       status: book.status,
       pdfKey: book.pdfKey,
-      coverLayout: chrome.cover?.layout ?? book.coverLayout,
-      closingLayout: chrome.closing?.layout ?? book.closingLayout,
+      // Ligado = a capa foi editada dentro do book e não segue mais o padrão
+      // da indústria. A tela avisa, senão a herança some sem explicação.
+      customChrome: book.customChrome,
+      hasIndustryChrome: !!(chrome.cover || chrome.closing),
+      coverLayout: chromeEfetivo.cover?.layout ?? book.coverLayout,
+      closingLayout: chromeEfetivo.closing?.layout ?? book.closingLayout,
       pageLayout: book.pageLayout,
-      coverBackground: chrome.cover?.background ?? book.coverBackground,
-      closingBackground: chrome.closing?.background ?? book.closingBackground,
+      coverBackground: chromeEfetivo.cover?.background ?? book.coverBackground,
+      closingBackground:
+        chromeEfetivo.closing?.background ?? book.closingBackground,
       pageBackground: book.pageBackground,
       showPhotoNumbers: book.showPhotoNumbers,
       generatedAt: book.generatedAt?.toISOString() ?? null,

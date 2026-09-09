@@ -198,8 +198,33 @@ export function useGenerateBook() {
 // ── Capa / página final ──────────────────────────────────────────────────
 
 export function useUpdateBookCoverLayout() {
+  const queryClient = useQueryClient();
   return useMutation(
     orpc.book.updateCoverLayout.mutationOptions({
+      // Invalidar aqui, e não no `mutate`, é o que faz o card e a grade
+      // mostrarem a capa recém-salva: a capa vive em estado local do editor, e
+      // quem desenha a página é o `getOne`. Callback passado ao `mutate` não
+      // roda quando o editor já fechou — o do nível da mutation roda sempre.
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.book.getOne.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.book.list.key() });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// Devolve o book à herança do padrão da indústria. Invalida o `getOne` porque
+// a capa que a tela desenha muda na hora — é ele quem resolve a cascata.
+export function useResetBookChrome() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.book.resetChrome.mutationOptions({
+      onSuccess: () => {
+        toast.success("Capa voltou a seguir o padrão da indústria");
+        queryClient.invalidateQueries({ queryKey: orpc.book.getOne.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.book.list.key() });
+      },
       onError: (error) => toast.error(error.message),
     }),
   );

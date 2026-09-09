@@ -47,6 +47,54 @@ export async function reencodeToJpeg(url: string): Promise<Buffer> {
   });
 }
 
+// Formatos que o react-pdf decodifica sozinho. Qualquer outro (webp, heic,
+// svg, avif) ele descarta CALADO — só um "Not valid image extension" no log do
+// servidor — e o elemento some do PDF sem nenhum aviso na tela.
+const PDF_IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg"];
+
+function extensionIsPdfSafe(url: string): boolean {
+  const path = url.split("?")[0].toLowerCase();
+  return PDF_IMAGE_EXTENSIONS.some((ext) => path.endsWith(ext));
+}
+
+// URL de logo/fundo pronta pro react-pdf. Extensão já suportada passa direto
+// (o react-pdf baixa e cacheia por conta própria); as outras viram data URL
+// convertida por sharp — PNG quando há transparência, senão JPEG, que é o que
+// mantém a logo sobre fundo colorido sem tarja branca.
+//
+// Vale só pra imagens de LAYOUT, que são poucas e se repetem: as fotos do book
+// passam por `reencodeToJpeg`, que sempre embute.
+export async function pdfSafeImageUrl(url: string): Promise<string> {
+  if (!url || url.startsWith("data:") || extensionIsPdfSafe(url)) return url;
+  try {
+    return await withImageLimit(async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) {
+          throw new Error(`fetch ${response.status} em ${url}`);
+        }
+        const original = Buffer.from(await response.arrayBuffer());
+        const image = sharp(original).rotate();
+        const { hasAlpha } = await image.metadata();
+        const convertida = await image
+          .resize(2600, 2600, { fit: "inside", withoutEnlargement: true })
+          [hasAlpha ? "png" : "jpeg"](hasAlpha ? {} : { quality: 90 })
+          .toBuffer();
+        const mime = hasAlpha ? "image/png" : "image/jpeg";
+        return `data:${mime};base64,${convertida.toString("base64")}`;
+      } finally {
+        clearTimeout(timeout);
+      }
+    });
+  } catch {
+    // Devolver a URL original mantém o comportamento antigo (elemento some) em
+    // vez de derrubar a geração inteira do PDF.
+    return url;
+  }
+}
+
 // Baixa a foto original e aplica o mesmo corte (pan/zoom) calculado no
 // editor, pra render no PDF ficar idêntico ao que o admin ajustou na tela.
 export async function cropPhotoForPdf(

@@ -130,28 +130,49 @@ export function CoverEditor({
     hasUserEditedRef.current = true;
   };
 
+  // Edição ainda dentro do debounce. Fechar o editor cancela o timeout, então
+  // sem guardar o que estava pendente a última alteração ia embora calada.
+  const pendingSaveRef = useRef<
+    Parameters<typeof updateLayout.mutate>[0] | null
+  >(null);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: useMutation recria `updateLayout` a cada render; incluí-lo redispararia o autosave em loop
   useEffect(() => {
     if (!cover || !closing || !coverBg || !closingBg) return;
     if (!hasUserEditedRef.current) return;
+    const payload = {
+      id: bookId,
+      coverLayout: cover,
+      closingLayout: closing,
+      coverBackground: coverBg,
+      closingBackground: closingBg,
+    };
+    pendingSaveRef.current = payload;
     setSaveStatus("saving");
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(() => {
-      updateLayout.mutate(
-        {
-          id: bookId,
-          coverLayout: cover,
-          closingLayout: closing,
-          coverBackground: coverBg,
-          closingBackground: closingBg,
-        },
-        { onSuccess: () => setSaveStatus("saved") },
-      );
+      pendingSaveRef.current = null;
+      updateLayout.mutate(payload, {
+        onSuccess: () => setSaveStatus("saved"),
+      });
     }, 600);
     return () => {
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     };
   }, [cover, closing, coverBg, closingBg, bookId]);
+
+  // Descarrega o que ficou pendente ao desmontar (fechar o diálogo). A mutation
+  // vive no cache do TanStack Query e sobrevive ao componente, então o request
+  // sai mesmo com o editor já fora da tela.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: só o unmount importa; `updateLayout` muda a cada render
+  useEffect(() => {
+    return () => {
+      const pendente = pendingSaveRef.current;
+      if (!pendente) return;
+      pendingSaveRef.current = null;
+      updateLayout.mutate(pendente);
+    };
+  }, []);
 
   const elements = activePage === "cover" ? cover : closing;
   const setElements = activePage === "cover" ? setCover : setClosing;
