@@ -56,6 +56,10 @@ interface CatalogPreviewProps {
   // Clique num número do índice. Só a tela passa isso; no export o número é
   // texto, e o link do PDF é criado à parte (ver `hooks/use-export`).
   onIndexNavigate?: (pageNumber: number) => void;
+  // Mostra "Nenhum produto promocional encontrado" na página vazia. É recado de
+  // EDITOR: default `false` para não vazar para o PDF, o PNG e o link público —
+  // já vazou, e o cliente recebeu um catálogo com esse texto na página 1.
+  emptyHint?: boolean;
   // Lista COMPLETA de produtos do catálogo (todas as páginas). Usada para
   // resolver o produto de um bloco de estilo, que pode não estar na fatia
   // desta página. Ausente = cai em `products` (a fatia da página).
@@ -331,6 +335,10 @@ function hexToRgba(hex: string, opacityPct: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
+/** Destino da chamada da Órbita impressa em cada página. */
+export const ORBITA_CTA_URL =
+  "https://orbitatec.com.br/solucoes/catalogo-promocional";
+
 export const PAGE_W = 1080;
 export const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
   square: 1080,
@@ -391,6 +399,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
       products,
       indexRows,
       onIndexNavigate,
+      emptyHint = false,
       allProducts,
       supplierLogos = [],
       dynamicContext,
@@ -583,6 +592,12 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               height: pageH,
               overflow: "hidden",
               position: "relative",
+              // Cria contexto de empilhamento próprio. Sem isto, filho com
+              // z-index NEGATIVO (a camada de fundo em -2, e a etiqueta
+              // marcada "atrás dos produtos" em -1) pinta FORA deste nó — e
+              // some quando só ele é rasterizado para o PDF/PNG. Foi assim que
+              // um catálogo inteiro saiu sem fundo.
+              isolation: "isolate",
               display: "flex",
               flexDirection: "column",
               boxSizing: "border-box",
@@ -592,56 +607,61 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               paddingLeft: config.paddingLeft,
             }}
           >
-            {/* Marca d'água Órbita — canto inferior livre (auto). Fica por cima
-                do conteúdo, semitransparente, e é capturada no export. */}
+            {/* MARCA D'ÁGUA — a chamada da Órbita, no canto inferior livre.
+                É `<a>` de verdade: no link público o clique já funciona sozinho,
+                e no PDF o `data-cta-url` vira anotação de link externo (ver
+                `hooks/use-export`). Continua sendo capturada no export e
+                continua obedecendo `config.watermark`. */}
             {config.watermark !== false && (
-              <div
+              <a
+                href={ORBITA_CTA_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-cta-url={ORBITA_CTA_URL}
                 style={{
                   position: "absolute",
-                  // Colado no rodapé: 1% da altura (era 3%).
+                  // Colado no rodapé: 1% da altura.
                   bottom: Math.round(pageH * 0.01),
                   ...(pickWatermarkCorner(config, pageH) === "left"
                     ? { left: Math.round(PAGE_W * 0.02) }
                     : { right: Math.round(PAGE_W * 0.02) }),
-                  // Linha única: texto e logo lado a lado. A largura passou a
-                  // ser do CONTEÚDO (o logo tem largura fixa abaixo) — com
-                  // largura fixa no contêiner, os dois não caberiam na mesma
-                  // linha depois da redução.
+                  // Linha única: frase e logo lado a lado. A largura é a do
+                  // CONTEÚDO — com largura fixa os dois não caberiam na linha.
                   display: "flex",
                   alignItems: "center",
-                  gap: Math.round(PAGE_W * 0.005),
+                  gap: Math.round(PAGE_W * 0.006),
+                  // Pílula escura semitransparente: a marca cai tanto sobre
+                  // foto clara quanto escura, e só sombra no texto não garante
+                  // leitura nas duas.
+                  padding: `${Math.round(PAGE_W * 0.005)}px ${Math.round(PAGE_W * 0.012)}px`,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(0,0,0,0.55)",
                   zIndex: 8,
-                  opacity: 0.85,
-                  pointerEvents: "none",
+                  textDecoration: "none",
                 }}
               >
-                {/* Branco com sombra suave — sem ela o texto some num fundo
-                    claro, que é justamente onde a marca costuma cair. */}
                 <span
                   style={{
                     whiteSpace: "nowrap",
                     color: "#ffffff",
-                    fontSize: Math.round(PAGE_W * 0.008),
-                    fontWeight: 500,
-                    letterSpacing: "0.08em",
-                    textTransform: "uppercase",
-                    textShadow: "0 1px 3px rgba(0,0,0,0.35)",
+                    fontSize: Math.round(PAGE_W * 0.0105),
+                    fontWeight: 600,
+                    letterSpacing: "0.02em",
                   }}
                 >
-                  Desenvolvido por
+                  Clique aqui e crie seu catálogo online
                 </span>
                 {/* biome-ignore lint/performance/noImgElement: exportado via html-to-image */}
                 <img
                   src="/watermark-orbita.png"
-                  alt=""
+                  alt="Órbita"
                   style={{
-                    // Metade do tamanho anterior (era 24% da largura da página).
                     width: Math.round(PAGE_W * 0.12),
                     height: "auto",
                     display: "block",
                   }}
                 />
-              </div>
+              </a>
             )}
 
             {/* Camada de fundo (por página): cor/degradê + imagem, com
@@ -801,7 +821,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
                 className="flex-1 flex items-center justify-center text-sm"
                 style={{ color: titleColor, opacity: 0.5 }}
               >
-                Nenhum produto promocional encontrado
+                {emptyHint ? "Nenhum produto promocional encontrado" : ""}
               </div>
             ) : isFeatured && products.length > 0 ? (
               <div

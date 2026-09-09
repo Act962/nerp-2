@@ -127,23 +127,76 @@ export function pixelRatioFor(
   return Math.min(MAX_PIXEL_RATIO, EXPORT_PRESETS[quality].targetWidth / width);
 }
 
-// Rasteriza para um canvas em vez de direto para data URL: reencodar do canvas
-// custa ~100 ms, refazer DOM→raster custa segundos — é o que torna viável o
-// ajuste de qualidade por página em `exportAsPdf`.
-//
-// `backgroundColor` branco é OBRIGATÓRIO aqui: JPEG não tem alfa, e o catálogo
-// tem transparência real (opacidade do fundo, "remover fundo da imagem"). Sem
-// isso a página sai PRETA.
+/**
+ * A camada de fundo da página (cor/degradê + foto).
+ *
+ * É o único filho com `z-index: -2` — ver `catalog-preview.tsx`, onde o valor
+ * negativo existe para abrir um degrau entre o fundo e o resto.
+ */
+function backgroundLayerOf(el: HTMLElement): HTMLElement | undefined {
+  return [...el.children].find(
+    (c): c is HTMLElement =>
+      c instanceof HTMLElement && getComputedStyle(c).zIndex === "-2",
+  );
+}
+
+/**
+ * Rasteriza a página para um canvas.
+ *
+ * O FUNDO é capturado À PARTE e composto por baixo. Motivo: o nó da página tem
+ * `position: relative` sem contexto de empilhamento, então a camada de fundo
+ * (`z-index: -2`) pinta FORA dele — e some quando só o nó é rasterizado. Era
+ * por isso que o PDF saía com as páginas em branco, com os produtos certos e
+ * nenhuma foto de fundo.
+ *
+ * Capturar em duas partes também tira ~3 MB do SVG principal (a foto de fundo
+ * vai em base64 dentro dele), o que deixa o export bem mais rápido.
+ *
+ * Canvas em vez de data URL direto: reencodar do canvas custa ~100 ms, refazer
+ * DOM→raster custa segundos — é o que torna viável o ajuste de qualidade por
+ * página em `exportAsPdf`.
+ */
 async function captureCanvas(
   el: HTMLDivElement,
   pixelRatio: number,
 ): Promise<HTMLCanvasElement> {
   const { toCanvas } = await import("html-to-image");
-  return toCanvas(el, {
+  const fundo = backgroundLayerOf(el);
+
+  // Sem `backgroundColor` aqui: o conteúdo precisa manter o alfa para o fundo
+  // aparecer por baixo. O branco entra na composição, no canvas final.
+  const conteudo = await toCanvas(el, {
     ...CAPTURE_OPTIONS,
-    backgroundColor: "#ffffff",
     pixelRatio,
+    // Pula a camada de fundo: ela não pintaria de qualquer jeito, e fora do
+    // SVG o arquivo encolhe alguns megabytes.
+    filter: (node: HTMLElement) => node !== fundo,
   });
+
+  const saida = document.createElement("canvas");
+  saida.width = conteudo.width;
+  saida.height = conteudo.height;
+  const ctx = saida.getContext("2d");
+  if (!ctx) return conteudo;
+
+  // Branco por baixo de tudo: JPEG não tem alfa, e o catálogo tem
+  // transparência real (opacidade do fundo, "remover fundo da imagem"). Sem
+  // isto a página sairia PRETA.
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, saida.width, saida.height);
+
+  if (fundo) {
+    // Como raiz da própria captura, o `z-index: -2` deixa de ter efeito e a
+    // camada pinta normalmente — cor, degradê, foto, opacidade e enquadramento,
+    // tudo resolvido pelo navegador em vez de replicado aqui.
+    const bgCanvas = await toCanvas(fundo, { ...CAPTURE_OPTIONS, pixelRatio });
+    ctx.drawImage(bgCanvas, 0, 0, saida.width, saida.height);
+    releaseCanvas(bgCanvas);
+  }
+
+  ctx.drawImage(conteudo, 0, 0);
+  releaseCanvas(conteudo);
+  return saida;
 }
 
 function encodeJpeg(canvas: HTMLCanvasElement, quality: number): string {
@@ -159,11 +212,11 @@ function releaseCanvas(canvas: HTMLCanvasElement) {
 /**
  * Cria os links clicáveis da página de ÍNDICE no PDF.
  *
- * O render marca cada número com `data-index-target="<página>"`; aqui os
- * retângulos viram anotações `/Dest` internas do PDF (`pdf.link` com
- * `pageNumber`), que é o que faz o leitor pular ao clicar. Mudar aquele
- * atributo no render quebra isto em silêncio — o índice continua bonito e para
- * de navegar.
+ * O render marca cada número com `data-index-target="<página>"` e a chamada da
+ * Órbita com `data-cta-url="<endereço>"`; aqui os retângulos viram anotação de
+ * link — `/Dest` interna para o índice, URL externa para a chamada. Mudar esses
+ * atributos no render quebra isto em silêncio: continua bonito e para de
+ * navegar.
  *
  * Precisa ser chamado logo depois do `addImage` da página, porque o jsPDF
  * prende a anotação na página CORRENTE.
@@ -182,7 +235,9 @@ function addIndexLinks(
   offset: number,
   count: number,
 ) {
-  const alvos = el.querySelectorAll<HTMLElement>("[data-index-target]");
+  const alvos = el.querySelectorAll<HTMLElement>(
+    "[data-index-target],[data-cta-url]",
+  );
   if (alvos.length === 0) return;
 
   const base = el.getBoundingClientRect();
@@ -192,8 +247,12 @@ function addIndexLinks(
   if (!Number.isFinite(escala) || escala <= 0) return;
 
   for (const alvo of alvos) {
+    // Ou é um número do índice (destino INTERNO), ou a chamada da Órbita
+    // (destino EXTERNO). O jsPDF distingue pelo campo em `options`.
+    const externo = alvo.dataset.ctaUrl;
     const numero = Number(alvo.dataset.indexTarget) - offset;
-    if (!Number.isFinite(numero) || numero < 1 || numero > count) continue;
+    if (!externo && (!Number.isFinite(numero) || numero < 1 || numero > count))
+      continue;
     const r = alvo.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
     // Folga de 3 px: número tem uns 20 px de largura, e mirar nele sem sobra
@@ -204,7 +263,7 @@ function addIndexLinks(
       pxToMm((r.top - base.top) / escala - folga),
       pxToMm(r.width / escala + folga * 2),
       pxToMm(r.height / escala + folga * 2),
-      { pageNumber: numero },
+      externo ? { url: externo } : { pageNumber: numero },
     );
   }
 }
@@ -215,17 +274,17 @@ function dataUrlBytes(dataUrl: string): number {
   return Math.round(base64.length * 0.75);
 }
 
-// Caminho PNG (imagem solta e zip): segue SEM PERDA e com alfa, de propósito —
-// quem baixa PNG quer a imagem para reusar, não para folhear.
+// Caminho PNG (imagem solta e zip): segue SEM PERDA, mas pela MESMA composição
+// do PDF — senão a imagem sairia sem o fundo, que é o defeito que este arquivo
+// veio corrigir.
 async function captureEl(
   el: HTMLDivElement,
   quality: ExportQuality,
 ): Promise<string> {
-  const { toPng } = await import("html-to-image");
-  return toPng(el, {
-    ...CAPTURE_OPTIONS,
-    pixelRatio: pixelRatioFor(el, quality),
-  });
+  const canvas = await captureCanvas(el, pixelRatioFor(el, quality));
+  const dataUrl = canvas.toDataURL("image/png");
+  releaseCanvas(canvas);
+  return dataUrl;
 }
 
 function triggerDownload(href: string, filename: string) {
