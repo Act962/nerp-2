@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { SiteBlock, SiteContent, SiteSection } from "@nerp/site-content";
+import { FOOTER } from "@/orbita/data/site";
 import { assetUrl } from "./assets";
 
 /**
@@ -319,10 +320,10 @@ export const SITE_ID = SITE_URL ? `${SITE_URL}/#site` : null;
 /**
  * Telefone e e-mail de exemplo não entram no structured data.
  *
- * `data/site.ts` avisa que os contatos do rodapé ainda são placeholders. Um
- * `+55 (85) 0000-0000` no JSON-LD não é só inútil: é o Google aprendendo um
- * telefone errado da empresa, e depois exibindo ele. Enquanto for exemplo,
- * fica de fora — e volta sozinho no dia em que o admin trocar.
+ * O rodapé já traz contato real, então o normal é os dois entrarem. A guarda
+ * fica porque o valor vem do admin: um `0000-0000` digitado ali não é só
+ * inútil no JSON-LD, é o Google aprendendo um telefone errado da empresa, e
+ * depois exibindo ele. Enquanto for exemplo, fica de fora — e volta sozinho.
  */
 function ehExemplo(valor: string): boolean {
   return !valor || /0000|exemplo|example|@teste\./i.test(valor);
@@ -333,12 +334,16 @@ type Json = Record<string, unknown>;
 /**
  * A ÓRBITA HUB, em JSON-LD.
  *
- * Sem `sameAs`: os links de rede social do rodapé ainda são `#`, e apontar
- * `sameAs` para nada é pior do que não declarar. Sem `address`: o site não
- * mostra endereço nenhum, e o schema tem de descrever o que está na página.
+ * `sameAs` sai do mesmo lugar que o rodapé — só entra perfil que o rodapé
+ * mostra, porque é para isso que serve: confirmar ao Google que os perfis e o
+ * site são a mesma empresa. Sem `address`: o site não mostra endereço nenhum,
+ * e o schema tem de descrever o que está na página.
  */
 export function organizationLd(content: SiteContent): Json | null {
   if (!SITE_URL) return null;
+  const perfis = FOOTER.contact.social
+    .map((s) => s.href)
+    .filter((href) => href.startsWith("http"));
   const contatos: Json[] = [];
 
   if (!ehExemplo(content.contact.phone) || !ehExemplo(content.contact.email)) {
@@ -366,6 +371,7 @@ export function organizationLd(content: SiteContent): Json | null {
     description:
       "Conectamos tecnologia, gestão, dados e inovação para transformar negócios.",
     ...(contatos.length ? { contactPoint: contatos } : {}),
+    ...(perfis.length ? { sameAs: perfis } : {}),
   };
 }
 

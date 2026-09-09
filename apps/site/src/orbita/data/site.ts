@@ -110,11 +110,14 @@ export const FOOTER = {
   ],
   contact: {
     title: "Contato",
-    email: "contato@orbitahub.com.br",
-    phone: "+55 (85) 0000-0000",
+    email: "suporteorbitahub@gmail.com",
+    phone: "+55 (86) 9489-2129",
     social: [
-      { label: "LinkedIn", href: "#" },
-      { label: "Instagram", href: "#" },
+      {
+        label: "Instagram",
+        href: "https://www.instagram.com/orbitahub.plataforma/",
+      },
+      { label: "YouTube", href: "https://www.youtube.com/@nasaplataforma" },
     ],
   },
 };
