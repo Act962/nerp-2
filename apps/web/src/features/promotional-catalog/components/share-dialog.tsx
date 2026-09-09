@@ -38,6 +38,12 @@ import {
   openWhatsAppText,
   copyImageToClipboard,
 } from "../lib/share";
+import {
+  EXPORT_PRESETS,
+  type ExportQuality,
+  formatMB,
+  presetDpi,
+} from "../hooks/use-export";
 
 interface ShareDialogProps {
   open: boolean;
@@ -51,6 +57,10 @@ interface ShareDialogProps {
   initialPage: number;
   onExportPng: () => void;
   onExportPdf: () => void;
+  // Mede o tamanho provável do PDF por amostragem, sob demanda.
+  onEstimatePdf: () => Promise<number>;
+  quality: ExportQuality;
+  onQualityChange: (quality: ExportQuality) => void;
   // Baixa APENAS a página selecionada (.png / .pdf).
   onExportPagePng: (index: number) => void;
   onExportPagePdf: (index: number) => void;
@@ -70,12 +80,19 @@ export function ShareDialog({
   initialPage,
   onExportPng,
   onExportPdf,
+  onEstimatePdf,
+  quality,
+  onQualityChange,
   onExportPagePng,
   onExportPagePdf,
   onPrintPage,
   capturePage,
 }: ShareDialogProps) {
   const [busy, setBusy] = useState<string | null>(null);
+  // Tamanho estimado do PDF: só depois que o usuário pede, porque a medição
+  // monta e rasteriza 3 páginas de verdade (2-4 s). Zera ao trocar o preset.
+  const [estimativa, setEstimativa] = useState<number | null>(null);
+  const [estimando, setEstimando] = useState(false);
   // Link público do catálogo.
   const [link, setLink] = useState<string | null>(null);
   const enableShare = useEnableCatalogShare();
@@ -318,6 +335,59 @@ export function ShareDialog({
         </div>
 
         <div className="h-px bg-border" />
+
+        {/* Qualidade do download. O PDF antigo saía em PNG sem perda a 2400 px
+            e passava de centenas de MB num catálogo grande; aqui o usuário
+            escolhe onde ficar entre nitidez e peso. */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">Qualidade do PDF</Label>
+            <Select
+              value={quality}
+              onValueChange={(v) => {
+                onQualityChange(v as ExportQuality);
+                setEstimativa(null);
+              }}
+            >
+              <SelectTrigger className="h-8 w-44 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.keys(EXPORT_PRESETS) as ExportQuality[]).map((k) => (
+                  <SelectItem key={k} value={k} className="text-xs">
+                    {EXPORT_PRESETS[k].label} — {EXPORT_PRESETS[k].targetWidth}
+                    px · {presetDpi(k)} DPI
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          {totalPages > 1 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 self-start px-2 text-muted-foreground text-xs"
+              disabled={estimando}
+              onClick={async () => {
+                setEstimando(true);
+                try {
+                  setEstimativa(await onEstimatePdf());
+                } catch (err) {
+                  console.error("Erro ao estimar o tamanho do PDF:", err);
+                  toast.error("Não foi possível estimar o tamanho.");
+                } finally {
+                  setEstimando(false);
+                }
+              }}
+            >
+              {estimando && <Loader2 className="mr-1 size-3 animate-spin" />}
+              {estimativa !== null
+                ? `≈ ${formatMB(estimativa)} (estimativa)`
+                : "Estimar tamanho"}
+            </Button>
+          )}
+        </div>
 
         <div className="flex flex-col gap-2">
           <Button

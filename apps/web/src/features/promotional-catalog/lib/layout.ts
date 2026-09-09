@@ -226,6 +226,9 @@ export function effectivePageConfig(
     dynamic: pg.dynamic,
     cardLayout: pg.cardLayout ?? config.cardLayout,
     offerValidUntil: pg.offerValidUntil ?? config.offerValidUntil,
+    kind: pg.kind,
+    indexMode: pg.indexMode,
+    indexStyle: pg.indexStyle,
   };
 }
 

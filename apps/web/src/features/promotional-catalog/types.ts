@@ -561,6 +561,11 @@ export type CatalogConfig = {
   // Vínculo dinâmico da PÁGINA (per-page; ver `CatalogPage.dynamic`). Só existe
   // no config efetivo de uma página; ausente no global.
   dynamic?: CatalogPage["dynamic"];
+  // Espelham os campos por página (ver PER_PAGE_KEYS): o render recebe a config
+  // EFETIVA da página, então precisa enxergar que ela é o índice.
+  kind?: CatalogPage["kind"];
+  indexMode?: CatalogIndexMode;
+  indexStyle?: CatalogIndexStyle;
   showDescription: boolean;
   showCategory: boolean;
   showStock: boolean;
@@ -676,7 +681,33 @@ export type CatalogPage = {
   // Validade da oferta DESTA página (ISO datetime-local). Após a data, a página
   // é ocultada no link público. Cada página tem seu próprio prazo.
   offerValidUntil?: string;
+  // Página de ÍNDICE: em vez da grade de produtos, desenha o sumário do
+  // catálogo com o número da página de cada item. Opcional de propósito —
+  // campo obrigatório invalidaria todo catálogo já salvo. Ausente = página
+  // normal.
+  //
+  // Página de índice NÃO participa da distribuição de produtos (ver
+  // `lib/page-chunks.ts`): sem isso ela receberia os produtos não atribuídos
+  // quando fosse a última do catálogo.
+  kind?: "index";
+  // O que o índice lista. Ausente = "product".
+  indexMode?: CatalogIndexMode;
+  // Aparência do índice. Tudo opcional — ausente cai no padrão do render.
+  // A POSIÇÃO não mora aqui: o índice ocupa o `productGroup` da página, que é
+  // o retângulo de conteúdo que a camada de seleção já sabe mover e
+  // redimensionar. Numa página de índice não há produto para disputar o lugar.
+  indexStyle?: CatalogIndexStyle;
 };
+
+export type CatalogIndexStyle = {
+  fontSize?: number;
+  fontFamily?: string;
+  color?: string;
+  columns?: number;
+};
+
+/** Como o índice agrupa as linhas. */
+export type CatalogIndexMode = "product" | "page" | "category";
 
 // Campos de aparência que passam a ser POR PÁGINA (sobrescrevem o global na
 // página selecionada). O resto da config continua global.
@@ -698,6 +729,9 @@ export const PER_PAGE_KEYS = [
   "styleBlocks",
   "dynamic",
   "offerValidUntil",
+  "kind",
+  "indexMode",
+  "indexStyle",
 ] as const;
 
 // Deriva a página 1 a partir dos campos globais (migração de catálogos antigos).

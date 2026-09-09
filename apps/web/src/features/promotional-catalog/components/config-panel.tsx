@@ -83,6 +83,7 @@ import { LayersPanel } from "./layers-panel";
 import { cardLayoutFromStyle, cardStyleLabel } from "../lib/card-template";
 import { SystemTemplatesPanel } from "./system-templates-panel";
 import { DynamicPageSection } from "./dynamic-page-section";
+import { IndexProperties } from "./index-properties";
 import { ImageResizer } from "./image-resizer";
 import {
   type DynamicContext,
@@ -2770,6 +2771,7 @@ export function ConfigPanel({
                 onCheckedChange={(v) => onConfigChange({ autoPromotions: v })}
               />
             </div>
+            <IndexProperties config={config} onConfigChange={onConfigChange} />
             <DynamicPageSection
               config={config}
               onConfigChange={onConfigChange}

@@ -186,3 +186,55 @@ describe("distributeProducts — equivalência com a implementação anterior", 
     expectSame(pages, products);
   });
 });
+
+describe("página de índice não recebe produto", () => {
+  // A armadilha: nos DOIS modos a última página recolhe o que sobrou. Índice no
+  // fim do catálogo receberia o resíduo do encarte inteiro.
+  it("no modo automático, mesmo sendo a última", () => {
+    const pages = [page({ id: "a" }), page({ id: "indice", kind: "index" })];
+    const out = distributeProducts(pages, prods(30), () => 12);
+    expect(out[0]).toHaveLength(30);
+    expect(out[1]).toEqual([]);
+  });
+
+  it("no modo explícito, mesmo sendo a última", () => {
+    const pages = [
+      page({ id: "a", productIds: ["prod-1", "prod-2"] }),
+      page({ id: "indice", kind: "index" }),
+    ];
+    const out = distributeProducts(pages, prods(5), () => 12);
+    expect(ids(out)).toEqual([
+      ["prod-1", "prod-2", "prod-3", "prod-4", "prod-5"],
+      [],
+    ]);
+  });
+
+  it("índice no meio não desloca os produtos das outras páginas", () => {
+    const pages = [
+      page({ id: "a" }),
+      page({ id: "indice", kind: "index" }),
+      page({ id: "b" }),
+    ];
+    const out = distributeProducts(pages, prods(20), () => 12);
+    expect(out[0]).toHaveLength(12);
+    expect(out[1]).toEqual([]);
+    expect(out[2]).toHaveLength(8);
+  });
+
+  // A capacidade é consultada pelo índice ORIGINAL da página: os chamadores
+  // usam esse número para achar a config, e o da lista filtrada apontaria para
+  // outra página.
+  it("a capacidade é pedida com o índice original", () => {
+    const pages = [
+      page({ id: "indice", kind: "index" }),
+      page({ id: "a" }),
+      page({ id: "b" }),
+    ];
+    const vistos: number[] = [];
+    distributeProducts(pages, prods(4), (_pg, i) => {
+      vistos.push(i);
+      return 2;
+    });
+    expect(vistos).toEqual([1, 2]);
+  });
+});
