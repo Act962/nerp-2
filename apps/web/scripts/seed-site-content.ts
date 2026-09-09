@@ -231,8 +231,8 @@ async function seedSettings() {
           { value: "100%", label: "Foco no cliente" },
         ],
         contact: {
-          email: "contato@orbitahub.com.br",
-          phone: "+55 (85) 0000-0000",
+          email: "suporteorbitahub@gmail.com",
+          phone: "+55 (86) 9489-2129",
         },
         whatsapp: WHATSAPP,
       },
