@@ -2219,6 +2219,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                             config={cfg}
                             products={prods}
                             indexRows={indexRows[i]}
+                            emptyHint
                             allProducts={products}
                             supplierLogos={selectedSupplierLogos}
                             dynamicContext={dynamicContexts[i]}
