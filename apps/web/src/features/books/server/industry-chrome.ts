@@ -20,8 +20,10 @@ export interface IndustryChrome {
 export async function getIndustryChrome(
   organizationId: string,
   supplierId: string | null | undefined,
+  // Book com capa própria (editada lá dentro) não herda nada da indústria.
+  customChrome = false,
 ): Promise<IndustryChrome> {
-  if (!supplierId) return { cover: null, closing: null };
+  if (!supplierId || customChrome) return { cover: null, closing: null };
   const templates = await prisma.bookPageTemplate.findMany({
     where: {
       organizationId,
@@ -35,6 +37,16 @@ export async function getIndustryChrome(
     return t ? { layout: t.layout, background: t.background } : null;
   };
   return { cover: pick("COVER"), closing: pick("CLOSING") };
+}
+
+// Recorte do lote pra UM book: capa própria (`customChrome`) manda o padrão da
+// indústria embora, senão a edição feita dentro do book nunca apareceria.
+export function chromeForBook(
+  chrome: IndustryChrome | undefined,
+  customChrome: boolean,
+): IndustryChrome {
+  if (customChrome || !chrome) return { cover: null, closing: null };
+  return chrome;
 }
 
 // Versão em lote pra listas de books: um único findMany pra todos os

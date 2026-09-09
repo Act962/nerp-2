@@ -3463,6 +3463,12 @@ model Book {
   coverBackground   Json?
   closingBackground Json?
   pageBackground    Json?
+  // Capa/página final PRÓPRIAS deste book: ligado quando alguém edita a capa
+  // aqui dentro. Sem isso o padrão COVER/CLOSING da indústria vence sempre e a
+  // edição some — ela era gravada num campo que ninguém lia. Desligado (padrão)
+  // o book continua herdando o padrão, que é o que faz trocar a logo em
+  // /padroes refletir em todos eles.
+  customChrome      Boolean      @default(false)
   // Numeração "FOTO N" carimbada DENTRO de cada foto. Desligar aqui vale para o
   // book inteiro, sem precisar desmarcar espaço por espaço em cada página; o
   // `showNumber` de cada slot continua valendo como exceção quando ligado.

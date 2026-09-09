@@ -267,132 +267,146 @@ export function BookEditor({ bookId }: BookEditorProps) {
         </p>
       )}
 
-      {/* O zoom é da leitura (Lista/Grade). Nos slides o canvas tem o próprio
+      {/* Mesa de trabalho: fundo cinza pra as páginas (brancas) lerem como
+          folhas apoiadas, em vez de se confundirem com o fundo da aplicação.
+          Cinza explícito, e não `bg-muted`: no tema todos os neutros semânticos
+          (muted/secondary/accent) valem o mesmo oklch(0.967) — quase branco no
+          claro e MAIS CLARO que o card no escuro, o que inverteria a relação
+          mesa/folha.
+          O zoom é da leitura (Lista/Grade); nos slides o canvas tem o próprio
           enquadramento, e encolher a página só dificultaria a edição. */}
-      <div
-        className="mx-auto"
-        style={view === "slides" ? undefined : { width: `${zoom}%` }}
-      >
-        {view === "slides" ? (
-          <BookSlidesEditor
-            pages={book.pages ?? []}
-            pageLayout={book.pageLayout}
-            pageBackground={book.pageBackground}
-            logos={logos}
-            variableValues={variableValues}
-            pageNumberStart={2}
-          />
-        ) : view === "grid" ? (
-          <BookPagesGrid
-            supplierId={book.supplierId}
-            coverLayout={book.coverLayout}
-            closingLayout={book.closingLayout}
-            coverBackground={book.coverBackground}
-            closingBackground={book.closingBackground}
-            pageLayout={book.pageLayout}
-            pageBackground={book.pageBackground}
-            pages={book.pages ?? []}
-            items={book.items}
-            logos={logos}
-            variableValues={variableValues}
-            onGoToPage={goToPage}
-          />
-        ) : (
-          <div className="space-y-6">
-            <div id="bookpg-1" className="scroll-mt-4">
-              <BookCoverCard
-                bookId={bookId}
-                bookName={book.name}
-                supplierId={book.supplierId}
-                supplierName={book.supplierName}
-                organizationName={book.organizationName}
-                periodMonth={book.periodMonth}
-                periodYear={book.periodYear}
-                coverLayout={book.coverLayout}
-                closingLayout={book.closingLayout}
-                coverBackground={book.coverBackground}
-                closingBackground={book.closingBackground}
-                logos={logos}
-                variableValues={variableValues}
-                kind="cover"
-                position={1}
-                total={totalPages}
-              />
-            </div>
-
-            {v2Count > 0 && (
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm text-muted-foreground">
-                  Use as setas ↑/↓ em cada página para reordená-las.
-                </p>
-                <AddExtraPageButton
+      <div className="-mx-2 rounded-xl bg-neutral-200 p-3 sm:-mx-4 sm:p-6 dark:bg-neutral-950">
+        <div
+          className="mx-auto"
+          style={view === "slides" ? undefined : { width: `${zoom}%` }}
+        >
+          {view === "slides" ? (
+            <BookSlidesEditor
+              pages={book.pages ?? []}
+              pageLayout={book.pageLayout}
+              pageBackground={book.pageBackground}
+              logos={logos}
+              variableValues={variableValues}
+              pageNumberStart={2}
+            />
+          ) : view === "grid" ? (
+            <BookPagesGrid
+              supplierId={book.supplierId}
+              coverLayout={book.coverLayout}
+              closingLayout={book.closingLayout}
+              coverBackground={book.coverBackground}
+              closingBackground={book.closingBackground}
+              pageLayout={book.pageLayout}
+              pageBackground={book.pageBackground}
+              pages={book.pages ?? []}
+              items={book.items}
+              logos={logos}
+              variableValues={variableValues}
+              onGoToPage={goToPage}
+            />
+          ) : (
+            <div className="space-y-6">
+              <div id="bookpg-1" className="scroll-mt-4">
+                <BookCoverCard
                   bookId={bookId}
+                  bookName={book.name}
                   supplierId={book.supplierId}
-                  pages={(book.pages ?? []).map((page, index) => ({
-                    id: page.id,
-                    label: `Página ${index + 1} — ${
-                      page.isExtra ? "Página extra" : (page.storeName ?? "Loja")
-                    }`,
-                  }))}
+                  supplierName={book.supplierName}
+                  organizationName={book.organizationName}
+                  periodMonth={book.periodMonth}
+                  periodYear={book.periodYear}
+                  coverLayout={book.coverLayout}
+                  closingLayout={book.closingLayout}
+                  coverBackground={book.coverBackground}
+                  closingBackground={book.closingBackground}
+                  logos={logos}
+                  variableValues={variableValues}
+                  kind="cover"
+                  position={1}
+                  total={totalPages}
+                  customChrome={book.customChrome}
+                  hasIndustryChrome={book.hasIndustryChrome}
                 />
               </div>
-            )}
 
-            {/* Modelo novo (BookPage): renderiza sempre que NÃO for um book só de
+              {v2Count > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm text-muted-foreground">
+                    Use as setas ↑/↓ em cada página para reordená-las.
+                  </p>
+                  <AddExtraPageButton
+                    bookId={bookId}
+                    supplierId={book.supplierId}
+                    pages={(book.pages ?? []).map((page, index) => ({
+                      id: page.id,
+                      label: `Página ${index + 1} — ${
+                        page.isExtra
+                          ? "Página extra"
+                          : (page.storeName ?? "Loja")
+                      }`,
+                    }))}
+                  />
+                </div>
+              )}
+
+              {/* Modelo novo (BookPage): renderiza sempre que NÃO for um book só de
               itens legados — inclusive vazio, pois a própria lista traz o botão
               "Adicionar página" e a orientação de "Gerar automático". */}
-            {(v2Count > 0 || book.items.length === 0) && (
-              <BookPagesListV2
-                bookId={bookId}
-                supplierId={book.supplierId}
-                pages={book.pages ?? []}
-                logos={logos}
-                variableValues={variableValues}
-                pageNumberStart={2}
-                totalPages={totalPages}
-                showPhotoNumbers={book.showPhotoNumbers}
-              />
-            )}
+              {(v2Count > 0 || book.items.length === 0) && (
+                <BookPagesListV2
+                  bookId={bookId}
+                  supplierId={book.supplierId}
+                  pages={book.pages ?? []}
+                  logos={logos}
+                  variableValues={variableValues}
+                  pageNumberStart={2}
+                  totalPages={totalPages}
+                  showPhotoNumbers={book.showPhotoNumbers}
+                />
+              )}
 
-            {book.items.length > 0 && (
-              <BookPagesList
-                bookId={bookId}
-                periodMonth={book.periodMonth}
-                periodYear={book.periodYear}
-                items={book.items}
-                industryLogo={book.supplierLogo}
-                organizationName={book.organizationName}
-                supplierId={book.supplierId}
-                supplierName={book.supplierName}
-                bookPageLayout={book.pageLayout}
-                bookPageBackground={book.pageBackground}
-                logos={logos}
-                pageNumberStart={legacyStart}
-              />
-            )}
+              {book.items.length > 0 && (
+                <BookPagesList
+                  bookId={bookId}
+                  periodMonth={book.periodMonth}
+                  periodYear={book.periodYear}
+                  items={book.items}
+                  industryLogo={book.supplierLogo}
+                  organizationName={book.organizationName}
+                  supplierId={book.supplierId}
+                  supplierName={book.supplierName}
+                  bookPageLayout={book.pageLayout}
+                  bookPageBackground={book.pageBackground}
+                  logos={logos}
+                  pageNumberStart={legacyStart}
+                />
+              )}
 
-            <div id={`bookpg-${totalPages}`} className="scroll-mt-4">
-              <BookCoverCard
-                bookId={bookId}
-                bookName={book.name}
-                supplierId={book.supplierId}
-                supplierName={book.supplierName}
-                organizationName={book.organizationName}
-                periodMonth={book.periodMonth}
-                periodYear={book.periodYear}
-                coverLayout={book.coverLayout}
-                closingLayout={book.closingLayout}
-                coverBackground={book.coverBackground}
-                closingBackground={book.closingBackground}
-                logos={logos}
-                variableValues={variableValues}
-                kind="closing"
-                position={totalPages}
-                total={totalPages}
-              />
+              <div id={`bookpg-${totalPages}`} className="scroll-mt-4">
+                <BookCoverCard
+                  bookId={bookId}
+                  bookName={book.name}
+                  supplierId={book.supplierId}
+                  supplierName={book.supplierName}
+                  organizationName={book.organizationName}
+                  periodMonth={book.periodMonth}
+                  periodYear={book.periodYear}
+                  coverLayout={book.coverLayout}
+                  closingLayout={book.closingLayout}
+                  coverBackground={book.coverBackground}
+                  closingBackground={book.closingBackground}
+                  logos={logos}
+                  variableValues={variableValues}
+                  kind="closing"
+                  position={totalPages}
+                  total={totalPages}
+                  customChrome={book.customChrome}
+                  hasIndustryChrome={book.hasIndustryChrome}
+                />
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       <BookBottomBar

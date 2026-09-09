@@ -29,6 +29,11 @@ export const updateBookCoverLayout = base
       throw errors.NOT_FOUND({ message: "Book não encontrado" });
     }
 
+    // `customChrome` liga aqui: a partir da primeira edição feita dentro do
+    // book, a capa é dele e não segue mais o padrão COVER/CLOSING da indústria.
+    // Sem essa marca o padrão vencia na leitura e a edição sumia sem aviso.
+    // O editor só chama isto depois de uma edição de verdade (`hasUserEdited`),
+    // então abrir a aba não desliga a herança.
     return prisma.book.update({
       where: { id: input.id },
       data: {
@@ -36,6 +41,7 @@ export const updateBookCoverLayout = base
         closingLayout: input.closingLayout,
         coverBackground: input.coverBackground,
         closingBackground: input.closingBackground,
+        customChrome: true,
       },
       select: { id: true },
     });

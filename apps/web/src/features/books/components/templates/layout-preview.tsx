@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { constructUrl } from "@/hooks/use-construct-url";
 import {
   resolveVariables,
@@ -151,6 +152,11 @@ function PreviewElement({
     const photoNumber = photoNumbers?.[element.slotIndex];
     const showNumber =
       showPhotoNumbers && element.showNumber !== false && photoNumber != null;
+    // "Caber inteira" sem fundo atrás: o que sobra da moldura é página, não
+    // foto. O espaço deixa de capturar clique (o container abre "Editar
+    // layout") e quem recebe é a <img>, já reduzida ao tamanho que aparece.
+    const letterbox =
+      clickable && effectiveFit === "contain" && backdrop === "none";
     const commonBox = {
       ...box,
       ...moldura,
@@ -159,6 +165,14 @@ function PreviewElement({
       cursor: clickable ? ("pointer" as const) : undefined,
       padding: 0,
       background: "none",
+      ...(letterbox
+        ? {
+            display: "flex" as const,
+            alignItems: "center" as const,
+            justifyContent: "center" as const,
+            pointerEvents: "none" as const,
+          }
+        : {}),
     };
     // Botão de verdade quando clicável (acessível por teclado); div quando é só
     // exibição, pra não virar tab stop em miniaturas.
@@ -170,7 +184,14 @@ function PreviewElement({
           type={clickable ? "button" : undefined}
           style={commonBox}
           onClick={
-            clickable ? () => onSlotClick(element.slotIndex, true) : undefined
+            clickable
+              ? (event) => {
+                  // O container do preview abre "Editar layout" no clique;
+                  // a foto tem ação própria (trocar) e para o evento aqui.
+                  event.stopPropagation();
+                  onSlotClick(element.slotIndex, true);
+                }
+              : undefined
           }
         >
           {backdrop === "blur" && (
@@ -210,15 +231,30 @@ function PreviewElement({
               src={url}
               alt=""
               loading="lazy"
-              style={{
-                position: "relative",
-                width: "100%",
-                height: "100%",
-                objectFit: backdrop === "blur" ? "cover" : effectiveFit,
-                objectPosition,
-                transform: `scale(${scale})`,
-                clipPath: backdrop === "blur" ? focusClip : undefined,
-              }}
+              style={
+                letterbox
+                  ? {
+                      // Elemento do tamanho da foto que aparece: é ele o alvo
+                      // do clique, e o PDF também trata "caber inteira" sem
+                      // zoom (cover-layout-view.tsx), então os dois batem.
+                      position: "relative",
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      width: "auto",
+                      height: "auto",
+                      pointerEvents: "auto",
+                      cursor: "pointer",
+                    }
+                  : {
+                      position: "relative",
+                      width: "100%",
+                      height: "100%",
+                      objectFit: backdrop === "blur" ? "cover" : effectiveFit,
+                      objectPosition,
+                      transform: `scale(${scale})`,
+                      clipPath: backdrop === "blur" ? focusClip : undefined,
+                    }
+              }
             />
           )}
           {showNumber && (
@@ -256,7 +292,12 @@ function PreviewElement({
           color: "#6b7280",
         }}
         onClick={
-          clickable ? () => onSlotClick(element.slotIndex, false) : undefined
+          clickable
+            ? (event) => {
+                event.stopPropagation();
+                onSlotClick(element.slotIndex, false);
+              }
+            : undefined
         }
       >
         {clickable ? "+ Foto" : `Foto ${element.slotIndex + 1}`}
@@ -312,6 +353,15 @@ interface LayoutPreviewProps {
   // Interruptor do book: false esconde a tarja "FOTO N" dentro das fotos.
   showPhotoNumbers?: boolean;
   onSlotClick?: (slotIndex: number, hasPhoto: boolean) => void;
+  /**
+   * Controles desenhados POR CIMA de cada espaço de foto (ajustar, remover).
+   *
+   * Camada separada, e não filho do slot, por dois motivos: o slot clicável é
+   * um `<button>` e botão dentro de botão é HTML inválido; e a sobreposição
+   * precisa ficar acima da foto. Só o editor passa isto — miniatura e o render
+   * do PDF (que é server-side, react-pdf) não têm nada disso.
+   */
+  slotOverlay?: (slotIndex: number, hasPhoto: boolean) => ReactNode;
   logos?: LayoutLogos;
   className?: string;
 }
@@ -326,6 +376,7 @@ export function LayoutPreview({
   photoNumbers,
   showPhotoNumbers,
   onSlotClick,
+  slotOverlay,
   logos,
   className,
 }: LayoutPreviewProps) {
@@ -372,6 +423,72 @@ export function LayoutPreview({
           logos={logos}
         />
       ))}
+      {slotOverlay &&
+        elements.map((element) => {
+          if (element.type !== "photoSlot") return null;
+          const url = photoUrls?.[element.slotIndex];
+          const adjustment = photoAdjustments?.[element.slotIndex];
+          // Mesma conta do slot: com "caber inteira" e sem fundo, a foto ocupa
+          // só o miolo da moldura — e é nela, não na moldura, que os controles
+          // precisam encostar. A <img> invisível dá exatamente essa caixa.
+          const encolhida =
+            !!url &&
+            (adjustment?.objectFit ?? element.objectFit) === "contain" &&
+            (adjustment?.backdrop ?? "none") === "none";
+          return (
+            <div
+              key={`overlay-${element.id}`}
+              style={{
+                position: "absolute",
+                left: toCqw(element.x),
+                top: toCqw(element.y),
+                width: toCqw(element.width),
+                height: toCqw(element.height),
+                transform: element.rotation
+                  ? `rotate(${element.rotation}deg)`
+                  : undefined,
+                transformOrigin: "top left",
+                // A camada cobre o slot inteiro; só os controles recebem
+                // clique, senão ela roubaria o "clique na foto para trocar".
+                pointerEvents: "none",
+                display: encolhida ? "flex" : undefined,
+                alignItems: encolhida ? "center" : undefined,
+                justifyContent: encolhida ? "center" : undefined,
+              }}
+            >
+              {encolhida ? (
+                <div
+                  style={{
+                    position: "relative",
+                    maxWidth: "100%",
+                    maxHeight: "100%",
+                  }}
+                >
+                  {/* Só serve de régua: mesma origem e mesmas regras de
+                      tamanho da foto visível, sem baixar nada duas vezes (a
+                      resposta já está no cache do navegador). */}
+                  {/* biome-ignore lint/performance/noImgElement: régua de medida, não conteúdo */}
+                  <img
+                    src={url}
+                    alt=""
+                    aria-hidden
+                    style={{
+                      display: "block",
+                      maxWidth: "100%",
+                      maxHeight: "100%",
+                      width: "auto",
+                      height: "auto",
+                      visibility: "hidden",
+                    }}
+                  />
+                  {slotOverlay(element.slotIndex, true)}
+                </div>
+              ) : (
+                slotOverlay(element.slotIndex, !!url)
+              )}
+            </div>
+          );
+        })}
     </div>
   );
 }

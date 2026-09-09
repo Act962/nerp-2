@@ -12,7 +12,7 @@ import {
 import { Pencil } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { useTemplateForBook } from "../../hooks/use-books";
+import { useResetBookChrome, useTemplateForBook } from "../../hooks/use-books";
 import type { BookVariableValues } from "../../lib/book-variables";
 import {
   buildDefaultClosingLayout,
@@ -53,6 +53,10 @@ interface BookCoverCardProps {
   kind: "cover" | "closing";
   position: number;
   total: number;
+  // Capa/página final próprias deste book: a edição feita aqui dentro venceu o
+  // padrão da indústria. `hasIndustryChrome` diz se existe padrão pra voltar.
+  customChrome: boolean;
+  hasIndustryChrome: boolean;
 }
 
 // Card que mostra a capa OU a página final do book na sequência do scroll.
@@ -61,6 +65,7 @@ interface BookCoverCardProps {
 // nunca aparecer em branco.
 export function BookCoverCard(props: BookCoverCardProps) {
   const { template, isLoading } = useTemplateForBook(props.supplierId);
+  const resetChrome = useResetBookChrome();
   const [editing, setEditing] = useState(false);
 
   const isCover = props.kind === "cover";
@@ -92,8 +97,8 @@ export function BookCoverCard(props: BookCoverCardProps) {
       : DEFAULT_COVER_BACKGROUND;
 
   return (
-    <Card className="overflow-hidden">
-      <div className="flex items-center justify-between border-b bg-muted/30 px-4 py-2">
+    <Card className="gap-0 overflow-hidden border-0 bg-transparent py-0 shadow-none">
+      <div className="flex items-center justify-between px-1 py-2">
         <div className="flex items-center gap-2 text-sm">
           <span className="font-semibold">
             Página {props.position}/{props.total}
@@ -116,13 +121,34 @@ export function BookCoverCard(props: BookCoverCardProps) {
         </Button>
       </div>
 
-      <div className="bg-muted/10 p-4">
+      {props.customChrome && props.hasIndustryChrome && (
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md bg-amber-100/80 px-3 py-2 text-xs dark:bg-amber-950/40">
+          <span className="text-muted-foreground">
+            {isCover ? "Capa" : "Página final"} própria deste book — mudanças no
+            padrão{props.supplierName ? ` da ${props.supplierName}` : ""} não
+            chegam mais aqui.
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7"
+            disabled={resetChrome.isPending}
+            onClick={() => resetChrome.mutate({ id: props.bookId })}
+          >
+            Voltar ao padrão
+          </Button>
+        </div>
+      )}
+
+      <div className="pb-0">
         <div className="relative">
           <LayoutPreview
             layout={layout}
             background={background}
             logos={props.logos}
             variableValues={props.variableValues}
+            className="rounded-md shadow-sm"
           />
           <TradegramMark />
         </div>
