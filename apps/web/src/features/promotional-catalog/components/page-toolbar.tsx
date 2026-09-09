@@ -26,6 +26,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -33,7 +35,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { CatalogConfig } from "../types";
+import type { CatalogConfig, CatalogIndexMode } from "../types";
 
 const LAYOUT_OPTS: { value: CatalogConfig["layout"]; label: string }[] = [
   { value: "grid-2", label: "2 colunas" },
@@ -63,6 +65,8 @@ interface PageToolbarProps {
   onMovePrev: () => void;
   onMoveNext: () => void;
   onAddPage: () => void;
+  // Insere a página de ÍNDICE (sumário) depois desta, no modo escolhido.
+  onAddIndexPage: (mode: CatalogIndexMode) => void;
   // A página tem grupos de produtos? Com grupos, a disposição é de cada grupo.
   hasGroups?: boolean;
   onToggleLock: () => void;
@@ -89,6 +93,7 @@ export function PageToolbar({
   onMovePrev,
   onMoveNext,
   onAddPage,
+  onAddIndexPage,
   hasGroups,
   onToggleLock,
   onDuplicate,
@@ -225,19 +230,39 @@ export function PageToolbar({
         </TooltipTrigger>
         <TooltipContent>Mover página para baixo</TooltipContent>
       </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 shrink-0"
-            onClick={onAddPage}
-          >
-            <Plus className="h-4 w-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Inserir página após esta</TooltipContent>
-      </Tooltip>
+      {/* Inserir: página em branco ou o ÍNDICE. O índice entra por aqui, e não
+          por um botão próprio, porque a decisão é a mesma — "o que vem depois
+          desta página". */}
+      <DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent>Inserir página após esta</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onClick={onAddPage}>
+            Página em branco
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel className="text-[11px] font-normal text-muted-foreground">
+            Índice (sumário com o número da página)
+          </DropdownMenuLabel>
+          <DropdownMenuItem onClick={() => onAddIndexPage("product")}>
+            Por produto
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onAddIndexPage("page")}>
+            Por página/cliente
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onAddIndexPage("category")}>
+            Por categoria
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       {/* Bloquear */}
       <Tooltip>

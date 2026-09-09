@@ -79,7 +79,19 @@ function distributeAuto<T extends { id: string }>(
   return chunks;
 }
 
-export function distributeProducts<T extends { id: string }>(
+/**
+ * Página que não participa da distribuição — hoje só o índice.
+ *
+ * Não basta dar `productIds: []` a ela: no modo explícito a ÚLTIMA página
+ * recolhe todos os produtos não atribuídos (ver `distributeExplicit`), e no
+ * automático a última recebe todo o restante. Índice no fim do catálogo
+ * receberia o resíduo do encarte inteiro.
+ */
+function isSpecialPage(page: CatalogPage): boolean {
+  return page.kind === "index";
+}
+
+function distribute<T extends { id: string }>(
   pages: readonly CatalogPage[],
   gridProducts: readonly T[],
   capacityOf: (page: CatalogPage, index: number) => number,
@@ -88,4 +100,35 @@ export function distributeProducts<T extends { id: string }>(
   return anyExplicit
     ? distributeExplicit(pages, gridProducts)
     : distributeAuto(pages, gridProducts, capacityOf);
+}
+
+export function distributeProducts<T extends { id: string }>(
+  pages: readonly CatalogPage[],
+  gridProducts: readonly T[],
+  capacityOf: (page: CatalogPage, index: number) => number,
+): T[][] {
+  if (!pages.some(isSpecialPage))
+    return distribute(pages, gridProducts, capacityOf);
+
+  // Distribui só entre as páginas comuns e devolve balde vazio nas especiais.
+  // `capacityOf` recebe o índice ORIGINAL: os chamadores usam esse número para
+  // achar a config da página, e o índice da lista filtrada apontaria para
+  // outra.
+  const comuns: CatalogPage[] = [];
+  const posicoes: number[] = [];
+  pages.forEach((pg, i) => {
+    if (isSpecialPage(pg)) return;
+    comuns.push(pg);
+    posicoes.push(i);
+  });
+
+  const parciais = distribute(comuns, gridProducts, (pg, i) =>
+    capacityOf(pg, posicoes[i]),
+  );
+
+  const buckets: T[][] = pages.map(() => []);
+  posicoes.forEach((original, i) => {
+    buckets[original] = parciais[i] ?? [];
+  });
+  return buckets;
 }

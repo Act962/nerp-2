@@ -39,6 +39,13 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ConfigPanel } from "./components/config-panel";
 import { CatalogPreview } from "./components/catalog-preview";
+import {
+  buildCatalogIndex,
+  indexColumns,
+  indexPagesNeeded,
+  indexRowsForPages,
+  rowsPerIndexPage,
+} from "./lib/catalog-index";
 import { SelectionLayer } from "./components/selection-layer";
 import { PageToolbar } from "./components/page-toolbar";
 import { PageSearch } from "./components/page-search";
@@ -55,7 +62,12 @@ import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import { authClient } from "@/lib/auth-client";
 import { useStores } from "@/features/stores/hooks/use-stores";
-import { useExport } from "./hooks/use-export";
+import {
+  EXPORT_PRESETS,
+  EXPORT_QUALITY_KEY,
+  type ExportQuality,
+  useExport,
+} from "./hooks/use-export";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { buildDynamicContext } from "./lib/resolve-entity";
 import { distributeProducts } from "./lib/page-chunks";
@@ -71,6 +83,7 @@ import {
 import type {
   CardLayoutElement,
   CatalogConfig,
+  CatalogIndexMode,
   CatalogPage,
   LayerRect,
   LayerSelection,
@@ -586,6 +599,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       offerValidUntil: pg.offerValidUntil ?? config.offerValidUntil,
       // Card efetivo da página: override da página > global.
       cardLayout: pg.cardLayout ?? config.cardLayout,
+      kind: pg.kind,
+      indexMode: pg.indexMode,
+      indexStyle: pg.indexStyle,
     };
   };
   const currentConfig = configForPage(safePage);
@@ -632,6 +648,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     [gridProducts, pages, capacityOf],
   );
 
+  // Sumário por página. Depende de `pages` e `pageChunks`, então acompanha
+  // qualquer mexida em produto ou ordem de página sem passo extra.
+  const indexRows = useMemo(
+    () => indexRowsForPages(pages, pageChunks, pageHeightOf(config)),
+    [pages, pageChunks, config],
+  );
+
   // Produtos da página atual = os do grid + os ligados aos blocos de estilo
   // desta página (que aparecem pelo bloco). Sem repetição.
   const pageProducts = useMemo(() => {
@@ -669,7 +692,13 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     setConfig((prev) => {
       const p = prev.pages ?? [];
       if (p.length === 0) return prev;
-      const idx = Math.min(safePage, p.length - 1);
+      // Nunca despeja órfão numa página de índice: ela não desenha produto, e
+      // os itens sumiriam do encarte sem aviso. Com o índice em foco, cai na
+      // primeira página comum.
+      const comum = (i: number) => p[i] && p[i].kind !== "index";
+      let idx = Math.min(safePage, p.length - 1);
+      if (!comum(idx)) idx = p.findIndex((pg) => pg.kind !== "index");
+      if (idx < 0) return prev;
       return {
         ...prev,
         pages: p.map((pg, i) => {
@@ -791,6 +820,21 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
 
   // Monta o layer de exportação e espera as imagens (data-URLs) ficarem prontas
   // — senão o html-to-image captura antes das fotos/fundo ou com taint de CORS.
+  // Um quadro, OU 120 ms — o que vier primeiro.
+  //
+  // Em aba de segundo plano o `requestAnimationFrame` não dispara, e o laço
+  // abaixo ficava preso nele: a checagem do prazo nunca voltava a rodar e a
+  // exportação pendurava para sempre. Exportar um catálogo grande leva minutos,
+  // tempo de sobra para o usuário trocar de aba.
+  const proximoQuadro = () =>
+    new Promise((resolve) => {
+      const t = window.setTimeout(() => resolve(null), 120);
+      requestAnimationFrame(() => {
+        window.clearTimeout(t);
+        resolve(null);
+      });
+    });
+
   const waitForExportReady = async () => {
     const deadline = Date.now() + 12000;
     // URL http(s) que NÃO é do nosso domínio (o html-to-image não consegue
@@ -798,7 +842,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     const isExternal = (s: string) =>
       s.startsWith("http") && !s.startsWith(window.location.origin);
     while (Date.now() < deadline) {
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await proximoQuadro();
       const el = exportLayerRef.current;
       if (el) {
         const imgs = [...el.querySelectorAll("img")];
@@ -995,9 +1039,27 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Qualidade do download. Fica no localStorage e NÃO no `config`: é decisão
+  // de quem baixa, não propriedade do catálogo — no config cairia no autosave
+  // e viraria alteração do documento a cada troca.
+  //
+  // Começa em "high" e só lê o armazenado no efeito: ler no inicializador
+  // divergiria do HTML do servidor e quebraria a hidratação.
+  const [exportQuality, setExportQuality] = useState<ExportQuality>("high");
+  useEffect(() => {
+    const salvo = window.localStorage.getItem(EXPORT_QUALITY_KEY);
+    if (salvo && salvo in EXPORT_PRESETS)
+      setExportQuality(salvo as ExportQuality);
+  }, []);
+  const changeExportQuality = (q: ExportQuality) => {
+    setExportQuality(q);
+    window.localStorage.setItem(EXPORT_QUALITY_KEY, q);
+  };
+
   const {
     exportAsPng,
     exportAsPdf,
+    estimatePdfBytes,
     exportPageAsPng,
     exportPageAsPdf,
     printPage,
@@ -1010,6 +1072,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     pageSize: config.pageSize,
     prepareExport,
     finishExport,
+    quality: exportQuality,
   });
 
   // Roteia mudanças: campos de aparência POR PÁGINA (layout, fundo, etiquetas)
@@ -1515,6 +1578,59 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     setCurrentPage(idx + 1);
   };
 
+  /**
+   * Insere a(s) página(s) de ÍNDICE depois de `idx`.
+   *
+   * Quantas páginas: o suficiente para as linhas caberem. Um índice por
+   * cliente num catálogo de 222 páginas dá 222 linhas — não cabe numa página
+   * só, e criar uma e deixar o resto cortado seria pior do que criar três.
+   */
+  const addIndexPage = (idx: number, mode: CatalogIndexMode) => {
+    const alturaPagina = pageHeightOf(config);
+    const linhas = buildCatalogIndex(
+      pages.map((pg, i) => ({
+        name: pg.name,
+        kind: pg.kind,
+        products: pageChunks[i] ?? [],
+      })),
+      mode,
+    );
+    const quantas = indexPagesNeeded(
+      linhas.length,
+      rowsPerIndexPage(alturaPagina, indexColumns(linhas.length)),
+    );
+
+    updatePages((pgs) => {
+      // Mesmo congelamento do `addPage`: sem ele os produtos escorregam de
+      // página quando a lista cresce.
+      const frozen = pgs.map((pg, i) =>
+        pg.productIds !== undefined
+          ? pg
+          : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
+      );
+      const base = frozen[idx] ?? frozen[0];
+      const novas: CatalogPage[] = Array.from({ length: quantas }, (_, k) => ({
+        id: `indice-${Date.now()}-${k}`,
+        name: quantas > 1 ? `Índice ${k + 1}` : "Índice",
+        locked: false,
+        layout: base.layout,
+        gridCols: base.gridCols ?? config.gridCols,
+        gridRows: base.gridRows ?? config.gridRows,
+        backgroundColor: base.backgroundColor,
+        backgroundImage: base.backgroundImage,
+        backgroundFit: base.backgroundFit,
+        overlays: [],
+        productIds: [],
+        kind: "index",
+        indexMode: mode,
+      }));
+      const next = [...frozen];
+      next.splice(idx + 1, 0, ...novas);
+      return next;
+    });
+    setCurrentPage(idx + 1);
+  };
+
   const movePage = (idx: number, dir: -1 | 1) => {
     const target = idx + dir;
     if (target < 0 || target >= totalPages) return;
@@ -1795,6 +1911,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                   }}
                   config={configForPage(i)}
                   products={prods}
+                  indexRows={indexRows[i]}
                   allProducts={products}
                   supplierLogos={selectedSupplierLogos}
                   dynamicContext={dynamicContexts[i]}
@@ -2010,6 +2127,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                         <CatalogPreview
                           config={configForPage(safePreview)}
                           products={pageChunks[safePreview] ?? []}
+                          indexRows={indexRows[safePreview]}
                           allProducts={products}
                           supplierLogos={selectedSupplierLogos}
                           dynamicContext={dynamicContexts[safePreview]}
@@ -2084,6 +2202,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                       onMovePrev={() => movePage(i, -1)}
                       onMoveNext={() => movePage(i, 1)}
                       onAddPage={() => addPage(i)}
+                      onAddIndexPage={(mode) => addIndexPage(i, mode)}
                       onToggleLock={() => toggleLockPage(i)}
                       onDuplicate={(mode) => duplicatePage(i, mode)}
                       onDelete={() => setDeletePageIndex(i)}
@@ -2099,6 +2218,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                             }}
                             config={cfg}
                             products={prods}
+                            indexRows={indexRows[i]}
                             allProducts={products}
                             supplierLogos={selectedSupplierLogos}
                             dynamicContext={dynamicContexts[i]}
@@ -2107,6 +2227,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                             <SelectionLayer
                               previewRef={pageRef}
                               productIds={prods.map((p) => p.id)}
+                              groupIsIndex={cfg.kind === "index"}
                               layoutIsFeatured={cfg.layout === "featured"}
                               overlays={cfg.overlays ?? []}
                               texts={cfg.texts ?? []}
@@ -2278,6 +2399,9 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         initialPage={safePage}
         onExportPng={exportAsPng}
         onExportPdf={exportAsPdf}
+        onEstimatePdf={estimatePdfBytes}
+        quality={exportQuality}
+        onQualityChange={changeExportQuality}
         onExportPagePng={exportPageAsPng}
         onExportPagePdf={exportPageAsPdf}
         onPrintPage={printPage}
@@ -2324,6 +2448,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
               <CatalogPreview
                 config={currentConfig}
                 products={pageChunks[safePage] ?? []}
+                indexRows={indexRows[safePage]}
                 allProducts={products}
                 supplierLogos={selectedSupplierLogos}
                 dynamicContext={dynamicContexts[safePage]}

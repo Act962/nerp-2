@@ -97,6 +97,10 @@ interface SelectionLayerProps {
   // redimensionar na Disposição personalizada, `grid` acompanha (colunas/linhas
   // recalculadas para caber mais produtos mantendo o tamanho do card).
   productGroup?: LayerRect | null;
+  // Numa PÁGINA DE ÍNDICE o mesmo retângulo abriga o sumário, não a grade — o
+  // rótulo muda e duplicar/excluir somem, porque ali não existe "outro grupo"
+  // para criar nem grade para apagar.
+  groupIsIndex?: boolean;
   onGroupChange: (
     rect: LayerRect,
     opts?: {
@@ -270,6 +274,7 @@ export function SelectionLayer({
   onTextsChange,
   onStyleBlocksChange,
   productGroup,
+  groupIsIndex = false,
   onGroupChange,
   productGroups,
   onGroupsChange,
@@ -1304,16 +1309,23 @@ export function SelectionLayer({
               {/* Rótulo = alça de mover o grupo inteiro */}
               <button
                 type="button"
-                title="Arraste para mover o grupo"
+                title={
+                  groupIsIndex
+                    ? "Arraste para mover o índice"
+                    : "Arraste para mover o grupo"
+                }
                 className="pointer-events-auto absolute -top-6 left-0 flex items-center gap-1 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground"
                 style={{ cursor: "move" }}
                 onPointerDown={startGroupMove}
               >
                 <Move className="h-3 w-3" />
-                Grupo de produtos
+                {groupIsIndex ? "Índice" : "Grupo de produtos"}
               </button>
               {/* Duplicar (materializa 2 grupos) + Excluir (com confirmação) */}
-              <div className="pointer-events-auto absolute -top-6 right-0 flex items-center gap-1">
+              <div
+                className="pointer-events-auto absolute -top-6 right-0 flex items-center gap-1"
+                hidden={groupIsIndex}
+              >
                 <button
                   type="button"
                   title="Duplicar grupo de produtos"

@@ -13,6 +13,9 @@ import { imageStyleFromAdjust } from "./cards/image-style";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { sliceProductsByGroup } from "../lib/group-slices";
+import type { IndexRow } from "../lib/catalog-index";
+import { indexColumns, INDEX_FONT_SIZE } from "../lib/catalog-index";
+import { CatalogIndexBody } from "./catalog-index-body";
 import {
   type DynamicContext,
   resolveEntityImageKey,
@@ -46,6 +49,13 @@ const BLOCK_PLACEHOLDER: CatalogProduct = {
 interface CatalogPreviewProps {
   config: CatalogConfig;
   products: CatalogProduct[];
+  // Linhas do sumário JÁ FATIADAS para esta página (ver `lib/catalog-index`).
+  // Só é lido quando `config.kind === "index"`; quem monta é o chamador, que é
+  // quem conhece a lista de páginas.
+  indexRows?: IndexRow[];
+  // Clique num número do índice. Só a tela passa isso; no export o número é
+  // texto, e o link do PDF é criado à parte (ver `hooks/use-export`).
+  onIndexNavigate?: (pageNumber: number) => void;
   // Lista COMPLETA de produtos do catálogo (todas as páginas). Usada para
   // resolver o produto de um bloco de estilo, que pode não estar na fatia
   // desta página. Ausente = cai em `products` (a fatia da página).
@@ -321,8 +331,8 @@ function hexToRgba(hex: string, opacityPct: number): string {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-const PAGE_W = 1080;
-const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
+export const PAGE_W = 1080;
+export const PAGE_H: Record<CatalogConfig["pageSize"], number> = {
   square: 1080,
   story: 1920,
   portrait: 1440,
@@ -367,9 +377,24 @@ function renderGridChildren(
   ];
 }
 
+/** Altura efetiva da página, com a proporção livre tendo precedência. */
+export function pageHeightOf(config: CatalogConfig): number {
+  return config.pageAspect && config.pageAspect > 0
+    ? Math.round(PAGE_W / config.pageAspect)
+    : PAGE_H[config.pageSize];
+}
+
 export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
   (
-    { config, products, allProducts, supplierLogos = [], dynamicContext },
+    {
+      config,
+      products,
+      indexRows,
+      onIndexNavigate,
+      allProducts,
+      supplierLogos = [],
+      dynamicContext,
+    },
     ref,
   ) => {
     const dynCtx = dynamicContext ?? {};
@@ -377,10 +402,7 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
     const [scale, setScale] = useState(1);
     const [bgDataUrl, setBgDataUrl] = useState<string>("");
 
-    const pageH =
-      config.pageAspect && config.pageAspect > 0
-        ? Math.round(PAGE_W / config.pageAspect)
-        : PAGE_H[config.pageSize];
+    const pageH = pageHeightOf(config);
 
     useEffect(() => {
       const el = outerRef.current;
@@ -691,7 +713,20 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
               </div>
             )}
 
-            {config.productGroups && config.productGroups.length > 0 ? (
+            {config.kind === "index" ? (
+              <CatalogIndexBody
+                rows={indexRows ?? []}
+                color={config.indexStyle?.color || titleColor}
+                columns={
+                  config.indexStyle?.columns ??
+                  indexColumns(indexRows?.length ?? 0)
+                }
+                fontSize={config.indexStyle?.fontSize ?? INDEX_FONT_SIZE}
+                fontFamily={config.indexStyle?.fontFamily}
+                boxStyle={groupPos}
+                onNavigate={onIndexNavigate}
+              />
+            ) : config.productGroups && config.productGroups.length > 0 ? (
               // Modo multi-grupo: cada grupo é uma grade posicionável (rect
               // próprio) com sua fatia de produtos (auto-split sequencial).
               (() => {
