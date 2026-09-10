@@ -42,6 +42,38 @@ export const auth = betterAuth({
       .filter(Boolean),
   ],
 
+  // Limite de requisições no BANCO, não em memória: o padrão do Better Auth
+  // guarda o contador no processo, e no Coolify com mais de uma instância cada
+  // réplica contaria sozinha — o limite viraria N vezes o configurado. E
+  // `enabled: true` porque o padrão só liga em produção, e é em dev que se
+  // descobre que ele quebrou algo.
+  rateLimit: {
+    enabled: true,
+    storage: "database",
+    modelName: "rateLimit",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 10 },
+      "/sign-in/social": { window: 60, max: 10 },
+      "/sign-in/anonymous": { window: 3600, max: 5 },
+      "/sign-up/email": { window: 3600, max: 5 },
+      "/organization/create": { window: 3600, max: 5 },
+      // A sessão é lida em todo layout; sem esta exceção o teto global
+      // derrubaria quem só navega rápido.
+      "/get-session": false,
+    },
+  },
+
+  advanced: {
+    // Atrás do proxy do Coolify o IP real chega nestes cabeçalhos — é o mesmo
+    // par que `astro-consultor/server/rate-limit.ts` lê. Sem isto, o limite
+    // por IP contaria o proxy inteiro como um cliente só.
+    ipAddress: {
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+    },
+  },
+
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID as string,
@@ -119,6 +151,15 @@ export const auth = betterAuth({
       // quando isto não é informado. Enquanto a cobrança por assento não volta,
       // não queremos teto nenhum.
       membershipLimit: 100_000,
+      // Sem isto, uma conta cria organizações sem fim — e cada uma nasce com
+      // dados de exemplo, ★ de boas-vindas e um subdomínio público. Cinco é
+      // folga para quem tem várias lojas; `true` = limite atingido.
+      organizationLimit: async (user) => {
+        const donoDe = await prisma.member.count({
+          where: { userId: user.id, role: "owner" },
+        });
+        return donoDe >= 5;
+      },
       // O envio do convite NÃO fica aqui: o Better Auth executa
       // `sendInvitationEmail` como background task e engole exceções, o que
       // faria um convite sem e-mail parecer sucesso. Quem envia é o handler

@@ -151,6 +151,35 @@ enum OrganizationStatus {
   CANCELLED
 }
 
+/// Contador do limite de requisições do Better Auth (`rateLimit.storage:
+/// "database"`). `lastRequest` é Float, não BigInt: o Better Auth faz
+/// `Date.now() - lastRequest` em número, e o BigInt do Prisma estouraria a
+/// conta com "Cannot mix BigInt". Double guarda milissegundos sem perda.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String
+  count       Int
+  lastRequest Float
+
+  @@index([key])
+  @@map("rateLimit")
+}
+
+/// Bytes assinados para upload por organização e dia (cota do R2). A linha é
+/// reservada ANTES do presign — ver `features/uploads/server/cota.ts`.
+model UploadQuotaDaily {
+  id             String @id @default(cuid())
+  organizationId String @map("organization_id")
+  /// YYYY-MM-DD no fuso da loja.
+  day            String
+  bytes          Int    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, day])
+  @@map("upload_quota_daily")
+}
+
 model Organization {
   id                        String                        @id @default(cuid())
   name                      String
@@ -346,6 +375,8 @@ model Organization {
   crmWorkflowRuns CrmWorkflowRun[]
   appointments    Appointment[]
   reminders       Reminder[]
+
+  uploadQuotas UploadQuotaDaily[]
 
   @@index([slug])
   @@index([subdomain])

@@ -43,6 +43,7 @@ feature depois de trabalhar em outra coisa.
 
 - [`integracoes-catalogo-financeiro.md`](./integracoes-catalogo-financeiro.md) — Catálogo de conectores em `/integracoes`: cards por categoria (bancos, adquirentes, gateways), conector direto com API própria do provedor, credencial cifrada · `feat/integracoes-catalogo-financeiro` · 🟡 Fase 1 implementada
 
+- [`sandbox-fase-0-brechas.md`](./sandbox-fase-0-brechas.md) — Fase 0 do épico "sem barreira de entrada": rate limit no banco, limite de organizações por conta, subdomínio com papel e reservados, R2 com dono e cota, escopos S2S fail-closed · `feat/sandbox-fase-0-brechas` · 🟡 em andamento
 - [`whatsapp-crm-campanhas.md`](./whatsapp-crm-campanhas.md) — Port do Órbita (nasaex-wey): atendimento por WhatsApp (API oficial da Meta) + CRM em funil + Campanhas + Agenda + Stars, com o lead amarrado ao `Customer` do ERP · `feat/whatsapp-crm-campanhas` · 🟢 Fases 0–10 feitas · **quem for mesclar: ler a seção "Antes do merge e do deploy" da spec** (ordem das migrations, envs novas, webhook do Stripe)
 
 - [`pdv-leitura-codigo-barras.md`](./pdv-leitura-codigo-barras.md) — **Correção**: PDV perde bipes e não incrementa quantidade na segunda leitura (descarte na reconexão do SSE, erro de scan engolido, 401 mudo, dígitos vazados zerando a quantidade) · `fix/pdv-leitura-codigo-barras` · 🟢 corrigido, aguardando teste do dev

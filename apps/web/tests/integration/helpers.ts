@@ -12,7 +12,9 @@ import { DEFAULT_DEVICE_SCOPES } from "@/lib/device-scopes";
 export function s2sContext(
   user: User,
   org: Organization,
-  scopes: string[] = [],
+  // `*` porque a suíte chama qualquer procedure por este contexto; passe uma
+  // lista menor para exercitar a negativa por escopo (`s2s-scopes.ts`).
+  scopes: string[] = ["*"],
 ) {
   return {
     headers: new Headers(),

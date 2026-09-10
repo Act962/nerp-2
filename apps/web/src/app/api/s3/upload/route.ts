@@ -3,7 +3,13 @@ import { v4 as uuidv4 } from "uuid";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import {
+  CotaDeUploadExcedidaError,
+  reservarCotaDeUpload,
+} from "@/features/uploads/server/cota";
+import { prefixoDaOrg } from "@/features/uploads/server/posse";
 import { getApiSession } from "@/lib/api-auth";
+import { auth } from "@/lib/auth";
 import { S3 } from "@/lib/s3-client";
 
 const MAX_UPLOAD_BYTES = 15 * 1024 * 1024;
@@ -79,6 +85,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
 
+    // O objeto nasce com dono: o id da organização vira prefixo da chave, e
+    // é por ele que `/api/s3/delete` decide quem pode apagar. Sessão sem
+    // organização ativa não tem onde pendurar o arquivo.
+    const org = await auth.api
+      .getFullOrganization({ headers: request.headers })
+      .catch(() => null);
+    if (!org) {
+      return NextResponse.json({ error: "Sem organização" }, { status: 403 });
+    }
+
     const body = await request.json();
 
     const validation = fileUploadSchema.safeParse(body);
@@ -99,7 +115,21 @@ export async function POST(request: Request) {
     // O nome vem do dispositivo do usuário: sem sanitizar, uma barra cria
     // objeto sob prefixo arbitrário do bucket (inclusive `trade-catalogs/`).
     const safeFileName = fileName.replace(/[^\w.-]/g, "_");
-    const uniqueKey = `${uuidv4()}-${safeFileName}`;
+    const uniqueKey = `${prefixoDaOrg(org.id)}${uuidv4()}-${safeFileName}`;
+
+    // Cota reservada ANTES de assinar: o PUT vai direto ao R2 e o servidor
+    // nunca o vê, então a assinatura é o único ponto de controle.
+    try {
+      await reservarCotaDeUpload({ organizationId: org.id, bytes: size });
+    } catch (erro) {
+      if (erro instanceof CotaDeUploadExcedidaError) {
+        return NextResponse.json(
+          { error: "Limite diário de upload atingido" },
+          { status: 413 },
+        );
+      }
+      throw erro;
+    }
 
     const command = new PutObjectCommand({
       Bucket: process.env.NEXT_PUBLIC_S3_BUCKET_NAME_IMAGES,
