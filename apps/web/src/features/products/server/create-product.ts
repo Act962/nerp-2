@@ -1,4 +1,5 @@
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { ProductUnit, MovementType } from "@/generated/prisma/enums";
 
 /**
@@ -74,6 +75,10 @@ export async function createProductForOrg(
   input: CreateProductInput,
   { orgId, userId }: { orgId: string; userId: string },
 ) {
+  // O limite do plano mora aqui, e não no procedure, para valer também na
+  // importação em massa e no espelho do ERP — todo produto novo passa por cá.
+  await assertDentroDoLimite(orgId, "produtos");
+
   const baseSlug = slugify(input.name);
 
   const existingProduct = await prisma.product.findUnique({

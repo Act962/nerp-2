@@ -4,6 +4,7 @@ import { base } from "@/app/middlewares/base";
 import { auth } from "@/lib/auth";
 import { enqueueSyncOutbox } from "@/lib/sync-outbox";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 
 /**
  * Entra na organização usando o link aberto.
@@ -51,9 +52,12 @@ export const acceptJoinLink = base
     });
 
     if (!existing) {
-      // O limite de usuários do plano (`organization.maxUsers`) está desativado
-      // por ora: bloqueava entradas legítimas em produção. O campo continua no
-      // schema para quando a cobrança por assento voltar.
+      // Limite de membros do plano (`billing/lib/planos.ts`). O antigo
+      // `organization.maxUsers` (teto 3 para todo mundo) bloqueava entradas
+      // legítimas em produção; este é `null` em plano pago e legado, e só
+      // barra quem está no Grátis.
+      await assertDentroDoLimite(organizationId, "membros");
+
       const member = await prisma.member.create({
         data: {
           organizationId,

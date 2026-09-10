@@ -3,6 +3,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import {
   buildInvitationLink,
   sendOrganizationInvitation,
@@ -149,6 +150,8 @@ export const createInvitation = base
     const emails = Array.from(
       new Set(input.emails.map((e) => e.trim().toLowerCase())),
     );
+
+    await assertDentroDoLimite(context.org.id, "membros", emails.length);
 
     const sent: string[] = [];
     const failed: { email: string; reason: string }[] = [];

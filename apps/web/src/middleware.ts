@@ -80,6 +80,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/catalogo") ||
     pathname.startsWith("/relatórios") ||
     pathname.startsWith("/configurações") ||
+    pathname.startsWith("/configuracoes") ||
     pathname.startsWith("/registrar-pedido") ||
     pathname.startsWith("/pedido-cliente") ||
     pathname.startsWith("/ranking-publico") ||

@@ -1,6 +1,9 @@
 import { betterAuth } from "better-auth";
 import { organization } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { PLANO_GRATIS } from "@/features/billing/lib/planos";
+import { seedDemoDataForOrg } from "@/features/onboarding/server/seed-demo";
+import { creditar } from "@/features/stars/server/debitar";
 import { ensureTradeCatalogs } from "@/features/trade-catalog/lib/ensure-catalogs";
 import prisma from "./db";
 import { enqueueSyncOutbox } from "./sync-outbox";
@@ -124,7 +127,7 @@ export const auth = betterAuth({
       // faria um convite sem e-mail parecer sucesso. Quem envia é o handler
       // `router/invitation/create.ts`, que consegue reportar a falha ao admin.
       organizationHooks: {
-        afterCreateOrganization: async ({ organization, member }) => {
+        afterCreateOrganization: async ({ organization, member, user }) => {
           await prisma.organization.update({
             where: {
               id: organization.id,
@@ -189,6 +192,37 @@ export const auth = betterAuth({
             ],
             skipDuplicates: true,
           });
+          // As configurações do catálogo nasciam de um `mutate` sem `await` no
+          // formulário — falha silenciosa. Aqui, junto do resto.
+          await prisma.catalogSettings.upsert({
+            where: { organizationId: organization.id },
+            create: {
+              organizationId: organization.id,
+              metaTitle: organization.name,
+            },
+            update: {},
+          });
+          // O plano é o Grátis (`billing/lib/planos.ts`), sem linha no banco:
+          // quem decide é `planoDaOrganizacao`. O que a org recebe de fato são
+          // as ★ de boas-vindas — o extrato registra de onde vieram.
+          //
+          // Quando o `@better-auth/stripe` entrar, é aqui que `authorizeReference`
+          // (owner/admin da org) e a assinatura passam a existir; nada disto
+          // muda.
+          await creditar({
+            organizationId: organization.id,
+            valor: PLANO_GRATIS.starsBoasVindas,
+            tipo: "WELCOME_BONUS",
+            descricao: `Boas-vindas: ${PLANO_GRATIS.starsBoasVindas} ★ para conhecer o Astro`,
+            userId: user.id,
+          });
+          // Dados de exemplo em `try/catch`: eles são conveniência, e uma org
+          // sem exemplo é infinitamente melhor que uma org que não nasce.
+          try {
+            await seedDemoDataForOrg(organization.id, user.id);
+          } catch (erro) {
+            console.error("[onboarding] seed de dados de exemplo falhou", erro);
+          }
           // Replica org + member do owner no NASA.
           await enqueueSyncOutbox("org", {
             id: organization.id,

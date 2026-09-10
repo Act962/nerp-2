@@ -1,7 +1,8 @@
 import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { PersonType } from "@/generated/prisma/enums";
+import type { PersonType } from "@/generated/prisma/enums";
 import { toast } from "sonner";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 interface UseCustomerProps {
   personType?: PersonType;
@@ -27,7 +28,7 @@ export function useCustomer({
         dateIni,
         dateEnd,
       },
-    })
+    }),
   );
 
   return {
@@ -42,7 +43,7 @@ export const useQueryCustomer = (id: string) => {
       input: {
         id,
       },
-    })
+    }),
   );
 
   return {
@@ -63,13 +64,11 @@ export const useCreateCustomer = () => {
         queryClient.invalidateQueries(
           orpc.customer.list.queryOptions({
             input: {},
-          })
+          }),
         );
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
+      onError: avisarErro,
+    }),
   );
 };
 
@@ -83,20 +82,18 @@ export const useUpdateCustomer = () => {
         queryClient.invalidateQueries(
           orpc.customer.list.queryOptions({
             input: {},
-          })
+          }),
         );
         queryClient.invalidateQueries(
           orpc.customer.getOne.queryOptions({
             input: {
               id: data.customer.id,
             },
-          })
+          }),
         );
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
+      onError: avisarErro,
+    }),
   );
 };
 
@@ -110,12 +107,10 @@ export const useDeleteCustomer = () => {
         queryClient.invalidateQueries(
           orpc.customer.list.queryOptions({
             input: {},
-          })
+          }),
         );
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
-    })
+      onError: avisarErro,
+    }),
   );
 };

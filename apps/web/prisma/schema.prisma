@@ -338,14 +338,17 @@ model Organization {
   // Saldo único, sem separar bônus: o extrato (`StarTransaction`) já registra
   // de onde cada crédito veio, e duas contas paralelas só fariam sentido se
   // alguma delas tivesse regra de uso diferente — o que não existe aqui.
-  starsBalance    Int              @default(0) @map("stars_balance")
+  starsBalance     Int              @default(0) @map("stars_balance")
   /// Início do ciclo mensal. Nulo enquanto a organização nunca recebeu crédito.
-  starsCycleStart DateTime?        @map("stars_cycle_start")
-  agendas         Agenda[]
-  crmWorkflows    CrmWorkflow[]
-  crmWorkflowRuns CrmWorkflowRun[]
-  appointments    Appointment[]
-  reminders       Reminder[]
+  starsCycleStart  DateTime?        @map("stars_cycle_start")
+  /// ★ debitadas desde o início do ciclo. Zera quando o ciclo vira; no plano
+  /// Grátis, que não tem ciclo, acumula desde a criação — é o consumido das 50.
+  starsUsedInCycle Int              @default(0) @map("stars_used_in_cycle")
+  agendas          Agenda[]
+  crmWorkflows     CrmWorkflow[]
+  crmWorkflowRuns  CrmWorkflowRun[]
+  appointments     Appointment[]
+  reminders        Reminder[]
 
   @@index([slug])
   @@index([subdomain])
@@ -617,6 +620,8 @@ model Category {
   // parentId; mantidos por backfill e na escrita.
   level          Int                         @default(0)
   path           String?
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo         Boolean                     @default(false)
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
   organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -732,6 +737,8 @@ model Product {
   // KDS - tempo médio de preparo (min) usado no painel da cozinha
   prepTimeMinutes     Int?
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo              Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   createdById         String
@@ -1094,6 +1101,8 @@ model Customer {
   //Assas
   asaasCustomerId String?      @map("asaas_customer_id")
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo          Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   // Tabela de preço vinculada — quem não tem cai na PriceList `isDefault` da org.
@@ -1146,6 +1155,8 @@ model Supplier {
   notes             String?                    @db.Text
   isActive          Boolean                    @default(true)
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo            Boolean                    @default(false)
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
   // Relações
@@ -1964,6 +1975,8 @@ model PromotionalCatalog {
   // Miniatura (data URL JPEG) capturada no autosave — mostrada na lista.
   thumbnail      String?  @db.Text
   createdById    String
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo         Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2349,6 +2362,8 @@ model Store {
   /// `organizationId`. Sem ele, duas organizações com a mesma loja produzem
   /// dois pinos no mapa público.
   directoryStoreId      String?
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo                Boolean                       @default(false)
   createdAt             DateTime                      @default(now())
   updatedAt             DateTime                      @updatedAt
   organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)

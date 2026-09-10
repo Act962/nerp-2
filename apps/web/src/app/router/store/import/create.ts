@@ -1,5 +1,6 @@
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { isSuperAdmin } from "@/lib/super-admin";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
@@ -53,6 +54,12 @@ export const createImport = base
       throw errors.BAD_REQUEST({
         message: "O campo Nome precisa estar mapeado",
       });
+    }
+
+    // O catálogo nacional não é cadastro da organização; só a importação
+    // para a própria org conta no plano.
+    if (input.target !== "CATALOGO") {
+      await assertDentroDoLimite(context.org.id, "lojas");
     }
 
     const record = await prisma.storeImport.create({

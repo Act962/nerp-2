@@ -1,5 +1,6 @@
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
@@ -42,6 +43,8 @@ export const createImport = base
         message: "O campo Razão Social / Nome precisa estar mapeado",
       });
     }
+
+    await assertDentroDoLimite(context.org.id, "fornecedores");
 
     const record = await prisma.supplierImport.create({
       data: {

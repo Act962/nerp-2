@@ -1,6 +1,7 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { vagasRestantes } from "@/features/billing/server/limites";
 import { S3 } from "@/lib/s3-client";
 import type { ImportMapping } from "@/features/supplier/import-fields";
 import { createSupplierForOrg } from "./create-supplier-for-org";
@@ -70,9 +71,19 @@ export async function runSupplierImport(importId: string): Promise<void> {
   let skippedRows = 0;
   let processedRows = 0;
 
+  // `null` = plano sem limite. Uma consulta antes do laço, não uma por linha.
+  const vagas = await vagasRestantes(record.organizationId, "fornecedores");
+
   for (let i = 0; i < rows.length; i++) {
     // +2: linha 1 é o cabeçalho; índice começa em 0 → número humano da planilha.
     const rowNumber = i + 2;
+    if (vagas !== null && createdRows >= vagas) {
+      errors.push({
+        row: rowNumber,
+        message: `Limite do plano atingido: ${rows.length - i} linha(s) não importada(s). Escolha um plano para cadastrar mais.`,
+      });
+      break;
+    }
     try {
       const mapped = mapSupplierRow(rows[i], mapping);
       if (mapped.error) {

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { PLANS } from "@/features/billing/lib/plans";
+import { planoDaOrganizacao } from "@/features/billing/server/plano-da-organizacao";
 import prisma from "@/lib/db";
 import { creditar } from "./debitar";
 
@@ -20,6 +20,11 @@ import { creditar } from "./debitar";
  * A corrida entre duas mensagens simultâneas na virada do mês é resolvida com
  * um `updateMany` condicionado ao ciclo antigo, no mesmo padrão do débito:
  * quem consegue mover a data credita; o outro vê `count: 0` e segue.
+ *
+ * O plano vem de `planoDaOrganizacao` (catálogo em `billing/lib/planos.ts`).
+ * Grátis e legado dão zero por ciclo e saem antes de mover a data — o que,
+ * no Grátis, faz `starsUsedInCycle` acumular desde a criação: é exatamente o
+ * "consumido das 50" que a barra mostra.
  */
 export async function garantirCreditoDoCiclo(
   organizationId: string,
@@ -31,10 +36,7 @@ export async function garantirCreditoDoCiclo(
 
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: {
-      starsCycleStart: true,
-      tradeSubscription: { select: { plan: true, status: true } },
-    },
+    select: { starsCycleStart: true },
   });
 
   if (!org) return { creditou: false, valor: 0 };
@@ -44,29 +46,22 @@ export async function garantirCreditoDoCiclo(
     return { creditou: false, valor: 0 };
   }
 
-  const assinatura = org.tradeSubscription;
-  if (!assinatura) return { creditou: false, valor: 0 };
-
-  // Só ATIVA e CORTESIA creditam. `INADIMPLENTE` mantém acesso aos módulos
-  // em carência — mas acesso é uma coisa e crédito pré-pago é outra: continuar
-  // dando ★ a quem não pagou é pagar a Meta pela mensagem dele.
-  const valendo =
-    assinatura.status === "ATIVA" || assinatura.status === "CORTESIA";
-  if (!valendo) return { creditou: false, valor: 0 };
-
-  const valor = PLANS[assinatura.plan]?.quotas.starsPerMonth ?? 0;
+  const { plano } = await planoDaOrganizacao(organizationId);
+  const valor = plano.limites.starsPorCiclo;
   if (valor <= 0) return { creditou: false, valor: 0 };
 
   // Move o ciclo ANTES de creditar, condicionado ao valor antigo. Quem perde a
   // corrida não credita de novo. Se o crédito falhasse depois disto, a
   // organização ficaria um mês sem — por isso o crédito vem logo em seguida e
   // sem `catch` que engula erro.
+  //
+  // O consumido zera na mesma escrita: ciclo novo, barra do zero.
   const { count } = await prisma.organization.updateMany({
     where: {
       id: organizationId,
       OR: [{ starsCycleStart: null }, { starsCycleStart: { lt: inicioDoMes } }],
     },
-    data: { starsCycleStart: inicioDoMes },
+    data: { starsCycleStart: inicioDoMes, starsUsedInCycle: 0 },
   });
 
   if (count === 0) return { creditou: false, valor: 0 };
@@ -75,7 +70,7 @@ export async function garantirCreditoDoCiclo(
     organizationId,
     valor,
     tipo: "PLAN_CREDIT",
-    descricao: `Crédito mensal do plano ${PLANS[assinatura.plan].name}`,
+    descricao: `Crédito mensal do plano ${plano.nome}`,
   });
 
   return { creditou: true, valor };

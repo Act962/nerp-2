@@ -11,7 +11,7 @@ const nextConfig: NextConfig = {
   // `@nerp/site-content` é publicado como TypeScript cru (é um pacote interno
   // do monorepo, sem build). Sem esta linha o Next não o compila e o build de
   // produção quebra no primeiro import de valor.
-  transpilePackages: ["@nerp/site-content"],
+  transpilePackages: ["@nerp/site-content", "@nerp/astro-widget"],
 };
 
 export default nextConfig;

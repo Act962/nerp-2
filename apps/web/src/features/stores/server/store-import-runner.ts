@@ -1,6 +1,7 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { vagasRestantes } from "@/features/billing/server/limites";
 import { resolveDirectoryStore } from "@/app/router/field-map/_resolve-directory-store";
 import { normalizeCity, normalizeStoreName } from "@/lib/store-name";
 import { findTakenSlugs, storeSlugCandidates } from "@/lib/store-slug";
@@ -192,9 +193,25 @@ export async function runStoreImportChunk(
   let createdRows = 0;
   let skippedRows = 0;
 
+  // `null` = plano sem limite. O catálogo nacional não é cadastro da org e
+  // não conta. Conferido por lote, não por linha; os lotes anteriores já
+  // gravaram, então a contagem os inclui.
+  const vagas = toCatalog
+    ? null
+    : await vagasRestantes(record.organizationId, "lojas");
+  let limiteAtingido = false;
+
   for (let i = 0; i < slice.length; i++) {
     // +2: linha 1 é o cabeçalho; índice começa em 0 → número humano da planilha.
     const rowNumber = offset + i + 2;
+    if (vagas !== null && createdRows >= vagas) {
+      errors.push({
+        row: rowNumber,
+        message: `Limite do plano atingido: ${rows.length - offset - i} linha(s) não importada(s). Escolha um plano para cadastrar mais.`,
+      });
+      limiteAtingido = true;
+      break;
+    }
     try {
       const row = mapped[i];
       if (row.error) {
@@ -282,7 +299,8 @@ export async function runStoreImportChunk(
     },
   });
 
-  const nextOffset = offset + slice.length;
+  // Sem vaga, não há lote seguinte que valha: fecha aqui.
+  const nextOffset = limiteAtingido ? rows.length : offset + slice.length;
   const done = nextOffset >= rows.length;
   if (done) await finalize(importId, nextOffset);
 

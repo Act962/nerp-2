@@ -25,6 +25,7 @@ import {
 } from "@/features/org-dashboard/hooks/use-org-dashboard";
 import { hasFullAccess } from "@/lib/permissions";
 import { DashboardShortcuts } from "./dashboard-shortcuts";
+import { BoasVindasCard } from "@/features/onboarding/components/boas-vindas-card";
 
 export default function DashboardPage() {
   const { member } = useCurrentMember();
@@ -66,6 +67,7 @@ export default function DashboardPage() {
           : "space-y-6",
       )}
     >
+      {!fullscreen && <BoasVindasCard />}
       <div
         className={cn(
           "flex flex-wrap items-start justify-between gap-3",

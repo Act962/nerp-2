@@ -1,0 +1,9 @@
+{
+  "extends": "@nerp/typescript-config/react-library.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules"]
+}

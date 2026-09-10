@@ -1,14 +1,12 @@
 import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 /** Dispara a criação da importação (registro + evento Inngest). */
 export const useCreateCustomerImport = () => {
   return useMutation(
     orpc.customer.import.create.mutationOptions({
-      onError: (error) => {
-        toast.error(error.message);
-      },
+      onError: avisarErro,
     }),
   );
 };

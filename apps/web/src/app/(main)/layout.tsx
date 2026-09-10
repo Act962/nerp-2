@@ -8,6 +8,7 @@ import { AppHeader } from "@/components/app-header";
 import { NewVersionBanner } from "@/components/new-version-banner";
 import { ShellContent } from "@/components/shell-content";
 import { EmptyOrganization } from "@/components/empty-organization";
+import { AstroFlutuante } from "@/features/astro/components/astro-flutuante";
 
 export default async function Layout({
   children,
@@ -46,6 +47,9 @@ export default async function Layout({
         </main>
       </div>
       <ModalProvider />
+      {/* O mesmo Astro do site, flutuando em toda página logada. Só com
+          organização: é dela que sai o saldo que paga a conversa. */}
+      {org ? <AstroFlutuante /> : null}
     </SidebarProvider>
   );
 }

@@ -31,6 +31,42 @@ vi.mock("@/lib/stripe", () => ({
   stripe: { checkout: { sessions: { create: criarSessao } } },
 }));
 
+/**
+ * O plano vem do catálogo em código, não do banco. Aqui ele é dublado para
+ * testar o crédito do ciclo com um plano que dá ★ — os slots pagos do
+ * catálogo ainda não têm valor, e o Grátis dá zero por ciclo.
+ */
+const planoDublado: { starsPorCiclo: number; nome: string } = {
+  starsPorCiclo: 0,
+  nome: "Grátis",
+};
+vi.mock("@/features/billing/server/plano-da-organizacao", async () => {
+  const { PLANO_GRATIS } = await import("@/features/billing/lib/planos");
+  return {
+    planoDaOrganizacao: vi.fn(async () => ({
+      plano: {
+        ...PLANO_GRATIS,
+        nome: planoDublado.nome,
+        limites: {
+          ...PLANO_GRATIS.limites,
+          starsPorCiclo: planoDublado.starsPorCiclo,
+        },
+      },
+      origem: planoDublado.starsPorCiclo > 0 ? "assinatura" : "gratis",
+    })),
+  };
+});
+
+function usarPlanoComCiclo(starsPorCiclo: number, nome = "Plano de teste") {
+  planoDublado.starsPorCiclo = starsPorCiclo;
+  planoDublado.nome = nome;
+}
+
+function usarPlanoGratis() {
+  planoDublado.starsPorCiclo = 0;
+  planoDublado.nome = "Grátis";
+}
+
 const { createCheckout } = await import("@/app/router/stars/create-checkout");
 const { listPackages } = await import("@/app/router/stars/list-packages");
 const { garantirCreditoDoCiclo } = await import(
@@ -68,8 +104,9 @@ beforeEach(async () => {
   });
   await prisma.organization.update({
     where: { id: org.id },
-    data: { starsBalance: 0, starsCycleStart: null },
+    data: { starsBalance: 0, starsCycleStart: null, starsUsedInCycle: 0 },
   });
+  usarPlanoGratis();
 });
 
 afterAll(async () => {
@@ -163,15 +200,13 @@ describe("abertura do pagamento", () => {
 });
 
 describe("crédito mensal do plano", () => {
-  it("não credita organização sem assinatura", async () => {
+  it("o Grátis não credita nada por mês: as 50 ★ são de boas-vindas", async () => {
     const resultado = await garantirCreditoDoCiclo(org.id);
     expect(resultado.creditou).toBe(false);
   });
 
   it("credita uma vez por mês, conforme o plano", async () => {
-    await prisma.tradeSubscription.create({
-      data: { organizationId: org.id, plan: "PRATA", status: "ATIVA" },
-    });
+    usarPlanoComCiclo(1500, "Prata de teste");
 
     const primeira = await garantirCreditoDoCiclo(org.id);
     expect(primeira.creditou).toBe(true);
@@ -186,14 +221,15 @@ describe("crédito mensal do plano", () => {
       select: { starsBalance: true },
     });
     expect(saldo.starsBalance).toBe(1500);
+
+    const lancamento = await prisma.starTransaction.findFirstOrThrow({
+      where: { organizationId: org.id, type: "PLAN_CREDIT" },
+    });
+    expect(lancamento.description).toContain("Prata de teste");
   });
 
   it("não credita duas vezes em chamadas simultâneas", async () => {
-    await prisma.tradeSubscription.upsert({
-      where: { organizationId: org.id },
-      create: { organizationId: org.id, plan: "BRONZE", status: "ATIVA" },
-      update: { plan: "BRONZE", status: "ATIVA" },
-    });
+    usarPlanoComCiclo(500);
 
     // Duas mensagens chegando juntas na virada do mês.
     const resultados = await Promise.all([
@@ -209,61 +245,38 @@ describe("crédito mensal do plano", () => {
     expect(saldo.starsBalance).toBe(500);
   });
 
-  it("assinatura cancelada não credita", async () => {
-    await prisma.tradeSubscription.upsert({
-      where: { organizationId: org.id },
-      create: { organizationId: org.id, plan: "OURO", status: "CANCELADA" },
-      update: { plan: "OURO", status: "CANCELADA" },
-    });
-
-    const resultado = await garantirCreditoDoCiclo(org.id);
-    expect(resultado.creditou).toBe(false);
-  });
-
-  it("inadimplente não credita, mesmo mantendo acesso aos módulos", async () => {
-    await prisma.tradeSubscription.upsert({
-      where: { organizationId: org.id },
-      create: { organizationId: org.id, plan: "OURO", status: "INADIMPLENTE" },
-      update: { plan: "OURO", status: "INADIMPLENTE" },
-    });
-
-    // Acesso é uma coisa; continuar dando ★ a quem não pagou é pagar a Meta
-    // pela mensagem dele.
-    const resultado = await garantirCreditoDoCiclo(org.id);
-    expect(resultado.creditou).toBe(false);
-  });
-
-  it("o mês seguinte credita de novo", async () => {
-    await prisma.tradeSubscription.upsert({
-      where: { organizationId: org.id },
-      create: { organizationId: org.id, plan: "BRONZE", status: "ATIVA" },
-      update: { plan: "BRONZE", status: "ATIVA" },
-    });
+  it("o mês seguinte credita de novo e zera o consumido do ciclo", async () => {
+    usarPlanoComCiclo(500);
 
     const agosto = new Date(Date.UTC(2026, 7, 15));
     expect((await garantirCreditoDoCiclo(org.id, agosto)).creditou).toBe(true);
     expect((await garantirCreditoDoCiclo(org.id, agosto)).creditou).toBe(false);
 
     // O ciclo guarda o PRIMEIRO DIA DO MÊS de referência, não o instante do
-    // crédito. Sem esta asserção o teste só quebrava quando o relógio real
-    // alcançava o mês seguinte — foi o que aconteceu: `creditar` sobrescrevia o
-    // campo com `new Date()` e o parâmetro `agora` virava decoração.
+    // crédito.
     const ciclo = await prisma.organization.findUniqueOrThrow({
       where: { id: org.id },
       select: { starsCycleStart: true },
     });
     expect(ciclo.starsCycleStart).toEqual(new Date(Date.UTC(2026, 7, 1)));
 
+    // Gasta um pouco em agosto: o consumido precisa sumir na virada.
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { starsUsedInCycle: 120 },
+    });
+
     const setembro = new Date(Date.UTC(2026, 8, 2));
     expect((await garantirCreditoDoCiclo(org.id, setembro)).creditou).toBe(
       true,
     );
 
-    const saldo = await prisma.organization.findUniqueOrThrow({
+    const depois = await prisma.organization.findUniqueOrThrow({
       where: { id: org.id },
-      select: { starsBalance: true },
+      select: { starsBalance: true, starsUsedInCycle: true },
     });
-    expect(saldo.starsBalance).toBe(1000);
+    expect(depois.starsBalance).toBe(1000);
+    expect(depois.starsUsedInCycle).toBe(0);
   });
 });
 

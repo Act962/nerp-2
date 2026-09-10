@@ -33,7 +33,16 @@ const dinheiro = new Intl.NumberFormat("pt-BR", {
  * saldo novo — que pode levar alguns segundos e não depende desta aba estar
  * aberta.
  */
-export function Recarregar() {
+export function Recarregar({
+  voltarPara = "/configuracoes/stars",
+  variant = "default",
+  size = "default",
+}: {
+  /** Para onde o Stripe devolve depois de pagar. Caminho relativo. */
+  voltarPara?: string;
+  variant?: "default" | "outline" | "secondary" | "ghost";
+  size?: "default" | "sm";
+}) {
   const [aberto, setAberto] = useState(false);
   const [escolhido, setEscolhido] = useState<string | null>(null);
 
@@ -58,17 +67,18 @@ export function Recarregar() {
   return (
     <Dialog open={aberto} onOpenChange={setAberto}>
       <DialogTrigger asChild>
-        <Button>
+        <Button variant={variant} size={size}>
           <Star className="size-4" />
-          Recarregar
+          Comprar Stars
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Recarregar créditos</DialogTitle>
+          <DialogTitle>Comprar Stars</DialogTitle>
           <DialogDescription>
-            O pagamento é pelo Stripe. Os créditos entram assim que ele
-            confirmar — normalmente em segundos.
+            Stars avulsas valem para o Astro e para o WhatsApp e não vencem. O
+            pagamento é pelo Stripe; elas entram assim que ele confirmar —
+            normalmente em segundos.
           </DialogDescription>
         </DialogHeader>
 
@@ -110,7 +120,7 @@ export function Recarregar() {
               escolhido &&
               iniciar.mutate({
                 packageId: escolhido,
-                voltarPara: "/whatsapp/creditos",
+                voltarPara,
               })
             }
           >

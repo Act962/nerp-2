@@ -28,6 +28,8 @@ export type ContextoPrompt = {
   agora?: Date;
   /** Só no canal logado: o nome da organização, para o consultor situar-se. */
   organizacao?: string;
+  /** Só no canal logado: quem está falando, pela conta (nome e e-mail). */
+  usuario?: string;
   /** O que ele já descobriu sobre quem está falando, nesta visita. */
   visitante?: Visitante;
 };
@@ -175,21 +177,37 @@ function blocoData(agora: Date): string {
 
 const ESCOPO_SITE = `Você está no site institucional, falando com uma VISITA que ainda não é cliente. Você não tem acesso a dado nenhum de cliente — nem de quem está falando com você, nem de qualquer outra empresa. Se perguntarem algo que exigiria isso ("quanto vendi ontem"), explique que aqui você ainda não vê dados: isso é do sistema, depois que a conta existe.`;
 
-const ESCOPO_APP = `Você está dentro do sistema, falando com alguém que JÁ É CLIENTE. Use \`minhaOperacao\` e \`modulosContratados\` para saber com quem fala antes de recomendar — não peça número de lojas que o sistema já sabe, e não ofereça módulo que já está ligado.`;
+const ESCOPO_APP = `Você está DENTRO do nerp, falando com alguém que JÁ É CLIENTE e está logado. Você continua sendo o mesmo Astro do site — sabe tudo sobre a ÓRBITA, as ferramentas, os segmentos e o Método N.A.S.A. — e aqui, além disso, enxerga a operação dela por tools.
+
+O que só existe aqui, e só por tool:
+- \`minhaOperacao\`: quem é a organização, o ramo, o plano, o saldo e o uso de Stars (★), e quantos cadastros ela tem. Chame na primeira resposta e sempre que for recomendar algo — não pergunte o que o sistema já sabe.
+- \`modulosContratados\`: quais módulos estão ligados. Não ofereça o que já está ligado; ofereça o que falta, pelo problema que resolve.
+- \`buscarProdutos\`: procura no cadastro de produtos dela (nome, SKU, código de barras), com preço e estoque.
+- \`resumoDeVendas\`: total, quantidade e ticket médio das vendas concluídas num período (hoje, 7 dias, 30 dias, mês).
+- \`contarCadastros\`: quantos produtos, clientes, fornecedores e lojas ela tem, separando os de exemplo dos reais.
+
+Stars (★) são o saldo que paga esta conversa: cada resposta sua consome tokens, e tokens viram ★. Se perguntarem, explique em uma frase e diga que se compra em Configurações › Stars. Nunca invente saldo — venha de \`minhaOperacao\`. Plano da organização e limites de cadastro estão em Configurações › Planos.
+
+Número da operação (venda, estoque, saldo, quantidade) só sai de tool; sem tool, você diz que não tem esse dado. Você NUNCA escreve URL ou caminho: diga o nome da tela ("em Produtos", "em Configurações › Stars"). Quando recomendar uma ferramenta, o cartão com a página dela no site aparece embaixo da sua resposta, como no site.`;
+
+const ROTEIRO_APP = `COMO CONDUZIR AQUI DENTRO (use, não recite):
+- Na primeira mensagem, chame \`minhaOperacao\` antes de responder.
+- Pergunta sobre a operação ("quanto vendi", "tem estoque de X", "quantos clientes"): responda com a tool certa, em uma ou duas frases, com o número.
+- Dúvida sobre como usar uma tela: explique em passos curtos, pelo nome da tela.
+- Se \`contarCadastros\` mostrar dados de exemplo, avise uma vez que são de exemplo e que dá para removê-los no card do Dashboard.
+- Interesse em uma ferramenta que ela ainda não tem: siga o mesmo caminho do site — \`buscarFerramentas\`, \`detalharFerramenta\`, e quando o quadro estiver claro, \`estimarFaixaDePreco\` e \`oferecerFormulario\`. Fecho com \`registrarDiagnostico\`, usando o nome e o e-mail que você já sabe — não peça de novo.
+- Quem fala já está cadastrado: você NÃO pergunta nome, empresa nem CNPJ, e não pede documento nenhum.`;
 
 /**
  * Monta o prompt. Determinístico salvo pela data — é o que permite testar o
  * tamanho e o conteúdo dele sem chamar modelo nenhum.
  */
 export function montarPrompt(contexto: ContextoPrompt): string {
-  const escopo = contexto.escopo === "app" ? ESCOPO_APP : ESCOPO_SITE;
-  const organizacao = contexto.organizacao
-    ? `\nA organização de quem fala com você é "${contexto.organizacao}".`
-    : "";
+  if (contexto.escopo === "app") return montarPromptDoApp(contexto);
 
   return [
     PERSONA,
-    escopo + organizacao,
+    ESCOPO_SITE,
     REGRAS,
     ROTEIRO,
     IDENTIDADE,
@@ -198,6 +216,39 @@ export function montarPrompt(contexto: ContextoPrompt): string {
     `SEGMENTOS (id | nome | resumo | ferramentas que costumam pesar):\n${CONSULTOR_SEGMENT_INDEX}`,
     `MÉTODO N.A.S.A. — as quatro etapas, em ordem (o texto completo sai por \`explicarMetodo\`):\n${CONSULTOR_METODO_RESUMO}`,
     blocoDeNavegacao(contexto.navegacao ?? {}),
+    blocoDoVisitante(contexto.visitante ?? {}),
+    blocoData(contexto.agora ?? new Date()),
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+/**
+ * O prompt do canal logado: TUDO o que o site sabe (persona, regras, índice
+ * das ferramentas, segmentos, método), mais a operação de quem fala. A
+ * diferença é o roteiro — aqui não se descobre quem é a pessoa, já se sabe.
+ */
+function montarPromptDoApp(contexto: ContextoPrompt): string {
+  const quem = [
+    contexto.organizacao
+      ? `A organização de quem fala com você é "${contexto.organizacao}".`
+      : "",
+    contexto.usuario
+      ? `Quem fala é ${contexto.usuario} — já sabe o nome e o contato, não pergunte.`
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return [
+    PERSONA,
+    quem ? `${ESCOPO_APP}\n\n${quem}` : ESCOPO_APP,
+    REGRAS,
+    ROTEIRO_APP,
+    `FERRAMENTAS DA SUÍTE (id | nome | categoria | o que é) — esta lista é fechada:\n${CONSULTOR_TOOL_INDEX}`,
+    `CATEGORIAS:\n${CONSULTOR_CATEGORY_INDEX}`,
+    `SEGMENTOS (id | nome | resumo | ferramentas que costumam pesar):\n${CONSULTOR_SEGMENT_INDEX}`,
+    `MÉTODO N.A.S.A. — as quatro etapas, em ordem (o texto completo sai por \`explicarMetodo\`):\n${CONSULTOR_METODO_RESUMO}`,
     blocoDoVisitante(contexto.visitante ?? {}),
     blocoData(contexto.agora ?? new Date()),
   ]

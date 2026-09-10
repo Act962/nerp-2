@@ -1,4 +1,5 @@
 import { categoryRoutes } from "./category";
+import { onboardingRoutes } from "./onboarding";
 import { orgRoutes } from "./org";
 import { deviceRoutes } from "./device";
 import { desktopReleaseRoutes } from "./desktop-release";
@@ -147,6 +148,7 @@ export const router = {
   crm: crmRoutes,
   message: messageRoutes,
   stars: starsRoutes,
+  onboarding: onboardingRoutes,
   whatsapp: whatsappRoutes,
   integracoes: integracoesRoutes,
   fiscalConfig: fiscalConfigRoutes,
