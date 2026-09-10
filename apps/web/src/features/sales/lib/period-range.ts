@@ -55,7 +55,7 @@ function offsetMs(instant: Date, timeZone: string): number {
 }
 
 /** Meia-noite (no fuso da loja) do dia em que `instant` cai. */
-function startOfDay(instant: Date, timeZone: string): Date {
+export function inicioDoDiaNaLoja(instant: Date, timeZone: string): Date {
   const offset = offsetMs(instant, timeZone);
   // Deslocado, os getters UTC devolvem a hora de parede da loja.
   const parede = new Date(instant.getTime() + offset);
@@ -67,7 +67,7 @@ function startOfDay(instant: Date, timeZone: string): Date {
   return new Date(meiaNoite - offset);
 }
 
-function addDays(date: Date, days: number): Date {
+export function maisDias(date: Date, days: number): Date {
   return new Date(date.getTime() + days * 86_400_000);
 }
 
@@ -86,17 +86,17 @@ export function periodRange(
 ): { from: Date; to: Date } | null {
   if (period === "all") return null;
 
-  const hoje = startOfDay(now, timeZone);
+  const hoje = inicioDoDiaNaLoja(now, timeZone);
 
   if (period === "today") {
-    return { from: hoje, to: addDays(hoje, 1) };
+    return { from: hoje, to: maisDias(hoje, 1) };
   }
 
   if (period === "week") {
     const offset = offsetMs(now, timeZone);
     const diaDaSemana = new Date(hoje.getTime() + offset).getUTCDay();
-    const domingo = addDays(hoje, -diaDaSemana);
-    return { from: domingo, to: addDays(domingo, 7) };
+    const domingo = maisDias(hoje, -diaDaSemana);
+    return { from: domingo, to: maisDias(domingo, 7) };
   }
 
   // month

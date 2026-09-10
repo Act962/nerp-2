@@ -51,14 +51,36 @@ describe("montarPrompt", () => {
     expect(prompt).not.toContain("modulosContratados");
   });
 
-  it("no app, usa as ferramentas do cliente logado", () => {
+  it("no app, o índice de domínios está lá e o teto continua valendo", () => {
     const prompt = montarPrompt({
       escopo: "app",
       agora: AGORA,
       organizacao: "Supermercado Santa Clara",
+      usuario: "Weydson (weydson@exemplo.com)",
     });
-    expect(prompt).toContain("modulosContratados");
+    // Um domínio de cada bloco: se o índice encolher sem querer, quebra aqui.
+    for (const tool of [
+      "minhaOperacao",
+      "resumoDeVendas",
+      "previsaoDeVendas",
+      "clientesInativos",
+      "estoqueBaixo",
+      "proximosEventos",
+      "painelDeTrade",
+      "previaDeCatalogo",
+      "estadoDoWhatsapp",
+      "extratoDeStars",
+      "contatoDoSuporte",
+    ]) {
+      expect(prompt, tool).toContain(tool);
+    }
     expect(prompt).toContain("Supermercado Santa Clara");
+    expect(prompt).toContain("Weydson");
+    // Previsão sem método é chute com cara de certeza.
+    expect(prompt).toMatch(/método e a confiança/i);
+    // No app ele não capta lead: já sabe com quem fala.
+    expect(prompt).toMatch(/NÃO pergunta nome/i);
+    expect(prompt.length).toBeLessThan(TETO_CARACTERES);
   });
 
   it("o mesmo instante gera o mesmo prompt", () => {

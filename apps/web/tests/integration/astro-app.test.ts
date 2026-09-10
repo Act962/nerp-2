@@ -22,9 +22,10 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 const { POST } = await import("@/app/api/astro/chat/route");
-const { construirToolsDoApp, inicioDoPeriodo } = await import(
+const { construirToolsDoApp } = await import(
   "@/features/astro/server/tools-app"
 );
+const { intervaloDoPeriodo } = await import("@/features/astro/server/periodo");
 const { cobrarTokensDoAstro } = await import(
   "@/features/astro/server/cobranca"
 );
@@ -153,13 +154,13 @@ describe("tools do app", () => {
     }
   });
 
-  it("inicioDoPeriodo respeita o fuso de Fortaleza (UTC-3)", () => {
+  it("o período respeita o fuso de Fortaleza (UTC-3)", () => {
     // 01:00 UTC de 10/09 ainda é 22:00 de 09/09 em Fortaleza.
     const agora = new Date("2026-09-10T01:00:00Z");
-    expect(inicioDoPeriodo("hoje", agora).toISOString()).toBe(
+    expect(intervaloDoPeriodo("hoje", agora).from.toISOString()).toBe(
       "2026-09-09T03:00:00.000Z",
     );
-    expect(inicioDoPeriodo("mes", agora).toISOString()).toBe(
+    expect(intervaloDoPeriodo("mes", agora).from.toISOString()).toBe(
       "2026-09-01T03:00:00.000Z",
     );
   });
