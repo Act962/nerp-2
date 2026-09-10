@@ -14,7 +14,7 @@ export default async function Layout({
 }: {
   children: React.ReactNode;
 }) {
-  await requireAuth();
+  const session = await requireAuth();
   const org = await currentOrganization();
 
   return (
@@ -41,7 +41,7 @@ export default async function Layout({
               {children}
             </ShellContent>
           ) : (
-            <EmptyOrganization />
+            <EmptyOrganization email={session.user.email} />
           )}
         </main>
       </div>

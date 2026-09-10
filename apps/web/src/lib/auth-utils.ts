@@ -22,14 +22,59 @@ export const requireAuth = async () => {
   return session;
 };
 
+// Sessão sem organização ativa deixava o usuário numa tela vazia mesmo sendo
+// membro de alguma empresa — e a maioria só tem uma. Aqui a associação mais
+// antiga vira a organização ativa, para ele entrar direto em vez de ter que
+// abrir o seletor. Só devolve null quando ele não pertence a nenhuma.
+const activateFirstOrganization = async (userId: string) => {
+  const membership = await prisma.member.findFirst({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { organizationId: true },
+  });
+
+  if (!membership) return null;
+
+  const requestHeaders = await headers();
+
+  await auth.api.setActiveOrganization({
+    headers: requestHeaders,
+    body: { organizationId: membership.organizationId },
+  });
+
+  // Busca pelo id em vez de reler a sessão: o `activeOrganizationId` acabou de
+  // mudar no banco e reler pelos headers desta mesma request pode devolver o
+  // valor anterior.
+  return await auth.api.getFullOrganization({
+    headers: requestHeaders,
+    query: { organizationId: membership.organizationId },
+  });
+};
+
+// Depois do fallback acima, continuar sem organização só acontece quando o
+// usuário não é membro de nenhuma. Mandar pro /dashboard fazia a própria
+// /dashboard redirecionar pra si mesma (ERR_TOO_MANY_REDIRECTS), e mandar pro
+// /create-organization empurrava para criar outra empresa exatamente quem já
+// tinha conta e só entrou com o e-mail errado — o chamado que queremos evitar.
+// `/sem-empresa` não tem guarda e cai na `EmptyOrganization` do layout.
+const NO_ORGANIZATION_HREF = "/sem-empresa";
+
+const resolveActiveOrganization = async (userId: string) => {
+  const organization = await auth.api.getFullOrganization({
+    headers: await headers(),
+  });
+
+  return organization ?? (await activateFirstOrganization(userId));
+};
+
 // Server-side guard: bloqueia páginas admin se o member não tiver permissão.
-// Owner/Admin sempre passam. Sem org ativa ou sem member → redireciona.
+// Owner/Admin sempre passam. Sem member → redireciona.
 export const requirePermission = async (key: PagePermissionKey) => {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const org = await auth.api.getFullOrganization({ headers: await headers() });
-  if (!org) redirect("/dashboard");
+  const org = await resolveActiveOrganization(session.user.id);
+  if (!org) redirect(NO_ORGANIZATION_HREF);
 
   const member = await prisma.member.findFirst({
     where: { organizationId: org.id, userId: session.user.id },
@@ -52,8 +97,8 @@ export const requireViewAccess = async (
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/login");
 
-  const org = await auth.api.getFullOrganization({ headers: await headers() });
-  if (!org) redirect("/dashboard");
+  const org = await resolveActiveOrganization(session.user.id);
+  if (!org) redirect(NO_ORGANIZATION_HREF);
 
   const member = await prisma.member.findFirst({
     where: { organizationId: org.id, userId: session.user.id },
@@ -83,9 +128,15 @@ export const currentOrganization = async () => {
     headers: await headers(),
   });
 
-  if (!organization) {
+  if (organization) {
+    return organization;
+  }
+
+  const session = await auth.api.getSession({ headers: await headers() });
+
+  if (!session) {
     return null;
   }
 
-  return organization;
+  return await activateFirstOrganization(session.user.id);
 };
