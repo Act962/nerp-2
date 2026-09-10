@@ -1,4 +1,5 @@
 import type { AstroPricing } from "@/features/astro-consultor/server/preco";
+import type { ModeloResolvido } from "@/features/astro-consultor/server/provider";
 
 /**
  * O que toda tool do canal logado recebe.
@@ -17,6 +18,13 @@ export type ContextoToolsApp = {
   tabelaPrecos: AstroPricing;
   /** As últimas falas da pessoa, para a busca de ferramentas. */
   falaDoVisitante: string;
+  /**
+   * Quem está atendendo esta conversa. Gerar imagem e buscar na web são tools
+   * do PROVEDOR: existem no Google e não na OpenAI. Sem o modelo aqui, essas
+   * duas simplesmente não entram no conjunto — melhor ausente do que presente
+   * e quebrando na primeira chamada.
+   */
+  modelo?: ModeloResolvido;
 };
 
 /** Converte `Decimal` do Prisma no limite da resposta da tool. */

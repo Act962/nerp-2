@@ -1,7 +1,12 @@
-import type { UIMessage } from "ai";
+import { safeValidateUIMessages, type UIMessage } from "ai";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  anexosDasMensagens,
+  conferirAnexos,
+} from "@/features/astro/server/anexos";
+import {
+  cobrarBuscasNaWeb,
   cobrarTokensDoAstro,
   podeConversar,
 } from "@/features/astro/server/cobranca";
@@ -94,6 +99,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erro: "mensagem_longa" }, { status: 413 });
   }
 
+  // O histórico inteiro é postado pelo navegador a cada mensagem: um anexo
+  // apontando para fora do prefixo desta organização seria o servidor lendo
+  // arquivo alheio (ou qualquer URL da internet) a mando do cliente.
+  const anexos = anexosDasMensagens(corpo.data.messages);
+  const vereditoDosAnexos = conferirAnexos(anexos, org.id);
+  if (!vereditoDosAnexos.ok) {
+    return NextResponse.json(
+      { erro: "anexo_invalido", motivo: vereditoDosAnexos.motivo },
+      { status: 400 },
+    );
+  }
+
   // A mesma chave de configuração do site: ligar/desligar e o modelo valem
   // para os dois canais.
   const [configCrua, precosCrus] = await Promise.all([
@@ -166,25 +183,55 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
 
+  const tools = construirToolsDoApp({
+    organizationId: org.id,
+    userId: sessaoAuth.user.id,
+    sessaoId: sessaoAtual.id,
+    tabelaPrecos,
+    falaDoVisitante: falaDoVisitante(mensagens),
+    modelo,
+  });
+
+  // O AI SDK confere a forma de cada mensagem antes de ela virar prompt: o
+  // histórico inteiro vem do navegador, e parte malformada não deve chegar ao
+  // conversor. O argumento de entrada de cada tool não é conferido aqui, e
+  // nem precisa — quem o valida é o `inputSchema` dela, na execução.
+  const validadas = await safeValidateUIMessages<UIMessage>({
+    messages: corpo.data.messages,
+  });
+  if (!validadas.success) {
+    return NextResponse.json({ erro: "corpo_invalido" }, { status: 400 });
+  }
+
+  // Cada passo que volta com fontes é uma busca do provedor, cobrada no fim
+  // junto com os tokens: uma escrita só, e nunca no meio do stream.
+  let buscasNaWeb = 0;
+
   const resultado = await streamAstroConsultor({
     escopo: "app",
     sessaoId: sessaoAtual.id,
     tabelaPrecos,
     modelo,
-    mensagens,
+    mensagens: validadas.data,
     organizacao: org.name,
     usuario: `${sessaoAuth.user.name} (${sessaoAuth.user.email})`,
     // Quem fala já é conhecido: vai como "visitante" para ele não perguntar.
     visitante: { nome: sessaoAuth.user.name, empresa: org.name },
     toolApproval: CONFIGURACAO_DE_APROVACAO,
     approvalSecret: segredoDeAprovacao(),
-    tools: construirToolsDoApp({
-      organizationId: org.id,
-      userId: sessaoAuth.user.id,
-      sessaoId: sessaoAtual.id,
-      tabelaPrecos,
-      falaDoVisitante: falaDoVisitante(mensagens),
-    }),
+    tools,
+    // Resolução média nas imagens: alta multiplica os tokens de visão por
+    // anexo, e para ler rótulo, gôndola e nota fiscal a média resolve.
+    ...(modelo.provedor === "google" && anexos.length > 0
+      ? {
+          providerOptions: {
+            google: { mediaResolution: "MEDIA_RESOLUTION_MEDIUM" },
+          },
+        }
+      : {}),
+    aoBuscarNaWeb: () => {
+      buscasNaWeb += 1;
+    },
     onFinish: async ({ tokensIn, tokensOut }) => {
       await prisma.siteChatSession.update({
         where: { id: sessaoAtual.id },
@@ -202,6 +249,13 @@ export async function POST(request: NextRequest) {
           tokensIn,
           tokensOut,
         });
+        if (buscasNaWeb > 0) {
+          await cobrarBuscasNaWeb({
+            organizationId: org.id,
+            userId: sessaoAuth.user.id,
+            passos: buscasNaWeb,
+          });
+        }
       } catch (erro) {
         console.error("[astro] falha ao cobrar tokens", erro);
       }

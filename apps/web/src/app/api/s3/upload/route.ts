@@ -63,6 +63,14 @@ const fileUploadSchema = z
       }),
     size: z.number().int().min(1, "Size is required"),
     isImage: z.boolean(),
+    // Uma subpasta DENTRO do prefixo da organização, para separar o que vem
+    // de um caminho específico (hoje, os anexos do Astro). Formato fechado:
+    // barra ou ponto-ponto aqui escapariam do prefixo, que é o que decide a
+    // posse do objeto.
+    pasta: z
+      .string()
+      .regex(/^[a-z0-9-]{1,20}$/, "Pasta inválida")
+      .optional(),
   })
   .superRefine((data, ctx) => {
     const isVideo = VIDEO_CONTENT_TYPES.has(data.contentType.toLowerCase());
@@ -110,12 +118,12 @@ export async function POST(request: Request) {
       );
     }
 
-    const { fileName, contentType, size } = validation.data;
+    const { fileName, contentType, size, pasta } = validation.data;
 
     // O nome vem do dispositivo do usuário: sem sanitizar, uma barra cria
     // objeto sob prefixo arbitrário do bucket (inclusive `trade-catalogs/`).
     const safeFileName = fileName.replace(/[^\w.-]/g, "_");
-    const uniqueKey = `${prefixoDaOrg(org.id)}${uuidv4()}-${safeFileName}`;
+    const uniqueKey = `${prefixoDaOrg(org.id)}${pasta ? `${pasta}/` : ""}${uuidv4()}-${safeFileName}`;
 
     // Cota reservada ANTES de assinar: o PUT vai direto ao R2 e o servidor
     // nunca o vê, então a assinatura é o único ponto de controle.

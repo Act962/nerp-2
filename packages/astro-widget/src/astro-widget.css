@@ -614,3 +614,97 @@
   background: rgba(15, 23, 42, 0.08);
   color: inherit;
 }
+
+/* Anexos: as miniaturas do que vai junto, o clipe e o alvo de arrastar. */
+.o-astro-body--drop {
+  outline: 2px dashed rgba(59, 130, 246, 0.6);
+  outline-offset: -8px;
+}
+
+.o-astro-anexos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 8px;
+}
+
+.o-astro-anexo {
+  position: relative;
+  display: inline-flex;
+}
+
+.o-astro-anexo__mini {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.o-astro-anexo__x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.o-astro-anexo__aviso,
+.o-astro-anexo__erro {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.o-astro-anexo__erro {
+  color: #b91c1c;
+  opacity: 1;
+}
+
+.o-astro-clip {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.o-astro-clip:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.o-astro-clip:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Imagem na conversa: anexo enviado e imagem que o Astro gerou. */
+.o-astro-fotos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.o-astro-fotos--user {
+  justify-content: flex-end;
+}
+
+.o-astro-foto {
+  max-width: min(220px, 70%);
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}

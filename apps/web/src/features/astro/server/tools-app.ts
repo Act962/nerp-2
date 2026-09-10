@@ -7,10 +7,12 @@ import { construirToolsDeAcaoDeCampanha } from "./tools/acoes-campanha";
 import { construirToolsDeAcaoDeCatalogo } from "./tools/acoes-catalogo";
 import { construirToolsDeAcaoDeProdutos } from "./tools/acoes-produtos";
 import type { ContextoToolsApp } from "./tools/_contexto";
+import { construirToolsDeBuscaWeb } from "./tools/busca-web";
 import { construirToolsDeCalendario } from "./tools/calendario";
 import { construirToolsDeCatalogos } from "./tools/catalogos";
 import { construirToolsDeClientes } from "./tools/clientes";
 import { construirToolsDeEstoque } from "./tools/estoque";
+import { construirToolsDeImagem } from "./tools/imagens";
 import { construirToolsDeOperacao } from "./tools/operacao";
 import { construirToolsDePrevisao } from "./tools/previsao";
 import { construirToolsDeStars } from "./tools/stars";
@@ -56,11 +58,14 @@ export function construirToolsDoApp(contexto: ContextoToolsApp): ToolSet {
     ...construirToolsDeWhatsapp(contexto),
     ...construirToolsDeStars(contexto),
     ...construirToolsDeSuporte(contexto),
+    // Do provedor, e só quando é o Google: sem ele as duas saem vazias.
+    ...construirToolsDeBuscaWeb(contexto),
     // Escrita: cada uma para o laço e espera o sim da pessoa no cartão da
     // conversa (`acoes/aprovacao.ts`).
     ...construirToolsDeAcaoDeCatalogo(contexto),
     ...construirToolsDeAcaoDeCampanha(contexto),
     ...construirToolsDeAcaoDeCalendario(contexto),
     ...construirToolsDeAcaoDeProdutos(contexto),
+    ...construirToolsDeImagem(contexto),
   };
 }

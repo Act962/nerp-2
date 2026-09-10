@@ -17,6 +17,7 @@ export const ACOES_QUE_PEDEM_APROVACAO = [
   "enviarCampanhaWhatsapp",
   "criarEventoNoCalendario",
   "adicionarImagemAoProduto",
+  "gerarImagem",
 ] as const;
 
 export type AcaoQuePedeAprovacao = (typeof ACOES_QUE_PEDEM_APROVACAO)[number];
@@ -54,6 +55,11 @@ export const ROTULO_DA_ACAO: Record<
     titulo: "Adicionar uma imagem ao produto",
     resumir: (entrada) =>
       `Produto "${texto(entrada.produto) || "?"}", imagem de ${texto(entrada.url) || "endereço não informado"}.`,
+  },
+  gerarImagem: {
+    titulo: "Gerar uma imagem",
+    resumir: (entrada) =>
+      `"${texto(entrada.descricao) || "Sem descrição"}" — a imagem é criada pelo provedor e guardada no seu acervo, e isso custa ★.`,
   },
 };
 

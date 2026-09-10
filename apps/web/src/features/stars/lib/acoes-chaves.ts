@@ -15,6 +15,10 @@ export const ACOES = {
   astroCatalogo: "astro_catalogo",
   /** Astro montou uma campanha de WhatsApp (o disparo cobra por destinatário). */
   astroCampanha: "astro_campanha",
+  /** Astro gerou uma imagem no provedor e guardou no bucket da organização. */
+  astroImagem: "astro_imagem_gerada",
+  /** Astro consultou a web: cobrado por passo que voltou com fontes. */
+  astroBuscaWeb: "astro_busca_web",
 } as const;
 
 export type AcaoCobravel = (typeof ACOES)[keyof typeof ACOES];
@@ -32,4 +36,6 @@ export const PRECOS_PADRAO: Partial<Record<AcaoCobravel, number>> = {
   [ACOES.astroTokens]: 1,
   [ACOES.astroCatalogo]: 5,
   [ACOES.astroCampanha]: 5,
+  [ACOES.astroImagem]: 5,
+  [ACOES.astroBuscaWeb]: 1,
 };

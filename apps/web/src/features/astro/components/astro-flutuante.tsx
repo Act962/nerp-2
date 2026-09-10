@@ -2,6 +2,11 @@
 
 import { AstroWidget, type FalhaDoAstro } from "@nerp/astro-widget";
 import { ROTULO_DA_ACAO } from "@/features/astro/server/acoes/aprovacao";
+import { subirAnexoDoAstro } from "@/features/astro/lib/anexar";
+import {
+  MAX_ANEXOS_POR_MENSAGEM,
+  TIPOS_DE_ANEXO_ACEITOS,
+} from "@/features/astro/server/anexos";
 import { Recarregar } from "@/features/stars/components/recarregar";
 import { useInvalidarSaldo } from "@/features/stars/hooks/use-stars";
 import { useCurrentMember } from "@/features/members/hooks/use-members";
@@ -65,6 +70,9 @@ export function AstroFlutuante() {
       linksEmNovaAba
       nota="O Astro é uma inteligência artificial e pode errar. Cada resposta consome Stars da organização."
       acoes={ROTULO_DA_ACAO}
+      enviarArquivo={subirAnexoDoAstro}
+      tiposDeArquivo={TIPOS_DE_ANEXO_ACEITOS}
+      maxArquivos={MAX_ANEXOS_POR_MENSAGEM}
       aoFalhar={aoFalhar}
       onResposta={invalidarSaldo}
     />

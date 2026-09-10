@@ -3,6 +3,7 @@ import "server-only";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { uploadImageFromUrl } from "@/features/products/server/upload-image-from-url";
+import { chaveDoAnexo } from "../anexos";
 import prisma from "@/lib/db";
 import { memberCan } from "@/lib/permissions";
 import { executarAcao } from "../acoes/registro";
@@ -15,7 +16,9 @@ import type { ContextoToolsApp } from "./_contexto";
  * importação de produtos), nunca referenciado de fora: uma imagem hospedada em
  * outro lugar some do catálogo no dia em que aquele site cair.
  *
- * Anexo enviado na conversa entra na Fase 4, pelo mesmo caminho.
+ * Anexo enviado na conversa e imagem gerada pelo Astro entram por aqui também:
+ * elas JÁ estão no prefixo da organização, então a chave é aproveitada como
+ * está, sem uma segunda cópia do mesmo arquivo dentro do bucket.
  */
 export function construirToolsDeAcaoDeProdutos(ctx: ContextoToolsApp): ToolSet {
   const { organizationId, userId } = ctx;
@@ -55,7 +58,9 @@ export function construirToolsDeAcaoDeProdutos(ctx: ContextoToolsApp): ToolSet {
             );
           }
 
-          const chave = await uploadImageFromUrl(entrada.url);
+          const chave =
+            chaveDoAnexo(entrada.url, organizationId) ??
+            (await uploadImageFromUrl(entrada.url));
           if (!chave) {
             throw new Error(
               "Não consegui baixar essa imagem. Confira se o endereço abre uma imagem de até 5 MB.",

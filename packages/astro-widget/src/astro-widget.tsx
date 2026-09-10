@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import {
   DefaultChatTransport,
+  type FileUIPart,
   lastAssistantMessageIsCompleteWithApprovalResponses,
   type UIMessage,
 } from "ai";
@@ -242,6 +243,38 @@ function linksDaMensagem(mensagem: {
     links.push({ href, rotulo: textoDe(campos.rotulo) || "Abrir" });
   }
   return links;
+}
+
+/** Uma imagem que a tool devolveu — gerada pelo Astro, não escrita por ele. */
+type ImagemDaResposta = { url: string; descricao: string };
+
+function imagensDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): ImagemDaResposta[] {
+  const imagens: ImagemDaResposta[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const imagem = (saida as { imagem?: unknown }).imagem;
+    if (typeof imagem !== "object" || imagem === null) continue;
+    const campos = imagem as Record<string, unknown>;
+    const url = textoDe(campos.url);
+    if (!url.startsWith("https://")) continue;
+    imagens.push({ url, descricao: textoDe(campos.descricao) });
+  }
+  return imagens;
+}
+
+/** As imagens que a PESSOA anexou (ou que já viajaram na conversa). */
+function anexosDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): FileUIPart[] {
+  const anexos: FileUIPart[] = [];
+  for (const parte of mensagem.parts) {
+    if (parte.type !== "file") continue;
+    const arquivo = parte as unknown as FileUIPart;
+    if (!arquivo.mediaType?.startsWith("image")) continue;
+    anexos.push(arquivo);
+  }
+  return anexos;
 }
 
 /** As saídas de tool de uma mensagem, já filtradas pelas que deram certo. */
@@ -599,7 +632,20 @@ export type AstroWidgetProps = {
     string,
     { titulo: string; resumir: (entrada: Record<string, unknown>) => string }
   >;
+  /**
+   * Sobe um arquivo e devolve a parte pronta para a mensagem. Sem esta prop
+   * não há botão de anexo: o pacote não sabe para onde subir arquivo, e é o
+   * app que tem bucket, sessão e organização.
+   */
+  enviarArquivo?: (arquivo: File) => Promise<FileUIPart | null>;
+  /** Tipos aceitos. A mesma lista que o servidor confere. */
+  tiposDeArquivo?: readonly string[];
+  /** Quantos anexos cabem numa mensagem. */
+  maxArquivos?: number;
 };
+
+/** O que o servidor aceita — repetido aqui para o seletor já filtrar. */
+const TIPOS_DE_IMAGEM = ["image/jpeg", "image/png", "image/webp"] as const;
 
 /** Evento que abre o painel de fora (um botão de "Falar com o Astro"). */
 export const ABRIR_ASTRO = "astro:abrir";
@@ -625,6 +671,9 @@ export function AstroWidget({
   aoFalhar,
   onResposta,
   acoes,
+  enviarArquivo,
+  tiposDeArquivo = TIPOS_DE_IMAGEM,
+  maxArquivos = 4,
 }: AstroWidgetProps) {
   const [aberto, setAberto] = useState(false);
   const [falha, setFalha] = useState<FalhaDoAstro | null>(null);
@@ -632,6 +681,11 @@ export function AstroWidget({
   const [pergunta, setPergunta] = useState("O que está travando sua operação?");
   const [semResposta, setSemResposta] = useState(false);
   const [balao, setBalao] = useState<string | null>(null);
+  const [anexos, setAnexos] = useState<FileUIPart[]>([]);
+  const [subindo, setSubindo] = useState(false);
+  const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null);
+  const [arrastando, setArrastando] = useState(false);
+  const seletorRef = useRef<HTMLInputElement>(null);
   const trilhaRef = useRef<Passo[]>([]);
   const visitanteRef = useRef<Visitante>({});
   /*
@@ -936,6 +990,52 @@ export function AstroWidget({
   }, [escrito]);
 
   /**
+   * Sobe os arquivos escolhidos e guarda as partes prontas.
+   *
+   * O upload acontece na hora de anexar, não no envio: assim a pessoa vê a
+   * miniatura antes de mandar, e uma imagem grande não trava o "Enviar".
+   */
+  const anexar = useCallback(
+    async (arquivos: readonly File[]) => {
+      if (!enviarArquivo || arquivos.length === 0) return;
+      setErroDoAnexo(null);
+
+      const aceitos = arquivos.filter((arquivo) =>
+        tiposDeArquivo.includes(arquivo.type.toLowerCase()),
+      );
+      if (aceitos.length < arquivos.length) {
+        setErroDoAnexo("Só consigo ler imagem JPEG, PNG ou WebP.");
+      }
+      if (aceitos.length === 0) return;
+
+      const espaco = maxArquivos - anexos.length;
+      if (espaco <= 0) {
+        setErroDoAnexo(`No máximo ${maxArquivos} imagens por mensagem.`);
+        return;
+      }
+      const escolhidos = aceitos.slice(0, espaco);
+      if (escolhidos.length < aceitos.length) {
+        setErroDoAnexo(`No máximo ${maxArquivos} imagens por mensagem.`);
+      }
+
+      setSubindo(true);
+      try {
+        for (const arquivo of escolhidos) {
+          const parte = await enviarArquivo(arquivo);
+          if (!parte) {
+            setErroDoAnexo("Não consegui subir essa imagem. Tente de novo.");
+            continue;
+          }
+          setAnexos((atuais) => [...atuais, parte]);
+        }
+      } finally {
+        setSubindo(false);
+      }
+    },
+    [anexos.length, enviarArquivo, maxArquivos, tiposDeArquivo],
+  );
+
+  /**
    * O que ele anotou sobre quem fala.
    *
    * A janela do orquestrador corta o histórico em dezesseis mensagens, então
@@ -1093,10 +1193,17 @@ export function AstroWidget({
 
   const enviar = (mensagem: string) => {
     const limpo = mensagem.trim();
-    if (!limpo || carregando) return;
+    // Imagem sem legenda vale como mensagem: "olha isto" é o texto que a
+    // pessoa não escreveria de qualquer forma.
+    if ((!limpo && anexos.length === 0) || carregando || subindo) return;
     setTexto("");
     setFalha(null);
-    sendMessage({ text: limpo });
+    setErroDoAnexo(null);
+    sendMessage({
+      text: limpo || "Veja esta imagem.",
+      ...(anexos.length > 0 ? { files: anexos } : {}),
+    });
+    setAnexos([]);
   };
 
   if (!aberto) {
@@ -1161,7 +1268,31 @@ export function AstroWidget({
         </button>
       </header>
 
-      <div className="o-astro-body" ref={corpoRef}>
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: arrastar arquivo é atalho; o botão de anexo continua sendo o caminho acessível. */}
+      <div
+        className={
+          arrastando ? "o-astro-body o-astro-body--drop" : "o-astro-body"
+        }
+        ref={corpoRef}
+        onDragOver={
+          enviarArquivo
+            ? (e) => {
+                e.preventDefault();
+                setArrastando(true);
+              }
+            : undefined
+        }
+        onDragLeave={enviarArquivo ? () => setArrastando(false) : undefined}
+        onDrop={
+          enviarArquivo
+            ? (e) => {
+                e.preventDefault();
+                setArrastando(false);
+                void anexar([...e.dataTransfer.files]);
+              }
+            : undefined
+        }
+      >
         {messages.length === 0 ? (
           <div className="o-astro-empty">
             <h2 className="o-astro-empty__title">{abertura}</h2>
@@ -1193,18 +1324,43 @@ export function AstroWidget({
                 mensagem.role === "user" ? [] : pedidosDeAprovacao(mensagem);
               const links =
                 mensagem.role === "user" ? [] : linksDaMensagem(mensagem);
+              const imagens =
+                mensagem.role === "user" ? [] : imagensDaMensagem(mensagem);
+              const arquivos = anexosDaMensagem(mensagem);
               if (
                 !texto &&
                 solucoes.length === 0 &&
                 !formulario &&
                 aprovacoes.length === 0 &&
-                links.length === 0
+                links.length === 0 &&
+                imagens.length === 0 &&
+                arquivos.length === 0
               ) {
                 return null;
               }
 
               return (
                 <Fragment key={mensagem.id}>
+                  {arquivos.length > 0 && (
+                    <div
+                      className={
+                        mensagem.role === "user"
+                          ? "o-astro-fotos o-astro-fotos--user"
+                          : "o-astro-fotos"
+                      }
+                    >
+                      {arquivos.map((arquivo) => (
+                        // biome-ignore lint/performance/noImgElement: o pacote roda no site e no app e não depende do next/image.
+                        <img
+                          key={arquivo.url}
+                          className="o-astro-foto"
+                          src={arquivo.url}
+                          alt={arquivo.filename ?? "Imagem anexada"}
+                        />
+                      ))}
+                    </div>
+                  )}
+
                   {texto && (
                     <div
                       className={
@@ -1312,6 +1468,20 @@ export function AstroWidget({
                     );
                   })}
 
+                  {imagens.length > 0 && (
+                    <div className="o-astro-fotos">
+                      {imagens.map((imagem) => (
+                        // biome-ignore lint/performance/noImgElement: o pacote roda no site e no app e não depende do next/image.
+                        <img
+                          key={imagem.url}
+                          className="o-astro-foto"
+                          src={imagem.url}
+                          alt={imagem.descricao || "Imagem gerada pelo Astro"}
+                        />
+                      ))}
+                    </div>
+                  )}
+
                   {links.length > 0 && (
                     <div className="o-astro-links">
                       {links.map((link) => (
@@ -1379,6 +1549,35 @@ export function AstroWidget({
       </div>
 
       <footer className="o-astro-foot">
+        {(anexos.length > 0 || subindo || erroDoAnexo) && (
+          <div className="o-astro-anexos">
+            {anexos.map((anexo, indice) => (
+              <span className="o-astro-anexo" key={anexo.url}>
+                {/* biome-ignore lint/performance/noImgElement: o pacote roda no site e no app e não depende do next/image. */}
+                <img
+                  className="o-astro-anexo__mini"
+                  src={anexo.url}
+                  alt={anexo.filename ?? "Anexo"}
+                />
+                <button
+                  type="button"
+                  className="o-astro-anexo__x"
+                  aria-label={`Remover ${anexo.filename ?? "anexo"}`}
+                  onClick={() =>
+                    setAnexos((atuais) => atuais.filter((_, i) => i !== indice))
+                  }
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {subindo && <span className="o-astro-anexo__aviso">Subindo…</span>}
+            {erroDoAnexo && (
+              <span className="o-astro-anexo__erro">{erroDoAnexo}</span>
+            )}
+          </div>
+        )}
+
         <form
           className="o-astro-form"
           onSubmit={(e) => {
@@ -1386,9 +1585,55 @@ export function AstroWidget({
             enviar(texto);
           }}
         >
+          {enviarArquivo && (
+            <>
+              <input
+                ref={seletorRef}
+                type="file"
+                accept={tiposDeArquivo.join(",")}
+                multiple
+                hidden
+                onChange={(e) => {
+                  void anexar([...(e.target.files ?? [])]);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                type="button"
+                className="o-astro-clip"
+                aria-label="Anexar imagem"
+                disabled={subindo || anexos.length >= maxArquivos}
+                onClick={() => seletorRef.current?.click()}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                  <title>Anexar</title>
+                  <path
+                    d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 1 1 5 5l-8 8a2 2 0 1 1-3-3l7.5-7.5"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    fill="none"
+                  />
+                </svg>
+              </button>
+            </>
+          )}
           <input
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
+            onPaste={
+              enviarArquivo
+                ? (e) => {
+                    const arquivos = [...e.clipboardData.files];
+                    if (arquivos.length === 0) return;
+                    // Print da tela colado no campo: não deixa virar o nome
+                    // do arquivo escrito no meio da pergunta.
+                    e.preventDefault();
+                    void anexar(arquivos);
+                  }
+                : undefined
+            }
             placeholder="Pergunte ao Astro…"
             maxLength={2000}
             aria-label="Sua mensagem"
@@ -1396,7 +1641,9 @@ export function AstroWidget({
           <button
             type="submit"
             className="o-astro-send"
-            disabled={!texto.trim() || carregando}
+            disabled={
+              (!texto.trim() && anexos.length === 0) || carregando || subindo
+            }
             aria-label="Enviar"
           >
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>

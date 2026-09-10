@@ -56,3 +56,31 @@ export async function cobrarTokensDoAstro(entrada: {
 
   return { cobrado: resultado.valor, parcial: resultado.parcial };
 }
+
+/**
+ * A busca na web, cobrada por passo que voltou com fontes.
+ *
+ * Cobrada no fim, junto com os tokens, e `cobrarAteOSaldo` pelo mesmo motivo:
+ * a resposta já foi entregue quando a conta chega, e conta que recusa depois
+ * do serviço prestado só deixaria a organização devendo.
+ */
+export async function cobrarBuscasNaWeb(entrada: {
+  organizationId: string;
+  userId: string;
+  passos: number;
+}): Promise<{ cobrado: number }> {
+  if (entrada.passos <= 0) return { cobrado: 0 };
+  const preco = await custoDaAcao(entrada.organizationId, ACOES.astroBuscaWeb);
+  const custo = preco * entrada.passos;
+  if (custo <= 0) return { cobrado: 0 };
+
+  const resultado = await cobrarAteOSaldo({
+    organizationId: entrada.organizationId,
+    actionKey: ACOES.astroBuscaWeb,
+    valor: custo,
+    descricao: `Astro — ${entrada.passos} consulta${entrada.passos > 1 ? "s" : ""} na web`,
+    userId: entrada.userId,
+  });
+
+  return { cobrado: resultado.valor };
+}

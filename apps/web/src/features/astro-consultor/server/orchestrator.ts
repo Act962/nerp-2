@@ -39,6 +39,14 @@ import { construirTools } from "./tools";
 const JANELA_DE_MENSAGENS = 16;
 
 /**
+ * O que o `streamText` aceita em `providerOptions`, derivado dele mesmo — o
+ * tipo mora em `@ai-sdk/provider-utils`, que não é dependência direta do app.
+ */
+type OpcoesDoProvedor = NonNullable<
+  Parameters<typeof streamText>[0]["providerOptions"]
+>;
+
+/**
  * Quantas mensagens da ABERTURA sobrevivem ao corte.
  *
  * Cortar só pelo fim custava caro numa coisa específica: a pessoa se apresenta
@@ -110,6 +118,17 @@ export type EntradaConsultor = {
    */
   toolApproval?: Record<string, "user-approval">;
   approvalSecret?: string;
+  /**
+   * O que vai para o provedor além do prompt — no canal logado, a resolução
+   * com que ele olha as imagens anexadas.
+   */
+  providerOptions?: OpcoesDoProvedor;
+  /**
+   * Um passo voltou com fontes da web. É o único sinal confiável de que a
+   * busca do provedor rodou de verdade: ela acontece dentro da chamada, sem
+   * passar por `execute` nenhum, então não há tool para contar.
+   */
+  aoBuscarNaWeb?: () => void;
   onFinish?: (dados: { tokensIn: number; tokensOut: number }) => Promise<void>;
 };
 
@@ -144,6 +163,12 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
     ...(entrada.approvalSecret
       ? { experimental_toolApprovalSecret: entrada.approvalSecret }
       : {}),
+    ...(entrada.providerOptions
+      ? { providerOptions: entrada.providerOptions }
+      : {}),
+    onStepEnd: ({ sources }) => {
+      if (sources.length > 0) entrada.aoBuscarNaWeb?.();
+    },
     maxOutputTokens: 1024,
     temperature: 0.3,
     // Busca → detalhe → estimativa → registro cabe com sobra. Sem parada, uma

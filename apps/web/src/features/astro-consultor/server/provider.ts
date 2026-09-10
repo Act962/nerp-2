@@ -46,6 +46,14 @@ export type ModeloResolvido = {
   modelo: LanguageModel;
   /** Para gravar na sessão e saber depois o que respondeu o quê. */
   nome: string;
+  /**
+   * Quem está atendendo. Busca na web e geração de imagem são tools do
+   * PROVEDOR, não do SDK: existem no Google e não na OpenAI, então quem monta
+   * o conjunto de tools precisa saber com quem está falando.
+   */
+  provedor: "google" | "openai";
+  /** O provedor Google já construído, para `google.image` e `google.tools`. */
+  google?: ReturnType<typeof createGoogleGenerativeAI>;
 };
 
 /**
@@ -66,7 +74,7 @@ export function resolverModelo(
   if (querOpenAi && chaveOpenAi) {
     const openai = createOpenAI({ apiKey: chaveOpenAi });
     const nome = escolhido ?? MODELO_OPENAI_PADRAO;
-    return { modelo: openai(nome), nome };
+    return { modelo: openai(nome), nome, provedor: "openai" };
   }
 
   if (chaveGoogle) {
@@ -74,7 +82,7 @@ export function resolverModelo(
     const nome = querOpenAi
       ? MODELO_GOOGLE_PADRAO
       : (escolhido ?? MODELO_GOOGLE_PADRAO);
-    return { modelo: google(nome), nome };
+    return { modelo: google(nome), nome, provedor: "google", google };
   }
 
   if (chaveOpenAi) {
@@ -82,7 +90,7 @@ export function resolverModelo(
     const nome = escolhido?.startsWith("gpt-")
       ? escolhido
       : MODELO_OPENAI_PADRAO;
-    return { modelo: openai(nome), nome };
+    return { modelo: openai(nome), nome, provedor: "openai" };
   }
 
   return null;

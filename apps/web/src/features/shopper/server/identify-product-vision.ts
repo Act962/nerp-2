@@ -27,7 +27,8 @@ export async function identifyProductFromImage(
   imageBase64: string,
   mimeType: string,
 ): Promise<VisionGuess | null> {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey =
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY;
   if (!apiKey) return null;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${apiKey}`;
