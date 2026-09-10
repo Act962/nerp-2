@@ -103,6 +103,13 @@ export type EntradaConsultor = {
    * as do site.
    */
   tools?: ToolSet;
+  /**
+   * Quais tools param e pedem o sim da pessoa antes de executar. O segredo
+   * assina o pedido: sem ele, o cliente que reenvia o próprio histórico com
+   * `approved: true` executaria a ação sozinho.
+   */
+  toolApproval?: Record<string, "user-approval">;
+  approvalSecret?: string;
   onFinish?: (dados: { tokensIn: number; tokensOut: number }) => Promise<void>;
 };
 
@@ -133,6 +140,10 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
     messages: await convertToModelMessages(recentes, { tools }),
     tools,
     // Respostas de três a cinco linhas: o teto é folga, não meta.
+    ...(entrada.toolApproval ? { toolApproval: entrada.toolApproval } : {}),
+    ...(entrada.approvalSecret
+      ? { experimental_toolApprovalSecret: entrada.approvalSecret }
+      : {}),
     maxOutputTokens: 1024,
     temperature: 0.3,
     // Busca → detalhe → estimativa → registro cabe com sobra. Sem parada, uma

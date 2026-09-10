@@ -25,11 +25,7 @@ describe("preverSerie", () => {
   });
 
   it("série constante prevê o mesmo valor todo dia, sem faixa", () => {
-    const previsao = preverSerie(
-      serie(28, Array(7).fill(100), HOJE),
-      7,
-      HOJE,
-    );
+    const previsao = preverSerie(serie(28, Array(7).fill(100), HOJE), 7, HOJE);
     expect(previsao.media).toBe(100);
     for (const dia of previsao.dias) {
       expect(dia.previsto).toBe(100);
@@ -68,18 +64,20 @@ describe("preverSerie", () => {
     expect(previsao.diasDeHistorico).toBe(JANELA_DA_MEDIA);
     expect(previsao.media).toBe(100);
 
-    expect(preverSerie(serie(10, Array(7).fill(50), HOJE), 7, HOJE).confianca).toBe(
-      "baixa",
-    );
-    expect(preverSerie(serie(20, Array(7).fill(50), HOJE), 7, HOJE).confianca).toBe(
-      "media",
-    );
+    expect(
+      preverSerie(serie(10, Array(7).fill(50), HOJE), 7, HOJE).confianca,
+    ).toBe("baixa");
+    expect(
+      preverSerie(serie(20, Array(7).fill(50), HOJE), 7, HOJE).confianca,
+    ).toBe("media");
   });
 
   it("a previsão começa amanhã e nunca projeta valor negativo", () => {
     const irregular = serie(28, [0, 10, 300, 5, 400, 2, 0], HOJE);
     const previsao = preverSerie(irregular, 3, HOJE);
-    expect(previsao.dias[0]?.data.toISOString().slice(0, 10)).toBe("2026-09-11");
+    expect(previsao.dias[0]?.data.toISOString().slice(0, 10)).toBe(
+      "2026-09-11",
+    );
     expect(previsao.dias).toHaveLength(3);
     expect(previsao.dias.every((dia) => dia.min >= 0)).toBe(true);
   });

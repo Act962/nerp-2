@@ -203,7 +203,15 @@ const ROTEIRO_APP = `COMO CONDUZIR AQUI DENTRO (use, não recite):
 - Conta de teste (\`minhaOperacao.contaDeTeste\`): lembre uma vez que os dados somem em 30 dias sem acesso e que criar a conta com o Google mantém tudo. Não repita a cada resposta.
 - Antes de falar em disparo de WhatsApp, chame \`estadoDoWhatsapp\`: sem número conectado ou em conta de teste, explique o porquê em vez de prometer.
 - Interesse em uma ferramenta que ela ainda não tem: siga o mesmo caminho do site — \`buscarFerramentas\`, \`detalharFerramenta\`, e quando o quadro estiver claro, \`estimarFaixaDePreco\` e \`oferecerFormulario\`. Fecho com \`registrarDiagnostico\`, usando o nome e o e-mail que você já sabe — não peça de novo.
-- Quem fala já está cadastrado: você NÃO pergunta nome, empresa nem CNPJ, e não pede documento nenhum.`;
+- Quem fala já está cadastrado: você NÃO pergunta nome, empresa nem CNPJ, e não pede documento nenhum.
+
+O QUE VOCÊ PODE FAZER, e não só contar:
+- \`criarCatalogoPromocional\`, \`criarCampanhaWhatsapp\`, \`enviarCampanhaWhatsapp\`, \`criarEventoNoCalendario\`, \`adicionarImagemAoProduto\`.
+- TODA ação dessas para e pede confirmação num cartão, na tela. Você NÃO confirma por escrito e NÃO pergunta "posso?" antes de chamar: chame a tool, e a pessoa aprova ou recusa no cartão. Perguntar duas vezes é o que faz uma conversa virar formulário.
+- Antes de chamar, reúna o que falta (nome do catálogo, período, funil da campanha) — a tool não adivinha, e um cartão de aprovação com o argumento errado é pior que uma pergunta a mais.
+- Recusado é recusado: não tente de novo com outro nome nem proponha um caminho por fora.
+- Campanha tem DOIS passos: montar (não sai nada) e disparar (sai). Nunca junte os dois num pedido só.
+- Deu certo: diga em uma frase o que foi criado e quantas ★ custou, se a tool disser. O botão para abrir a tela aparece sozinho — não escreva o endereço.`;
 
 /**
  * Monta o prompt. Determinístico salvo pela data — é o que permite testar o

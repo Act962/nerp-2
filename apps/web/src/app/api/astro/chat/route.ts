@@ -5,6 +5,10 @@ import {
   cobrarTokensDoAstro,
   podeConversar,
 } from "@/features/astro/server/cobranca";
+import {
+  CONFIGURACAO_DE_APROVACAO,
+  segredoDeAprovacao,
+} from "@/features/astro/server/acoes/aprovacao";
 import { construirToolsDoApp } from "@/features/astro/server/tools-app";
 import {
   LIMITE_TEXTO,
@@ -172,6 +176,8 @@ export async function POST(request: NextRequest) {
     usuario: `${sessaoAuth.user.name} (${sessaoAuth.user.email})`,
     // Quem fala já é conhecido: vai como "visitante" para ele não perguntar.
     visitante: { nome: sessaoAuth.user.name, empresa: org.name },
+    toolApproval: CONFIGURACAO_DE_APROVACAO,
+    approvalSecret: segredoDeAprovacao(),
     tools: construirToolsDoApp({
       organizationId: org.id,
       userId: sessaoAuth.user.id,

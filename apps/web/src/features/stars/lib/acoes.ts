@@ -29,4 +29,16 @@ export const ACOES_COBRAVEIS: {
     descricao:
       "Cada resposta do Astro consome tokens de entrada e saída; cobra-se por bloco de mil, arredondando para cima. Nasce ligado com 1 ★ por bloco.",
   },
+  {
+    actionKey: ACOES.astroCatalogo,
+    label: "Astro — catálogo promocional",
+    descricao:
+      "Cobrado quando o Astro monta um catálogo a seu pedido, depois de você aprovar na conversa.",
+  },
+  {
+    actionKey: ACOES.astroCampanha,
+    label: "Astro — campanha de WhatsApp",
+    descricao:
+      "Cobrado quando o Astro monta a campanha. O disparo continua cobrando por destinatário.",
+  },
 ];

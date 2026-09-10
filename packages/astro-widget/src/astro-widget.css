@@ -551,3 +551,66 @@
 .o-astro-cta__btn:hover {
   background: #1d4fd7;
 }
+
+/* --- cartão de ação (aprovação) ----------------------------------------- */
+
+/*
+  O Astro parou e está esperando um sim. O cartão é claro e destacado de
+  propósito: é a única coisa na conversa que MUDA o sistema, e precisa parecer
+  diferente de mais uma mensagem.
+*/
+.o-astro-acao {
+  align-self: flex-start;
+  max-width: 92%;
+  margin: 0.25rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 0.9rem;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.o-astro-acao__titulo {
+  margin: 0 0 0.15rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.o-astro-acao__linha {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.o-astro-acao__estado {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.o-astro-acao__botoes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.o-astro-acao__sim,
+.o-astro-acao__nao {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+}
+
+.o-astro-acao__sim {
+  background: #2563eb;
+  color: #fff;
+}
+
+.o-astro-acao__nao {
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+}

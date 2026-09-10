@@ -20,6 +20,7 @@ model User {
   /// vincular o Google; a linha fica como conta provisória (`linkedToUserId`).
   isAnonymous              Boolean                   @default(false)
   linkedToUserId           String?                   @map("linked_to_user_id")
+  astroAcoes               AstroAcao[]
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
@@ -159,6 +160,34 @@ enum OrganizationStatus {
 /// "database"`). `lastRequest` é Float, não BigInt: o Better Auth faz
 /// `Date.now() - lastRequest` em número, e o BigInt do Prisma estouraria a
 /// conta com "Cannot mix BigInt". Double guarda milissegundos sem perda.
+/// O que o Astro FEZ, além do que ele disse.
+///
+/// Toda tool de escrita grava uma linha: o que foi pedido, o que saiu e
+/// quanto custou. `StarTransaction` só guarda a descrição do débito — não o
+/// argumento nem o erro —, e ação de custo zero (criar evento) não geraria
+/// linha nenhuma lá. Sem isto, "o Astro criou uma campanha que eu não pedi"
+/// é indiscutível.
+model AstroAcao {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  /// Sessão de conversa (`SiteChatSession`), sem FK: a sessão expira em 24 h
+  /// e a auditoria fica.
+  sessionId      String?  @map("session_id")
+  tool           String
+  entrada        Json
+  resultado      Json?
+  erro           String?
+  starsCobradas  Int      @default(0) @map("stars_cobradas")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("astro_acoes")
+}
+
 model RateLimit {
   id          String @id @default(cuid())
   key         String
@@ -394,6 +423,7 @@ model Organization {
   reminders        Reminder[]
 
   uploadQuotas UploadQuotaDaily[]
+  astroAcoes   AstroAcao[]
 
   @@index([slug])
   @@index([subdomain])

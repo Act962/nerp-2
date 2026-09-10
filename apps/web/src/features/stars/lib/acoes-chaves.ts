@@ -11,6 +11,10 @@ export const ACOES = {
   destinatarioDeCampanha: "campaign_recipient",
   /** Astro: cobrado por bloco de 1.000 tokens (entrada + saída) da resposta. */
   astroTokens: "astro_tokens_1k",
+  /** Astro montou um catálogo promocional (produtos resolvidos e gravados). */
+  astroCatalogo: "astro_catalogo",
+  /** Astro montou uma campanha de WhatsApp (o disparo cobra por destinatário). */
+  astroCampanha: "astro_campanha",
 } as const;
 
 export type AcaoCobravel = (typeof ACOES)[keyof typeof ACOES];
@@ -26,4 +30,6 @@ export type AcaoCobravel = (typeof ACOES)[keyof typeof ACOES];
  */
 export const PRECOS_PADRAO: Partial<Record<AcaoCobravel, number>> = {
   [ACOES.astroTokens]: 1,
+  [ACOES.astroCatalogo]: 5,
+  [ACOES.astroCampanha]: 5,
 };

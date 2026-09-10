@@ -1,7 +1,11 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage } from "ai";
+import {
+  DefaultChatTransport,
+  lastAssistantMessageIsCompleteWithApprovalResponses,
+  type UIMessage,
+} from "ai";
 import {
   Fragment,
   type ReactNode,
@@ -168,6 +172,77 @@ type ConviteDeFormulario = { url: string; rotulo: string; motivo: string };
 
 /** Quem está do outro lado, na medida em que ele foi descobrindo. */
 type Visitante = { nome?: string; empresa?: string; cnpj?: string };
+
+/**
+ * Uma ação que o Astro quer executar e está esperando o sim.
+ *
+ * Vem das partes `tool-*` no estado `approval-requested`, que o AI SDK cria
+ * quando a tool está em `toolApproval`. O `id` é o que volta assinado ao
+ * servidor: sem ele, nada executa.
+ */
+export type PedidoDeAprovacao = {
+  id: string;
+  ferramenta: string;
+  entrada: Record<string, unknown>;
+  /** Já respondido, esperando o servidor. */
+  respondido: boolean;
+  /** Respondido com "não". */
+  recusado: boolean;
+};
+
+function pedidosDeAprovacao(mensagem: {
+  parts: Array<{ type: string }>;
+}): PedidoDeAprovacao[] {
+  const pedidos: PedidoDeAprovacao[] = [];
+  for (const parte of mensagem.parts) {
+    if (!parte.type.startsWith("tool-")) continue;
+    const comAprovacao = parte as {
+      state?: string;
+      input?: unknown;
+      approval?: { id?: string; approved?: boolean };
+    };
+    const estado = comAprovacao.state;
+    if (
+      estado !== "approval-requested" &&
+      estado !== "approval-responded" &&
+      estado !== "output-denied"
+    ) {
+      continue;
+    }
+    const id = comAprovacao.approval?.id;
+    if (!id) continue;
+    pedidos.push({
+      id,
+      ferramenta: parte.type.replace(/^tool-/, ""),
+      entrada:
+        typeof comAprovacao.input === "object" && comAprovacao.input !== null
+          ? (comAprovacao.input as Record<string, unknown>)
+          : {},
+      respondido: estado !== "approval-requested",
+      recusado:
+        estado === "output-denied" || comAprovacao.approval?.approved === false,
+    });
+  }
+  return pedidos;
+}
+
+/** Um botão que a tool devolveu — o modelo nunca escreve o endereço. */
+type LinkDeAcao = { rotulo: string; href: string };
+
+function linksDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): LinkDeAcao[] {
+  const links: LinkDeAcao[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const link = (saida as { link?: unknown }).link;
+    if (typeof link !== "object" || link === null) continue;
+    const campos = link as Record<string, unknown>;
+    const href = textoDe(campos.href);
+    if (!href.startsWith("/")) continue;
+    links.push({ href, rotulo: textoDe(campos.rotulo) || "Abrir" });
+  }
+  return links;
+}
 
 /** As saídas de tool de uma mensagem, já filtradas pelas que deram certo. */
 function saidasDeTool(mensagem: { parts: Array<{ type: string }> }): unknown[] {
@@ -515,6 +590,15 @@ export type AstroWidgetProps = {
   aoFalhar?: (falha: FalhaDoAstro) => ReactNode;
   /** Chamado quando uma resposta termina de chegar. */
   onResposta?: () => void;
+  /**
+   * Rótulo e resumo de cada ação que pede aprovação. O pacote não conhece o
+   * domínio: quem monta o widget é que sabe o que "criarCatalogoPromocional"
+   * significa para quem está lendo.
+   */
+  acoes?: Record<
+    string,
+    { titulo: string; resumir: (entrada: Record<string, unknown>) => string }
+  >;
 };
 
 /** Evento que abre o painel de fora (um botão de "Falar com o Astro"). */
@@ -540,6 +624,7 @@ export function AstroWidget({
   consentimento = true,
   aoFalhar,
   onResposta,
+  acoes,
 }: AstroWidgetProps) {
   const [aberto, setAberto] = useState(false);
   const [falha, setFalha] = useState<FalhaDoAstro | null>(null);
@@ -785,8 +870,17 @@ export function AstroWidget({
     [api, consentimento],
   );
 
-  const { messages, sendMessage, setMessages, status } = useChat({
+  const {
+    messages,
+    sendMessage,
+    setMessages,
+    status,
+    addToolApprovalResponse,
+  } = useChat({
     transport,
+    // Aprovou no cartão? A conversa segue sozinha, sem a pessoa ter que
+    // escrever "pode" depois de já ter clicado em "pode".
+    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithApprovalResponses,
     onFinish: () => onResposta?.(),
   });
   const carregando = status === "submitted" || status === "streaming";
@@ -1095,7 +1189,19 @@ export function AstroWidget({
                 mensagem.role === "user"
                   ? null
                   : formularioDaMensagem(mensagem);
-              if (!texto && solucoes.length === 0 && !formulario) return null;
+              const aprovacoes =
+                mensagem.role === "user" ? [] : pedidosDeAprovacao(mensagem);
+              const links =
+                mensagem.role === "user" ? [] : linksDaMensagem(mensagem);
+              if (
+                !texto &&
+                solucoes.length === 0 &&
+                !formulario &&
+                aprovacoes.length === 0 &&
+                links.length === 0
+              ) {
+                return null;
+              }
 
               return (
                 <Fragment key={mensagem.id}>
@@ -1154,6 +1260,75 @@ export function AstroWidget({
                               fill="none"
                             />
                           </svg>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {aprovacoes.map((pedido) => {
+                    const rotulo = acoes?.[pedido.ferramenta];
+                    return (
+                      <div className="o-astro-acao" key={pedido.id}>
+                        <p className="o-astro-acao__titulo">
+                          {rotulo?.titulo ?? pedido.ferramenta}
+                        </p>
+                        <p className="o-astro-acao__linha">
+                          {rotulo?.resumir(pedido.entrada) ??
+                            "Confirme para o Astro executar."}
+                        </p>
+                        {pedido.respondido ? (
+                          <p className="o-astro-acao__estado">
+                            {pedido.recusado ? "Recusado." : "Confirmado."}
+                          </p>
+                        ) : (
+                          <div className="o-astro-acao__botoes">
+                            <button
+                              type="button"
+                              className="o-astro-acao__sim"
+                              onClick={() =>
+                                addToolApprovalResponse({
+                                  id: pedido.id,
+                                  approved: true,
+                                })
+                              }
+                            >
+                              Pode fazer
+                            </button>
+                            <button
+                              type="button"
+                              className="o-astro-acao__nao"
+                              onClick={() =>
+                                addToolApprovalResponse({
+                                  id: pedido.id,
+                                  approved: false,
+                                })
+                              }
+                            >
+                              Agora não
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {links.length > 0 && (
+                    <div className="o-astro-links">
+                      {links.map((link) => (
+                        <a
+                          key={link.href}
+                          className="o-astro-link"
+                          href={`${baseDosLinks}${link.href}`}
+                          target={linksEmNovaAba ? "_blank" : undefined}
+                          rel={
+                            linksEmNovaAba ? "noopener noreferrer" : undefined
+                          }
+                        >
+                          <span className="o-astro-link__texto">
+                            <span className="o-astro-link__nome">
+                              {link.rotulo}
+                            </span>
+                          </span>
                         </a>
                       ))}
                     </div>

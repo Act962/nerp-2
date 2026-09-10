@@ -1,6 +1,7 @@
 "use client";
 
 import { AstroWidget, type FalhaDoAstro } from "@nerp/astro-widget";
+import { ROTULO_DA_ACAO } from "@/features/astro/server/acoes/aprovacao";
 import { Recarregar } from "@/features/stars/components/recarregar";
 import { useInvalidarSaldo } from "@/features/stars/hooks/use-stars";
 import { useCurrentMember } from "@/features/members/hooks/use-members";
@@ -63,6 +64,7 @@ export function AstroFlutuante() {
       baseDosLinks={SITE}
       linksEmNovaAba
       nota="O Astro é uma inteligência artificial e pode errar. Cada resposta consome Stars da organização."
+      acoes={ROTULO_DA_ACAO}
       aoFalhar={aoFalhar}
       onResposta={invalidarSaldo}
     />
