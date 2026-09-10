@@ -134,6 +134,16 @@ export type EntradaConsultor = {
    * passar por `execute` nenhum, então não há tool para contar.
    */
   aoBuscarNaWeb?: () => void;
+  /**
+   * Uma tool terminou. Serve para o log estruturado de quem chamou o quê e
+   * quanto demorou — sem o argumento e sem a resposta, que são a conversa da
+   * pessoa e não têm por que ir para o log do servidor.
+   */
+  aoTerminarTool?: (evento: {
+    tool: string;
+    duracaoMs: number;
+    falhou: boolean;
+  }) => void;
   onFinish?: (dados: { tokensIn: number; tokensOut: number }) => Promise<void>;
 };
 
@@ -175,6 +185,13 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
       : {}),
     onStepEnd: ({ sources }) => {
       if (sources.length > 0) entrada.aoBuscarNaWeb?.();
+    },
+    onToolExecutionEnd: ({ toolCall, toolExecutionMs, toolOutput }) => {
+      entrada.aoTerminarTool?.({
+        tool: toolCall.toolName,
+        duracaoMs: Math.round(toolExecutionMs),
+        falhou: toolOutput.type === "tool-error",
+      });
     },
     maxOutputTokens: 1024,
     temperature: 0.3,

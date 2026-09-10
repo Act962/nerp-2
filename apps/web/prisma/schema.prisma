@@ -5512,6 +5512,8 @@ model SiteChatSession {
 
   @@index([expiresAt])
   @@index([ipHash, createdAt]) // é este índice que o limite por IP usa
+  // E este, o teto diário por organização no canal do app.
+  @@index([organizationId, createdAt])
   @@index([leadId])
   @@map("site_chat_sessions")
 }

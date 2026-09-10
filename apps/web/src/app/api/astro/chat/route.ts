@@ -18,6 +18,7 @@ import {
   MENSAGENS_PARA_RESUMIR,
   resumirConversa,
 } from "@/features/astro/server/resumir-conversa";
+import { conferirTetoDiario } from "@/features/astro/server/teto-diario";
 import { construirToolsDoApp } from "@/features/astro/server/tools-app";
 import {
   LIMITE_TEXTO,
@@ -127,6 +128,22 @@ export async function POST(request: NextRequest) {
 
   const modelo = resolverModelo(config.modelo);
   if (!modelo) return indisponivel("sem_chave");
+
+  // A última trava da fatura, antes do saldo: o saldo só segura quando a
+  // cobrança está ligada, e nada impede abrir cem conversas curtas num dia.
+  const teto = await conferirTetoDiario(org.id, config.tetoMensagensDiaPorOrg);
+  if (!teto.ok) {
+    return NextResponse.json(
+      {
+        erro: "teto_diario",
+        usadas: teto.usadas,
+        teto: teto.teto,
+        mensagem:
+          "A sua empresa já falou bastante comigo hoje. Amanhã eu volto — ou fale com um administrador para aumentar o limite.",
+      },
+      { status: 429 },
+    );
+  }
 
   if (!(await podeConversar(org.id))) {
     const saldo = await prisma.organization.findUnique({
@@ -255,6 +272,18 @@ export async function POST(request: NextRequest) {
       : {}),
     aoBuscarNaWeb: () => {
       buscasNaWeb += 1;
+    },
+    // Uma linha por tool executada, com organização, sessão e duração. É o
+    // que permite responder "por que a conversa demorou" e "quem chamou o
+    // quê" sem ler a conversa de ninguém — nem o argumento, nem a resposta.
+    aoTerminarTool: (evento) => {
+      console.info("[astro] tool", {
+        organizationId: org.id,
+        sessaoId: sessaoAtual.id,
+        tool: evento.tool,
+        ms: evento.duracaoMs,
+        falhou: evento.falhou,
+      });
     },
     onFinish: async ({ tokensIn, tokensOut }) => {
       await prisma.siteChatSession.update({

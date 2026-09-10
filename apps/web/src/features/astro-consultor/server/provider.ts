@@ -35,6 +35,14 @@ export const astroConfigSchema = z.object({
    * que ninguém pediu. Quem quiser, liga.
    */
   resumirConversas: z.boolean().default(false),
+  /**
+   * Teto de mensagens por dia POR ORGANIZAÇÃO, no canal logado. 0 = sem teto.
+   * O `tetoMensagensDia` acima é do site inteiro; este existe porque uma
+   * organização sozinha, com um laço mal escrito ou um funcionário curioso,
+   * consegue gastar a fatura de todas as outras juntas — e o saldo de ★ não
+   * segura isso quando a cobrança está desligada por regra.
+   */
+  tetoMensagensDiaPorOrg: z.number().int().min(0).default(0),
 });
 
 export type AstroConfig = z.infer<typeof astroConfigSchema>;

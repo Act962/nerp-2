@@ -5,6 +5,7 @@
 > Branch: `feat/astro-stars-planos` (a partir de `origin/main`)
 > Criado em: 2026-09-10 · Atualizado em: 2026-09-10
 > Status: 🟡 Em andamento — código pronto, aguardando teste do dev
+> Continuação: esta spec é a **base** do épico "Astro operacional". As seis fases seguintes estão mapeadas em [`astro-operacional.md`](./astro-operacional.md); o que o Astro passou a cobrar (catálogo, campanha, imagem gerada, busca na web) foi acrescentado em `acoes-chaves.ts` pelas fases 3 e 4, com preço padrão junto.
 
 ---
 
@@ -74,6 +75,7 @@ Arquivos principais:
 - [ ] **Preencher os planos pagos** em `planos.ts`: nome, descrição, preço, `priceId` (mensal) e `annualDiscountPriceId`, limites e `starsPorCiclo`.
 - [ ] **Plugar `@better-auth/stripe`** (João): `stripe({ stripeClient, stripeWebhookSecret, subscription: { enabled: true, plans: planosParaBetterAuth(), authorizeReference } , organization: { enabled: true } })` em `lib/auth.ts`; depois, em `planoDaOrganizacao`, ler `subscription` (`referenceId = organizationId`, `status in active|trialing`) antes das regras de legado/grátis. O botão "Escolher" em `planos.tsx` chama `authClient.subscription.upgrade({ plan, referenceId, customerType: "organization" })`.
 - [ ] Badge "Exemplo" nas listagens de produtos/clientes/fornecedores.
+- [ ] **Preços das ações novas** — `astro_catalogo` e `astro_campanha` (5 ★), `astro_imagem_gerada` (5 ★) e `astro_busca_web` (1 ★) entraram com preço padrão em `PRECOS_PADRAO`. Conferir se os valores fazem sentido junto com o preço por mil tokens antes de abrir para clientes; `StarRule` continua mandando quando existir.
 
 ### Qualidade de codigo
 - [ ] `create-form-org.tsx` ainda faz `checkSlug` + `create` + `setActive` + `updateProfile` em sequência no cliente; o resto do onboarding já está no servidor.

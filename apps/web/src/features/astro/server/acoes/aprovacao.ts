@@ -20,6 +20,7 @@ export const ACOES_QUE_PEDEM_APROVACAO = [
   "gerarImagem",
   "lembrar",
   "esquecer",
+  "contatarSuporte",
 ] as const;
 
 export type AcaoQuePedeAprovacao = (typeof ACOES_QUE_PEDEM_APROVACAO)[number];
@@ -67,6 +68,11 @@ export const ROTULO_DA_ACAO: Record<
     titulo: "Esquecer o que foi guardado",
     resumir: (entrada) =>
       `Apagar o que está em "${texto(entrada.chave) || "sem chave"}". Não dá para desfazer.`,
+  },
+  contatarSuporte: {
+    titulo: "Abrir um chamado com o suporte",
+    resumir: (entrada) =>
+      `"${texto(entrada.assunto) || "Sem assunto"}" — o time da ÓRBITA recebe o assunto, o seu contato e o resumo do caso.`,
   },
   gerarImagem: {
     titulo: "Gerar uma imagem",
