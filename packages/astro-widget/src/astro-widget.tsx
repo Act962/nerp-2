@@ -642,7 +642,45 @@ export type AstroWidgetProps = {
   tiposDeArquivo?: readonly string[];
   /** Quantos anexos cabem numa mensagem. */
   maxArquivos?: number;
+  /**
+   * Os avisos abertos da organização. Viram selo no botão, uma fala no balão
+   * e cartões no topo do painel. Sem a prop, nada disso existe — é o que
+   * mantém o widget do site igual ao que era.
+   */
+  avisos?: readonly AvisoDoAstro[];
+  /** O mascote acabou de falar este aviso. */
+  aoFalarAviso?: (id: string) => void;
+  /** A pessoa leu (ou pediu para explicar) este aviso. */
+  aoLerAviso?: (id: string) => void;
 };
+
+/**
+ * Um aviso que o Astro tem para dar. O pacote não sabe o que cada tipo
+ * significa — recebe pronto e só ordena pela severidade.
+ */
+export type AvisoDoAstro = {
+  id: string;
+  severidade: "alta" | "media" | "baixa";
+  titulo: string;
+  corpo: string;
+  lido: boolean;
+  falado: boolean;
+};
+
+const PESO: Record<AvisoDoAstro["severidade"], number> = {
+  alta: 3,
+  media: 2,
+  baixa: 1,
+};
+
+/** O aviso que ele fala: o mais grave entre os que ainda não foram falados. */
+function avisoParaFalar(avisos: readonly AvisoDoAstro[]): AvisoDoAstro | null {
+  const candidatos = avisos.filter((aviso) => !aviso.falado && !aviso.lido);
+  if (candidatos.length === 0) return null;
+  return [...candidatos].sort(
+    (a, b) => PESO[b.severidade] - PESO[a.severidade],
+  )[0];
+}
 
 /** O que o servidor aceita — repetido aqui para o seletor já filtrar. */
 const TIPOS_DE_IMAGEM = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -674,6 +712,9 @@ export function AstroWidget({
   enviarArquivo,
   tiposDeArquivo = TIPOS_DE_IMAGEM,
   maxArquivos = 4,
+  avisos: avisosDoAstro,
+  aoFalarAviso,
+  aoLerAviso,
 }: AstroWidgetProps) {
   const [aberto, setAberto] = useState(false);
   const [falha, setFalha] = useState<FalhaDoAstro | null>(null);
@@ -817,6 +858,26 @@ export function AstroWidget({
     if (aberto) setBalao(null);
   }, [aberto]);
 
+  /**
+   * O mascote fala o aviso mais grave que ainda não falou.
+   *
+   * Uma vez, e não a cada carregamento de página: quem marca é o servidor
+   * (`aoFalarAviso`), então o mesmo aviso não persegue a pessoa de tela em
+   * tela. Com o painel aberto ele não fala — os cartões já estão à vista.
+   */
+  const faladoRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (aberto || !avisosDoAstro || avisosDoAstro.length === 0) return;
+    const aviso = avisoParaFalar(avisosDoAstro);
+    if (!aviso || faladoRef.current === aviso.id) return;
+
+    faladoRef.current = aviso.id;
+    setBalao(aviso.titulo);
+    aoFalarAviso?.(aviso.id);
+    const relogio = setTimeout(() => setBalao(null), BALAO_NA_TELA);
+    return () => clearTimeout(relogio);
+  }, [aberto, avisosDoAstro, aoFalarAviso]);
+
   // Um botão de fora ("Falar com o Astro") abre o painel por evento: o
   // widget é montado uma vez no leiaute e ninguém tem a mão dele.
   useEffect(() => {
@@ -938,6 +999,19 @@ export function AstroWidget({
     onFinish: () => onResposta?.(),
   });
   const carregando = status === "submitted" || status === "streaming";
+
+  /** Quantos avisos ainda não foram lidos — o número do selo. */
+  const naoLidos = (avisosDoAstro ?? []).filter((aviso) => !aviso.lido).length;
+
+  /**
+   * Os que ficam fixados no topo do painel: os não lidos, do mais grave para
+   * o menos, no máximo três. A lista inteira empurraria a conversa para fora
+   * da tela, que é o oposto do que um painel de conversa serve.
+   */
+  const avisosAbertos = [...(avisosDoAstro ?? [])]
+    .filter((aviso) => !aviso.lido)
+    .sort((a, b) => PESO[b.severidade] - PESO[a.severidade])
+    .slice(0, 3);
 
   /**
    * A conversa atravessa a navegação.
@@ -1231,8 +1305,17 @@ export function AstroWidget({
           type="button"
           className="o-astro-btn"
           onClick={() => setAberto(true)}
-          aria-label="Falar com o Astro"
+          aria-label={
+            naoLidos > 0
+              ? `Falar com o Astro (${naoLidos} avisos)`
+              : "Falar com o Astro"
+          }
         >
+          {naoLidos > 0 && (
+            <span className="o-astro-selo" aria-hidden>
+              {naoLidos > 9 ? "9+" : naoLidos}
+            </span>
+          )}
           {/*
             O botão se entrega ao mascote: é o DISCO que treme e esquenta
             quando ele se dá por ignorado, não só o desenho lá dentro.
@@ -1293,6 +1376,39 @@ export function AstroWidget({
             : undefined
         }
       >
+        {avisosAbertos.length > 0 && (
+          <div className="o-astro-avisos">
+            {avisosAbertos.map((aviso) => (
+              <div
+                className={`o-astro-aviso o-astro-aviso--${aviso.severidade}`}
+                key={aviso.id}
+              >
+                <p className="o-astro-aviso__titulo">{aviso.titulo}</p>
+                <p className="o-astro-aviso__corpo">{aviso.corpo}</p>
+                <div className="o-astro-aviso__botoes">
+                  <button
+                    type="button"
+                    className="o-astro-aviso__explicar"
+                    onClick={() => {
+                      aoLerAviso?.(aviso.id);
+                      enviar(`Me explica este aviso: ${aviso.titulo}`);
+                    }}
+                  >
+                    Explicar
+                  </button>
+                  <button
+                    type="button"
+                    className="o-astro-aviso__ok"
+                    onClick={() => aoLerAviso?.(aviso.id)}
+                  >
+                    Já vi
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {messages.length === 0 ? (
           <div className="o-astro-empty">
             <h2 className="o-astro-empty__title">{abertura}</h2>

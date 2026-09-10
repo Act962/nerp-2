@@ -13,6 +13,7 @@ import { construirToolsDeCatalogos } from "./tools/catalogos";
 import { construirToolsDeClientes } from "./tools/clientes";
 import { construirToolsDeEstoque } from "./tools/estoque";
 import { construirToolsDeImagem } from "./tools/imagens";
+import { construirToolsDeMemoria } from "./tools/memoria";
 import { construirToolsDeOperacao } from "./tools/operacao";
 import { construirToolsDePrevisao } from "./tools/previsao";
 import { construirToolsDeStars } from "./tools/stars";
@@ -67,5 +68,6 @@ export function construirToolsDoApp(contexto: ContextoToolsApp): ToolSet {
     ...construirToolsDeAcaoDeCalendario(contexto),
     ...construirToolsDeAcaoDeProdutos(contexto),
     ...construirToolsDeImagem(contexto),
+    ...construirToolsDeMemoria(contexto),
   };
 }

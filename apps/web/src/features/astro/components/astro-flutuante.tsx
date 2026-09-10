@@ -4,6 +4,11 @@ import { AstroWidget, type FalhaDoAstro } from "@nerp/astro-widget";
 import { ROTULO_DA_ACAO } from "@/features/astro/server/acoes/aprovacao";
 import { subirAnexoDoAstro } from "@/features/astro/lib/anexar";
 import {
+  useAvisos,
+  useMarcarAvisoFalado,
+  useMarcarAvisoLido,
+} from "@/features/astro/hooks/use-avisos";
+import {
   MAX_ANEXOS_POR_MENSAGEM,
   TIPOS_DE_ANEXO_ACEITOS,
 } from "@/features/astro/server/anexos";
@@ -38,6 +43,9 @@ const SUGESTOES = [
  */
 export function AstroFlutuante() {
   const invalidarSaldo = useInvalidarSaldo();
+  const { data: avisos } = useAvisos();
+  const marcarLido = useMarcarAvisoLido();
+  const marcarFalado = useMarcarAvisoFalado();
   const { member } = useCurrentMember();
   const podeComprar = hasFullAccess(member?.role);
 
@@ -70,6 +78,9 @@ export function AstroFlutuante() {
       linksEmNovaAba
       nota="O Astro é uma inteligência artificial e pode errar. Cada resposta consome Stars da organização."
       acoes={ROTULO_DA_ACAO}
+      avisos={avisos?.avisos}
+      aoFalarAviso={(id) => marcarFalado.mutate({ id })}
+      aoLerAviso={(id) => marcarLido.mutate({ id })}
       enviarArquivo={subirAnexoDoAstro}
       tiposDeArquivo={TIPOS_DE_ANEXO_ACEITOS}
       maxArquivos={MAX_ANEXOS_POR_MENSAGEM}

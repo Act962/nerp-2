@@ -14,6 +14,10 @@ import {
   CONFIGURACAO_DE_APROVACAO,
   segredoDeAprovacao,
 } from "@/features/astro/server/acoes/aprovacao";
+import {
+  MENSAGENS_PARA_RESUMIR,
+  resumirConversa,
+} from "@/features/astro/server/resumir-conversa";
 import { construirToolsDoApp } from "@/features/astro/server/tools-app";
 import {
   LIMITE_TEXTO,
@@ -203,6 +207,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ erro: "corpo_invalido" }, { status: 400 });
   }
 
+  // Os avisos abertos e o que ele guardou desta empresa. As duas leituras são
+  // por `organizationId` e entram no prompt cortadas — o teto está em
+  // `prompt.ts`, porque quem paga o tamanho é toda mensagem da conversa.
+  const [avisosAbertos, memoria] = await Promise.all([
+    prisma.astroAviso.findMany({
+      where: { organizationId: org.id, lidoEm: null },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { titulo: true, corpo: true },
+    }),
+    prisma.astroMemoria.findMany({
+      where: { organizationId: org.id },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select: { chave: true, texto: true },
+    }),
+  ]);
+
   // Cada passo que volta com fontes é uma busca do provedor, cobrada no fim
   // junto com os tokens: uma escrita só, e nunca no meio do stream.
   let buscasNaWeb = 0;
@@ -217,6 +239,8 @@ export async function POST(request: NextRequest) {
     usuario: `${sessaoAuth.user.name} (${sessaoAuth.user.email})`,
     // Quem fala já é conhecido: vai como "visitante" para ele não perguntar.
     visitante: { nome: sessaoAuth.user.name, empresa: org.name },
+    avisos: avisosAbertos,
+    memoria,
     toolApproval: CONFIGURACAO_DE_APROVACAO,
     approvalSecret: segredoDeAprovacao(),
     tools,
@@ -258,6 +282,26 @@ export async function POST(request: NextRequest) {
         }
       } catch (erro) {
         console.error("[astro] falha ao cobrar tokens", erro);
+      }
+
+      // O fecho da conversa longa, quando a organização ligou isso. É o único
+      // uso de IA fora da conversa, e falhar aqui não pode estragar uma
+      // resposta que já foi entregue.
+      if (
+        config.resumirConversas &&
+        (sessao?.messageCount ?? 0) + 1 >= MENSAGENS_PARA_RESUMIR
+      ) {
+        try {
+          await resumirConversa({
+            organizationId: org.id,
+            userId: sessaoAuth.user.id,
+            sessaoId: sessaoAtual.id,
+            modelo,
+            mensagens: validadas.data,
+          });
+        } catch (erro) {
+          console.error("[astro] falha ao resumir a conversa", erro);
+        }
       }
     },
   });

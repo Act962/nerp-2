@@ -11,8 +11,17 @@ import { montarPrompt } from "./prompt";
 
 const AGORA = new Date("2026-09-04T12:00:00.000Z");
 
-/** O teto vive aqui e não numa constante do código: mexer nele é uma decisão. */
-const TETO_CARACTERES = 12_000;
+/**
+ * O teto vive aqui e não numa constante do código: mexer nele é uma decisão.
+ *
+ * Foi de 12.000 para 12.500 na Fase 5, quando o canal logado ganhou memória
+ * (`lembrar`/`esquecer`/`oQueVoceLembra`) e avisos proativos, cada um com a
+ * sua regra no roteiro. A trava existe para pegar um BLOCO entrando sem
+ * querer — o texto completo das 28 ferramentas passa de 30 mil caracteres —,
+ * não para proibir três linhas de regra por família de tool nova. O canal do
+ * site não cresceu e continua perto de 11 mil.
+ */
+const TETO_CARACTERES = 12_500;
 
 describe("montarPrompt", () => {
   it("cabe no teto de tamanho", () => {
@@ -222,5 +231,83 @@ describe("com quem ele está falando", () => {
     });
     expect(prompt).toMatch(/não escreva o número/i);
     expect(prompt).toContain("19131243000197");
+  });
+});
+
+/**
+ * Memória e avisos: os dois blocos que só existem no canal logado.
+ *
+ * O que se garante aqui é o isolamento visto do lado do prompt — o canal do
+ * site NUNCA recebe memória de organização nenhuma, por mais que quem chame
+ * passe uma por engano.
+ */
+describe("montarPrompt — memória e avisos", () => {
+  const MEMORIA = [
+    { chave: "reposicao", texto: "A reposição da loja é sempre na terça." },
+  ];
+  const AVISOS = [
+    { titulo: "3 produtos abaixo do mínimo", corpo: "Café, açúcar e leite." },
+  ];
+
+  it("no app, memória e avisos entram no prompt", () => {
+    const prompt = montarPrompt({
+      escopo: "app",
+      agora: AGORA,
+      memoria: MEMORIA,
+      avisos: AVISOS,
+    });
+    expect(prompt).toContain("sempre na terça");
+    expect(prompt).toContain("3 produtos abaixo do mínimo");
+    expect(prompt).toMatch(/Não recite a lista|Não recite/i);
+  });
+
+  it("no site, memória e avisos NUNCA entram — nem passados de propósito", () => {
+    const prompt = montarPrompt({
+      escopo: "site",
+      agora: AGORA,
+      memoria: MEMORIA,
+      avisos: AVISOS,
+    });
+    expect(prompt).not.toContain("sempre na terça");
+    expect(prompt).not.toContain("3 produtos abaixo do mínimo");
+  });
+
+  it("sem memória e sem aviso, nenhum cabeçalho vazio sobra", () => {
+    const prompt = montarPrompt({ escopo: "app", agora: AGORA });
+    expect(prompt).not.toContain("[AVISOS ABERTOS]");
+    expect(prompt).not.toContain("[O QUE VOCÊ JÁ SABE DESTA EMPRESA]");
+  });
+
+  it("a memória é cortada por tamanho, não pela contagem de fatos", () => {
+    const gordos = Array.from({ length: 40 }, (_, i) => ({
+      chave: `fato-${i}`,
+      texto: "x".repeat(200),
+    }));
+    const prompt = montarPrompt({
+      escopo: "app",
+      agora: AGORA,
+      memoria: gordos,
+    });
+    // Entra alguma coisa, mas não os 8.000 caracteres da lista inteira.
+    expect(prompt).toContain("fato-0");
+    expect(prompt).not.toContain("fato-30");
+  });
+
+  it("o prompt com memória e avisos continua abaixo do teto", () => {
+    const prompt = montarPrompt({
+      escopo: "app",
+      agora: AGORA,
+      organizacao: "Supermercado Santa Clara",
+      usuario: "Weydson (weydson@exemplo.com)",
+      memoria: Array.from({ length: 20 }, (_, i) => ({
+        chave: `fato-${i}`,
+        texto: "Um fato de tamanho normal sobre a operação desta loja.",
+      })),
+      avisos: Array.from({ length: 5 }, (_, i) => ({
+        titulo: `Aviso ${i}`,
+        corpo: "Um corpo de aviso do tamanho que o motor costuma gerar aqui.",
+      })),
+    });
+    expect(prompt.length).toBeLessThan(TETO_CARACTERES + 2_000);
   });
 });

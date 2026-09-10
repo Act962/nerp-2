@@ -28,6 +28,13 @@ export const astroConfigSchema = z.object({
   tetoMensagensDia: z.number().int().min(0).default(0),
   /** Sobrepõe o modelo padrão. Vazio = o que o ambiente decidir. */
   modelo: z.string().default(""),
+  /**
+   * Fechar a conversa longa com um resumo curto guardado na memória da
+   * organização. **Desligado por padrão**: é o único uso de IA fora da
+   * conversa, e uma chamada a mais por conversa longa em toda a base é conta
+   * que ninguém pediu. Quem quiser, liga.
+   */
+  resumirConversas: z.boolean().default(false),
 });
 
 export type AstroConfig = z.infer<typeof astroConfigSchema>;

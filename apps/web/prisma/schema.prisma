@@ -188,6 +188,55 @@ model AstroAcao {
   @@map("astro_acoes")
 }
 
+/// Um aviso que o Astro tem para dar: estoque acabando, ticket abaixo do
+/// usual, ação amanhã, contrato vencendo, ★ no fim, sandbox expirando.
+/// Avaliado por consulta SQL num cron — nenhum modelo de IA participa disso.
+model AstroAviso {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  tipo           String
+  /// "alta" | "media" | "baixa" — a lista vive em código (`avisos/tipos.ts`).
+  severidade     String
+  titulo         String
+  corpo          String
+  dados          Json?
+  /// `tipo:chave:AAAA-MM-DD`. É o que impede o mesmo aviso de nascer de novo
+  /// a cada passada do cron no mesmo dia.
+  dedupeKey      String    @map("dedupe_key")
+  lidoEm         DateTime? @map("lido_em")
+  /// Quando o mascote falou este aviso no balão. Fala uma vez, não a cada
+  /// carregamento de página.
+  faladoEm       DateTime? @map("falado_em")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, lidoEm, createdAt])
+  @@map("astro_avisos")
+}
+
+/// O que o Astro guardou sobre a operação desta organização, a pedido de
+/// alguém dela. Nunca sai da organização: toda leitura é por `organizationId`,
+/// e o canal do site não tem memória nenhuma.
+model AstroMemoria {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  chave          String
+  texto          String
+  /// "pessoa" (alguém pediu para lembrar) | "resumo" (fecho de conversa).
+  origem         String   @default("pessoa")
+  criadoPorId    String?  @map("criado_por_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, chave])
+  @@index([organizationId, updatedAt])
+  @@map("astro_memorias")
+}
+
 model RateLimit {
   id          String @id @default(cuid())
   key         String
@@ -422,8 +471,10 @@ model Organization {
   appointments     Appointment[]
   reminders        Reminder[]
 
-  uploadQuotas UploadQuotaDaily[]
-  astroAcoes   AstroAcao[]
+  uploadQuotas  UploadQuotaDaily[]
+  astroAcoes    AstroAcao[]
+  astroAvisos   AstroAviso[]
+  astroMemorias AstroMemoria[]
 
   @@index([slug])
   @@index([subdomain])

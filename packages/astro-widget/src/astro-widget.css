@@ -708,3 +708,85 @@
   border-radius: 12px;
   border: 1px solid rgba(15, 23, 42, 0.12);
 }
+
+/* Avisos: o selo no botão e os cartões fixados no topo do painel. */
+.o-astro-selo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.o-astro-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.o-astro-aviso {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-left-width: 3px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.o-astro-aviso--alta {
+  border-left-color: #dc2626;
+}
+
+.o-astro-aviso--media {
+  border-left-color: #f59e0b;
+}
+
+.o-astro-aviso--baixa {
+  border-left-color: #64748b;
+}
+
+.o-astro-aviso__titulo {
+  margin: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.o-astro-aviso__corpo {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.o-astro-aviso__botoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.o-astro-aviso__explicar,
+.o-astro-aviso__ok {
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.o-astro-aviso__explicar {
+  background: #2563eb;
+  color: #fff;
+}
+
+.o-astro-aviso__ok {
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+}

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { STORE_TZ } from "@/features/sales/lib/period-range";
 import { whereVendaValida } from "@/features/sales/lib/venda-valida";
 import prisma from "@/lib/db";
+import { calcularTicketUsual, METODO_DO_TICKET } from "../ticket-usual";
 import { type ContextoToolsApp, dinheiro, numero } from "./_contexto";
 import {
   intervaloAnterior,
@@ -115,20 +116,15 @@ export function construirToolsDeVendas(ctx: ContextoToolsApp): ToolSet {
           .filter((ponto) => ponto.vendas > 0)
           .map((ponto) => ponto.total / ponto.vendas);
 
-        if (tickets.length < 7) {
+        const usual = calcularTicketUsual(tickets);
+        if (!usual) {
           return {
             aviso:
               "Ainda não há dias de venda suficientes para dizer qual é o ticket usual desta loja.",
             diasAnalisados: tickets.length,
           };
         }
-
-        const media = tickets.reduce((s, t) => s + t, 0) / tickets.length;
-        const desvio = Math.sqrt(
-          tickets.reduce((s, t) => s + (t - media) ** 2, 0) /
-            (tickets.length - 1),
-        );
-        const corte = media - desvio;
+        const { media, corte } = usual;
 
         const intervalo = intervaloDoPeriodo(periodo);
         const doPeriodo = historico.filter(
@@ -139,8 +135,7 @@ export function construirToolsDeVendas(ctx: ContextoToolsApp): ToolSet {
         );
 
         return {
-          metodo:
-            "ticket usual = média dos tickets diários dos últimos 90 dias; abaixo = menor que a média menos um desvio-padrão",
+          metodo: METODO_DO_TICKET,
           ticketUsual: Number(media.toFixed(2)),
           corte: Number(corte.toFixed(2)),
           periodo: ROTULO_DO_PERIODO[periodo],

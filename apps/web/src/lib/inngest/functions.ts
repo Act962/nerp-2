@@ -14,6 +14,11 @@ import {
   avisarSandboxes,
   listarSandboxesExpiradas,
 } from "@/features/onboarding/server/expirar-sandbox";
+import {
+  avaliarEGravar,
+  limparAvisosAntigos,
+  organizacoesParaAvaliar,
+} from "@/features/astro/server/avisos/gravar";
 import prisma from "@/lib/db";
 import {
   listOrganizationsForSync,
@@ -789,7 +794,38 @@ export const sandboxExpire = inngest.createFunction(
   },
 );
 
+/**
+ * Os avisos do Astro: três passadas por dia, de segunda a sábado, no horário
+ * em que alguém está na loja para ler. **Zero IA** — é consulta ao banco, como
+ * o `dashboard-alert-check`. Uma organização por `step.run`: a falha numa não
+ * derruba a varredura das outras, e a retentativa não reavalia todas.
+ */
+export const astroAvaliarAvisos = inngest.createFunction(
+  {
+    id: "astro-avaliar-avisos",
+    triggers: [{ cron: "TZ=America/Fortaleza 0 7,13,18 * * 1-6" }],
+  },
+  async ({ step }) => {
+    const orgs = await step.run("listar-orgs", () => organizacoesParaAvaliar());
+    let criados = 0;
+    for (const organizationId of orgs) {
+      criados += await step.run(`avaliar-${organizationId}`, () =>
+        avaliarEGravar(organizationId).catch((erro) => {
+          console.error("[astro] falha ao avaliar avisos", {
+            organizationId,
+            erro,
+          });
+          return 0;
+        }),
+      );
+    }
+    const limpos = await step.run("limpar", () => limparAvisosAntigos());
+    return { orgs: orgs.length, criados, limpos };
+  },
+);
+
 export const functions = [
+  astroAvaliarAvisos,
   automacaoExecutar,
   automacaoVarrerOciosos,
   campanhaDisparar,

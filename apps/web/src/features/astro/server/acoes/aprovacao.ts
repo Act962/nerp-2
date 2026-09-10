@@ -18,6 +18,8 @@ export const ACOES_QUE_PEDEM_APROVACAO = [
   "criarEventoNoCalendario",
   "adicionarImagemAoProduto",
   "gerarImagem",
+  "lembrar",
+  "esquecer",
 ] as const;
 
 export type AcaoQuePedeAprovacao = (typeof ACOES_QUE_PEDEM_APROVACAO)[number];
@@ -55,6 +57,16 @@ export const ROTULO_DA_ACAO: Record<
     titulo: "Adicionar uma imagem ao produto",
     resumir: (entrada) =>
       `Produto "${texto(entrada.produto) || "?"}", imagem de ${texto(entrada.url) || "endereço não informado"}.`,
+  },
+  lembrar: {
+    titulo: "Guardar isso na memória",
+    resumir: (entrada) =>
+      `"${texto(entrada.fato) || "Sem fato"}" — fica guardado para as próximas conversas, em ${texto(entrada.chave) || "sem chave"}.`,
+  },
+  esquecer: {
+    titulo: "Esquecer o que foi guardado",
+    resumir: (entrada) =>
+      `Apagar o que está em "${texto(entrada.chave) || "sem chave"}". Não dá para desfazer.`,
   },
   gerarImagem: {
     titulo: "Gerar uma imagem",

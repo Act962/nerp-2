@@ -10,6 +10,7 @@ import { PdvHeaderClock } from "@/features/sales/components/novo/pdv-header-cloc
 import { SidebarTrigger, useSidebar } from "./ui/sidebar";
 import { ModeToggle } from "./mode-toggle";
 import { ScannerQrButton } from "@/features/scanner/components/scanner-qr-button";
+import { SinoDeAvisos } from "@/features/astro/components/sino-de-avisos";
 import { FullscreenToggle } from "./fullscreen-toggle";
 
 // No PDV (tela cheia) a busca global do topo só distrai — a busca de produto
@@ -86,6 +87,9 @@ export function AppHeader() {
       <div className="flex items-center gap-2 md:gap-4">
         {isPdv && <PdvHeaderClock />}
         {isPdv && <PdvHeaderActions />}
+        {/* No PDV o cabeçalho já está cheio de operação de venda; aviso de
+            estoque ali é distração no meio de um atendimento. */}
+        {!isPdv && <SinoDeAvisos />}
         <ScannerQrButton />
         <FullscreenToggle />
         <ModeToggle />

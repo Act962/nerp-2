@@ -32,7 +32,17 @@ export type ContextoPrompt = {
   usuario?: string;
   /** O que ele já descobriu sobre quem está falando, nesta visita. */
   visitante?: Visitante;
+  /** Só no canal logado: os avisos abertos da organização. */
+  avisos?: AvisoNoPrompt[];
+  /** Só no canal logado: o que ele guardou sobre esta organização. */
+  memoria?: FatoNaMemoria[];
 };
+
+/** Um aviso, do jeito que ele entra no prompt. */
+export type AvisoNoPrompt = { titulo: string; corpo: string };
+
+/** Um fato guardado, do jeito que ele entra no prompt. */
+export type FatoNaMemoria = { chave: string; texto: string };
 
 /**
  * Quem está do outro lado, do jeito que ele foi sabendo.
@@ -165,6 +175,46 @@ function blocoDoVisitante(visitante: Visitante): string {
   return ["[QUEM ESTÁ FALANDO]", ...linhas].join("\n");
 }
 
+/**
+ * Os avisos abertos.
+ *
+ * Poucos e curtos de propósito: eles entram em TODA mensagem da conversa, e a
+ * lista inteira transformaria cada resposta numa fatura maior. Cinco é o que
+ * cabe sem o prompt virar um painel.
+ */
+const MAX_AVISOS_NO_PROMPT = 5;
+
+/** O teto da memória no prompt, em caracteres. Mesma razão dos avisos. */
+const MAX_MEMORIA_NO_PROMPT = 1500;
+
+function blocoDeAvisos(avisos: readonly AvisoNoPrompt[]): string {
+  if (avisos.length === 0) return "";
+  const linhas = avisos
+    .slice(0, MAX_AVISOS_NO_PROMPT)
+    .map((aviso) => `- ${aviso.titulo}: ${aviso.corpo}`);
+  return [
+    "[AVISOS ABERTOS] A pessoa já vê estes na tela. Não recite a lista; use-os se ela perguntar, ou se forem a resposta do que ela pediu.",
+    ...linhas,
+  ].join("\n");
+}
+
+function blocoDeMemoria(fatos: readonly FatoNaMemoria[]): string {
+  if (fatos.length === 0) return "";
+  const linhas: string[] = [];
+  let tamanho = 0;
+  for (const fato of fatos) {
+    const linha = `- ${fato.chave}: ${fato.texto}`;
+    if (tamanho + linha.length > MAX_MEMORIA_NO_PROMPT) break;
+    linhas.push(linha);
+    tamanho += linha.length;
+  }
+  if (linhas.length === 0) return "";
+  return [
+    "[O QUE VOCÊ JÁ SABE DESTA EMPRESA] Guardado a pedido dela, em conversas anteriores. Use sem anunciar que consultou a memória.",
+    ...linhas,
+  ].join("\n");
+}
+
 /** O bloco de data. Vem do servidor: o modelo não sabe que dia é hoje. */
 function blocoData(agora: Date): string {
   const data = new Intl.DateTimeFormat("pt-BR", {
@@ -180,14 +230,13 @@ const ESCOPO_SITE = `Você está no site institucional, falando com uma VISITA q
 const ESCOPO_APP = `Você está DENTRO do nerp, falando com alguém que JÁ É CLIENTE e está logado. Você continua sendo o mesmo Astro do site — sabe tudo sobre a ÓRBITA, as ferramentas, os segmentos e o Método N.A.S.A. — e aqui, além disso, enxerga a operação dela por tools.
 
 O QUE VOCÊ ALCANÇA AQUI (uma linha por assunto; o detalhe de cada tool está na descrição dela):
-- A organização: \`minhaOperacao\` (quem é, plano, ★, cadastros, se é conta de teste), \`modulosContratados\`, \`contarCadastros\`, \`buscarProdutos\`.
+- A organização: \`minhaOperacao\` (plano, ★, cadastros, se é conta de teste), \`modulosContratados\`, \`contarCadastros\`, \`buscarProdutos\`.
 - Vendas: \`resumoDeVendas\`, \`serieDeVendas\`, \`produtosMaisVendidos\`, \`vendasAbaixoDoTicketUsual\`, \`previsaoDeVendas\`.
 - Clientes: \`topClientes\`, \`clientesInativos\`, \`historicoDoCliente\`.
 - Estoque: \`estoqueBaixo\`, \`estoqueParado\`, \`coberturaDeEstoque\`.
-- Agenda de campo: \`proximosEventos\`.
+- Agenda de campo: \`proximosEventos\`. WhatsApp: \`estadoDoWhatsapp\`.
 - Trade Marketing: \`painelDeTrade\`, \`contratosVencendo\`.
 - Catálogo promocional: \`listarCatalogosPromocionais\`, \`previaDeCatalogo\`.
-- WhatsApp: \`estadoDoWhatsapp\`.
 - Stars: \`extratoDeStars\`, \`consumoDoAstro\`. Suporte: \`contatoDoSuporte\`.
 
 Stars (★) pagam esta conversa: cada resposta consome tokens, e tokens viram ★. Explique isso em uma frase, e diga que se compra em Configurações › Stars. Saldo nunca é chute — vem de \`minhaOperacao\`. Plano e limites de cadastro ficam em Configurações › Planos.
@@ -197,26 +246,28 @@ Número da operação (venda, estoque, saldo, quantidade, previsão) só sai de 
 const ROTEIRO_APP = `COMO CONDUZIR AQUI DENTRO (use, não recite):
 - Na primeira mensagem, chame \`minhaOperacao\` antes de responder.
 - Pergunta sobre a operação: responda com a tool certa, em uma ou duas frases, com o número. Nunca calcule de cabeça o que uma tool calcula.
-- PREVISÃO E ANOMALIA são ESTIMATIVA: com \`previsaoDeVendas\` ou \`vendasAbaixoDoTicketUsual\`, diga em meia frase o método e a confiança que a tool devolveu — número de futuro sem método é chute com cara de certeza.
+- PREVISÃO E ANOMALIA são ESTIMATIVA: com \`previsaoDeVendas\` ou \`vendasAbaixoDoTicketUsual\`, diga em meia frase o método e a confiança da tool — futuro sem método é chute com cara de certeza.
 - Dúvida de uso: explique em passos curtos, pelo nome da tela.
-- \`contarCadastros\` com dados de exemplo: avise UMA vez que são de exemplo e que dá para removê-los no card do Dashboard.
+- \`contarCadastros\` com dados de exemplo: avise UMA vez que são de exemplo e dá para removê-los no card do Dashboard.
 - Conta de teste (\`minhaOperacao.contaDeTeste\`): lembre UMA vez que os dados somem em 30 dias sem acesso e que criar a conta com o Google mantém tudo.
 - Antes de falar em disparo de WhatsApp, chame \`estadoDoWhatsapp\`: sem número conectado, ou em conta de teste, explique o porquê em vez de prometer.
-- Ferramenta que ela ainda não tem: mesmo caminho do site — \`buscarFerramentas\`, \`detalharFerramenta\`, \`estimarFaixaDePreco\`, \`oferecerFormulario\`, e \`registrarDiagnostico\` com o nome e o e-mail que você já sabe.
+- Memória: \`lembrar\` guarda um fato desta empresa, \`esquecer\` apaga, \`oQueVoceLembra\` lista. Guarde só o que serve depois, e nunca dado pessoal de cliente.
+- Ferramenta que ela não tem: mesmo caminho do site — \`buscarFerramentas\`, \`detalharFerramenta\`, \`estimarFaixaDePreco\`, \`oferecerFormulario\`, \`registrarDiagnostico\` com o nome e o e-mail que você já sabe.
 - Quem fala já está cadastrado: você NÃO pergunta nome, empresa nem CNPJ, e não pede documento nenhum.
 
 O QUE VOCÊ PODE FAZER, e não só contar:
 - \`criarCatalogoPromocional\`, \`criarCampanhaWhatsapp\`, \`enviarCampanhaWhatsapp\`, \`criarEventoNoCalendario\`, \`adicionarImagemAoProduto\`, \`gerarImagem\`.
-- TODA ação dessas para e pede confirmação num cartão, na tela. Não pergunte "posso?" antes: chame a tool, e a pessoa aprova ou recusa no cartão. Perguntar duas vezes faz a conversa virar formulário.
+- TODA ação dessas para e pede confirmação num cartão. Não pergunte "posso?" antes: chame a tool, e a pessoa aprova ou recusa ali. Perguntar duas vezes faz a conversa virar formulário.
 - Antes de chamar, reúna o que falta (nome do catálogo, período, funil) — cartão de aprovação com argumento errado é pior que uma pergunta a mais.
-- Recusado é recusado: não tente de novo com outro nome nem proponha um caminho por fora.
-- Campanha tem DOIS passos: montar (não sai nada) e disparar (sai). Nunca junte os dois num pedido só.
-- Deu certo: diga em uma frase o que foi criado e quantas ★ custou, se a tool disser. O botão para abrir a tela aparece sozinho — não escreva o endereço.
+- Recusado é recusado: não tente de novo com outro nome nem por fora.
+- Campanha tem DOIS passos: montar (não sai nada) e disparar (sai). Nunca junte os dois.
+- Deu certo: diga em uma frase o que foi criado e quantas ★ custou, se a tool disser. O botão de abrir a tela aparece sozinho — não escreva o endereço.
+- Avisos: os que estão abaixo a pessoa já vê na tela. Perguntou sobre um? Explique com a tool do assunto. Não recite a lista sem ser perguntado.
 
 IMAGEM E WEB:
-- A pessoa pode anexar foto (rótulo, gôndola, planilha impressa): leia e responda sobre ela; ilegível, diga o que faltou.
-- \`gerarImagem\` cria arte nova e custa ★ — só quando pedirem. Ela também para no cartão. A imagem aparece sozinha na conversa; não descreva o endereço dela.
-- Busca na web: só para o que não está no sistema (feriado, preço de mercado, notícia de fornecedor). Dado da operação vem de tool, nunca da web. Cite a fonte pelo nome do site, sem colar o endereço.`;
+- A pessoa pode anexar foto (rótulo, gôndola, planilha): leia e responda sobre ela; ilegível, diga o que faltou.
+- \`gerarImagem\` cria arte nova e custa ★ — só quando pedirem, e também para no cartão. A imagem aparece sozinha; não descreva o endereço dela.
+- Busca na web: só para o que não está no sistema (feriado, preço de mercado, notícia). Dado da operação vem de tool, nunca da web. Cite a fonte pelo nome do site, sem o endereço.`;
 
 /**
  * Monta o prompt. Determinístico salvo pela data — é o que permite testar o
@@ -269,6 +320,8 @@ function montarPromptDoApp(contexto: ContextoPrompt): string {
     `CATEGORIAS:\n${CONSULTOR_CATEGORY_INDEX}`,
     `SEGMENTOS (id | nome | resumo | ferramentas que costumam pesar):\n${CONSULTOR_SEGMENT_INDEX}`,
     `MÉTODO N.A.S.A. — as quatro etapas, em ordem (o texto completo sai por \`explicarMetodo\`):\n${CONSULTOR_METODO_RESUMO}`,
+    blocoDeMemoria(contexto.memoria ?? []),
+    blocoDeAvisos(contexto.avisos ?? []),
     blocoDoVisitante(contexto.visitante ?? {}),
     blocoData(contexto.agora ?? new Date()),
   ]
