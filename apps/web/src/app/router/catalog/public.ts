@@ -70,7 +70,7 @@ export const publicSettingsCatalog = base
     const { subdomain } = input;
 
     const organization = await prisma.organization.findUnique({
-      where: { subdomain },
+      where: { subdomain, verifiedAt: { not: null } },
     });
 
     if (!organization) {

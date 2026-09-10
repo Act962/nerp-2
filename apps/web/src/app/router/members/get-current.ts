@@ -26,6 +26,11 @@ export const getCurrentMember = base
         hiddenModules: z.array(z.string()),
         dashboardModules: z.array(z.string()),
         orgDisabledModules: z.array(z.string()),
+        /** Soluções marcadas no onboarding — sobem no menu "Mais Soluções". */
+        interesses: z.array(z.string()),
+        /** Organização de teste (dono sem conta de verdade). */
+        sandbox: z.boolean(),
+        expiraAvisada: z.boolean(),
       })
       .nullable(),
   )
@@ -47,7 +52,12 @@ export const getCurrentMember = base
       }),
       prisma.organization.findUnique({
         where: { id: context.org.id },
-        select: { disabledModules: true },
+        select: {
+          disabledModules: true,
+          interests: true,
+          verifiedAt: true,
+          expiryWarnedAt: true,
+        },
       }),
     ]);
 
@@ -62,5 +72,10 @@ export const getCurrentMember = base
       dashboardModules: member.dashboardModules ?? [],
       // Vem junto porque a sidebar precisa das três camadas numa consulta só.
       orgDisabledModules: organization?.disabledModules ?? [],
+      interesses: organization?.interests ?? [],
+      sandbox: organization ? organization.verifiedAt === null : false,
+      expiraAvisada:
+        organization?.expiryWarnedAt !== null &&
+        organization?.expiryWarnedAt !== undefined,
     };
   });

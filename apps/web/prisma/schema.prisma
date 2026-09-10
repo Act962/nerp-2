@@ -16,6 +16,10 @@ model User {
   name                     String
   email                    String                    @unique
   emailVerified            Boolean                   @default(false)
+  /// Conta criada sem cadastro ("Começar agora"). Vira conta de verdade ao
+  /// vincular o Google; a linha fica como conta provisória (`linkedToUserId`).
+  isAnonymous              Boolean                   @default(false)
+  linkedToUserId           String?                   @map("linked_to_user_id")
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
@@ -367,14 +371,27 @@ model Organization {
   // Saldo único, sem separar bônus: o extrato (`StarTransaction`) já registra
   // de onde cada crédito veio, e duas contas paralelas só fariam sentido se
   // alguma delas tivesse regra de uso diferente — o que não existe aqui.
-  starsBalance    Int              @default(0) @map("stars_balance")
+  starsBalance     Int              @default(0) @map("stars_balance")
   /// Início do ciclo mensal. Nulo enquanto a organização nunca recebeu crédito.
-  starsCycleStart DateTime?        @map("stars_cycle_start")
-  agendas         Agenda[]
-  crmWorkflows    CrmWorkflow[]
-  crmWorkflowRuns CrmWorkflowRun[]
-  appointments    Appointment[]
-  reminders       Reminder[]
+  starsCycleStart  DateTime?        @map("stars_cycle_start")
+  /// ★ debitadas desde o início do ciclo. Zera quando o ciclo vira; no plano
+  /// Grátis, que não tem ciclo, acumula desde a criação — é o consumido das 50.
+  starsUsedInCycle Int              @default(0) @map("stars_used_in_cycle")
+  /// Sandbox: nulo enquanto o dono não vinculou uma conta de verdade. Tudo o
+  /// que sai para o mundo (vitrine, convite, WhatsApp, ERP, compra) exige isto.
+  verifiedAt       DateTime?        @map("verified_at")
+  /// Último acesso de alguém da organização (throttle de 1 h). Sandbox sem
+  /// acesso há 30 dias é apagada pelo `sandbox-expire`.
+  lastAccessAt     DateTime?        @map("last_access_at")
+  expiryWarnedAt   DateTime?        @map("expiry_warned_at")
+  /// Ramo escolhido no onboarding (id de `nichos.ts`) e soluções de interesse.
+  niche            String?
+  interests        String[]         @default([])
+  agendas          Agenda[]
+  crmWorkflows     CrmWorkflow[]
+  crmWorkflowRuns  CrmWorkflowRun[]
+  appointments     Appointment[]
+  reminders        Reminder[]
 
   uploadQuotas UploadQuotaDaily[]
 
@@ -648,6 +665,8 @@ model Category {
   // parentId; mantidos por backfill e na escrita.
   level          Int                         @default(0)
   path           String?
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo         Boolean                     @default(false)
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
   organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -763,6 +782,8 @@ model Product {
   // KDS - tempo médio de preparo (min) usado no painel da cozinha
   prepTimeMinutes     Int?
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo              Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   createdById         String
@@ -1125,6 +1146,8 @@ model Customer {
   //Assas
   asaasCustomerId String?      @map("asaas_customer_id")
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo          Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   // Tabela de preço vinculada — quem não tem cai na PriceList `isDefault` da org.
@@ -1177,6 +1200,8 @@ model Supplier {
   notes             String?                    @db.Text
   isActive          Boolean                    @default(true)
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo            Boolean                    @default(false)
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
   // Relações
@@ -1294,6 +1319,7 @@ model Sale {
   notes             String?         @db.Text
   // Timestamps
   createdAt         DateTime        @default(now())
+  isDemo            Boolean         @default(false)
   updatedAt         DateTime        @updatedAt
   completedAt       DateTime?
   cancelledAt       DateTime?
@@ -1995,6 +2021,8 @@ model PromotionalCatalog {
   // Miniatura (data URL JPEG) capturada no autosave — mostrada na lista.
   thumbnail      String?  @db.Text
   createdById    String
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo         Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2118,6 +2146,7 @@ model SalesGoalPeriod {
   // metas das equipes. Null = comportamento antigo (soma das equipes).
   overallGoalAmount Decimal?            @db.Decimal(15, 2)
   createdAt         DateTime            @default(now())
+  isDemo            Boolean             @default(false)
   updatedAt         DateTime            @updatedAt
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2380,6 +2409,8 @@ model Store {
   /// `organizationId`. Sem ele, duas organizações com a mesma loja produzem
   /// dois pinos no mapa público.
   directoryStoreId      String?
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo                Boolean                       @default(false)
   createdAt             DateTime                      @default(now())
   updatedAt             DateTime                      @updatedAt
   organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -4520,6 +4551,7 @@ model CalendarEvent {
   location       String?
   createdById    String // Member.id, não User.id
   createdAt      DateTime            @default(now())
+  isDemo         Boolean             @default(false)
   updatedAt      DateTime            @updatedAt
 
   organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -4948,6 +4980,7 @@ model ReceiptTemplate {
   blocks         Json // array de blocos do editor (ReceiptBlock[])
   isDefault      Boolean      @default(false) @map("is_default")
   createdAt      DateTime     @default(now()) @map("created_at")
+  isDemo         Boolean      @default(false)
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -5558,6 +5591,7 @@ model CrmFunnel {
   kanbanBackgroundOpacity       Int     @default(50) @map("kanban_background_opacity")
 
   createdAt DateTime @default(now()) @map("created_at")
+  isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt @map("updated_at")
 
   organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -5775,6 +5809,7 @@ model CrmLead {
   stageEnteredAt     DateTime? @map("stage_entered_at")
 
   createdAt DateTime  @default(now()) @map("created_at")
+  isDemo    Boolean   @default(false)
   updatedAt DateTime  @updatedAt @map("updated_at")
   closedAt  DateTime? @map("closed_at")
 
@@ -5925,6 +5960,7 @@ model CrmTag {
   archivedById String?   @map("archived_by_id")
 
   createdAt DateTime @default(now()) @map("created_at")
+  isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

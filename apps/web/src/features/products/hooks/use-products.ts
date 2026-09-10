@@ -7,6 +7,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 interface UseProductsProps {
   category?: string[];
@@ -132,9 +133,7 @@ export const useCreateProduct = () => {
           queryKey: orpc.products.list.key(),
         });
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
+      onError: avisarErro,
     }),
   );
 };
@@ -156,9 +155,7 @@ export const useBulkUpdateProducts = () => {
             : `${data.updated} produtos atualizados`,
         );
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
+      onError: avisarErro,
     }),
   );
 };
@@ -175,7 +172,7 @@ export function useSetProductThumbnail() {
           queryKey: orpc.products.gapsSummary.key(),
         });
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -194,7 +191,7 @@ export function useRemoveProductBackground() {
         queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
         queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }

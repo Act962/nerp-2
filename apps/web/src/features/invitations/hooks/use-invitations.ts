@@ -3,6 +3,7 @@
 import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 export function useInvitations(status: "pending" | "all" = "pending") {
   const { data, isPending } = useQuery(
@@ -62,7 +63,7 @@ export function useCancelInvitation() {
         toast.success("Convite cancelado.");
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -75,7 +76,7 @@ export function useResendInvitation() {
         toast.success("Convite reenviado!");
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -83,7 +84,7 @@ export function useResendInvitation() {
 export function useAcceptInvitation() {
   return useMutation(
     orpc.invitation.accept.mutationOptions({
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -91,7 +92,7 @@ export function useAcceptInvitation() {
 export function useRejectInvitation() {
   return useMutation(
     orpc.invitation.reject.mutationOptions({
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { validarSubdominio } from "@/features/organization/lib/subdominio";
 import prisma from "@/lib/db";
 import { isOrgAdmin } from "@/lib/org-access";
@@ -17,6 +18,7 @@ import { isOrgAdmin } from "@/lib/org-access";
 export const updateSubdomain = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("publicar a loja online"))
   .route({
     method: "POST",
     path: "/update-subdomain",

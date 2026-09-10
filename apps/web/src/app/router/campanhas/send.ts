@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { modoDemoLigado } from "@/features/whatsapp-chat/lib/providers";
 import prisma from "@/lib/db";
 import { campanhaDisparoSolicitado, inngest } from "@/lib/inngest/client";
@@ -21,6 +22,7 @@ import { requireCampanhaDaOrg } from "./_access";
 export const sendCampanha = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("disparar uma campanha"))
   .route({ method: "POST", summary: "Dispara a campanha", tags: ["Campanhas"] })
   .input(z.object({ broadcastId: z.string().min(1) }))
   .output(z.object({ disparando: z.boolean(), destinatarios: z.number() }))

@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { lerValidade } from "@/features/integracoes/server/certificado";
 import { cifrarCredenciais } from "@/features/integracoes/server/credentials";
 import prisma from "@/lib/db";
@@ -12,6 +13,7 @@ import { credenciaisInputSchema } from "./_schema";
 export const installIntegracao = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("instalar uma integração"))
   .route({
     method: "POST",
     summary: "Instalar integração do catálogo",

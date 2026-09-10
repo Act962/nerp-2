@@ -3,6 +3,7 @@ import {
   convertToModelMessages,
   stepCountIs,
   streamText,
+  type ToolSet,
   type UIMessage,
 } from "ai";
 import type { AstroPricing } from "./preco";
@@ -70,7 +71,7 @@ function janela(mensagens: UIMessage[]): UIMessage[] {
 const FALAS_PARA_A_BUSCA = 3;
 
 /** O que o visitante escreveu, com as palavras dele. */
-function falaDoVisitante(mensagens: UIMessage[]): string {
+export function falaDoVisitante(mensagens: UIMessage[]): string {
   return mensagens
     .filter((mensagem) => mensagem.role === "user")
     .slice(-FALAS_PARA_A_BUSCA)
@@ -90,10 +91,18 @@ export type EntradaConsultor = {
   modelo: ModeloResolvido;
   mensagens: UIMessage[];
   organizacao?: string;
+  /** Só no canal logado: quem está falando, pelo nome da conta. */
+  usuario?: string;
   /** Onde a pessoa está no site e por onde passou nesta visita. */
   navegacao?: ContextoDeNavegacao;
   /** Nome, empresa e CNPJ que ela já deu — para ele não perguntar de novo. */
   visitante?: Visitante;
+  /**
+   * As tools prontas, quando quem chama já as montou — é o caso do canal
+   * logado, cujas tools carregam `organizationId` em closure. Ausente, valem
+   * as do site.
+   */
+  tools?: ToolSet;
   onFinish?: (dados: { tokensIn: number; tokensOut: number }) => Promise<void>;
 };
 
@@ -102,17 +111,20 @@ export type EntradaConsultor = {
 // Promise e o erro sai lá dentro, como "messages.some is not a function".
 export async function streamAstroConsultor(entrada: EntradaConsultor) {
   const recentes = janela(entrada.mensagens);
-  const tools = construirTools({
-    sessaoId: entrada.sessaoId,
-    tabelaPrecos: entrada.tabelaPrecos,
-    falaDoVisitante: falaDoVisitante(recentes),
-  });
+  const tools =
+    entrada.tools ??
+    construirTools({
+      sessaoId: entrada.sessaoId,
+      tabelaPrecos: entrada.tabelaPrecos,
+      falaDoVisitante: falaDoVisitante(recentes),
+    });
 
   return streamText({
     model: entrada.modelo.modelo,
     system: montarPrompt({
       escopo: entrada.escopo,
       organizacao: entrada.organizacao,
+      usuario: entrada.usuario,
       navegacao: entrada.navegacao,
       visitante: entrada.visitante,
     }),

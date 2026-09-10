@@ -2,6 +2,7 @@ import z from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import prisma from "@/lib/db";
 import { erpSyncRequested, inngest } from "@/lib/inngest/client";
 import { requireOrgAdmin } from "./_access";
@@ -18,6 +19,7 @@ const SYNC_STUCK_AFTER_MS = 15 * 60 * 1000;
 export const runErpSyncNow = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("sincronizar o ERP"))
   .route({
     method: "POST",
     summary: "Sincronizar o ERP externo agora",

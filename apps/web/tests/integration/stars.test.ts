@@ -5,7 +5,10 @@ import { listTransactions } from "@/app/router/stars/list-transactions";
 import {
   ACOES,
   cobrarAcao,
+  cobrarAteOSaldo,
+  cobrarValor,
   creditar,
+  custoDaAcao,
   estornar,
   SaldoInsuficienteError,
 } from "@/features/stars/server/debitar";
@@ -279,5 +282,155 @@ describe("stars.transactions", () => {
     const total = await prisma.starTransaction.count();
     expect(resultado.lancamentos.length).toBeLessThanOrEqual(daOrg);
     expect(daOrg).toBeLessThanOrEqual(total);
+  });
+});
+
+describe("débito por quantidade (o Astro)", () => {
+  async function zerar(saldoInicial: number) {
+    await prisma.organization.update({
+      where: { id: org.id },
+      data: { starsBalance: saldoInicial, starsUsedInCycle: 0 },
+    });
+  }
+
+  it("o Astro nasce com preço, sem regra cadastrada; a regra manda, inclusive zero", async () => {
+    const limpa = await createOrg("Sem regra nenhuma");
+    expect(await custoDaAcao(limpa.id, ACOES.astroTokens)).toBe(1);
+    // O WhatsApp continua desligado por padrão.
+    expect(await custoDaAcao(limpa.id, ACOES.mensagemEnviada)).toBe(0);
+
+    await prisma.starRule.create({
+      data: {
+        organizationId: limpa.id,
+        actionKey: ACOES.astroTokens,
+        label: "Astro",
+        stars: 0,
+      },
+    });
+    expect(await custoDaAcao(limpa.id, ACOES.astroTokens)).toBe(0);
+  });
+
+  it("cobrarValor debita o valor pedido e soma no consumido do ciclo", async () => {
+    await zerar(10);
+    const resultado = await cobrarValor({
+      organizationId: org.id,
+      actionKey: ACOES.astroTokens,
+      valor: 3,
+      descricao: "Astro — 2.400 tokens",
+    });
+    expect(resultado.cobrado).toBe(true);
+    expect(resultado.saldoDepois).toBe(7);
+
+    const depois = await prisma.organization.findUniqueOrThrow({
+      where: { id: org.id },
+      select: { starsUsedInCycle: true },
+    });
+    expect(depois.starsUsedInCycle).toBe(3);
+  });
+
+  it("cobrarValor recusa quando não há saldo", async () => {
+    await zerar(2);
+    await expect(
+      cobrarValor({
+        organizationId: org.id,
+        actionKey: ACOES.astroTokens,
+        valor: 3,
+        descricao: "Astro",
+      }),
+    ).rejects.toBeInstanceOf(SaldoInsuficienteError);
+    expect(await saldo()).toBe(2);
+  });
+
+  it("cobrarAteOSaldo cobra o que há, registra o parcial e nunca fica negativo", async () => {
+    await zerar(2);
+    const resultado = await cobrarAteOSaldo({
+      organizationId: org.id,
+      actionKey: ACOES.astroTokens,
+      valor: 5,
+      descricao: "Astro — 4.100 tokens",
+    });
+    expect(resultado.cobrado).toBe(true);
+    expect(resultado.parcial).toBe(true);
+    expect(resultado.valor).toBe(2);
+    expect(resultado.valorPedido).toBe(5);
+    expect(await saldo()).toBe(0);
+
+    const lancamento = await prisma.starTransaction.findFirstOrThrow({
+      where: { organizationId: org.id, actionKey: ACOES.astroTokens },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(lancamento.amount).toBe(-2);
+    expect(lancamento.description).toContain("parcial");
+  });
+
+  it("cobrarAteOSaldo com saldo zero não lança nem grava", async () => {
+    await zerar(0);
+    const antes = await prisma.starTransaction.count({
+      where: { organizationId: org.id },
+    });
+    const resultado = await cobrarAteOSaldo({
+      organizationId: org.id,
+      actionKey: ACOES.astroTokens,
+      valor: 4,
+      descricao: "Astro",
+    });
+    expect(resultado.cobrado).toBe(false);
+    expect(resultado.parcial).toBe(true);
+    const depois = await prisma.starTransaction.count({
+      where: { organizationId: org.id },
+    });
+    expect(depois).toBe(antes);
+  });
+
+  it("duas cobranças parciais simultâneas não deixam a conta negativa", async () => {
+    await zerar(3);
+    await Promise.all([
+      cobrarAteOSaldo({
+        organizationId: org.id,
+        actionKey: ACOES.astroTokens,
+        valor: 2,
+        descricao: "A",
+      }),
+      cobrarAteOSaldo({
+        organizationId: org.id,
+        actionKey: ACOES.astroTokens,
+        valor: 2,
+        descricao: "B",
+      }),
+    ]);
+    expect(await saldo()).toBe(0);
+  });
+});
+
+describe("stars.balance — uso do plano", () => {
+  it("devolve limite, consumido, percentual e nível para a org Grátis", async () => {
+    const nova = await createOrg("Nasceu no Grátis");
+    const dono = await createUser();
+    await createMember(dono, nova);
+    await creditar({
+      organizationId: nova.id,
+      valor: 50,
+      tipo: "WELCOME_BONUS",
+      descricao: "Boas-vindas",
+    });
+    await cobrarValor({
+      organizationId: nova.id,
+      actionKey: ACOES.astroTokens,
+      valor: 15,
+      descricao: "Astro",
+    });
+
+    const resultado = await call(
+      getBalance,
+      {},
+      { context: s2sContext(dono, nova) },
+    );
+    expect(resultado.plano.id).toBe("gratis");
+    expect(resultado.limite).toBe(50);
+    expect(resultado.consumido).toBe(15);
+    expect(resultado.percentual).toBe(30);
+    expect(resultado.saldo).toBe(35);
+    expect(resultado.nivel).toBe("ok");
+    expect(resultado.precos.astroPor1k).toBe(1);
   });
 });

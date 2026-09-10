@@ -12,15 +12,11 @@ export interface PlanQuotas {
   storageGb: number;
   planogramsUnlimited: boolean;
   booksIncluded: boolean;
-  /**
-   * ★ creditadas a cada ciclo mensal, para o módulo de WhatsApp.
-   *
-   * Fica aqui, junto das outras cotas, e não numa tabela à parte: é a mesma
-   * pergunta ("o que este plano inclui") e duas fontes de verdade sobre isso é
-   * como um plano passa a dar cota diferente conforme quem pergunta.
-   */
-  starsPerMonth: number;
 }
+
+// ★ por ciclo e limites de cadastro NÃO moram aqui: saíram para
+// `planos.ts` (catálogo de planos da organização, o que o Stripe vai vender).
+// Este arquivo decide só quais módulos de trade cada tier libera.
 
 export interface PlanDef {
   tier: TradePlanTier;
@@ -93,7 +89,6 @@ export const PLANS: Record<TradePlanTier, PlanDef> = {
       photosPerMonth: 0,
       storageGb: 2,
       planogramsUnlimited: false,
-      starsPerMonth: 500,
       booksIncluded: false,
     },
     addons: ["+10 usuários", "+10 GB"],
@@ -110,7 +105,6 @@ export const PLANS: Record<TradePlanTier, PlanDef> = {
       photosPerMonth: 0,
       storageGb: 5,
       planogramsUnlimited: true,
-      starsPerMonth: 1500,
       booksIncluded: false,
     },
     addons: ["+10 usuários", "+10 GB"],
@@ -127,7 +121,6 @@ export const PLANS: Record<TradePlanTier, PlanDef> = {
       photosPerMonth: 5000,
       storageGb: 20,
       planogramsUnlimited: true,
-      starsPerMonth: 4000,
       booksIncluded: true,
     },
     addons: ["+5.000 fotos", "+10 promotores", "+10 GB"],

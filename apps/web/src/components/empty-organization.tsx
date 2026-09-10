@@ -1,5 +1,7 @@
 "use client";
 
+import { CriarSandboxButton } from "@/features/onboarding/components/criar-sandbox-button";
+
 import { Building, CircleAlert, LogOut } from "lucide-react";
 import {
   Empty,
@@ -88,6 +90,7 @@ export function EmptyOrganization({ email }: { email?: string | null }) {
             >
               Criar uma organização
             </Link>
+            <CriarSandboxButton />
           </div>
         </EmptyContent>
       </Empty>

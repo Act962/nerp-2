@@ -9,6 +9,7 @@ import {
   SaldoInsuficienteError,
 } from "@/features/stars/server/debitar";
 import { resolveOutboundProvider } from "@/features/whatsapp-chat/lib/providers";
+import { exigirContaVerificada } from "@/lib/conta-verificada";
 import prisma from "@/lib/db";
 import { recalcularContadores } from "./contadores";
 
@@ -37,6 +38,10 @@ export async function enviarLote(input: {
   restam: number;
   semSaldo?: boolean;
 }> {
+  // Guarda também aqui, não só na procedure: o lote roda no Inngest, fora da
+  // sessão, e uma sandbox não manda mensagem real para ninguém.
+  await exigirContaVerificada(input.organizationId, "disparar uma campanha");
+
   const campanha = await prisma.broadcast.findFirst({
     where: { id: input.broadcastId, organizationId: input.organizationId },
     select: {

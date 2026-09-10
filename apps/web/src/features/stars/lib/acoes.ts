@@ -23,4 +23,10 @@ export const ACOES_COBRAVEIS: {
     descricao:
       "Cobrado por pessoa que recebe o disparo, depois do envio confirmado.",
   },
+  {
+    actionKey: ACOES.astroTokens,
+    label: "Astro — a cada 1.000 tokens",
+    descricao:
+      "Cada resposta do Astro consome tokens de entrada e saída; cobra-se por bloco de mil, arredondando para cima. Nasce ligado com 1 ★ por bloco.",
+  },
 ];

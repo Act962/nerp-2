@@ -1,10 +1,12 @@
 import { betterAuth } from "better-auth";
-import { organization } from "better-auth/plugins";
+import { anonymous, organization } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { ensureTradeCatalogs } from "@/features/trade-catalog/lib/ensure-catalogs";
+import { inicializarOrganizacao } from "@/features/onboarding/server/inicializar-organizacao";
+import { vincularContaAnonima } from "@/features/onboarding/server/vincular-conta";
 import prisma from "./db";
 import { enqueueSyncOutbox } from "./sync-outbox";
 import { crossLoginPlugin } from "./cross-login-plugin";
+import { sandboxPlugin } from "./sandbox-plugin";
 // If your Prisma file is located elsewhere, you can change the path
 
 // Base host (sem porta) e origin do app. Em dev: "localhost" / http://localhost:3000.
@@ -106,6 +108,8 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          // Conta provisória não vira cadastro no NASA: replica no vínculo.
+          if ((user as { isAnonymous?: boolean }).isAnonymous) return;
           await enqueueSyncOutbox("user", {
             id: user.id,
             name: user.name,
@@ -158,101 +162,18 @@ export const auth = betterAuth({
         const donoDe = await prisma.member.count({
           where: { userId: user.id, role: "owner" },
         });
-        return donoDe >= 5;
+        // Conta de teste tem uma organização só; a de verdade, cinco.
+        return user.isAnonymous ? donoDe >= 1 : donoDe >= 5;
       },
       // O envio do convite NÃO fica aqui: o Better Auth executa
       // `sendInvitationEmail` como background task e engole exceções, o que
       // faria um convite sem e-mail parecer sucesso. Quem envia é o handler
       // `router/invitation/create.ts`, que consegue reportar a falha ao admin.
       organizationHooks: {
-        afterCreateOrganization: async ({ organization, member }) => {
-          await prisma.organization.update({
-            where: {
-              id: organization.id,
-            },
-            data: {
-              subdomain: organization.slug,
-            },
-          });
-          // Semeia o kanban da cozinha estilo iFood (3 colunas padrão editáveis).
-          await prisma.kitchenColumn.createMany({
-            data: [
-              {
-                organizationId: organization.id,
-                name: "Em Preparo",
-                color: "#F97316",
-                position: 0,
-                isInitial: true,
-                icon: "ChefHat",
-              },
-              {
-                organizationId: organization.id,
-                name: "Prontos",
-                color: "#22C55E",
-                position: 1,
-                showOnTv: true,
-                icon: "BellRing",
-              },
-              {
-                organizationId: organization.id,
-                name: "Entregues",
-                color: "#64748B",
-                position: 2,
-                isFinal: true,
-                icon: "CheckCheck",
-              },
-            ],
-          });
-          // Semeia os catálogos padrão do Trade (mídia, negociação, setores).
-          await ensureTradeCatalogs(organization.id);
-          // Semeia as 3 tabelas de preço padrão (Varejo=default, Atacado,
-          // Revendedor) — a org já nasce pronta pra vincular clientes por tipo.
-          await prisma.priceList.createMany({
-            data: [
-              {
-                organizationId: organization.id,
-                name: "Varejo",
-                slug: "varejo",
-                isDefault: true,
-              },
-              {
-                organizationId: organization.id,
-                name: "Atacado",
-                slug: "atacado",
-                isDefault: false,
-              },
-              {
-                organizationId: organization.id,
-                name: "Revendedor",
-                slug: "revendedor",
-                isDefault: false,
-              },
-            ],
-            skipDuplicates: true,
-          });
-          // Replica org + member do owner no NASA.
-          await enqueueSyncOutbox("org", {
-            id: organization.id,
-            name: organization.name,
-            slug: organization.slug,
-            logo: organization.logo ?? null,
-            metadata:
-              typeof organization.metadata === "string"
-                ? organization.metadata
-                : organization.metadata
-                  ? JSON.stringify(organization.metadata)
-                  : null,
-            createdAt: new Date(organization.createdAt).toISOString(),
-          });
-          if (member?.id) {
-            await enqueueSyncOutbox("member", {
-              id: member.id,
-              organizationId: member.organizationId,
-              userId: member.userId,
-              role: member.role,
-              createdAt: new Date(member.createdAt).toISOString(),
-            });
-          }
+        afterCreateOrganization: async ({ organization, member, user }) => {
+          // Tudo o que a org recebe ao nascer mora em `inicializarOrganizacao`
+          // — o mesmo caminho da sandbox criada pelo "Começar agora".
+          await inicializarOrganizacao({ organization, member, user });
         },
         afterAddMember: async ({ member }) => {
           await enqueueSyncOutbox("member", {
@@ -285,6 +206,21 @@ export const auth = betterAuth({
         },
       },
     }),
+    // Conta em um clique. O usuário provisório NÃO é apagado no vínculo
+    // (`disableDeleteAnonymousUser`): ele é `createdById` de tudo o que fez na
+    // sandbox, com FK restrita — quem move a organização é `vincularContaAnonima`.
+    anonymous({
+      emailDomainName: "anon.nerp.local",
+      generateName: () => "Visitante",
+      disableDeleteAnonymousUser: true,
+      onLinkAccount: async ({ anonymousUser, newUser }) => {
+        await vincularContaAnonima({
+          anonimoId: anonymousUser.user.id,
+          novoId: newUser.user.id,
+        });
+      },
+    }),
+    sandboxPlugin(),
     crossLoginPlugin(),
   ],
 });

@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { z } from "zod";
 
 export const createCustomer = base
@@ -50,6 +51,8 @@ export const createCustomer = base
         });
       }
     }
+
+    await assertDentroDoLimite(context.org.id, "clientes");
 
     const customer = await prisma.customer.create({
       data: {

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 /** Links abertos de entrada da organização (admin). */
 export function useJoinLinks() {
@@ -23,7 +24,7 @@ export function useSaveJoinLink() {
         toast.success("Link salvo!");
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -36,7 +37,7 @@ export function useRegenerateJoinLink() {
         toast.success("Novo link gerado. O anterior deixou de valer.");
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -49,7 +50,7 @@ export function useDeleteJoinLink() {
         toast.success("Link excluído.");
         invalidate();
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -66,7 +67,7 @@ export function useJoinLinkPreview(token: string) {
 export function useAcceptJoinLink() {
   return useMutation(
     orpc.invitation.joinLink.accept.mutationOptions({
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { requireFunnelDaOrg } from "@/app/router/crm/_access";
 import { encryptMetaCredentialsInput } from "@/features/whatsapp-chat/lib/providers/meta-credentials";
 import { invalidateOutboundProvider } from "@/features/whatsapp-chat/lib/providers/resolve-outbound-provider";
@@ -20,6 +21,7 @@ import { isOrgAdmin } from "@/lib/org-access";
 export const saveConnection = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("conectar o WhatsApp"))
   .route({
     method: "POST",
     summary: "Conecta ou atualiza o número de WhatsApp do funil",

@@ -9,6 +9,11 @@ import {
 import { enviarLote } from "@/features/campanhas/server/enviar-lote";
 import { recalcularContadores } from "@/features/campanhas/server/contadores";
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  apagarSandboxExpirada,
+  avisarSandboxes,
+  listarSandboxesExpiradas,
+} from "@/features/onboarding/server/expirar-sandbox";
 import prisma from "@/lib/db";
 import {
   listOrganizationsForSync,
@@ -759,6 +764,31 @@ export const automacaoVarrerOciosos = inngest.createFunction(
   async ({ step }) => step.run("varrer", () => varrerLeadsOciosos()),
 );
 
+/**
+ * Ciclo de vida da sandbox: avisa aos 23 dias sem acesso, apaga aos 30.
+ * Diário, de madrugada, como o `erp-sync-deep-schedule`. Zero IA.
+ */
+export const sandboxExpire = inngest.createFunction(
+  {
+    id: "sandbox-expire",
+    triggers: [{ cron: "TZ=America/Fortaleza 30 3 * * *" }],
+  },
+  async ({ step }) => {
+    const avisadas = await step.run("avisar", () => avisarSandboxes());
+    const expiradas = await step.run("listar-expiradas", () =>
+      listarSandboxesExpiradas(),
+    );
+    let apagadas = 0;
+    for (const { id } of expiradas) {
+      const ok = await step.run(`apagar-${id}`, () =>
+        apagarSandboxExpirada(id),
+      );
+      if (ok) apagadas += 1;
+    }
+    return { avisadas, apagadas };
+  },
+);
+
 export const functions = [
   automacaoExecutar,
   automacaoVarrerOciosos,
@@ -775,4 +805,5 @@ export const functions = [
   erpSyncDeepSchedule,
   erpSyncRun,
   dashboardAlertCheck,
+  sandboxExpire,
 ];

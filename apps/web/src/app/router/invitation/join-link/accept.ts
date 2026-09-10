@@ -3,7 +3,9 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { auth } from "@/lib/auth";
 import { enqueueSyncOutbox } from "@/lib/sync-outbox";
+import { exigirContaVerificada } from "@/lib/conta-verificada";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 
 /**
  * Entra na organização usando o link aberto.
@@ -43,6 +45,10 @@ export const acceptJoinLink = base
 
     const organizationId = link.organizationId;
 
+    // Link de entrada só funciona em organização verificada: uma sandbox não
+    // convida ninguém — nem por link.
+    await exigirContaVerificada(organizationId, "entrar por link");
+
     // Já é membro: não duplica nem sobrescreve as permissões que ele já tem
     // (podem ter sido ajustadas depois). Só ativa a org e segue.
     const existing = await prisma.member.findFirst({
@@ -51,9 +57,12 @@ export const acceptJoinLink = base
     });
 
     if (!existing) {
-      // O limite de usuários do plano (`organization.maxUsers`) está desativado
-      // por ora: bloqueava entradas legítimas em produção. O campo continua no
-      // schema para quando a cobrança por assento voltar.
+      // Limite de membros do plano (`billing/lib/planos.ts`). O antigo
+      // `organization.maxUsers` (teto 3 para todo mundo) bloqueava entradas
+      // legítimas em produção; este é `null` em plano pago e legado, e só
+      // barra quem está no Grátis.
+      await assertDentroDoLimite(organizationId, "membros");
+
       const member = await prisma.member.create({
         data: {
           organizationId,

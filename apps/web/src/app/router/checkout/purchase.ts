@@ -36,6 +36,7 @@ export const purchase = base
     const organization = await prisma.organization.findUnique({
       where: {
         subdomain: input.domain,
+        verifiedAt: { not: null },
       },
     });
 

@@ -3,7 +3,9 @@ import prisma from "@/lib/db";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { inngest, productImportRequested } from "@/lib/inngest/client";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 
 /**
  * Inicia uma importação de produtos em massa.
@@ -15,6 +17,7 @@ import { inngest, productImportRequested } from "@/lib/inngest/client";
 export const createImport = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("importar produtos por planilha"))
   .route({
     method: "POST",
     summary: "Iniciar importação de produtos via planilha",
@@ -35,6 +38,10 @@ export const createImport = base
         message: "O campo Nome precisa estar mapeado",
       });
     }
+
+    // Quem já está no teto descobre antes de subir a planilha, com o dialog
+    // de planos — e não linha a linha, no relatório da importação.
+    await assertDentroDoLimite(context.org.id, "produtos");
 
     const record = await prisma.productImport.create({
       data: {

@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { normalizeDocument } from "@/lib/document";
 import { z } from "zod";
 import { canManageSuppliers } from "./_can-manage-suppliers";
@@ -39,6 +40,8 @@ export const createSupplier = base
         message: "Você não tem permissão para cadastrar fornecedores",
       });
     }
+
+    await assertDentroDoLimite(context.org.id, "fornecedores");
 
     const supplier = await prisma.supplier.create({
       data: {

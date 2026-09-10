@@ -1,8 +1,10 @@
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { canManageSuppliers } from "@/app/router/supplier/_can-manage-suppliers";
 import { inngest, supplierImportRequested } from "@/lib/inngest/client";
 
@@ -16,6 +18,7 @@ import { inngest, supplierImportRequested } from "@/lib/inngest/client";
 export const createImport = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("importar fornecedores por planilha"))
   .route({
     method: "POST",
     summary: "Iniciar importação de fornecedores via planilha",
@@ -42,6 +45,8 @@ export const createImport = base
         message: "O campo Razão Social / Nome precisa estar mapeado",
       });
     }
+
+    await assertDentroDoLimite(context.org.id, "fornecedores");
 
     const record = await prisma.supplierImport.create({
       data: {

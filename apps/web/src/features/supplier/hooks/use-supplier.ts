@@ -2,6 +2,7 @@ import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { PersonType } from "@/generated/prisma/enums";
 import { toast } from "sonner";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 interface UseSupplierProps {
   personType?: PersonType;
@@ -61,9 +62,7 @@ export const useCreateSupplier = () => {
           queryKey: orpc.supplier.list.key(),
         });
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
+      onError: avisarErro,
     }),
   );
 };
@@ -84,9 +83,7 @@ export const useUpdateSupplier = () => {
           }),
         );
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
+      onError: avisarErro,
     }),
   );
 };
@@ -102,9 +99,7 @@ export const useDeleteSupplier = () => {
           queryKey: orpc.supplier.list.key(),
         });
       },
-      onError: (error) => {
-        toast.error(error.message);
-      },
+      onError: avisarErro,
     }),
   );
 };

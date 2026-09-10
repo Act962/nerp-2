@@ -3,6 +3,7 @@
 import { orpc } from "@/lib/orpc";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { avisarErro } from "@/features/billing/hooks/use-limite-do-plano";
 
 interface UseStoresProps {
   search?: string;
@@ -54,7 +55,7 @@ export function useCreateStore() {
         toast.success("Loja criada com sucesso");
         queryClient.invalidateQueries({ queryKey: orpc.store.list.key() });
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -85,7 +86,7 @@ export function useMergeStoreWithDirectory() {
         });
         queryClient.invalidateQueries({ queryKey: orpc.store.list.key() });
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -100,7 +101,7 @@ export function useUpdateStore() {
         queryClient.invalidateQueries({ queryKey: orpc.store.list.key() });
         queryClient.invalidateQueries({ queryKey: orpc.store.getOne.key() });
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
@@ -114,7 +115,7 @@ export function useDeleteStore() {
         toast.success("Loja excluída com sucesso");
         queryClient.invalidateQueries({ queryKey: orpc.store.list.key() });
       },
-      onError: (error) => toast.error(error.message),
+      onError: avisarErro,
     }),
   );
 }
