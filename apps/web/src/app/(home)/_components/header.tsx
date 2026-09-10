@@ -49,19 +49,14 @@ export function Header() {
                   </Button>
                 )}
 
+                {/* Sem "Cadastrar": a conta agora nasce de um convite, não
+                    de auto-serviço. Quem já tem conta entra por aqui. */}
                 {!session?.user && (
-                  <>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/login">
-                        <span>Entrar</span>
-                      </Link>
-                    </Button>
-                    <Button asChild size="sm">
-                      <Link href="/cadastro">
-                        <span>Cadastrar</span>
-                      </Link>
-                    </Button>
-                  </>
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/login">
+                      <span>Entrar</span>
+                    </Link>
+                  </Button>
                 )}
               </div>
             </div>

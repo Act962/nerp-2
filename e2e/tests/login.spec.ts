@@ -32,8 +32,28 @@ test.describe("Login", () => {
     await expect(page.getByLabel("E-mail")).toBeVisible();
   });
 
-  test("leva para o cadastro pelo link do rodapé", async ({ page }) => {
-    await page.getByRole("link", { name: "Cadastrar" }).click();
+  /**
+   * O cadastro continua ABERTO — só saiu de vista.
+   *
+   * O que motivou esconder foi suporte: lojista que já tinha conta clicava em
+   * "Cadastrar", criava uma segunda, caía numa tela sem empresa nenhuma e
+   * abria chamado dizendo que os dados dele tinham sumido. Sem o link à mão,
+   * quem não lembra da conta tende a tentar entrar em vez de criar outra.
+   *
+   * Os dois testes andam juntos de propósito: um fixa que o link sumiu, o
+   * outro que a porta não foi trancada. Quebrar o segundo significa que
+   * esconder virou bloquear, e aí a captação por CTA/rede social morre junto.
+   */
+  test("não mostra link de cadastro para quem chegou sem convite", async ({
+    page,
+  }) => {
+    await expect(page.getByRole("link", { name: "Cadastrar" })).toHaveCount(0);
+  });
+
+  test("mas o /cadastro segue acessível por URL direta", async ({ page }) => {
+    await page.goto("/cadastro");
+
     await expect(page).toHaveURL(/\/cadastro/);
+    await expect(page.getByLabel("E-mail")).toBeVisible();
   });
 });

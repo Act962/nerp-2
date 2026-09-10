@@ -48,9 +48,12 @@ export function LoginForm({
   const redirectTo = safeRedirect(searchParams.get("redirectTo"));
   // Param cru (sem o default /dashboard) para repassar ao link de cadastro.
   const rawRedirect = searchParams.get("redirectTo");
+  // Só oferece cadastro a quem veio de um convite. No /login sem destino, o
+  // link seria a porta aberta que o cadastro deixou de ser — e o /cadastro
+  // rejeitaria a visita de qualquer forma.
   const signUpHref = rawRedirect
     ? `/cadastro?redirectTo=${encodeURIComponent(rawRedirect)}`
-    : "/cadastro";
+    : null;
   const form = useForm<LoginSchema>({
     resolver: zodResolver(loginSchema),
   });
@@ -152,9 +155,11 @@ export function LoginForm({
               </Field>
               <Field>
                 <Button type="submit">Login</Button>
-                <FieldDescription className="text-center">
-                  Não tem uma conta? <Link href={signUpHref}>Cadastrar</Link>
-                </FieldDescription>
+                {signUpHref && (
+                  <FieldDescription className="text-center">
+                    Não tem uma conta? <Link href={signUpHref}>Cadastrar</Link>
+                  </FieldDescription>
+                )}
               </Field>
             </FieldGroup>
           </form>
