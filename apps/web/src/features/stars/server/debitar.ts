@@ -248,13 +248,13 @@ export async function creditar(input: {
   return prisma.$transaction(async (tx) => {
     const org = await tx.organization.update({
       where: { id: input.organizationId },
-      data: {
-        starsBalance: { increment: input.valor },
-        // Primeiro crédito marca o início do ciclo.
-        ...(input.tipo === "PLAN_CREDIT"
-          ? { starsCycleStart: new Date() }
-          : {}),
-      },
+      // Sem tocar em `starsCycleStart`: quem manda nele é
+      // `garantirCreditoDoCiclo`, que o move para o PRIMEIRO DIA DO MÊS num
+      // `updateMany` condicionado — é esse update que resolve a corrida da
+      // virada. Escrever `new Date()` aqui atropelava aquele valor logo depois,
+      // trocando "início do ciclo" por "instante do último crédito" e fazendo o
+      // parâmetro `agora` daquela função ser ignorado na prática.
+      data: { starsBalance: { increment: input.valor } },
       select: { starsBalance: true },
     });
 

@@ -244,6 +244,16 @@ describe("crédito mensal do plano", () => {
     expect((await garantirCreditoDoCiclo(org.id, agosto)).creditou).toBe(true);
     expect((await garantirCreditoDoCiclo(org.id, agosto)).creditou).toBe(false);
 
+    // O ciclo guarda o PRIMEIRO DIA DO MÊS de referência, não o instante do
+    // crédito. Sem esta asserção o teste só quebrava quando o relógio real
+    // alcançava o mês seguinte — foi o que aconteceu: `creditar` sobrescrevia o
+    // campo com `new Date()` e o parâmetro `agora` virava decoração.
+    const ciclo = await prisma.organization.findUniqueOrThrow({
+      where: { id: org.id },
+      select: { starsCycleStart: true },
+    });
+    expect(ciclo.starsCycleStart).toEqual(new Date(Date.UTC(2026, 7, 1)));
+
     const setembro = new Date(Date.UTC(2026, 8, 2));
     expect((await garantirCreditoDoCiclo(org.id, setembro)).creditou).toBe(
       true,
