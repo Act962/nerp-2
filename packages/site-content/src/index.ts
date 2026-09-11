@@ -1,5 +1,6 @@
 export * from "./about";
 export * from "./astro-pagina";
+export * from "./astro-paginas";
 export * from "./blocks";
 export * from "./catalog";
 export * from "./consultor";

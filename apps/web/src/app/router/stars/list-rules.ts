@@ -2,17 +2,15 @@ import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
-import { ACOES_COBRAVEIS } from "@/features/stars/lib/acoes";
-import { isOrgAdmin } from "@/lib/org-access";
-import { emEstrelas } from "@/features/stars/lib/decimal";
-import prisma from "@/lib/db";
+import { cobrancaEstaAtiva, lerRegras } from "@/features/stars/server/regras";
 
 /**
- * O preço de cada ação cobrável.
+ * O preço de cada ação cobrável, para a organização LER.
  *
- * Devolve **todas** as ações do catálogo, com ou sem regra gravada: uma tela
- * que só lista o que já existe não deixa cadastrar o primeiro preço, e o
- * primeiro preço é justamente o que liga a cobrança.
+ * Quem edita é o administrador da plataforma, em `/site/stars` — por isso não
+ * há mais `podeEditar` aqui. A organização vê o que paga; mudar o preço de um
+ * cliente é decisão comercial da casa, e deixá-la na mão do próprio cliente foi
+ * como uma conta acabou com o Astro de graça sem ninguém perceber.
  */
 export const listRules = base
   .use(requireAuthMiddleware)
@@ -21,7 +19,6 @@ export const listRules = base
   .input(z.object({}).optional())
   .output(
     z.object({
-      podeEditar: z.boolean(),
       /** Nenhuma ação com preço = nada é cobrado nem bloqueado. */
       cobrancaAtiva: z.boolean(),
       regras: z.array(
@@ -36,28 +33,6 @@ export const listRules = base
     }),
   )
   .handler(async ({ context }) => {
-    const organizationId = context.org.id;
-
-    const gravadas = await prisma.starRule.findMany({
-      where: { organizationId },
-      select: { actionKey: true, stars: true, isActive: true },
-    });
-    const porChave = new Map(gravadas.map((r) => [r.actionKey, r]));
-
-    const regras = ACOES_COBRAVEIS.map((acao) => {
-      const gravada = porChave.get(acao.actionKey);
-      return {
-        actionKey: acao.actionKey,
-        label: acao.label,
-        descricao: acao.descricao,
-        stars: emEstrelas(gravada?.stars),
-        isActive: gravada?.isActive ?? true,
-      };
-    });
-
-    return {
-      podeEditar: await isOrgAdmin(organizationId, context.user.id),
-      cobrancaAtiva: regras.some((r) => r.isActive && r.stars > 0),
-      regras,
-    };
+    const regras = await lerRegras(context.org.id);
+    return { cobrancaAtiva: cobrancaEstaAtiva(regras), regras };
   });

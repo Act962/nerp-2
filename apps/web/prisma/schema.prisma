@@ -5499,6 +5499,10 @@ model SiteChatSession {
   messageCount   Int             @default(0)
   tokensIn       Int             @default(0)
   tokensOut      Int             @default(0)
+  /// Qual modelo respondeu. Sem isto, os tokens não viram custo: cada modelo
+  /// tem um preço por mil tokens, e a diferença entre o leve e o Pro é de mais
+  /// de dez vezes. É o que o painel do admin usa para somar o gasto real.
+  modelo         String?
   diagnostic     Json?
   // Por onde a pessoa passou antes de falar. Chega junto da primeira mensagem,
   // vinda do navegador — o site não grava navegação de quem nunca conversou.

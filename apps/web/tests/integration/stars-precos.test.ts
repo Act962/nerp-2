@@ -1,7 +1,8 @@
 import { call } from "@orpc/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { listRules } from "@/app/router/stars/list-rules";
-import { setRule } from "@/app/router/stars/set-rule";
+import { starsRoutes } from "@/app/router/stars";
+import { gravarRegra } from "@/features/stars/server/regras";
 import { ACOES, cobrarAcao, creditar } from "@/features/stars/server/debitar";
 import type { Organization, User } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
@@ -14,36 +15,41 @@ import {
 } from "./helpers";
 
 /**
- * Preço das ações — a tela que liga a cobrança.
+ * Preço das ações — o que liga a cobrança.
  *
- * O que estes testes prendem: só administrador muda preço, a lista aparece
- * mesmo antes de existir regra gravada (senão não haveria como cadastrar a
- * primeira), e o preço definido aqui é o que o motor de débito passa a usar.
+ * **Quem escreve mudou de lado.** A tela de preço saiu de dentro da
+ * organização e foi para `/site/stars`, no painel da plataforma: com o campo na
+ * mão do cliente, uma conta zerou o próprio preço e usou o Astro de graça por
+ * dias sem nada aparecer. A organização agora só LÊ.
+ *
+ * Por isso os testes de escrita chamam `gravarRegra` direto, e não uma
+ * procedure: a porta de escrita é guardada por `requireSiteAdminMiddleware`,
+ * que resolve a sessão pelos headers e não tem ramo S2S — o contexto desta
+ * suíte não a alcança. O que se prende aqui é a REGRA; a guarda do site é
+ * exercida pela tela.
  */
 
 let org: Organization;
 let outraOrg: Organization;
 let admin: User;
-let comum: User;
 let vizinho: User;
 
 const doAdmin = () => ({ context: s2sContext(admin, org) });
-const doComum = () => ({ context: s2sContext(comum, org) });
 const doVizinho = () => ({ context: s2sContext(vizinho, outraOrg) });
+
+/** O que a plataforma faz por trás da tela de `/site/stars`. */
+const definirPreco = (actionKey: string, stars: number, alvo = org) =>
+  gravarRegra({ organizationId: alvo.id, actionKey, stars });
 
 beforeAll(async () => {
   await resetDb();
   org = await createOrg("Loja que cobra");
   outraOrg = await createOrg("Loja vizinha");
   admin = await createUser();
-  comum = await createUser();
   vizinho = await createUser();
 
   await createMember(admin, org);
   await createMember(vizinho, outraOrg);
-  await prisma.member.create({
-    data: { organizationId: org.id, userId: comum.id, role: "member" },
-  });
 });
 
 beforeEach(async () => {
@@ -72,17 +78,14 @@ describe("listagem", () => {
     expect(resultado.cobrancaAtiva).toBe(false);
   });
 
-  it("diz quem pode editar", async () => {
-    expect((await call(listRules, {}, doAdmin())).podeEditar).toBe(true);
-    expect((await call(listRules, {}, doComum())).podeEditar).toBe(false);
+  it("a organização não tem porta para ESCREVER o preço", async () => {
+    // A checagem que importa depois da mudança: nenhuma procedure de
+    // organização grava preço. Se alguém reintroduzir uma, este teste cai.
+    expect(Object.keys(starsRoutes.rules)).toEqual(["list"]);
   });
 
   it("a organização vizinha não enxerga os preços desta", async () => {
-    await call(
-      setRule,
-      { actionKey: ACOES.mensagemEnviada, stars: 7 },
-      doAdmin(),
-    );
+    await definirPreco(ACOES.mensagemEnviada, 7);
 
     const dela = await call(listRules, {}, doVizinho());
     expect(dela.regras.every((r) => r.stars === 0)).toBe(true);
@@ -91,20 +94,15 @@ describe("listagem", () => {
 });
 
 describe("definição do preço", () => {
-  it("só administrador muda", async () => {
-    await expect(
-      call(setRule, { actionKey: ACOES.mensagemEnviada, stars: 3 }, doComum()),
-    ).rejects.toThrow(/administradores/i);
-
+  it("recusa ação que não existe no catálogo", async () => {
+    // Sem esta conferência dava para gravar preço para uma ação que ninguém
+    // cobra — uma linha órfã que só aparece confundindo quem for auditar.
+    await expect(definirPreco("acao_inventada", 5)).rejects.toThrow(
+      /desconhecida/i,
+    );
     expect(
       await prisma.starRule.count({ where: { organizationId: org.id } }),
     ).toBe(0);
-  });
-
-  it("recusa ação que não existe no catálogo", async () => {
-    await expect(
-      call(setRule, { actionKey: "acao_inventada", stars: 5 }, doAdmin()),
-    ).rejects.toThrow(/desconhecida/i);
   });
 
   it("ligar a cobrança faz o motor passar a debitar", async () => {
@@ -116,11 +114,7 @@ describe("definição do preço", () => {
     });
     expect(antes.cobrado).toBe(false);
 
-    await call(
-      setRule,
-      { actionKey: ACOES.mensagemEnviada, stars: 2 },
-      doAdmin(),
-    );
+    await definirPreco(ACOES.mensagemEnviada, 2);
     await creditar({
       organizationId: org.id,
       valor: 10,
@@ -139,17 +133,9 @@ describe("definição do preço", () => {
   });
 
   it("zero desliga de novo", async () => {
-    await call(
-      setRule,
-      { actionKey: ACOES.mensagemEnviada, stars: 4 },
-      doAdmin(),
-    );
-    const ligada = await call(
-      setRule,
-      { actionKey: ACOES.mensagemEnviada, stars: 0 },
-      doAdmin(),
-    );
-    expect(ligada.cobrancaAtiva).toBe(false);
+    await definirPreco(ACOES.mensagemEnviada, 4);
+    const desligada = await definirPreco(ACOES.mensagemEnviada, 0);
+    expect(desligada.cobrancaAtiva).toBe(false);
 
     // E o motor volta a não cobrar, sem saldo nenhum na conta.
     const resultado = await cobrarAcao({
@@ -161,16 +147,8 @@ describe("definição do preço", () => {
   });
 
   it("mudar o preço não cria uma segunda regra", async () => {
-    await call(
-      setRule,
-      { actionKey: ACOES.mensagemEnviada, stars: 1 },
-      doAdmin(),
-    );
-    await call(
-      setRule,
-      { actionKey: ACOES.mensagemEnviada, stars: 9 },
-      doAdmin(),
-    );
+    await definirPreco(ACOES.mensagemEnviada, 1);
+    await definirPreco(ACOES.mensagemEnviada, 9);
 
     const regras = await prisma.starRule.findMany({
       where: { organizationId: org.id, actionKey: ACOES.mensagemEnviada },
@@ -181,11 +159,7 @@ describe("definição do preço", () => {
   });
 
   it("o preço de uma ação não afeta a outra", async () => {
-    await call(
-      setRule,
-      { actionKey: ACOES.destinatarioDeCampanha, stars: 1 },
-      doAdmin(),
-    );
+    await definirPreco(ACOES.destinatarioDeCampanha, 1);
 
     const lista = await call(listRules, {}, doAdmin());
     const mensagem = lista.regras.find(

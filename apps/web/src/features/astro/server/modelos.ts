@@ -43,8 +43,13 @@ export type ModeloDef = {
  * O catálogo, do mais barato ao mais caro.
  *
  * Preços conferidos com o dev em 2026-09-11, para contexto até 200k. Acima
- * disso a Google cobra mais, e esta tabela não distingue — é uma simplificação
- * conhecida, e a favor do cliente, não contra.
+ * disso o provedor cobra mais, e esta tabela não distingue — é uma
+ * simplificação conhecida, e a favor do cliente, não contra.
+ *
+ * **As linhas do Gemini continuam aqui mesmo sem serem usadas pelo roteador.**
+ * Elas não são histórico morto: o painel de Stars resolve o custo de cada
+ * sessão antiga pelo modelo que ela gravou, e apagar uma linha faria o gasto
+ * já realizado desaparecer do relatório sem erro nenhum na tela.
  */
 export const MODELOS: ModeloDef[] = [
   {
@@ -75,20 +80,53 @@ export const MODELOS: ModeloDef[] = [
     entradaPor1k: 0.002,
     saidaPor1k: 0.012,
   },
+  {
+    id: "gpt-4.1-nano",
+    nome: "GPT-4.1 nano",
+    nivel: "leve",
+    entradaPor1k: 0.0001,
+    saidaPor1k: 0.0004,
+  },
+  {
+    id: "gpt-4.1-mini",
+    nome: "GPT-4.1 mini",
+    nivel: "medio",
+    entradaPor1k: 0.0004,
+    saidaPor1k: 0.0016,
+  },
+  {
+    id: "gpt-4.1",
+    nome: "GPT-4.1",
+    nivel: "pesado",
+    entradaPor1k: 0.002,
+    saidaPor1k: 0.008,
+  },
 ];
 
 /**
  * Qual modelo atende cada nível.
  *
- * O leve é o Flash-Lite 3.1, e não o 2.5, de propósito: a diferença de custo
- * numa pergunta curta é fração de centavo, e a de qualidade aparece na hora de
- * escolher a ferramenta certa. Economizar no roteador é economizar no lugar
- * errado.
+ * **Aponta para a OpenAI, e não para o Gemini, porque é o que o projeto
+ * consegue chamar.** A chave da Google está bloqueada no serviço
+ * (`API_KEY_SERVICE_BLOCKED` no projeto 687139408435): os três modelos Gemini
+ * recusam com 403, e o Astro simplesmente parava de responder. Enquanto isso
+ * não for resolvido no Cloud Console, apontar para eles é deixar o produto
+ * fora do ar por elegância.
+ *
+ * A família 4.1 mantém a mesma escada de preço — nano para pergunta curta,
+ * mini para conversa, o cheio para raciocínio — então a lógica de dificuldade
+ * não muda, só o destino. Voltar para o Gemini é trocar estas três linhas: as
+ * definições continuam na tabela acima.
+ *
+ * Uma perda conhecida: busca na web e geração de imagem são tools do PROVEDOR
+ * e só existem no Google. Com a OpenAI atendendo, elas ficam fora do conjunto
+ * de ferramentas — `resolverModelo` devolve o provedor justamente para quem
+ * monta esse conjunto saber com quem está falando.
  */
 export const MODELO_DO_NIVEL: Record<Nivel, string> = {
-  leve: "gemini-3.1-flash-lite",
-  medio: "gemini-3.5-flash",
-  pesado: "gemini-3.1-pro",
+  leve: "gpt-4.1-nano",
+  medio: "gpt-4.1-mini",
+  pesado: "gpt-4.1",
 };
 
 export function modeloPorId(id: string): ModeloDef | null {

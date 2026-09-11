@@ -27,8 +27,19 @@ export function whereVendaValida(
   organizationId: string,
   intervalo?: IntervaloDeDatas | null,
 ) {
+  return { organizationId, ...whereVendaValidaGlobal(intervalo) };
+}
+
+/**
+ * A mesma definição, SEM organização.
+ *
+ * Existe para um caso só: o painel do administrador da plataforma, que soma o
+ * que passou por todas as empresas. Fora dali, use sempre `whereVendaValida`
+ * com o id — consulta de venda sem `organizationId` num handler de cliente é
+ * como vazamento entre organizações acontece.
+ */
+export function whereVendaValidaGlobal(intervalo?: IntervaloDeDatas | null) {
   return {
-    organizationId,
     status: { in: [...STATUS_VENDA_VALIDA] },
     ...(intervalo
       ? { createdAt: { gte: intervalo.from, lt: intervalo.to } }
