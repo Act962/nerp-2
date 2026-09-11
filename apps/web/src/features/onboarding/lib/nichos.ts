@@ -28,7 +28,12 @@ export const NICHO_IDS = [
 
 export type NichoId = (typeof NICHO_IDS)[number];
 
-export type PacoteDeExemplo = "mercearia";
+export type PacoteDeExemplo =
+  | "mercearia"
+  | "food"
+  | "clinica"
+  | "automotivo"
+  | "generico";
 
 /**
  * O que se pré-marca quando não se sabe o ramo.
@@ -88,7 +93,7 @@ export const NICHOS: NichoDef[] = [
     resumo: "Salão, delivery e cozinha puxando do mesmo estoque.",
     segment: "VAREJO",
     interesses: ["pdv", "pedidos", "estoque", "whatsapp", "astro"],
-    pacote: "mercearia",
+    pacote: "food",
   },
   {
     id: "clinicas",
@@ -96,7 +101,7 @@ export const NICHOS: NichoDef[] = [
     resumo: "Agenda, prontuário do processo e retorno do paciente.",
     segment: "OUTRO",
     interesses: ["whatsapp", "agenda", "financeiro", "astro"],
-    pacote: "mercearia",
+    pacote: "clinica",
   },
   {
     id: "automotivo",
@@ -104,7 +109,7 @@ export const NICHOS: NichoDef[] = [
     resumo: "Orçamento, ordem de serviço e peça na bancada.",
     segment: "VAREJO",
     interesses: ["estoque", "pdv", "whatsapp", "financeiro", "astro"],
-    pacote: "mercearia",
+    pacote: "automotivo",
   },
   {
     id: "outro",
@@ -114,7 +119,7 @@ export const NICHOS: NichoDef[] = [
     // a pessoa talvez queira ver é pior que mostrar algo que ela não usa.
     segment: "VAREJO",
     interesses: INTERESSES_PADRAO,
-    pacote: "mercearia",
+    pacote: "generico",
   },
 ];
 

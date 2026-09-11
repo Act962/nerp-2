@@ -104,12 +104,30 @@ atropelaria a dedução do servidor.
   Agora diz o que o ramo faz de fato: marcar as soluções certas e organizar o
   menu.
 
----
+### O ramo passa a mudar os dados de exemplo
 
-Uma observação que fica: **o ramo ainda não muda os dados de exemplo**. Só
-existe o pacote `mercearia`, então quem escolhe "Clínicas" também recebe
-produtos de mercearia. Era pendência conhecida da Fase 1 (faltam as fotos), e
-significa que "Outro" não fica pior que os seis nesse ponto — fica igual.
+O que travava os pacotes por nicho era foto: sem imagem, o catálogo promocional
+sai com buracos, e ele é das primeiras telas que a pessoa abre. A saída foi a
+embalagem neutra que o próprio editor já usa para produto sem foto
+(`PRODUCT_PLACEHOLDER`). Não é a foto certa, mas é a MESMA que o produto real
+dela teria antes de receber a dele — o encarte sai inteiro.
+
+| ramo | pacote | o que semeia |
+|---|---|---|
+| supermercados, atacarejos, franquias | `mercearia` | o de sempre, com **fotos de verdade** |
+| food service | `food` | pratos, lanches e bebidas |
+| clínicas | `clinica` | consultas, procedimentos e materiais |
+| centro automotivo | `automotivo` | serviços, peças e lubrificantes |
+| outro, ou pulado | `generico` | produtos e serviços de exemplo, neutros |
+
+A mercearia manteve as fotos reais: trocar foto boa por embalagem neutra seria
+piorar o que já funciona.
+
+**Os nomes são do ramo, e não "PRODUTO 1 - TESTE".** Num encarte, nome genérico
+parece ERRO, não parece exemplo — e quem marca o que é exemplo já é o `isDemo`,
+que acende o selo nas listagens e é o que o card do Dashboard usa para apagar
+tudo de uma vez. O pacote `generico`, esse sim, usa "Produto de exemplo A",
+porque ali não há ramo para imitar.
 
 ---
 
