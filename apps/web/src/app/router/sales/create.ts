@@ -183,6 +183,21 @@ export const createSale = base
       (a, b) => b.amount - a.amount,
     )[0].method;
 
+    /*
+      O contador ficou atrás das vendas que já existem?
+
+      `lastSaleNumber` é a fonte da numeração, e quem grava venda por fora dele
+      (o seed de dados de exemplo fazia isso) deixa o contador para trás. Aí a
+      próxima venda tenta um número já usado, bate no índice único e falha — e
+      como o incremento vive na mesma transação que sofre rollback, ela falha
+      PARA SEMPRE, não só uma vez.
+
+      A raiz foi corrigida no seed. Este conserto fica porque orgs criadas
+      antes dele continuariam travadas, e porque a próxima rotina que gravar
+      venda direto não pode ter o poder de deixar uma loja sem vender.
+    */
+    await sincronizarContadorDeVendas(orgId);
+
     const saleNumber = await prisma.$transaction(async (tx) => {
       // Numeração atômica por org (substitui o `count()` sujeito a corrida).
       const org = await tx.organization.update({
@@ -300,3 +315,33 @@ export const createSale = base
 
     return { saleNumber };
   });
+
+/**
+ * Põe `lastSaleNumber` à frente da maior venda que existe.
+ *
+ * Só escreve quando está atrasado, então no caminho normal é uma leitura e
+ * nada mais. `updateMany` condicionado ao valor lido para duas vendas
+ * simultâneas não se atropelarem: a segunda encontra zero linhas e segue, que
+ * é o certo — o incremento atômico logo adiante resolve a ordem.
+ */
+async function sincronizarContadorDeVendas(orgId: string): Promise<void> {
+  const [org, maior] = await Promise.all([
+    prisma.organization.findUnique({
+      where: { id: orgId },
+      select: { lastSaleNumber: true },
+    }),
+    prisma.sale.aggregate({
+      where: { organizationId: orgId },
+      _max: { saleNumber: true },
+    }),
+  ]);
+
+  const usado = maior._max.saleNumber ?? 0;
+  const contador = org?.lastSaleNumber ?? 0;
+  if (contador >= usado) return;
+
+  await prisma.organization.updateMany({
+    where: { id: orgId, lastSaleNumber: contador },
+    data: { lastSaleNumber: usado },
+  });
+}

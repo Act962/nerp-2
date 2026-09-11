@@ -1,5 +1,7 @@
 import "server-only";
 
+import { presetBlocks } from "@/features/receipt-designer/lib/presets";
+import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 
 /**
@@ -158,13 +160,22 @@ export async function seedSolucoesDemo(input: {
     });
   }
 
-  // ── Cupom: um modelo padrão para o PDV imprimir ───────────────────────
+  /*
+    Cupom: o modelo padrão que o PDV imprime ao fechar a venda.
+
+    Os blocos vêm do MESMO preset que o botão "Novo modelo" usa. Antes ficava
+    `blocks: []`, com a ideia de que o editor preencheria ao abrir — e ele
+    preenche mesmo, mas o PDV não passa pelo editor: ele imprime direto do
+    modelo padrão. O resultado era a primeira venda da empresa de teste abrir
+    a janela de impressão com uma folha EM BRANCO.
+  */
   await prisma.receiptTemplate.create({
     data: {
       organizationId,
       name: "Cupom padrão (exemplo)",
-      // O editor de cupom preenche os blocos ao abrir um modelo vazio.
-      blocks: [],
+      type: "NAO_FISCAL",
+      paper: "MM80",
+      blocks: presetBlocks("NAO_FISCAL") as Prisma.InputJsonValue,
       isDefault: true,
       isDemo: true,
     },
@@ -236,6 +247,16 @@ export async function seedSolucoesDemo(input: {
         itens: [{ produto: p2, qtd: 3 }],
       },
     ];
+    /*
+      O contador de venda da organização precisa andar junto.
+
+      `sales.create` numera com `lastSaleNumber + 1` num `update` atômico. Se o
+      seed grava as vendas 1 e 2 e deixa o contador em zero, a PRIMEIRA venda
+      de verdade tenta o número 1, bate no índice único (organizationId,
+      saleNumber) e falha — e como o `update` do contador está na mesma
+      transação que faz rollback, ela falha de novo, e de novo. Toda empresa de
+      teste ficava sem conseguir vender.
+    */
     for (const venda of vendas) {
       const total = venda.itens.reduce(
         (soma, i) => soma + Number(i.produto.salePrice) * i.qtd,
@@ -266,6 +287,13 @@ export async function seedSolucoesDemo(input: {
         },
       });
     }
+
+    await prisma.organization.update({
+      where: { id: organizationId },
+      data: {
+        lastSaleNumber: Math.max(...vendas.map((venda) => venda.saleNumber)),
+      },
+    });
   }
 
   return { criou: true };
