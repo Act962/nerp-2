@@ -395,3 +395,32 @@ export function useDeleteContact() {
     }),
   );
 }
+
+// Relatório de vendas: série no tempo + ticket médio do período.
+export function useRelatorioDeVendas(
+  from: string,
+  to: string,
+  granularidade: "dia" | "mes",
+) {
+  return useQuery(
+    orpc.financeiro.vendas.relatorio.queryOptions({
+      input: { from, to, granularidade },
+      enabled: Boolean(from && to),
+    }),
+  );
+}
+
+// Curva ABC dos produtos. Consulta própria: varre os itens de venda do período
+// e só interessa a quem abre a seção, então não pesa na troca de período.
+export function useCurvaAbc(
+  from: string,
+  to: string,
+  criterio: "valor" | "volume",
+) {
+  return useQuery(
+    orpc.financeiro.vendas.curvaAbc.queryOptions({
+      input: { from, to, criterio },
+      enabled: Boolean(from && to),
+    }),
+  );
+}
