@@ -75,7 +75,7 @@ export function ConversorDeTokens() {
         </CardTitle>
         <CardDescription>
           A conta vai do preço da API até ★ por mil tokens. Nada aqui é salvo:
-          confira o número e digite no campo do Astro, acima.
+          confira o número e digite no "Preços" da empresa, na tabela acima.
         </CardDescription>
       </CardHeader>
 

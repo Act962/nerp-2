@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { CONSULTOR_TOOL_IDS, findCatalogTool } from "@nerp/site-content";
 import { Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -168,6 +170,38 @@ export function SiteAstroPricing() {
                 No site inteiro, somando todo mundo. Zero significa sem teto —
                 mas é esta trava que segura a conta se algo escapar dos limites
                 por visitante.
+              </FieldDescription>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="orcamento-mes">
+                Orçamento mensal com a IA (R$)
+              </FieldLabel>
+              <Input
+                id="orcamento-mes"
+                type="number"
+                min={0}
+                step="0.01"
+                defaultValue={config.orcamentoMensalReais}
+                onBlur={(e) =>
+                  salvarConfig.mutate({
+                    config: {
+                      ...config,
+                      orcamentoMensalReais: Number(e.target.value) || 0,
+                    },
+                  })
+                }
+              />
+              <FieldDescription>
+                Digitado porque não dá para ler: a API do Google não expõe saldo
+                nem fatura. É o teto que a aba{" "}
+                <Link
+                  href="/site/stars"
+                  className="underline underline-offset-2"
+                >
+                  Stars
+                </Link>{" "}
+                usa para mostrar quanto do mês já foi. Zero mostra só o gasto.
               </FieldDescription>
             </Field>
           </CardContent>

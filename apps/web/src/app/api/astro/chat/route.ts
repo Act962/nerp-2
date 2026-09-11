@@ -399,6 +399,9 @@ export async function POST(request: NextRequest) {
         data: {
           tokensIn: { increment: tokensIn },
           tokensOut: { increment: tokensOut },
+          // Token sem modelo não vira custo: o painel do admin precisa saber
+          // por qual tabela de preço multiplicar.
+          modelo: modelo.nome,
         },
       });
       // Falha na cobrança não pode derrubar o stream que já foi entregue;

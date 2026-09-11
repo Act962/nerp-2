@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import {
+  Building2,
   ExternalLink,
   Image as ImageIcon,
   LayoutDashboard,
@@ -12,6 +13,7 @@ import {
   Menu as MenuIcon,
   Shield,
   Sparkles,
+  Star,
   UserRoundSearch,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -28,6 +30,27 @@ const SITE_ENTRIES: Entry[] = [
   { href: "/site/precos", label: "Faixas do Astro", icon: Sparkles },
 ];
 
+/**
+ * O painel do dono da plataforma, separado do painel do SITE de propósito:
+ * acima se edita o que o visitante vê, aqui se olha o que os clientes fazem e
+ * quanto custam. Mesmo login, assuntos diferentes.
+ */
+const PLATAFORMA_ENTRIES: Entry[] = [
+  { href: "/site/empresas", label: "Empresas", icon: Building2 },
+  { href: "/site/stars", label: "Stars", icon: Star },
+];
+
+/**
+ * Todo endereço que a barra desenha — inclusive "Acessos", que só aparece para
+ * quem administra. Centralizar uma aba que não está na tela é inofensivo: o
+ * `querySelector` não a encontra e a conta não acontece.
+ */
+const TODAS_AS_ABAS = [
+  ...SITE_ENTRIES.map((e) => e.href),
+  ...PLATAFORMA_ENTRIES.map((e) => e.href),
+  "/site/acessos",
+];
+
 export function SiteAdminShell({
   children,
   name,
@@ -41,12 +64,50 @@ export function SiteAdminShell({
 }) {
   const pathname = usePathname();
 
+  /**
+   * No retrato a barra vira uma tira que rola de lado, e as abas da Plataforma
+   * ficam depois do fim da tela: quem abria /site/stars no celular via a tira
+   * começando em "Painel", sem nenhum sinal de onde estava. Trazer a aba ativa
+   * para o centro resolve isso sem custar altura, que é o que falta num
+   * telefone.
+   */
+  const tira = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const barra = tira.current;
+    if (!barra) return;
+
+    // A aba ativa é a de href mais LONGO que casa com o endereço: "/site"
+    // casaria com tudo, e a barra centralizaria sempre o "Painel".
+    const alvo = TODAS_AS_ABAS.filter((href) =>
+      href === "/site" ? pathname === "/site" : pathname.startsWith(href),
+    ).sort((a, b) => b.length - a.length)[0];
+    if (!alvo) return;
+
+    // Num quadro depois: no primeiro a barra ainda não tem a largura final
+    // (fonte e ícones acabando de entrar), e a conta saía por poucos pixels —
+    // era o que deixava a aba "quase" visível.
+    const quadro = requestAnimationFrame(() => {
+      const link = barra.querySelector<HTMLAnchorElement>(
+        `a[href="${CSS.escape(alvo)}"]`,
+      );
+      if (!link) return;
+      const dele = link.getBoundingClientRect();
+      const dela = barra.getBoundingClientRect();
+      // Centraliza. Em telas largas a barra não rola e `scrollLeft` ignora.
+      barra.scrollLeft += dele.left - dela.left - (dela.width - dele.width) / 2;
+    });
+    return () => cancelAnimationFrame(quadro);
+  }, [pathname]);
+
   const isActive = (href: string) =>
     href === "/site" ? pathname === "/site" : pathname.startsWith(href);
 
   return (
     <div className="flex min-h-svh flex-col bg-muted/40 md:flex-row">
-      <aside className="flex shrink-0 gap-1 overflow-x-auto bg-[#30aafd] p-3 text-white/85 md:w-60 md:flex-col md:overflow-visible md:p-4">
+      <aside
+        ref={tira}
+        className="flex shrink-0 gap-1 overflow-x-auto bg-[#30aafd] p-3 text-white/85 md:w-60 md:flex-col md:overflow-visible md:p-4"
+      >
         <div className="flex items-center px-2 md:pb-4">
           {/*
             Logotipo oficial da ÓRBITA, transformado em preto pelo filtro:
@@ -68,6 +129,18 @@ export function SiteAdminShell({
         </p>
 
         {SITE_ENTRIES.map((entry) => (
+          <NavLink
+            key={entry.href}
+            entry={entry}
+            active={isActive(entry.href)}
+          />
+        ))}
+
+        <p className="hidden px-2 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70 md:block">
+          Plataforma
+        </p>
+
+        {PLATAFORMA_ENTRIES.map((entry) => (
           <NavLink
             key={entry.href}
             entry={entry}

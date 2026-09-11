@@ -441,3 +441,135 @@ export function useDeleteSiteLead() {
     }),
   );
 }
+
+/**
+ * O painel do dono da plataforma. Duas consultas separadas de propósito: o
+ * resumo é leve e abre a tela, a lista por empresa é a parte cara — e assim
+ * trocar o período não segura os números de cima esperando a tabela.
+ */
+export function usePlataformaResumo(dias: number) {
+  const { data, isPending } = useQuery(
+    orpc.site.plataforma.resumo.queryOptions({ input: { dias } }),
+  );
+  return { resumo: data, isLoading: isPending };
+}
+
+export function usePlataformaEmpresas(dias: number) {
+  const { data, isPending } = useQuery(
+    orpc.site.plataforma.empresas.queryOptions({ input: { dias } }),
+  );
+  return {
+    empresas: data?.empresas ?? [],
+    dolar: data?.dolar ?? 0,
+    isLoading: isPending,
+  };
+}
+
+/**
+ * Crédito manual de ★. Invalida os dois painéis: o saldo aparece na tabela de
+ * Stars e entra no "★ em circulação" do resumo.
+ */
+export function useCreditarStars() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.plataforma.creditarStars.mutationOptions({
+      onSuccess: (resultado) => {
+        toast.success(
+          `${resultado.nome} agora tem ${resultado.saldo.toLocaleString("pt-BR")} ★`,
+        );
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.plataforma.empresas.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.plataforma.resumo.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+/**
+ * Por que o Astro não responde numa empresa. Só consulta quando há empresa
+ * escolhida — o diagnóstico chama as travas de verdade (saldo, teto) e não é
+ * consulta para rodar em toda linha da tabela.
+ */
+export function useDiagnosticoDoAstro(organizationId: string | null) {
+  const { data, isPending } = useQuery({
+    ...orpc.site.plataforma.diagnosticoDoAstro.queryOptions({
+      input: { organizationId: organizationId ?? "" },
+    }),
+    enabled: organizationId !== null,
+  });
+  return { diagnostico: data, isLoading: isPending };
+}
+
+export function useReiniciarAstro() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.plataforma.reiniciarAstro.mutationOptions({
+      onSuccess: () => {
+        toast.success("Astro reiniciado nesta empresa");
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.plataforma.diagnosticoDoAstro.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.plataforma.empresas.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+/**
+ * Testa a chave de IA contra o provedor. Mutation, e não query, porque é uma
+ * chamada paga: só acontece quando alguém clica.
+ */
+export function useTestarChaveDoAstro() {
+  return useMutation(
+    orpc.site.plataforma.testarChaveDoAstro.mutationOptions({
+      onSuccess: ({ modelos }) => {
+        const quebrados = modelos.filter((m) => !m.ok);
+        if (quebrados.length === 0) {
+          toast.success(`Os ${modelos.length} modelos responderam`);
+        } else {
+          toast.error(
+            `${quebrados.length} de ${modelos.length} modelos recusaram`,
+          );
+        }
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+/** Preço das ações de uma empresa — a tela que liga a cobrança. */
+export function usePrecosDaEmpresa(organizationId: string | null) {
+  const { data, isPending } = useQuery({
+    ...orpc.site.plataforma.precos.queryOptions({
+      input: { organizationId: organizationId ?? "" },
+    }),
+    enabled: organizationId !== null,
+  });
+  return { precos: data, isLoading: isPending };
+}
+
+export function useDefinirPrecoDaEmpresa() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.plataforma.definirPreco.mutationOptions({
+      onSuccess: (resultado) => {
+        toast.success(
+          resultado.stars === 0
+            ? "Cobrança desta ação desligada"
+            : `Passou a custar ${resultado.stars} ★`,
+        );
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.plataforma.precos.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

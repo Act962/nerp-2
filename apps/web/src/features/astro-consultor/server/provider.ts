@@ -59,6 +59,15 @@ export const astroConfigSchema = z.object({
    * mesma pergunta pode cair em modelos diferentes.
    */
   modeloFixo: z.boolean().default(false),
+  /**
+   * Orçamento mensal com o provedor de IA, em REAIS. 0 = sem teto declarado.
+   *
+   * Digitado porque não dá para ler: a API de IA do Google não expõe saldo nem
+   * fatura — isso é do Cloud Billing, com outra credencial. O painel usa este
+   * número para mostrar quanto do mês já foi, e sem ele mostra só o gasto, em
+   * vez de inventar um teto.
+   */
+  orcamentoMensalReais: z.number().min(0).default(0),
 });
 
 export type AstroConfig = z.infer<typeof astroConfigSchema>;

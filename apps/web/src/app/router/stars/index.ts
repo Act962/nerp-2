@@ -2,7 +2,6 @@ import { createCheckout } from "./create-checkout";
 import { getBalance } from "./get-balance";
 import { listPackages } from "./list-packages";
 import { listRules } from "./list-rules";
-import { setRule } from "./set-rule";
 import { listTransactions } from "./list-transactions";
 
 /**
@@ -19,6 +18,5 @@ export const starsRoutes = {
   checkout: createCheckout,
   rules: {
     list: listRules,
-    set: setRule,
   },
 };
