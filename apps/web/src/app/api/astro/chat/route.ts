@@ -37,8 +37,8 @@ import {
   lerConfig,
   resolverModelo,
 } from "@/features/astro-consultor/server/provider";
-import { LIMITES } from "@/features/astro-consultor/server/rate-limit";
 import { auth } from "@/lib/auth";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 
 /**
@@ -60,8 +60,19 @@ export const maxDuration = 120;
 
 const SESSAO_HORAS = 24;
 
+/**
+ * Quantas mensagens o corpo pode trazer.
+ *
+ * É guarda de TAMANHO de requisição, não de conversa. O que o modelo enxerga
+ * já é cortado em `janela()`, no orquestrador: uma conversa de duzentos turnos
+ * custa o mesmo que uma de vinte. Estava em 60 e era baixo demais — a pessoa
+ * batia nele no meio do trabalho, e cada nova tentativa acrescentava mais uma
+ * mensagem ao histórico, então nenhuma passava. Era um beco sem saída.
+ */
+const MAX_MENSAGENS_NO_CORPO = 400;
+
 const corpoSchema = z.object({
-  messages: z.array(z.unknown()).min(1).max(60),
+  messages: z.array(z.unknown()).min(1).max(MAX_MENSAGENS_NO_CORPO),
   sessionId: z.string().max(64).optional(),
 });
 
@@ -153,7 +164,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         erro: "sem_saldo",
-        saldo: saldo?.starsBalance ?? 0,
+        saldo: emEstrelas(saldo?.starsBalance),
         mensagem: "Suas Stars acabaram. Compre mais para continuar a conversa.",
       },
       { status: 402 },
@@ -176,15 +187,16 @@ export async function POST(request: NextRequest) {
       })
     : null;
 
-  if (sessao && sessao.messageCount >= LIMITES.mensagensPorSessao) {
-    return NextResponse.json(
-      {
-        erro: "sessao_cheia",
-        mensagem: "Esta conversa ficou longa. Comece uma nova.",
-      },
-      { status: 429 },
-    );
-  }
+  /*
+    Aqui NÃO há teto por sessão, e é de propósito.
+
+    O teto de 30 mensagens é do canal do site, onde quem fala é visitante
+    anônimo e a única trava contra abuso é a contagem. No canal logado existem
+    duas travas que o site não tem: cada resposta é cobrada em ★ da própria
+    organização, com pré-checagem de saldo, e há o teto diário por organização
+    logo acima. Somar um limite por conversa a isso só criava um beco sem
+    saída no meio do trabalho de quem está pagando pela conversa.
+  */
 
   const sessaoAtual = sessao
     ? await prisma.siteChatSession.update({

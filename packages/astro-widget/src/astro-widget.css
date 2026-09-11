@@ -136,6 +136,25 @@
   letter-spacing: -0.01em;
 }
 
+/* A saída de emergência: fica ao lado do fechar, discreta, e só aparece
+   quando já existe conversa para recomeçar. */
+.o-astro-head__novo {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  margin-right: 6px;
+  background: #f1f3f6;
+  color: #0b1220;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.o-astro-head__novo:hover {
+  background: #e6e9ef;
+}
+
 .o-astro-head__close {
   width: 34px;
   height: 34px;
@@ -689,6 +708,53 @@
 .o-astro-clip:disabled {
   opacity: 0.3;
   cursor: default;
+}
+
+/* Falar com o Astro: mesmo tamanho do clipe, vermelho pulsando enquanto ouve. */
+.o-astro-voz {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.o-astro-voz:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.o-astro-voz:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.o-astro-voz--ouvindo {
+  background: rgba(220, 38, 38, 0.14);
+  color: #dc2626;
+  opacity: 1;
+  animation: o-astro-pulsa 1.2s ease-in-out infinite;
+}
+
+@keyframes o-astro-pulsa {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .o-astro-voz--ouvindo {
+    animation: none;
+  }
 }
 
 /* Imagem na conversa: anexo enviado e imagem que o Astro gerou. */

@@ -62,6 +62,37 @@ type OpcoesDoProvedor = NonNullable<
  */
 const ABERTURA_PRESERVADA = 2;
 
+/**
+ * Tira do histórico as ações que ficaram esperando um sim que nunca veio.
+ *
+ * O cartão de aprovação para a tool e deixa, no histórico do cliente, uma
+ * chamada de ferramenta SEM resultado. Se a pessoa digitar qualquer coisa em
+ * vez de responder no cartão, esse histórico volta para cá com a chamada
+ * pendurada — e a OpenAI recusa a requisição inteira com "No tool output found
+ * for function call", porque a API dela exige que toda chamada tenha saída.
+ *
+ * Pior: a conversa fica guardada no navegador, então a chamada pendurada volta
+ * a cada tentativa seguinte e nenhuma passa. Uma conversa morta para sempre.
+ *
+ * Por isso a limpeza é aqui, no servidor, e não no cliente: o histórico é
+ * postado pelo navegador, e o que chega dele nunca é premissa. Pedido sem
+ * resposta é pedido que não aconteceu — o modelo propõe de novo se ainda fizer
+ * sentido. Aprovado (`approval-responded`) e recusado (`output-denied`) ficam:
+ * esses o SDK sabe resolver.
+ */
+export function semAprovacoesPendentes(mensagens: UIMessage[]): UIMessage[] {
+  return mensagens.map((mensagem) => {
+    if (mensagem.role !== "assistant") return mensagem;
+    const partes = mensagem.parts.filter((parte) => {
+      if (!parte.type.startsWith("tool-")) return true;
+      return (parte as { state?: string }).state !== "approval-requested";
+    });
+    return partes.length === mensagem.parts.length
+      ? mensagem
+      : { ...mensagem, parts: partes };
+  });
+}
+
 /** A janela do modelo: a abertura, mais o fim recente. */
 function janela(mensagens: UIMessage[]): UIMessage[] {
   if (mensagens.length <= JANELA_DE_MENSAGENS) return mensagens;
@@ -151,7 +182,7 @@ export type EntradaConsultor = {
 // Órbita, era síncrono). Sem o await, o que chega em `streamText` é uma
 // Promise e o erro sai lá dentro, como "messages.some is not a function".
 export async function streamAstroConsultor(entrada: EntradaConsultor) {
-  const recentes = janela(entrada.mensagens);
+  const recentes = janela(semAprovacoesPendentes(entrada.mensagens));
   const tools =
     entrada.tools ??
     construirTools({

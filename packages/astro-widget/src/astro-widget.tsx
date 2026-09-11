@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { AstroMark } from "./astro-mark";
+import { useVoz } from "./use-voz";
 import type { PaginaDoAstro } from "./pagina";
 import "./astro-widget.css";
 
@@ -383,6 +384,14 @@ function lerConversa(): ConversaGuardada | null {
   }
 }
 
+function esquecerConversa() {
+  try {
+    sessionStorage.removeItem(GUARDA);
+  } catch {
+    // Idem: não conseguir limpar não pode impedir a conversa nova de começar.
+  }
+}
+
 function guardarConversa(dados: ConversaGuardada) {
   try {
     sessionStorage.setItem(GUARDA, JSON.stringify(dados));
@@ -571,6 +580,8 @@ function mensagemDaFalha(falha: FalhaDoAstro): string {
   if (typeof corpo.mensagem === "string") return corpo.mensagem;
   if (falha.status === 429)
     return "Muitas mensagens por agora. Tenta de novo daqui a pouco.";
+  if (falha.status === 400)
+    return "Esta conversa ficou grande demais para eu carregar. Comece uma nova aqui em cima — o que a gente tratou fica com você.";
   if (falha.status === 503)
     return "Estou fora do ar por um instante. Já volto.";
   return "Não consegui responder agora. Tenta de novo?";
@@ -1171,6 +1182,35 @@ export function AstroWidget({
    * si: quem acabou de conversar aqui não precisa ouvir "essa é top hein" em
    * seguida.
    */
+  /**
+   * Recomeçar do zero.
+   *
+   * Existe porque uma conversa pode ficar grande demais para o servidor
+   * carregar, e sem isto a pessoa ficava presa: o histórico guardado subia de
+   * novo a cada tentativa, e nenhuma passava. Limpa a lista, o id da sessão e
+   * o que estava guardado — a próxima mensagem abre sessão nova no servidor.
+   */
+  const recomecar = useCallback(() => {
+    setMessages([]);
+    setFalha(null);
+    setErroDoAnexo(null);
+    setAnexos([]);
+    sessaoRef.current = null;
+    esquecerConversa();
+  }, [setMessages]);
+
+  /**
+   * Falar em vez de digitar.
+   *
+   * O que o navegador transcreve entra no campo, e não no envio: em português
+   * o reconhecimento erra nome de produto e número, e mandar sozinho
+   * transformaria cada engano numa pergunta paga.
+   */
+  const aoTranscrever = useCallback((falado: string) => {
+    setTexto((atual) => (atual ? `${atual} ${falado}` : falado));
+  }, []);
+  const voz = useVoz(aoTranscrever);
+
   const fechar = useCallback(() => {
     setAberto(false);
     if (!ultimaEDoAstro) return;
@@ -1341,6 +1381,17 @@ export function AstroWidget({
           zangado={semResposta && !carregando}
         />
         <span className="o-astro-head__name">Astro</span>
+        {messages.length > 0 && (
+          <button
+            type="button"
+            className="o-astro-head__novo"
+            onClick={recomecar}
+            aria-label="Começar uma conversa nova"
+            title="Começar uma conversa nova"
+          >
+            Nova conversa
+          </button>
+        )}
         <button
           type="button"
           className="o-astro-head__close"
@@ -1735,6 +1786,63 @@ export function AstroWidget({
               </button>
             </>
           )}
+          {voz.suportado && (
+            <button
+              type="button"
+              className={
+                voz.estado === "ouvindo"
+                  ? "o-astro-voz o-astro-voz--ouvindo"
+                  : "o-astro-voz"
+              }
+              aria-label={
+                voz.estado === "ouvindo"
+                  ? "Parar de ouvir"
+                  : "Falar com o Astro"
+              }
+              aria-pressed={voz.estado === "ouvindo"}
+              title={
+                voz.estado === "ouvindo"
+                  ? "Ouvindo… clique para parar"
+                  : "Falar com o Astro"
+              }
+              disabled={carregando}
+              onClick={voz.alternar}
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
+                <title>Falar</title>
+                {voz.estado === "ouvindo" ? (
+                  <rect
+                    x="7"
+                    y="7"
+                    width="10"
+                    height="10"
+                    rx="2"
+                    fill="currentColor"
+                  />
+                ) : (
+                  <>
+                    <rect
+                      x="9"
+                      y="3"
+                      width="6"
+                      height="11"
+                      rx="3"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      fill="none"
+                    />
+                    <path
+                      d="M5 11a7 7 0 0 0 14 0M12 18v3"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      fill="none"
+                    />
+                  </>
+                )}
+              </svg>
+            </button>
+          )}
           <input
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
@@ -1750,7 +1858,9 @@ export function AstroWidget({
                   }
                 : undefined
             }
-            placeholder="Pergunte ao Astro…"
+            placeholder={
+              voz.estado === "ouvindo" ? "Ouvindo…" : "Pergunte ao Astro…"
+            }
             maxLength={2000}
             aria-label="Sua mensagem"
           />
