@@ -44,6 +44,7 @@ export default async function SegmentosPage() {
         section="segmentos"
         content={content}
         loginHref={APP_LINKS.login}
+        signupHref={APP_LINKS.signup}
       />
     </>
   );

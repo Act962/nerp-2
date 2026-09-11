@@ -48,7 +48,7 @@ const OrbitaScene = lazy(() =>
 export function OrbitaExperience({
   /** Para onde o CTA da navegação e o card do NERP apontam. */
   appHref = "/login",
-  signupHref = "/cadastro",
+  signupHref = "/comecar",
 }: {
   appHref?: string;
   signupHref?: string;

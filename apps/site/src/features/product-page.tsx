@@ -29,6 +29,7 @@ export function SiteProductPage({
   whatsappHref,
   whatsappLabel,
   loginHref,
+  signupHref,
   content,
   pagina,
   trilha,
@@ -37,6 +38,7 @@ export function SiteProductPage({
   whatsappHref: string;
   whatsappLabel: string;
   loginHref: string;
+  signupHref: string;
   /** Que página é esta, para o Astro saber onde a pessoa está. */
   pagina?: PaginaDoAstro;
   /** Conteúdo do site — alimenta o menu principal (igual ao da home). */
@@ -68,6 +70,7 @@ export function SiteProductPage({
         <SiteHeaderNav
           content={content}
           loginHref={loginHref}
+          signupHref={signupHref}
           pagina={pagina}
         />
       ) : (

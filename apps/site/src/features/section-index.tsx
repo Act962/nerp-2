@@ -142,10 +142,12 @@ export function SectionIndexPage({
   section,
   content,
   loginHref,
+  signupHref,
 }: {
   section: SiteSection;
   content: SiteContent;
   loginHref: string;
+  signupHref: string;
 }) {
   const abertura = ABERTURA[section];
   const grupos = gruposDaSecao(section, content);
@@ -158,7 +160,11 @@ export function SectionIndexPage({
 
   return (
     <div className="sp-root">
-      <SiteHeaderNav content={content} loginHref={loginHref} />
+      <SiteHeaderNav
+        content={content}
+        loginHref={loginHref}
+        signupHref={signupHref}
+      />
 
       <Trilha
         passos={[

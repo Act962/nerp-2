@@ -80,6 +80,7 @@ export async function renderPaginaInterna(section: SiteSection, slug: string) {
         whatsappHref={content.whatsapp.href}
         whatsappLabel={content.whatsapp.label}
         loginHref={APP_LINKS.login}
+        signupHref={APP_LINKS.signup}
         content={content}
         pagina={{ slug: page.slug, titulo: page.title, config: page.astro }}
         trilha={{ section, titulo: page.title }}
