@@ -82,6 +82,28 @@ a escolha de Estoque responde. Como `AGENCIA` é o segmento que mais esconde
 A tela também parou de mandar `VAREJO` fixo no "Outro": mandar um chute de lá
 atropelaria a dedução do servidor.
 
+### O wizard deixa de ignorar quem muda de ideia
+
+- [x] **Trocar o ramo volta a valer.** A sugestão só era aplicada com a lista
+  vazia, e ela nunca mais ficava vazia — quem escolhia "Supermercados",
+  voltava e escolhia "Clínicas" seguia com o conjunto do supermercado. Agora o
+  ramo manda enquanto ninguém mexeu na lista com a própria mão, e para de
+  mandar no instante em que alguém mexe.
+- [x] **O passo 2 diz por que veio marcado**: "já marcamos o que costuma servir
+  a clínicas — desmarque o que você não usa". Antes a pré-marcação aparecia do
+  nada.
+- [x] **Desmarcar tudo deixou de ser surpresa.** O servidor repõe o básico para
+  o guia não nascer vazio, e agora a tela avisa disso antes, em vez de a pessoa
+  descobrir no painel.
+- [x] **O rótulo do botão parou de mentir.** Ele alternava para "Pular e
+  começar" quando nada estava marcado, mas o resultado era o mesmo dos dois
+  jeitos. Durante a criação vira "Montando sua empresa…", porque semear a
+  empresa de teste leva alguns segundos.
+- [x] **A promessa do passo 1 virou verdade.** Dizia que a empresa nasce "com
+  um catálogo do seu jeito", e o pacote de exemplo é o mesmo para todo ramo.
+  Agora diz o que o ramo faz de fato: marcar as soluções certas e organizar o
+  menu.
+
 ---
 
 Uma observação que fica: **o ramo ainda não muda os dados de exemplo**. Só

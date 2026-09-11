@@ -2,7 +2,12 @@
 
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from "nuqs";
+import {
+  parseAsArrayOf,
+  parseAsBoolean,
+  parseAsStringLiteral,
+  useQueryState,
+} from "nuqs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -47,22 +52,38 @@ export function WizardComecar() {
     parseAsArrayOf(parseAsStringLiteral(SOLUCAO_IDS)).withDefault([]),
   );
   const [ramo, setRamo] = useQueryState("ramo");
+  /*
+    A pessoa já mexeu na lista com a própria mão?
+
+    Sem esta marca, trocar de ramo não mudava nada: a sugestão só era aplicada
+    com a lista vazia, e ela nunca mais ficava vazia. Quem escolhia
+    "Supermercados", voltava e escolhia "Clínicas" continuava com o conjunto do
+    supermercado — o sistema ignorando a resposta que a pessoa acabou de
+    corrigir. Com a marca, o ramo manda enquanto ninguém mexeu, e para de
+    mandar no instante em que alguém mexe.
+  */
+  const [editado, setEditado] = useQueryState(
+    "editado",
+    parseAsBoolean.withDefault(false),
+  );
   const [criando, setCriando] = useState(false);
 
   const escolherNicho = (id: (typeof NICHO_IDS)[number]) => {
     setNicho(id);
-    // O ramo pré-marca as soluções; quem já marcou algo não perde.
-    const sugeridas = nichoPorId(id)?.interesses ?? [];
-    setInteresses(interesses.length > 0 ? interesses : sugeridas);
+    if (editado) return;
+    setInteresses(nichoPorId(id)?.interesses ?? []);
   };
 
   const alternar = (id: SolucaoId) => {
+    setEditado(true);
     setInteresses(
       interesses.includes(id)
         ? interesses.filter((s) => s !== id)
         : [...interesses, id],
     );
   };
+
+  const nichoEscolhido = nichoPorId(nicho);
 
   const comecar = async () => {
     setCriando(true);
@@ -129,8 +150,9 @@ export function WizardComecar() {
           <div>
             <h1 className="font-semibold text-2xl">Qual é o seu ramo?</h1>
             <p className="text-muted-foreground text-sm">
-              A empresa de teste já nasce com produtos, clientes e um catálogo
-              do seu jeito. Dá para pular.
+              Serve para marcar as soluções certas e organizar o seu menu. A
+              empresa de teste já nasce com produtos, clientes e um catálogo
+              para você mexer. Dá para pular.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -202,8 +224,11 @@ export function WizardComecar() {
               O que você quer resolver?
             </h1>
             <p className="text-muted-foreground text-sm">
-              Marque o que interessa: essas soluções ficam em destaque no menu e
-              viram o seu guia de primeiros passos. Tudo continua disponível.
+              {nichoEscolhido && !editado
+                ? `Já marcamos o que costuma servir a ${nichoEscolhido.nome.toLowerCase()} — desmarque o que você não usa.`
+                : "Marque o que interessa."}{" "}
+              Essas soluções ficam em destaque no menu e viram o seu guia de
+              primeiros passos. Tudo continua disponível.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -238,6 +263,17 @@ export function WizardComecar() {
               );
             })}
           </div>
+          {interesses.length === 0 && (
+            /*
+              Desmarcar tudo é uma escolha, e o servidor repõe o básico para o
+              guia não nascer vazio. Dizer isso aqui evita a surpresa de chegar
+              ao painel com cinco itens que ninguém marcou.
+            */
+            <p className="text-muted-foreground text-xs">
+              Sem nada marcado, começamos pelo básico: produtos, estoque,
+              catálogo, WhatsApp e o Astro.
+            </p>
+          )}
           <div className="flex justify-between">
             <Button
               variant="ghost"
@@ -248,9 +284,9 @@ export function WizardComecar() {
             </Button>
             <Button onClick={comecar} disabled={criando}>
               {criando ? <Loader2 className="size-4 animate-spin" /> : null}
-              {interesses.length > 0
-                ? "Criar minha empresa de teste"
-                : "Pular e começar"}
+              {criando
+                ? "Montando sua empresa…"
+                : "Criar minha empresa de teste"}
             </Button>
           </div>
         </section>
