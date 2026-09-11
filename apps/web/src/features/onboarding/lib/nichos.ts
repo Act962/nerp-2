@@ -68,7 +68,14 @@ export const NICHOS: NichoDef[] = [
     nome: "Supermercados",
     resumo: "Loja cheia, margem apertada e giro que não espera.",
     segment: "VAREJO",
-    interesses: ["pdv", "estoque", "catalogo-promocional", "whatsapp", "astro"],
+    interesses: [
+      "pdv",
+      "estoque",
+      "catalogo-promocional",
+      "qr-preco",
+      "whatsapp",
+      "astro",
+    ],
     pacote: "mercearia",
   },
   {
@@ -76,7 +83,14 @@ export const NICHOS: NichoDef[] = [
     nome: "Atacarejos",
     resumo: "Atacado e varejo no mesmo CNPJ, com preço por canal.",
     segment: "VAREJO",
-    interesses: ["pdv", "estoque", "catalogo-online", "ranking", "astro"],
+    interesses: [
+      "pdv",
+      "estoque",
+      "catalogo-online",
+      "qr-preco",
+      "ranking",
+      "astro",
+    ],
     pacote: "mercearia",
   },
   {
@@ -121,6 +135,25 @@ export const NICHOS: NichoDef[] = [
     interesses: INTERESSES_PADRAO,
     pacote: "generico",
   },
+];
+
+/**
+ * Soluções que NENHUM ramo pré-marca, de propósito.
+ *
+ * Os seis ramos do onboarding são de quem vende ao consumidor — supermercado,
+ * clínica, oficina. Estas três são de quem trabalha o ponto de venda dos
+ * OUTROS: indústria, distribuidor e agência. Sugeri-las a um supermercado
+ * seria marcar o que ele não vai usar, e o pré-marcado vira o guia de
+ * primeiros passos — guia com passo errado é pior que guia curto.
+ *
+ * A lista existe para o teste poder cobrar uma decisão a cada solução nova:
+ * ou algum ramo a sugere, ou ela entra aqui com o motivo. O que não pode é
+ * uma solução nascer invisível sem ninguém ter reparado.
+ */
+export const SEM_SUGESTAO_POR_RAMO: SolucaoId[] = [
+  "tradegram",
+  "planograma",
+  "book",
 ];
 
 /** O ramo escrito à mão cabe em `Organization.niche`, que é texto livre. */

@@ -7,6 +7,7 @@ import {
 import { limiteDeStars } from "@/features/billing/lib/planos";
 import { planoDaOrganizacao } from "@/features/billing/server/plano-da-organizacao";
 import { DIAS_PARA_APAGAR } from "@/features/onboarding/server/expirar-sandbox";
+import { solucoesNovasPara } from "@/features/onboarding/lib/solucoes";
 import { emEstrelas } from "@/features/stars/lib/decimal";
 import { calcularUso } from "@/features/stars/lib/uso";
 import prisma from "@/lib/db";
@@ -48,6 +49,7 @@ export async function avaliarAvisosDaOrg(
   agora = new Date(),
 ): Promise<CandidatoAAviso[]> {
   const candidatos = await Promise.all([
+    avisosDeSolucaoNova(organizationId),
     avisoDeEstoque(organizationId, agora),
     avisoDeTicket(organizationId, agora),
     avisoDeEventos(organizationId, agora),
@@ -56,7 +58,55 @@ export async function avaliarAvisosDaOrg(
     avisoDeSandbox(organizationId, agora),
   ]);
 
-  return candidatos.filter((c): c is CandidatoAAviso => c !== null);
+  return candidatos.flat().filter((c): c is CandidatoAAviso => c !== null);
+}
+
+/**
+ * O nerp ganhou uma ferramenta depois que esta empresa entrou.
+ *
+ * Quem já é cliente nunca escolheu a solução nova no onboarding: ela não está
+ * em `interests`, não sobe com o selo "Para você" e não entra no guia. Sem
+ * este aviso, a novidade simplesmente não existiria para ela — apareceria no
+ * menu e ninguém repararia.
+ *
+ * A `dedupeKey` aqui NÃO leva a data, ao contrário das outras: novidade se
+ * conta uma vez. E sai no máximo uma por passada, para um deploy com três
+ * ferramentas novas não virar três cartões de uma vez na cara de quem abriu o
+ * sistema para trabalhar.
+ */
+async function avisosDeSolucaoNova(
+  organizationId: string,
+): Promise<CandidatoAAviso[]> {
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { createdAt: true },
+  });
+  if (!org) return [];
+
+  const novas = solucoesNovasPara(org.createdAt);
+  if (novas.length === 0) return [];
+
+  const jaAvisadas = await prisma.astroAviso.findMany({
+    where: { organizationId, tipo: "solucao_nova" },
+    select: { dedupeKey: true },
+  });
+  const avisadas = new Set(jaAvisadas.map((linha) => linha.dedupeKey));
+
+  const proxima = novas.find(
+    (solucao) => !avisadas.has(`solucao_nova:${solucao.id}`),
+  );
+  if (!proxima) return [];
+
+  return [
+    {
+      tipo: "solucao_nova",
+      severidade: "baixa",
+      titulo: `Novidade no nerp: ${proxima.nome}`,
+      corpo: `${proxima.descricao} Já está disponível para a sua empresa, em Mais Soluções — é só abrir.`,
+      dados: { solucao: proxima.id, href: proxima.href, desde: proxima.desde },
+      dedupeKey: `solucao_nova:${proxima.id}`,
+    },
+  ];
 }
 
 async function avisoDeEstoque(

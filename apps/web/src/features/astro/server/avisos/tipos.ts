@@ -13,6 +13,7 @@ export const TIPOS_DE_AVISO = [
   "contrato_vencendo",
   "stars_baixas",
   "sandbox_expira",
+  "solucao_nova",
 ] as const;
 
 export type TipoDeAviso = (typeof TIPOS_DE_AVISO)[number];
@@ -35,6 +36,7 @@ export const ROTULO_DO_TIPO: Record<TipoDeAviso, string> = {
   contrato_vencendo: "Trade Marketing",
   stars_baixas: "Stars",
   sandbox_expira: "Conta de teste",
+  solucao_nova: "Novidade",
 };
 
 /**
