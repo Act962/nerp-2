@@ -35,14 +35,26 @@ export const RECURSOS_LIMITADOS: RecursoLimitado[] = [
 
 export const ROTULO_DO_RECURSO: Record<
   RecursoLimitado,
-  { singular: string; plural: string }
+  { singular: string; plural: string; feminino?: true }
 > = {
   produtos: { singular: "produto", plural: "produtos" },
   clientes: { singular: "cliente", plural: "clientes" },
   fornecedores: { singular: "fornecedor", plural: "fornecedores" },
-  lojas: { singular: "loja", plural: "lojas" },
+  lojas: { singular: "loja", plural: "lojas", feminino: true },
   membros: { singular: "membro", plural: "membros" },
 };
+
+/**
+ * "lojas ilimitadas", e não "lojas ilimitados".
+ *
+ * Parece bobagem até a tela ficar pronta: o plano de topo tem tudo ilimitado, e
+ * a lista inteira aparece de uma vez. Concordância errada numa página de preço
+ * é a primeira coisa que o cliente vê.
+ */
+export function ilimitado(recurso: RecursoLimitado): string {
+  const rotulo = ROTULO_DO_RECURSO[recurso];
+  return `${rotulo.plural} ${rotulo.feminino ? "ilimitadas" : "ilimitados"}`;
+}
 
 /** `null` = ilimitado. Diferente das cotas de trade, onde `0` é "não incluído". */
 export type LimitesDoPlano = Record<RecursoLimitado, number | null> & {
@@ -68,10 +80,18 @@ export interface PlanoDef {
   limites: LimitesDoPlano;
 }
 
+/**
+ * O plano de entrada.
+ *
+ * Nome herdado do NASAEX-WEY, de propósito: quem conhece as duas casas não
+ * deve encontrar dois vocabulários para a mesma coisa. `id` continua sendo a
+ * chave gravada em `subscription.plan`.
+ */
 export const PLANO_GRATIS: PlanoDef = {
-  id: "gratis",
-  nome: "Grátis",
-  descricao: "Para conhecer o sistema com a sua própria operação.",
+  id: "suit",
+  nome: "Suit",
+  descricao:
+    "Para conhecer o sistema com a sua própria operação, sem cartão e sem prazo.",
   precoCentavos: 0,
   priceId: null,
   annualDiscountPriceId: null,
@@ -97,31 +117,91 @@ const SEM_LIMITES: LimitesDoPlano = {
 };
 
 /**
- * Slots dos planos pagos. Nome, descrição, preço, `priceId` e limites ainda
- * serão definidos — preencher aqui e nada mais precisa mudar. Enquanto o
- * `priceId` for `null` o plano aparece como "em breve" e não vai para o
- * plugin.
+ * Os planos pagos.
+ *
+ * Preços ancorados no que o mercado cobra HOJE por menos do que o nerp
+ * entrega: um ERP de operação real fica entre R$ 189 e R$ 299 por mês (Tiny,
+ * ContaAzul, Omie, Bling), plataforma de WhatsApp com CRM entre R$ 99 e
+ * R$ 599, e trade marketing é cotação fechada. Somando, quem comprasse
+ * separado passa de R$ 650 — e é isso que o comparativo da tela mostra.
+ *
+ * `priceId` e `annualDiscountPriceId` seguem `null`: são o que o dev preenche
+ * depois de criar os produtos no Stripe. Enquanto forem nulos o plano aparece
+ * como "em breve" e não entra no plugin, que é o comportamento desejado.
+ *
+ * A COTA DE ★ nunca pode valer mais que a mensalidade. A ★ sai por R$ 0,0998
+ * no pacote pequeno, então 800 ★ dentro do Earth são R$ 80 de consumo num
+ * plano de R$ 197 — 41%. O teste trava essa razão: cota que ultrapassa o
+ * preço é prejuízo que só aparece na fatura.
  */
-function slotDePlanoPago(numero: number): PlanoDef {
-  return {
-    id: `plano-${numero}`,
-    nome: `Plano ${numero}`,
-    descricao: "Em definição.",
-    precoCentavos: null,
-    priceId: null,
-    annualDiscountPriceId: null,
-    gratuito: false,
-    starsBoasVindas: 0,
-    limites: { ...SEM_LIMITES },
-  };
-}
+const EARTH: PlanoDef = {
+  id: "earth",
+  nome: "Earth",
+  descricao: "Para a loja que já vende todo dia e quer parar de usar planilha.",
+  precoCentavos: 19_700,
+  priceId: null,
+  annualDiscountPriceId: null,
+  gratuito: false,
+  starsBoasVindas: 0,
+  limites: {
+    produtos: null,
+    clientes: null,
+    fornecedores: null,
+    lojas: 2,
+    membros: 5,
+    starsPorCiclo: 800,
+  },
+};
 
-export const PLANOS: PlanoDef[] = [
-  PLANO_GRATIS,
-  slotDePlanoPago(1),
-  slotDePlanoPago(2),
-  slotDePlanoPago(3),
-];
+const EXPLORE: PlanoDef = {
+  id: "explore",
+  nome: "Explore",
+  descricao:
+    "Para quem opera mais de uma loja e trabalha o ponto de venda junto com a indústria.",
+  precoCentavos: 39_700,
+  priceId: null,
+  annualDiscountPriceId: null,
+  gratuito: false,
+  starsBoasVindas: 0,
+  limites: {
+    produtos: null,
+    clientes: null,
+    fornecedores: null,
+    lojas: 5,
+    membros: 15,
+    starsPorCiclo: 1_800,
+  },
+};
+
+const CONSTELLATION: PlanoDef = {
+  id: "constellation",
+  nome: "Constellation",
+  descricao: "Para a rede que precisa medir tudo, de ponta a ponta, sem teto.",
+  precoCentavos: 79_700,
+  priceId: null,
+  annualDiscountPriceId: null,
+  gratuito: false,
+  starsBoasVindas: 0,
+  limites: { ...SEM_LIMITES, starsPorCiclo: 4_000 },
+};
+
+export const PLANOS: PlanoDef[] = [PLANO_GRATIS, EARTH, EXPLORE, CONSTELLATION];
+
+/** O plano que a tela marca como "mais popular". */
+export const PLANO_EM_DESTAQUE = EXPLORE.id;
+
+/**
+ * O desconto do anual: paga-se dez meses e leva-se doze.
+ *
+ * Em código e não por plano porque é política comercial, não característica de
+ * plano — mudar o desconto de um só criaria uma tabela de exceções.
+ */
+export const MESES_PAGOS_NO_ANUAL = 10;
+
+export function precoAnualCentavos(plano: PlanoDef): number | null {
+  if (plano.precoCentavos === null || plano.precoCentavos === 0) return null;
+  return plano.precoCentavos * MESES_PAGOS_NO_ANUAL;
+}
 
 /**
  * Organizações anteriores aos limites. Não aparece na lista e não pode ser

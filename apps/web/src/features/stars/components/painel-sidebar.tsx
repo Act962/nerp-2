@@ -128,6 +128,20 @@ export function StarsPainelSidebar() {
           </p>
         )
       ) : null}
+
+      {/*
+        A porta dos planos.
+
+        Até aqui só se chegava a `/configuracoes/planos` pelo diálogo de limite
+        atingido e pelo card de boas-vindas — ou seja, esbarrando num bloqueio.
+        Quem quisesse assinar por vontade própria não tinha por onde.
+      */}
+      <Link
+        href="/configuracoes/planos"
+        className="text-muted-foreground text-xs underline-offset-2 hover:underline"
+      >
+        Ver planos
+      </Link>
     </div>
   );
 }
