@@ -12,6 +12,7 @@ import { CostCentersTab } from "./cost-centers-tab";
 import { DashboardTab } from "./dashboard-tab";
 import { DreTab } from "./dre-tab";
 import { DroTab } from "./dro-tab";
+import { VendasTab } from "./vendas-tab";
 import { EntriesTab } from "./entries-tab";
 import { PeriodFilter } from "./period-filter";
 
@@ -24,7 +25,13 @@ import { PeriodFilter } from "./period-filter";
  * redefinir o que cada cartão significa. Contas, Categorias, Centros de Custo e
  * Contatos são cadastros, sem data nenhuma.
  */
-const ABAS_COM_PERIODO = new Set(["entries", "cashflow", "dre", "dro"]);
+const ABAS_COM_PERIODO = new Set([
+  "entries",
+  "cashflow",
+  "dre",
+  "dro",
+  "vendas",
+]);
 
 export function FinanceiroPage() {
   // Aba e período na URL: recarregar não devolve o usuário ao Dashboard de
@@ -55,6 +62,7 @@ export function FinanceiroPage() {
           <TabsTrigger value="cashflow">Fluxo de Caixa</TabsTrigger>
           <TabsTrigger value="dre">DRE</TabsTrigger>
           <TabsTrigger value="dro">DRO</TabsTrigger>
+          <TabsTrigger value="vendas">Vendas</TabsTrigger>
           <TabsTrigger value="accounts">Contas</TabsTrigger>
           <TabsTrigger value="categories">Categorias</TabsTrigger>
           <TabsTrigger value="cost-centers">Centros de Custo</TabsTrigger>
@@ -81,6 +89,9 @@ export function FinanceiroPage() {
       </TabsContent>
       <TabsContent value="dro" className="mt-6">
         <DroTab periodo={periodo} />
+      </TabsContent>
+      <TabsContent value="vendas" className="mt-6">
+        <VendasTab periodo={periodo} />
       </TabsContent>
       <TabsContent value="accounts" className="mt-6">
         <AccountsTab />
