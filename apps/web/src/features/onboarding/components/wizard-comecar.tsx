@@ -8,7 +8,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { NICHO_IDS, NICHOS, nichoPorId } from "../lib/nichos";
+import { Input } from "@/components/ui/input";
+import {
+  INTERESSES_PADRAO,
+  MAX_RAMO_LIVRE,
+  NICHO_IDS,
+  NICHOS,
+  nichoPorId,
+} from "../lib/nichos";
 import {
   codificarRespostas,
   RESPOSTAS_COOKIE,
@@ -39,6 +46,7 @@ export function WizardComecar() {
     "solucoes",
     parseAsArrayOf(parseAsStringLiteral(SOLUCAO_IDS)).withDefault([]),
   );
+  const [ramo, setRamo] = useQueryState("ramo");
   const [criando, setCriando] = useState(false);
 
   const escolherNicho = (id: (typeof NICHO_IDS)[number]) => {
@@ -61,7 +69,10 @@ export function WizardComecar() {
     const respostas: RespostasDoWizard = {
       nicho: nicho ?? undefined,
       segment: nichoPorId(nicho)?.segment,
-      interesses,
+      ramo: nicho === "outro" ? (ramo ?? undefined) : undefined,
+      // Guia vazio é a tela dizendo "vire-se": quem não marcou nada leva o
+      // conjunto padrão, que é palpite, mas é palpite com passos.
+      interesses: interesses.length > 0 ? interesses : INTERESSES_PADRAO,
     };
     // O cookie é lido pelo servidor no `after` do sign-in anônimo — 10 min
     // bastam para o round-trip; depois ele é apagado.
@@ -137,8 +148,42 @@ export function WizardComecar() {
               </button>
             ))}
           </div>
+
+          {nicho === "outro" && (
+            /*
+              O campo só aparece depois de escolher "Outro": um input solto ao
+              lado de seis cartões parece obrigatório, e ele não é. O que for
+              escrito aqui vira o ramo da organização — é o sinal que diz
+              quais pacotes de exemplo vale construir depois.
+            */
+            <div className="flex flex-col gap-1">
+              <label className="text-sm" htmlFor="ramo-livre">
+                O que a sua empresa faz?
+              </label>
+              <Input
+                id="ramo-livre"
+                autoFocus
+                maxLength={MAX_RAMO_LIVRE}
+                placeholder="Pet shop, papelaria, distribuidora de bebidas…"
+                value={ramo ?? ""}
+                onChange={(evento) => setRamo(evento.target.value || null)}
+              />
+              <p className="text-muted-foreground text-xs">
+                Opcional. Serve para a gente saber quais ramos estão chegando.
+              </p>
+            </div>
+          )}
           <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => setPasso("solucoes")}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                // Pular é "não quero responder", e não "nenhum destes": quem
+                // pula ainda assim leva soluções marcadas, para não cair num
+                // dashboard com o guia em branco.
+                if (interesses.length === 0) setInteresses(INTERESSES_PADRAO);
+                setPasso("solucoes");
+              }}
+            >
               Pular
             </Button>
             <Button onClick={() => setPasso("solucoes")}>

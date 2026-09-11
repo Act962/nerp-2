@@ -34,6 +34,34 @@ Conferido no navegador, com o site e o app de pé: na home e em `/solucoes` o bo
 
 ---
 
+## O ramo que não está na lista
+
+Os seis ramos vieram do site, e quem não é nenhum deles só tinha "Pular" — que
+é dizer "não quero responder", e não "sou de um ramo que não está aí". A
+segunda é uma resposta, e jogá-la fora custava duas coisas: a pessoa terminava
+sem nenhuma solução marcada, então o guia do dashboard nascia vazio justamente
+para quem mais precisaria dele; e perdia-se o único sinal que diria quais
+pacotes de exemplo vale construir depois.
+
+- [x] **Cartão "Outro ramo"**, com um campo curto e opcional para escrever o
+  que a empresa faz. `Organization.niche` é texto livre, então o que a pessoa
+  escreve é o que fica gravado — "pet shop", e não o rótulo do botão.
+- [x] **"Outro" pré-marca o conjunto padrão** (produtos, estoque, catálogo,
+  WhatsApp e o Astro), que serve a quase qualquer negócio que vende algo.
+- [x] **"Pular" também pré-marca**, pelo mesmo motivo: guia vazio é a tela
+  dizendo "vire-se".
+- [x] **O servidor repete a rede de segurança**: chegando sem interesse
+  nenhum, aplica o padrão. A tela pode mudar; a garantia fica no servidor.
+- [x] O texto é limpo antes de ir ao banco — sem caractere de controle, espaço
+  colapsado e cortado no tamanho da coluna.
+
+Uma observação que fica: **o ramo ainda não muda os dados de exemplo**. Só
+existe o pacote `mercearia`, então quem escolhe "Clínicas" também recebe
+produtos de mercearia. Era pendência conhecida da Fase 1 (faltam as fotos), e
+significa que "Outro" não fica pior que os seis nesse ponto — fica igual.
+
+---
+
 ## Pendencias
 
 Duas decisões que são do dev, e por isso ficaram de fora:

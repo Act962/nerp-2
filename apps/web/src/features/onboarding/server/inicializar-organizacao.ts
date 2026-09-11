@@ -6,7 +6,7 @@ import { ensureTradeCatalogs } from "@/features/trade-catalog/lib/ensure-catalog
 import prisma from "@/lib/db";
 import { SEGMENT_DEFAULT_DISABLED } from "@/lib/org-segment";
 import { enqueueSyncOutbox } from "@/lib/sync-outbox";
-import { nichoPorId } from "../lib/nichos";
+import { INTERESSES_PADRAO, limparRamoLivre, nichoPorId } from "../lib/nichos";
 import { RESPOSTAS_VAZIAS, type RespostasDoWizard } from "../lib/respostas";
 import { seedDemoDataForOrg } from "./seed-demo";
 import { seedSolucoesDemo } from "./seed-solucoes";
@@ -51,14 +51,30 @@ export async function inicializarOrganizacao(input: {
   const segment = respostas.segment ?? nicho?.segment ?? null;
   const agora = new Date();
 
+  /*
+    O ramo gravado: o que a pessoa ESCREVEU quando escolheu "Outro", e o id
+    nos demais casos. Guardar "outro" seria guardar o rótulo do botão e perder
+    a única informação que diz quais pacotes de exemplo vale construir depois.
+  */
+  const ramoLivre = limparRamoLivre(respostas.ramo);
+  const niche =
+    nicho?.id === "outro" ? (ramoLivre ?? "outro") : (nicho?.id ?? null);
+
+  /*
+    Guia vazio é a tela dizendo "vire-se". Quem pulou os dois passos recebe o
+    conjunto padrão — que é um palpite, mas é um palpite com passos.
+  */
+  const interesses =
+    respostas.interesses.length > 0 ? respostas.interesses : INTERESSES_PADRAO;
+
   await prisma.organization.update({
     where: { id: organization.id },
     data: {
       subdomain: sandbox ? null : organization.slug,
       verifiedAt: sandbox ? null : agora,
       lastAccessAt: agora,
-      niche: nicho?.id ?? null,
-      interests: respostas.interesses,
+      niche,
+      interests: interesses,
       ...(segment
         ? { segment, disabledModules: SEGMENT_DEFAULT_DISABLED[segment] }
         : {}),

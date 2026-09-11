@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NICHO_IDS } from "./nichos";
+import { MAX_RAMO_LIVRE, NICHO_IDS } from "./nichos";
 import { ORG_SEGMENTS } from "@/lib/org-segment";
 import { SOLUCAO_IDS } from "./solucoes";
 
@@ -16,6 +16,8 @@ export const RESPOSTAS_COOKIE = "nerp_comecar";
 export const respostasDoWizardSchema = z.object({
   segment: z.enum(ORG_SEGMENTS).optional(),
   nicho: z.enum(NICHO_IDS).optional(),
+  /** O que a pessoa escreveu quando escolheu "Outro". */
+  ramo: z.string().max(MAX_RAMO_LIVRE).optional(),
   interesses: z.array(z.enum(SOLUCAO_IDS)).max(12).default([]),
 });
 
