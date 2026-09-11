@@ -155,6 +155,13 @@ export type EntradaConsultor = {
   toolApproval?: Record<string, "user-approval">;
   approvalSecret?: string;
   /**
+   * Quais tools vão para o provedor nesta chamada. Todas continuam sendo
+   * PASSADAS — o conversor precisa delas para reconhecer as chamadas que já
+   * estão no histórico —, mas só estas são oferecidas ao modelo. É o que
+   * evita pagar 30 mil caracteres de schema numa pergunta de contagem.
+   */
+  ferramentasAtivas?: readonly string[];
+  /**
    * O que vai para o provedor além do prompt — no canal logado, a resolução
    * com que ele olha as imagens anexadas.
    */
@@ -213,6 +220,9 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
       : {}),
     ...(entrada.providerOptions
       ? { providerOptions: entrada.providerOptions }
+      : {}),
+    ...(entrada.ferramentasAtivas
+      ? { activeTools: entrada.ferramentasAtivas }
       : {}),
     onStepEnd: ({ sources }) => {
       if (sources.length > 0) entrada.aoBuscarNaWeb?.();

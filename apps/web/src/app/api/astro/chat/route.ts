@@ -1,4 +1,9 @@
-import { safeValidateUIMessages, type UIMessage } from "ai";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  safeValidateUIMessages,
+  type UIMessage,
+} from "ai";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -18,7 +23,13 @@ import {
   MENSAGENS_PARA_RESUMIR,
   resumirConversa,
 } from "@/features/astro/server/resumir-conversa";
+import { reconhecerPergunta } from "@/features/astro/server/atalhos/reconhecer";
+import { responderPorAtalho } from "@/features/astro/server/atalhos/responder";
 import { conferirTetoDiario } from "@/features/astro/server/teto-diario";
+import {
+  escolherFerramentas,
+  historicoTemEscrita,
+} from "@/features/astro/server/tools/ativas";
 import { construirToolsDoApp } from "@/features/astro/server/tools-app";
 import {
   LIMITE_TEXTO,
@@ -254,6 +265,66 @@ export async function POST(request: NextRequest) {
     }),
   ]);
 
+  /*
+    O atalho: pergunta fechada não precisa de IA.
+
+    "Quantos produtos eu tenho" custa ~42 mil caracteres de contexto para o
+    modelo escolher a ferramenta e redigir a frase. A consulta é a mesma, e a
+    frase escrita em código nunca erra o número. Só dispara quando a frase
+    inteira casa e não há ambiguidade — no resto, cai para o modelo.
+
+    Não cobra ★: não houve token nenhum.
+  */
+  const ultima = validadas.data.at(-1);
+  const semAnexo = anexos.length === 0;
+  const pergunta =
+    semAnexo && ultima?.role === "user"
+      ? reconhecerPergunta(textoDaMensagem(ultima))
+      : null;
+
+  if (pergunta) {
+    const resposta = await responderPorAtalho(org.id, pergunta).catch(
+      (erro) => {
+        // Atalho que falha não pode derrubar a conversa: cai para o modelo,
+        // que sabe o caminho longo.
+        console.error("[astro] atalho falhou", {
+          atalho: pergunta.atalho,
+          erro,
+        });
+        return null;
+      },
+    );
+
+    if (resposta) {
+      console.info("[astro] atalho", {
+        organizationId: org.id,
+        sessaoId: sessaoAtual.id,
+        atalho: pergunta.atalho,
+      });
+      const fluxo = createUIMessageStream({
+        execute: ({ writer }) => {
+          const id = "atalho";
+          writer.write({ type: "text-start", id });
+          writer.write({ type: "text-delta", id, delta: resposta });
+          writer.write({ type: "text-end", id });
+        },
+      });
+      return createUIMessageStreamResponse({
+        stream: fluxo,
+        headers: { "x-astro-session": sessaoAtual.id, "x-astro-atalho": "1" },
+      });
+    }
+  }
+
+  // As 42 ferramentas custam 30 mil caracteres de schema em TODA mensagem.
+  // As de leitura da operação ficam sempre ligadas; escrita e catálogo da
+  // ÓRBITA entram só quando a conversa pede.
+  const escolha = escolherFerramentas({
+    disponiveis: Object.keys(tools),
+    texto: falaDoVisitante(validadas.data),
+    temEscritaNoHistorico: historicoTemEscrita(validadas.data),
+  });
+
   // Cada passo que volta com fontes é uma busca do provedor, cobrada no fim
   // junto com os tokens: uma escrita só, e nunca no meio do stream.
   let buscasNaWeb = 0;
@@ -273,6 +344,7 @@ export async function POST(request: NextRequest) {
     toolApproval: CONFIGURACAO_DE_APROVACAO,
     approvalSecret: segredoDeAprovacao(),
     tools,
+    ferramentasAtivas: escolha.ativas,
     // Resolução média nas imagens: alta multiplica os tokens de visão por
     // anexo, e para ler rótulo, gôndola e nota fiscal a média resolve.
     ...(modelo.provedor === "google" && anexos.length > 0
@@ -295,6 +367,7 @@ export async function POST(request: NextRequest) {
         tool: evento.tool,
         ms: evento.duracaoMs,
         falhou: evento.falhou,
+        ferramentasOferecidas: escolha.ativas.length,
       });
     },
     onFinish: async ({ tokensIn, tokensOut }) => {
