@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distributeProducts } from "./page-chunks";
+import { congelarDistribuicao, distributeProducts } from "./page-chunks";
 import type { CatalogPage } from "../types";
 
 // Teste de EQUIVALÊNCIA. `legacyDistribute` abaixo é a implementação que rodava
@@ -236,5 +236,132 @@ describe("página de índice não recebe produto", () => {
       return 2;
     });
     expect(vistos).toEqual([1, 2]);
+  });
+});
+
+/**
+ * Inserir uma página não pode mover produto de página nenhuma.
+ *
+ * O caso que originou esta suíte: um catálogo em produção com três páginas, a
+ * última mostrando quatro produtos. Ao inserir uma página depois dela, três
+ * dos quatro migraram para a página nova — a página do cliente perdeu conteúdo
+ * sem nenhum aviso.
+ *
+ * A causa não era `distributeProducts`, e sim o congelamento que roda antes:
+ * ele pulava as páginas que já tinham `productIds`, sem perceber que a última
+ * também exibe os produtos NÃO atribuídos. Esses ficavam soltos, e a página
+ * nova — que passa a ser a última — os recolhia.
+ */
+describe("congelarDistribuicao", () => {
+  const quatro = prods(4);
+  const cabeTudo = () => 10;
+
+  it("fixa na página os produtos que ela mostra", () => {
+    const pages = [page({ id: "p1" }), page({ id: "p2" })];
+    const congeladas = congelarDistribuicao(
+      pages,
+      distributeProducts(pages, quatro, () => 2),
+    );
+    expect(congeladas[0].productIds).toEqual(["prod-1", "prod-2"]);
+    expect(congeladas[1].productIds).toEqual(["prod-3", "prod-4"]);
+  });
+
+  it("a última página não perde os produtos não atribuídos", () => {
+    // "prod-4" não pertence a ninguém, então a última o exibe. Sem prendê-lo
+    // ali, ele vira presa da próxima página criada.
+    const pages = [
+      page({ id: "p1", productIds: ["prod-1"] }),
+      page({ id: "p2", productIds: ["prod-2"] }),
+      page({ id: "p3", productIds: ["prod-3"] }),
+    ];
+    const chunks = distributeProducts(pages, quatro, cabeTudo);
+    expect(ids(chunks)[2]).toEqual(["prod-3", "prod-4"]);
+
+    const congeladas = congelarDistribuicao(pages, chunks);
+    expect(congeladas[2].productIds).toEqual(["prod-3", "prod-4"]);
+  });
+
+  it("não descarta id de produto que saiu do catálogo", () => {
+    // "sumiu" não está mais no catálogo, então não aparece no chunk — mas
+    // segue reivindicado, e é isso que permite trazê-lo de volta depois.
+    const pages = [page({ id: "p1", productIds: ["prod-1", "sumiu"] })];
+    const congeladas = congelarDistribuicao(
+      pages,
+      distributeProducts(pages, quatro, cabeTudo),
+    );
+    expect(congeladas[0].productIds).toContain("sumiu");
+  });
+
+  it("não duplica id já reivindicado", () => {
+    const pages = [page({ id: "p1", productIds: ["prod-1"] })];
+    const congeladas = congelarDistribuicao(
+      pages,
+      distributeProducts(pages, quatro, cabeTudo),
+    );
+    const lista = congeladas[0].productIds ?? [];
+    expect(new Set(lista).size).toBe(lista.length);
+  });
+});
+
+describe("inserir página depois de congelar", () => {
+  const quatro = prods(4);
+  const cabeTudo = () => 10;
+
+  /** O que o editor faz: congela, insere a página vazia, redistribui. */
+  function inserirDepoisDe(pages: CatalogPage[], idx: number) {
+    const congeladas = congelarDistribuicao(
+      pages,
+      distributeProducts(pages, quatro, cabeTudo),
+    );
+    const proximas = [...congeladas];
+    proximas.splice(idx + 1, 0, page({ id: "nova", productIds: [] }));
+    return distributeProducts(proximas, quatro, cabeTudo);
+  }
+
+  const tresPaginas = () => [
+    page({ id: "p1", productIds: ["prod-1"] }),
+    page({ id: "p2", productIds: ["prod-2"] }),
+    page({ id: "p3", productIds: ["prod-3"] }),
+  ];
+
+  it("nenhum produto muda de página — nem os não atribuídos", () => {
+    const antes = ids(distributeProducts(tresPaginas(), quatro, cabeTudo));
+    const depois = ids(inserirDepoisDe(tresPaginas(), 2));
+
+    expect(depois[0]).toEqual(antes[0]);
+    expect(depois[1]).toEqual(antes[1]);
+    // A que mais dói: "prod-4" continua aqui, e não pula para a nova.
+    expect(depois[2]).toEqual(["prod-3", "prod-4"]);
+  });
+
+  it("a página nova nasce vazia", () => {
+    expect(ids(inserirDepoisDe(tresPaginas(), 2))[3]).toEqual([]);
+  });
+
+  it("vale também inserindo no meio", () => {
+    const depois = ids(inserirDepoisDe(tresPaginas(), 0));
+    expect(depois[0]).toEqual(["prod-1"]);
+    expect(depois[1]).toEqual([]);
+    expect(depois[3]).toEqual(["prod-3", "prod-4"]);
+  });
+
+  it("catálogo em modo automático também não embaralha", () => {
+    // Sem `productIds` em ninguém: o congelamento transforma a distribuição
+    // automática em explícita, e a página nova não rouba de ninguém.
+    const antes = [page({ id: "p1" }), page({ id: "p2" })];
+    const congeladas = congelarDistribuicao(
+      antes,
+      distributeProducts(antes, quatro, () => 2),
+    );
+    const depois = ids(
+      distributeProducts(
+        [...congeladas, page({ id: "nova", productIds: [] })],
+        quatro,
+        () => 2,
+      ),
+    );
+    expect(depois[0]).toEqual(["prod-1", "prod-2"]);
+    expect(depois[1]).toEqual(["prod-3", "prod-4"]);
+    expect(depois[2]).toEqual([]);
   });
 });

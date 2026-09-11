@@ -1,3 +1,12 @@
+// `etiqueta-padrao.ts` importa daqui só TIPOS, então o ciclo some na compilação
+// — não há import de valor nos dois sentidos em tempo de execução.
+import {
+  ESCALA_DO_GRUPO_PADRAO,
+  ETIQUETA_PADRAO,
+  GRUPO_PADRAO,
+  PROPORCAO_DO_CARD_PADRAO,
+} from "./etiqueta-padrao";
+
 // Estilo de exibição do preço no card. `accent` é a cor da borda (boxed) ou do
 // fundo (highlight); `text` a cor do texto do preço nessas variantes.
 export type PriceStyle = {
@@ -1050,6 +1059,15 @@ export function virtualProductsFromList(
   });
 }
 
+/**
+ * A arte que todo catálogo novo recebe.
+ *
+ * Mora em `public/` e não no bucket: é asset da aplicação, então funciona em
+ * ambiente novo, sem upload e sem R2 configurado — a mesma razão pela qual o
+ * mockup de produto (`PRODUCT_PLACEHOLDER`) vive lá.
+ */
+export const FUNDO_PADRAO = "/catalogo-fundo-padrao.jpg";
+
 export const DEFAULT_CONFIG: CatalogConfig = {
   // Sem título por padrão. Nascia com "Promoções", que aparecia impresso na
   // arte de todo catálogo novo sem ninguém ter pedido — quem quiser um título
@@ -1058,7 +1076,10 @@ export const DEFAULT_CONFIG: CatalogConfig = {
   subtitle: "",
   showTitle: false,
   showSubtitle: true,
-  pageSize: "square",
+  // 3:4, a mesma proporção da arte de fundo padrão (1080×1440). Era quadrada,
+  // e aí o `cover` cortava justamente o topo da arte — onde fica o convite
+  // "clique aqui para alterar esse fundo", que é o que ensina a trocar.
+  pageSize: "portrait",
   layout: "grid-3",
   gridCols: 3,
   gridRows: 4,
@@ -1068,7 +1089,11 @@ export const DEFAULT_CONFIG: CatalogConfig = {
   cardColor: "#ffffff",
   textSize: "sm",
   fontWeight: "medium",
-  backgroundImage: "",
+  // O fundo da casa. Catálogo novo nasce com a arte da ÓRBITA em vez de uma
+  // folha branca — e a própria arte traz o convite "clique aqui para alterar
+  // esse fundo", que é como se descobre que dá para trocar sem ler manual.
+  // Quem não quiser usa o botão de remover, que grava "" e volta à cor lisa.
+  backgroundImage: FUNDO_PADRAO,
   backgroundFit: "cover",
   paddingTop: 24,
   paddingRight: 24,
@@ -1102,5 +1127,13 @@ export const DEFAULT_CONFIG: CatalogConfig = {
   footerSupplierIds: [],
   showFooter: true,
   showFooterSuppliers: true,
+  // A etiqueta e o grupo da casa, do mesmo jeito que o fundo: catálogo novo
+  // nasce parecido com um encarte. Detalhes e as ressalvas de coordenada em
+  // `etiqueta-padrao.ts`.
+  cardLayout: ETIQUETA_PADRAO,
+  cardLayoutOverrides: {},
+  cardAspectRatio: PROPORCAO_DO_CARD_PADRAO,
+  productGroup: GRUPO_PADRAO,
+  productGroupScale: ESCALA_DO_GRUPO_PADRAO,
   pages: [],
 };

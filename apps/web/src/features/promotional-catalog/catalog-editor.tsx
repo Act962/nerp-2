@@ -70,7 +70,7 @@ import {
 } from "./hooks/use-export";
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { buildDynamicContext } from "./lib/resolve-entity";
-import { distributeProducts } from "./lib/page-chunks";
+import { congelarDistribuicao, distributeProducts } from "./lib/page-chunks";
 import { nextCopyName, sliceProductsByGroup } from "./lib/group-slices";
 import { orphanedByPageDelete, productIdsOnPage } from "./lib/page-products";
 import { applyCategoryGroups, type CategoryGroup } from "./lib/apply-category";
@@ -282,6 +282,17 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   const [panelOpen, setPanelOpen] = useState(true);
   // Sinal p/ abrir o diálogo "Adicionar produto" (botão do estado vazio).
   const [addProductSignal, setAddProductSignal] = useState(0);
+  /**
+   * Sobe a cada vez que a pessoa pede para mexer no fundo — clicando no fundo
+   * da página ou no "Adicionar fundo" da página vazia. O painel usa para
+   * pulsar o "Trocar imagem": abrir a aba certa não basta, porque o botão fica
+   * do outro lado da tela e ninguém olha para lá por conta própria.
+   */
+  const [destacarTrocaDeFundo, setDestacarTrocaDeFundo] = useState(0);
+  const abrirAbaDeFundo = () => {
+    setActiveTab("fundo");
+    setDestacarTrocaDeFundo((n) => n + 1);
+  };
   // Pedido para abrir "Editar produto" (duplo clique no card da página). O
   // `nonce` força o efeito no ConfigPanel a reagir mesmo ao reeditar o mesmo id.
   const [editProductRequest, setEditProductRequest] = useState<{
@@ -777,17 +788,28 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => setSelection(null), [safePage]);
 
-  // Miniatura JPEG (~380px) da página atual do preview — usada na lista de
+  // Miniatura JPEG (~540px) da página atual do preview — usada na lista de
   // catálogos e ao salvar um padrão. As fotos já são data URL no DOM, então o
   // html-to-image captura sem CORS.
+  //
+  // Era 0.35 a 70%: num encarte 1080×1440 o nome do produto sai a 39 px e o
+  // preço a 166 px, então a 0.35 o nome virava 13 px dentro de um JPEG bem
+  // comprimido — nítido no arquivo exportado, ilegível na miniatura, que é
+  // justamente onde se escolhe qual catálogo abrir. A 0.5 o nome fica em
+  // ~20 px e volta a ser leitura, não adivinhação.
+  //
+  // O preço é o dobro da área e a miniatura vai como data URL na LINHA do
+  // catálogo: ~14 KB viram ~30 KB por catálogo, e a lista carrega todas. Se um
+  // dia a lista ficar pesada, o caminho é tirar a miniatura da linha (coluna
+  // própria ou bucket), não voltar a borrar o texto.
   const captureThumbnail = async (): Promise<string> => {
     const el = previewRef.current;
     if (!el) return "";
     try {
       const { toJpeg } = await import("html-to-image");
       return await toJpeg(el, {
-        pixelRatio: 0.35,
-        quality: 0.7,
+        pixelRatio: 0.5,
+        quality: 0.8,
         skipFonts: true,
         cacheBust: false,
       });
@@ -1115,11 +1137,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         const before = new Set(prev.manuallyAddedIds ?? []);
         const added = changes.manuallyAddedIds.filter((id) => !before.has(id));
         if (added.length > 0) {
-          const frozen = ensurePages(next).map((p, i) =>
-            p.productIds !== undefined
-              ? p
-              : { ...p, productIds: (pageChunks[i] ?? []).map((pp) => pp.id) },
-          );
+          const frozen = congelarDistribuicao(ensurePages(next), pageChunks);
           return {
             ...next,
             pages: frozen.map((p, i) => {
@@ -1394,7 +1412,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     else if (next.kind === "card") setActiveTab("produtos");
     else if (next.kind === "styleBlock") setActiveTab("estilos");
     else if (next.kind === "background")
-      setActiveTab("fundo"); // fundo da página
+      abrirAbaDeFundo(); // fundo da página
     else if (next.kind === "group" && next.id)
       setActiveTab("produtos"); // grupo nomeado → aba "Página" (mostra o grupo)
     else setActiveTab("layout"); // grade padrão de produtos edita na aba Layout
@@ -1459,11 +1477,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       // Grupo único: remove os produtos DESTA página (esvazia a grade), sem
       // redistribuir para as outras — congela a distribuição e exclui os ids.
       setConfig((prev) => {
-        const frozen = ensurePages(prev).map((pg, i) =>
-          pg.productIds !== undefined
-            ? pg
-            : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
-        );
+        const frozen = congelarDistribuicao(ensurePages(prev), pageChunks);
         const nextPages = frozen.map((pg, i) =>
           i === pageIndex
             ? { ...pg, productIds: [], styleBlocks: [], productGroups: [] }
@@ -1534,11 +1548,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         return prev;
       return {
         ...prev,
-        pages: ensurePages(prev).map((pg, i) =>
-          pg.productIds !== undefined
-            ? pg
-            : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
-        ),
+        pages: congelarDistribuicao(ensurePages(prev), pageChunks),
       };
     });
     setActiveTab("produtos");
@@ -1551,11 +1561,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       // Congela a distribuição atual: cada página existente fixa seus produtos
       // (productIds) a partir do que mostra AGORA. Assim a nova página nasce
       // vazia e nenhum produto pula da página anterior para ela.
-      const frozen = pgs.map((pg, i) =>
-        pg.productIds !== undefined
-          ? pg
-          : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
-      );
+      const frozen = congelarDistribuicao(pgs, pageChunks);
       const base = frozen[idx] ?? frozen[0];
       const nextNum = pgs.length + 1;
       const newPage: CatalogPage = {
@@ -1603,11 +1609,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     updatePages((pgs) => {
       // Mesmo congelamento do `addPage`: sem ele os produtos escorregam de
       // página quando a lista cresce.
-      const frozen = pgs.map((pg, i) =>
-        pg.productIds !== undefined
-          ? pg
-          : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
-      );
+      const frozen = congelarDistribuicao(pgs, pageChunks);
       const base = frozen[idx] ?? frozen[0];
       const novas: CatalogPage[] = Array.from({ length: quantas }, (_, k) => ({
         id: `indice-${Date.now()}-${k}`,
@@ -1693,11 +1695,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       // Congela a distribuição atual (cada página fixa seus produtos) e remove a
       // página alvo. Os produtos DELA saem do catálogo — NÃO redistribuem para as
       // outras (nem viram órfãos na última página).
-      const frozen = ensurePages(prev).map((pg, i) =>
-        pg.productIds !== undefined
-          ? pg
-          : { ...pg, productIds: (pageChunks[i] ?? []).map((p) => p.id) },
-      );
+      const frozen = congelarDistribuicao(ensurePages(prev), pageChunks);
       // Só saem do catálogo os produtos que NENHUMA página restante usa. Uma
       // página duplicada aponta para os mesmos ids da original (`duplicatePage`
       // copia `productIds` no spread), e antes daqui apagar uma das cópias
@@ -2001,6 +1999,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             }}
             pageCapacity={capacityOf(pages[safePage] ?? pages[0])}
             addProductSignal={addProductSignal}
+            destacarTrocaDeFundo={destacarTrocaDeFundo}
             onSaveCardLayout={handleSaveCardLayout}
             onApplyStyle={(scope, layout, groupId) => {
               setConfig((prev) => {
@@ -2349,7 +2348,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                                     setCurrentPage(i);
                                     // Abre a aba "Fundo" — abria "Layout", que
                                     // não é onde se escolhe o fundo.
-                                    setActiveTab("fundo");
+                                    abrirAbaDeFundo();
                                     setPanelOpen(true);
                                   }}
                                 >
@@ -2379,13 +2378,20 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
         </div>
       </div>
 
-      {/* FAB "+" — adicionar produto à página atual (fixo, canto inferior direito) */}
+      {/*
+        FAB "+" — adicionar produto à página atual.
+
+        Fica ACIMA do botão do Astro, que o leiaute monta fixo no mesmo canto e
+        com `z-index` maior: lado a lado, o disco do Astro cobria este botão.
+        A altura vem de `--o-astro-espaco` (definida no CSS do widget) em vez de
+        um número solto, senão mudar o tamanho do disco reabre o problema.
+      */}
       <button
         type="button"
         title="Adicionar produto à página atual"
         aria-label="Adicionar produto à página atual"
         onClick={addProductToCurrentPage}
-        className="fixed bottom-6 right-6 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
+        className="fixed right-6 bottom-[calc(var(--o-astro-espaco,5.6rem)+0.75rem)] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
       >
         <Plus className="h-7 w-7" />
       </button>

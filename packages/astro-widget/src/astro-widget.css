@@ -7,13 +7,29 @@
   sugestões em linhas com ícone, e o campo numa pílula no rodapé.
 */
 
+:root {
+  /*
+    A margem que o botão do Astro reserva no canto inferior direito — o recuo
+    mais o diâmetro do disco.
+
+    Existe porque o widget é montado uma vez no leiaute e some por cima de
+    qualquer coisa que a PÁGINA fixe nesse canto: o "+" do editor de catálogo
+    ficou escondido atrás dele. Quem precisa daquele canto soma esta variável
+    em vez de chutar um número que envelhece na primeira vez que o disco mudar
+    de tamanho.
+  */
+  --o-astro-recuo: clamp(1rem, 2vw, 1.6rem);
+  --o-astro-disco: 64px;
+  --o-astro-espaco: calc(var(--o-astro-recuo) + var(--o-astro-disco));
+}
+
 .o-astro-btn {
   position: fixed;
-  right: clamp(1rem, 2vw, 1.6rem);
-  bottom: clamp(1rem, 2vw, 1.6rem);
+  right: var(--o-astro-recuo);
+  bottom: var(--o-astro-recuo);
   z-index: 40;
-  width: 64px;
-  height: 64px;
+  width: var(--o-astro-disco);
+  height: var(--o-astro-disco);
   display: grid;
   place-items: center;
   border: 0;

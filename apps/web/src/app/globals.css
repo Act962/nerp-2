@@ -148,6 +148,37 @@
   animation: ready-flash 0.6s steps(1, end) infinite;
 }
 
+/* Contorno azul que pulsa três vezes e para. Aponta o botão "Trocar imagem"
+   quando a pessoa clica no fundo da página do catálogo: ela clicou no lugar
+   certo, mas quem troca o fundo é o botão do painel, do outro lado da tela.
+   Para sozinho porque anel piscando para sempre vira ruído — e a intenção é
+   guiar uma vez, não decorar a interface. */
+@keyframes pulso-azul {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(59 130 246 / 0);
+    border-color: var(--border);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.35);
+    border-color: rgb(59 130 246);
+  }
+}
+
+.animate-pulso-azul {
+  animation: pulso-azul 1s ease-in-out 3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Quem pediu menos movimento ainda precisa achar o botão: o anel fica,
+     parado. Sumir com a dica seria trocar acessibilidade por confusão. */
+  .animate-pulso-azul {
+    animation: none;
+    box-shadow: 0 0 0 4px rgb(59 130 246 / 0.35);
+    border-color: rgb(59 130 246);
+  }
+}
+
 .scroll-on-hover::-webkit-scrollbar {
   height: 6px;
 }
