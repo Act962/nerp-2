@@ -55,6 +55,35 @@ pacotes de exemplo vale construir depois.
 - [x] O texto é limpo antes de ir ao banco — sem caractere de controle, espaço
   colapsado e cortado no tamanho da coluna.
 
+### As soluções passam a definir o segmento
+
+Quando o ramo não responde — "Outro" ou pulado —, quem define o segmento são as
+soluções marcadas. Elas não dizem o que a empresa é, mas dizem o que ela quer
+usar, e isso já separa quem opera loja própria de quem trabalha o ponto de
+venda dos outros.
+
+| o que foi marcado | segmento | por quê |
+|---|---|---|
+| PDV, catálogo, QR Preço, pedidos | `VAREJO` | opera a própria loja |
+| trade, book, TradeGram, planograma, ranking — **sem** estoque | `INDUSTRIA` | trabalha o PDV e não segura mercadoria |
+| os mesmos, **com** estoque | `DISTRIBUIDOR` | trabalha o PDV e segura mercadoria |
+| empate, ou só o que serve a todos | `OUTRO` | sem sinal — e `OUTRO` não esconde nada |
+
+O segmento decide `SEGMENT_DEFAULT_DISABLED`, ou seja, quais módulos nascem
+escondidos. Deduzir mal não bloqueia nada, mas esconder no primeiro minuto o
+que a pessoa quer ver é a pior primeira impressão possível — por isso a regra
+é conservadora e o empate devolve `OUTRO`.
+
+**Agência nunca é deduzida.** Indústria e agência usam as MESMAS telas, e nada
+nas soluções separa as duas; o que separa de verdade é ter mercadoria, e isso
+a escolha de Estoque responde. Como `AGENCIA` é o segmento que mais esconde
+(tira produtos e estoque), chutá-lo sairia caro.
+
+A tela também parou de mandar `VAREJO` fixo no "Outro": mandar um chute de lá
+atropelaria a dedução do servidor.
+
+---
+
 Uma observação que fica: **o ramo ainda não muda os dados de exemplo**. Só
 existe o pacote `mercearia`, então quem escolhe "Clínicas" também recebe
 produtos de mercearia. Era pendência conhecida da Fase 1 (faltam as fotos), e

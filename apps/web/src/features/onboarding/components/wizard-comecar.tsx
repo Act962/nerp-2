@@ -68,7 +68,11 @@ export function WizardComecar() {
     setCriando(true);
     const respostas: RespostasDoWizard = {
       nicho: nicho ?? undefined,
-      segment: nichoPorId(nicho)?.segment,
+      // No "Outro" a tela NÃO decide o segmento: quem decide é o servidor, a
+      // partir das soluções marcadas. Mandar "VAREJO" aqui atropelaria a
+      // dedução com um chute.
+      segment:
+        nicho && nicho !== "outro" ? nichoPorId(nicho)?.segment : undefined,
       ramo: nicho === "outro" ? (ramo ?? undefined) : undefined,
       // Guia vazio é a tela dizendo "vire-se": quem não marcou nada leva o
       // conjunto padrão, que é palpite, mas é palpite com passos.

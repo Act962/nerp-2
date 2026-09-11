@@ -8,6 +8,7 @@ import { SEGMENT_DEFAULT_DISABLED } from "@/lib/org-segment";
 import { enqueueSyncOutbox } from "@/lib/sync-outbox";
 import { INTERESSES_PADRAO, limparRamoLivre, nichoPorId } from "../lib/nichos";
 import { RESPOSTAS_VAZIAS, type RespostasDoWizard } from "../lib/respostas";
+import { segmentoPelasSolucoes } from "../lib/segmento-pelas-solucoes";
 import { seedDemoDataForOrg } from "./seed-demo";
 import { seedSolucoesDemo } from "./seed-solucoes";
 
@@ -48,7 +49,6 @@ export async function inicializarOrganizacao(input: {
   const respostas = input.respostas ?? RESPOSTAS_VAZIAS;
   const sandbox = user.isAnonymous === true;
   const nicho = nichoPorId(respostas.nicho);
-  const segment = respostas.segment ?? nicho?.segment ?? null;
   const agora = new Date();
 
   /*
@@ -66,6 +66,25 @@ export async function inicializarOrganizacao(input: {
   */
   const interesses =
     respostas.interesses.length > 0 ? respostas.interesses : INTERESSES_PADRAO;
+
+  /*
+    O segmento, em ordem de força do sinal:
+
+    1. o que a tela mandou, quando o ramo é um dos seis — é a pessoa dizendo
+       o que é, e nada ganha disso;
+    2. o que as SOLUÇÕES marcadas dizem, quando o ramo é "Outro" ou foi
+       pulado — ela não disse o que é, mas disse o que quer usar;
+    3. nada, e aí o padrão do banco vale.
+
+    O segmento decide quais módulos nascem escondidos. Deduzir mal não bloqueia
+    nada, mas esconder no primeiro minuto o que a pessoa quer ver é a pior
+    primeira impressão possível — por isso a dedução devolve `OUTRO`, que não
+    esconde nada, sempre que o sinal não é claro.
+  */
+  const segment =
+    nicho && nicho.id !== "outro"
+      ? (respostas.segment ?? nicho.segment)
+      : segmentoPelasSolucoes(interesses).segmento;
 
   await prisma.organization.update({
     where: { id: organization.id },
