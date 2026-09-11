@@ -404,8 +404,8 @@ describe("débito por quantidade (o Astro)", () => {
 });
 
 describe("stars.balance — uso do plano", () => {
-  it("devolve limite, consumido, percentual e nível para a org Grátis", async () => {
-    const nova = await createOrg("Nasceu no Grátis");
+  it("devolve limite, consumido, percentual e nível para a org no Suit", async () => {
+    const nova = await createOrg("Nasceu no Suit");
     const dono = await createUser();
     await createMember(dono, nova);
     await creditar({
@@ -426,7 +426,10 @@ describe("stars.balance — uso do plano", () => {
       {},
       { context: s2sContext(dono, nova) },
     );
-    expect(resultado.plano.id).toBe("gratis");
+    // Literal de propósito: `id` é o que vai para `subscription.plan`. Uma
+    // renomeação futura precisa parar aqui, porque a pergunta que vem junto
+    // é o que fazer com as assinaturas já gravadas.
+    expect(resultado.plano.id).toBe("suit");
     expect(resultado.limite).toBe(50);
     expect(resultado.consumido).toBe(15);
     expect(resultado.percentual).toBe(30);

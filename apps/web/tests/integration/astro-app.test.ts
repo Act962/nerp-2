@@ -30,6 +30,7 @@ const { cobrarTokensDoAstro } = await import(
   "@/features/astro/server/cobranca"
 );
 const { creditar } = await import("@/features/stars/server/debitar");
+const { PLANO_GRATIS } = await import("@/features/billing/lib/planos");
 const { lerTabelaDePrecos } = await import(
   "@/features/astro-consultor/server/preco"
 );
@@ -134,7 +135,7 @@ describe("tools do app", () => {
     };
 
     expect(resultado.organizacao).toBe(orgA.name);
-    expect(resultado.plano.nome).toBe("Grátis");
+    expect(resultado.plano.nome).toBe(PLANO_GRATIS.nome);
     expect(resultado.stars.saldo).toBe(50);
     expect(resultado.stars.limiteDoPlano).toBe(50);
     expect(resultado.cadastros.produtos.reais).toBe(1);
