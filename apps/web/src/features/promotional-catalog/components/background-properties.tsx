@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ImageIcon, ImageUp, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { uploadToR2 } from "@/lib/upload-to-r2";
+import { cn } from "@/lib/utils";
 import type { CatalogConfig } from "../types";
 import {
   ColorSwatch,
@@ -58,6 +59,12 @@ function measureImage(
 interface BackgroundPropertiesProps {
   config: CatalogConfig;
   onConfigChange: (changes: Partial<CatalogConfig>) => void;
+  /**
+   * Sobe de valor toda vez que alguém clica no fundo da página. É só um
+   * contador: o QUE aconteceu não importa aqui, só que aconteceu de novo —
+   * um booleano não distinguiria dois cliques seguidos.
+   */
+  destacarTroca?: number;
 }
 
 // Propriedades do fundo (por página): miniatura na mesma proporção da página,
@@ -65,6 +72,7 @@ interface BackgroundPropertiesProps {
 export function BackgroundProperties({
   config,
   onConfigChange,
+  destacarTroca = 0,
 }: BackgroundPropertiesProps) {
   const grad = config.backgroundGradient;
   const opacity = config.backgroundOpacity ?? 100;
@@ -74,6 +82,14 @@ export function BackgroundProperties({
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  // A `key` remonta o botão a cada clique no fundo, e o CSS recomeça a
+  // animação do zero. Sem isso, clicar de novo enquanto o anel ainda pulsa não
+  // faria nada — o navegador não reinicia uma animação que já está rodando.
+  const [pulso, setPulso] = useState(0);
+  useEffect(() => {
+    if (destacarTroca > 0) setPulso((n) => n + 1);
+  }, [destacarTroca]);
 
   const baseBg = grad
     ? `linear-gradient(${grad.angle}deg, ${grad.from}, ${grad.to})`
@@ -222,9 +238,13 @@ export function BackgroundProperties({
       />
       <div className="flex gap-2">
         <Button
+          key={pulso}
           type="button"
           variant="outline"
-          className="h-10 flex-1 gap-2 rounded-xl text-[14px] lg:h-9 lg:text-[13px]"
+          className={cn(
+            "h-10 flex-1 gap-2 rounded-xl text-[14px] lg:h-9 lg:text-[13px]",
+            pulso > 0 && "animate-pulso-azul",
+          )}
           disabled={uploading}
           onClick={() => inputRef.current?.click()}
         >

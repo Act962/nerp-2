@@ -132,3 +132,36 @@ export function distributeProducts<T extends { id: string }>(
   });
   return buckets;
 }
+
+/**
+ * Fixa em cada página os produtos que ela mostra AGORA.
+ *
+ * Roda antes de toda mudança estrutural (inserir, duplicar, limpar, apagar
+ * página): sem isso a distribuição é recalculada depois da mudança e produtos
+ * pulam de página sozinhos.
+ *
+ * **O detalhe que custou caro:** a versão anterior pulava as páginas que já
+ * tinham `productIds`, achando que elas já estavam fixas. Não estavam. No modo
+ * explícito, a ÚLTIMA página também recebe todos os produtos NÃO atribuídos
+ * (ver `distributeExplicit`) — eles aparecem nela sem estar no `productIds` de
+ * ninguém. Inserir uma página no fim dava a esses órfãos um novo destino, e
+ * eles migravam: uma página com 4 produtos virava 1, e os outros 3 reapareciam
+ * na página nova, sem ninguém ter pedido.
+ *
+ * Por isso o congelamento é a UNIÃO do que a página desenha com o que ela já
+ * reivindicava: nada que está na tela pode escapar, e nada que foi reivindicado
+ * se perde — nem um id de produto que saiu do catálogo e ainda pode voltar.
+ */
+export function congelarDistribuicao(
+  pages: readonly CatalogPage[],
+  chunks: readonly { id: string }[][],
+): CatalogPage[] {
+  return pages.map((pagina, i) => {
+    const naTela = (chunks[i] ?? []).map((produto) => produto.id);
+    const reivindicados = pagina.productIds ?? [];
+    return {
+      ...pagina,
+      productIds: [...new Set([...naTela, ...reivindicados])],
+    };
+  });
+}
