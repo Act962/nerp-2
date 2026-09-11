@@ -1,5 +1,4 @@
 import {
-  createUIMessageStream,
   createUIMessageStreamResponse,
   safeValidateUIMessages,
   type UIMessage,
@@ -23,6 +22,7 @@ import {
   MENSAGENS_PARA_RESUMIR,
   resumirConversa,
 } from "@/features/astro/server/resumir-conversa";
+import { fluxoDoAtalho } from "@/features/astro/server/atalhos/fluxo";
 import { reconhecerPergunta } from "@/features/astro/server/atalhos/reconhecer";
 import { responderPorAtalho } from "@/features/astro/server/atalhos/responder";
 import { conferirTetoDiario } from "@/features/astro/server/teto-diario";
@@ -301,14 +301,7 @@ export async function POST(request: NextRequest) {
         sessaoId: sessaoAtual.id,
         atalho: pergunta.atalho,
       });
-      const fluxo = createUIMessageStream({
-        execute: ({ writer }) => {
-          const id = "atalho";
-          writer.write({ type: "text-start", id });
-          writer.write({ type: "text-delta", id, delta: resposta });
-          writer.write({ type: "text-end", id });
-        },
-      });
+      const fluxo = fluxoDoAtalho(resposta);
       return createUIMessageStreamResponse({
         stream: fluxo,
         headers: { "x-astro-session": sessaoAtual.id, "x-astro-atalho": "1" },
