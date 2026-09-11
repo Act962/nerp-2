@@ -25,6 +25,8 @@ import {
 import { fluxoDoAtalho } from "@/features/astro/server/atalhos/fluxo";
 import { reconhecerPergunta } from "@/features/astro/server/atalhos/reconhecer";
 import { responderPorAtalho } from "@/features/astro/server/atalhos/responder";
+import { escolherNivel } from "@/features/astro/server/dificuldade";
+import { modeloDoNivel } from "@/features/astro/server/modelos";
 import { conferirTetoDiario } from "@/features/astro/server/teto-diario";
 import {
   escolherFerramentas,
@@ -148,8 +150,34 @@ export async function POST(request: NextRequest) {
   const config = lerConfig(configCrua?.value);
   if (!config.ativo) return indisponivel("desligado");
 
-  const modelo = resolverModelo(config.modelo);
+  /*
+    Qual modelo atende esta mensagem.
+
+    Modelo caro em pergunta fácil é dinheiro no lixo; barato em pedido difícil
+    é resposta errada, que sai mais caro. A escolha é heurística de texto — não
+    se chama um modelo para decidir qual modelo chamar.
+
+    A configuração manda quando alguém fixou um modelo (`modelo` preenchido com
+    `modeloFixo`), que é como se depura "por que ele respondeu isso".
+  */
+  const ultimaFala = textoDaMensagem(mensagens.at(-1));
+  const nivel = escolherNivel({
+    texto: ultimaFala,
+    temAnexo: anexos.length > 0,
+    temAcaoNoHistorico: historicoTemEscrita(mensagens),
+    mensagens: mensagens.length,
+  });
+  const doNivel = modeloDoNivel(nivel.nivel);
+
+  const modelo = resolverModelo(
+    config.modeloFixo && config.modelo ? config.modelo : doNivel.id,
+  );
   if (!modelo) return indisponivel("sem_chave");
+
+  // Só vale a tabela de preço quando o modelo que respondeu é o que a tabela
+  // conhece: com a OpenAI atendendo, ou com um modelo fixado à mão, cai na
+  // regra da organização.
+  const modeloTarifado = modelo.nome === doNivel.id ? doNivel : null;
 
   // A última trava da fatura, antes do saldo: o saldo só segura quando a
   // cobrança está ligada, e nada impede abrir cem conversas curtas num dia.
@@ -361,6 +389,8 @@ export async function POST(request: NextRequest) {
         ms: evento.duracaoMs,
         falhou: evento.falhou,
         ferramentasOferecidas: escolha.ativas.length,
+        modelo: modelo.nome,
+        nivel: nivel.nivel,
       });
     },
     onFinish: async ({ tokensIn, tokensOut }) => {
@@ -379,6 +409,8 @@ export async function POST(request: NextRequest) {
           userId: sessaoAuth.user.id,
           tokensIn,
           tokensOut,
+          modelo: modeloTarifado,
+          base: { dolar: config.dolar, realPorEstrela: config.realPorEstrela },
         });
         if (buscasNaWeb > 0) {
           await cobrarBuscasNaWeb({
