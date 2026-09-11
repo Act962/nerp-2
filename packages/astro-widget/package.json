@@ -1,0 +1,30 @@
+{
+  "name": "@nerp/astro-widget",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "biome check",
+    "check-types": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nerp/site-content": "workspace:*"
+  },
+  "peerDependencies": {
+    "@ai-sdk/react": "^4.0.95",
+    "ai": "^7.0.92",
+    "react": "^19"
+  },
+  "devDependencies": {
+    "@ai-sdk/react": "^4.0.95",
+    "@biomejs/biome": "2.2.0",
+    "@nerp/typescript-config": "workspace:*",
+    "@types/react": "^19",
+    "ai": "^7.0.92",
+    "react": "19.2.8",
+    "typescript": "^5"
+  }
+}

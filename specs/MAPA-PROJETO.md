@@ -47,6 +47,10 @@ Auxiliares: `(auth)` = login/cadastro, `(home)` = landing, `(org)` = criar organ
 | **Configuracoes** | `/configuracoes` | `configuracoes` | `org`, `members`, `invitation`, `billing` | — |
 | **Lojas** | `/lojas` (+`/[storeId]`,`/[storeId]/mapa`,`/[storeId]/reposicao`,`/importar`) | `stores`, `store-map` | `store`, `floor-plan`, `map-object`, `map-layer`, `map-annotation` | `docs/TRADE_MARKETING.md` |
 | **Books** | `/books` (+`/[bookId]`) | `books` | `book` | `docs/TRADE_MARKETING.md` (sec 1,3) |
+| **Astro** | widget flutuante em todo o ERP (`packages/astro-widget`) | `astro` (tools por domínio em `server/tools/`, motor em `astro-consultor`) | route handler `api/astro/chat` | `specs/astro-stars-planos.md`, `specs/astro-fase-2-leitura.md` |
+| **Stars** | `/configuracoes/stars` | `stars` | `stars` | `specs/astro-stars-planos.md` |
+| **Planos** | `/configuracoes/planos` | `billing` (`lib/planos.ts`) | — (catálogo em código) | `specs/astro-stars-planos.md` |
+| **Onboarding** | card no `/dashboard` | `onboarding` | `onboarding` | `specs/astro-stars-planos.md` |
 
 ### Trade Marketing (`/trade/...`)
 

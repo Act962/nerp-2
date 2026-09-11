@@ -4,6 +4,7 @@ import prisma from "@/lib/db";
 import { S3 } from "@/lib/s3-client";
 import type { ImportMapping } from "@/features/products/import-fields";
 import { createProductForOrg } from "./create-product";
+import { vagasRestantes } from "@/features/billing/server/limites";
 import { mapRow, parseSheet, type SheetRow } from "./parse-import";
 import { uploadImageFromUrl } from "./upload-image-from-url";
 
@@ -96,9 +97,20 @@ export async function runProductImport(importId: string): Promise<void> {
   let createdRows = 0;
   let processedRows = 0;
 
+  // `null` = plano sem limite. Conferido uma vez, antes do laço: contar a
+  // cada linha custaria uma consulta por produto.
+  const vagas = await vagasRestantes(record.organizationId, "produtos");
+
   for (let i = 0; i < rows.length; i++) {
     // +2: linha 1 é o cabeçalho; índice começa em 0 → número humano da planilha.
     const rowNumber = i + 2;
+    if (vagas !== null && createdRows >= vagas) {
+      errors.push({
+        row: rowNumber,
+        message: `Limite do plano atingido: ${rows.length - i} linha(s) não importada(s). Escolha um plano para cadastrar mais.`,
+      });
+      break;
+    }
     try {
       const mapped = mapRow(rows[i], mapping);
       if (mapped.error) {

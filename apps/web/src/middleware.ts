@@ -43,7 +43,11 @@ export function middleware(request: NextRequest) {
     // Conta sem organização. Os guards redirecionam para cá, e o redirect pode
     // acontecer com o usuário num subdomínio de inquilino — sem esta linha ele
     // viraria /<subdominio>/sem-empresa e daria 404 no lugar da tela.
-    pathname.startsWith("/sem-empresa")
+    pathname.startsWith("/sem-empresa") ||
+    // Entrada sem cadastro e vínculo da conta de teste: telas de topo, sem
+    // organização por trás — abrir por um subdomínio não pode reescrevê-las.
+    pathname.startsWith("/comecar") ||
+    pathname.startsWith("/vincular-conta")
   ) {
     return NextResponse.next();
   }
@@ -80,6 +84,7 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/catalogo") ||
     pathname.startsWith("/relatórios") ||
     pathname.startsWith("/configurações") ||
+    pathname.startsWith("/configuracoes") ||
     pathname.startsWith("/registrar-pedido") ||
     pathname.startsWith("/pedido-cliente") ||
     pathname.startsWith("/ranking-publico") ||

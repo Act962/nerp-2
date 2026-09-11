@@ -2,6 +2,10 @@ import { timingSafeEqual } from "node:crypto";
 import type { UIMessage } from "ai";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import {
+  LIMITE_TEXTO,
+  textoDaMensagem,
+} from "@/features/astro-consultor/server/mensagens";
 import { streamAstroConsultor } from "@/features/astro-consultor/server/orchestrator";
 import {
   ASTRO_PRECOS_KEY,
@@ -80,9 +84,6 @@ const corpoSchema = z.object({
     .optional(),
 });
 
-/** Tamanho máximo de uma mensagem do visitante. */
-const LIMITE_TEXTO = 2000;
-
 function tokenConfere(recebido: string | null): boolean {
   const esperado = process.env.SITE_ASTRO_TOKEN;
   // Sem segredo configurado a rota fica aberta em dev — em produção, defina.
@@ -98,22 +99,6 @@ function indisponivel(motivo: string) {
     { erro: "astro_indisponivel", motivo },
     { status: 503 },
   );
-}
-
-/** O texto de uma `UIMessage`, para medir o que o visitante mandou. */
-function textoDaMensagem(mensagem: unknown): string {
-  if (typeof mensagem !== "object" || mensagem === null) return "";
-  const partes = (mensagem as { parts?: unknown }).parts;
-  if (!Array.isArray(partes)) return "";
-  return partes
-    .map((parte) =>
-      typeof parte === "object" &&
-      parte !== null &&
-      (parte as { type?: unknown }).type === "text"
-        ? String((parte as { text?: unknown }).text ?? "")
-        : "",
-    )
-    .join(" ");
 }
 
 export async function POST(request: NextRequest) {

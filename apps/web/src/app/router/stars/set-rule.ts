@@ -3,6 +3,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { ACOES_COBRAVEIS } from "@/features/stars/lib/acoes";
+import { arredondarEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 import { isOrgAdmin } from "@/lib/org-access";
 
@@ -30,8 +31,14 @@ export const setRule = base
   .input(
     z.object({
       actionKey: z.string().min(1),
-      /** ★ por ação. Zero desliga a cobrança dela. */
-      stars: z.number().int().min(0).max(1000),
+      /**
+       * ★ por ação. Zero desliga a cobrança dela.
+       *
+       * Fracionado de propósito: o preço por bloco de tokens do Astro não cabe
+       * em inteiro — 1 ★ por mil tokens é caro demais e 0 desliga. Duas casas,
+       * as mesmas da coluna.
+       */
+      stars: z.number().min(0).max(1000),
     }),
   )
   .output(
@@ -60,6 +67,10 @@ export const setRule = base
       throw errors.NOT_FOUND({ message: "Ação desconhecida" });
     }
 
+    // Arredonda no servidor, e não confia no que o cliente mandou: a coluna
+    // tem duas casas, e gravar 0,239 sairia truncado sem ninguém avisar.
+    const stars = arredondarEstrelas(input.stars);
+
     await prisma.starRule.upsert({
       where: {
         organizationId_actionKey: { organizationId, actionKey: acao.actionKey },
@@ -68,9 +79,9 @@ export const setRule = base
         organizationId,
         actionKey: acao.actionKey,
         label: acao.label,
-        stars: input.stars,
+        stars,
       },
-      update: { stars: input.stars, label: acao.label, isActive: true },
+      update: { stars, label: acao.label, isActive: true },
     });
 
     const comPreco = await prisma.starRule.count({
@@ -79,7 +90,7 @@ export const setRule = base
 
     return {
       actionKey: acao.actionKey,
-      stars: input.stars,
+      stars,
       cobrancaAtiva: comPreco > 0,
     };
   });

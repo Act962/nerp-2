@@ -49,7 +49,6 @@ import {
   Package,
   MessageCircle,
   Plug,
-  Star,
   Plus,
   Receipt,
   ClipboardList,
@@ -57,7 +56,7 @@ import {
   ScanBarcode,
   Settings,
   ShoppingCart,
-  Smartphone,
+  Sparkles,
   Store,
   Tag,
   Tags,
@@ -100,6 +99,8 @@ import {
   CollapsibleTrigger,
 } from "./ui/collapsible";
 import { cn } from "@/lib/utils";
+import { StarsPainelSidebar } from "@/features/stars/components/painel-sidebar";
+import { solucaoPorId } from "@/features/onboarding/lib/solucoes";
 import { toast } from "sonner";
 
 type NavItem = {
@@ -108,12 +109,18 @@ type NavItem = {
   icon: typeof LayoutDashboard;
   permission?: string;
   children?: NavItem[];
+  /** Grupo em evidência no menu (a porta das soluções além do ERP). */
+  destaque?: boolean;
+  /** Solução marcada no onboarding: sobe no grupo e ganha o selo. */
+  paraVoce?: boolean;
 };
 
 // Casa a rota atual com o item ou qualquer descendente — usado pra abrir os
 // grupos certos quando a página está num sub/sub-item.
 function navMatchesPath(item: NavItem, pathname: string): boolean {
-  if (pathname === item.href || pathname.startsWith(`${item.href}/`)) {
+  // Sem a query: "/books?aba=approval" precisa casar com "/books".
+  const href = item.href.split("?")[0];
+  if (pathname === href || pathname.startsWith(`${href}/`)) {
     return true;
   }
   return (item.children ?? []).some((child) => navMatchesPath(child, pathname));
@@ -125,37 +132,11 @@ const navigation: NavItem[] = [
     href: "/dashboard",
     icon: LayoutDashboard,
     permission: "dashboard",
-    children: [
-      { name: "Meu dashboard", href: "/dashboard", icon: LayoutDashboard },
-      {
-        name: "Dashboard da organização",
-        href: "/dashboard-organizacao",
-        icon: LayoutDashboard,
-        permission: "dashboard-org",
-      },
-    ],
   },
   {
-    name: "Produtos",
-    href: "/produtos",
-    icon: Package,
-    permission: "produtos",
-    children: [
-      { name: "Produtos", href: "/produtos", icon: Package },
-      { name: "Categorias", href: "/produtos/categorias", icon: Tag },
-      {
-        name: "Tabelas de preço",
-        href: "/precos",
-        icon: Tags,
-        permission: "precos",
-      },
-    ],
-  },
-  {
-    name: "Frente de caixa",
+    name: "ERP",
     href: "/vendas/novo",
     icon: ShoppingCart,
-    permission: "vendas",
     children: [
       { name: "PDV", href: "/vendas/novo", icon: ScanBarcode },
       { name: "Vendas", href: "/vendas", icon: ShoppingCart },
@@ -182,39 +163,55 @@ const navigation: NavItem[] = [
         href: "/vendas/leitor",
         icon: QrCode,
       },
-    ],
-  },
-  {
-    name: "Pedidos",
-    href: "/pedidos",
-    icon: ChefHat,
-    permission: "pedidos",
-  },
-  {
-    name: "Estoque",
-    href: "/estoque",
-    icon: Box,
-    permission: "estoque",
-    children: [
       {
-        name: "Movimentações",
-        href: "/estoque/movimentacoes",
-        icon: TrendingUp,
+        name: "Produtos",
+        href: "/produtos",
+        icon: Package,
+        permission: "produtos",
+        children: [
+          { name: "Produtos", href: "/produtos", icon: Package },
+          { name: "Categorias", href: "/produtos/categorias", icon: Tag },
+          {
+            name: "Tabelas de preço",
+            href: "/precos",
+            icon: Tags,
+            permission: "precos",
+          },
+        ],
       },
       {
-        name: "Entradas de nota",
-        href: "/estoque/entradas",
-        icon: PackagePlus,
+        name: "Estoque",
+        href: "/estoque",
+        icon: Box,
+        permission: "estoque",
+        children: [
+          {
+            name: "Movimentações",
+            href: "/estoque/movimentacoes",
+            icon: TrendingUp,
+          },
+          {
+            name: "Entradas de nota",
+            href: "/estoque/entradas",
+            icon: PackagePlus,
+          },
+          {
+            name: "Coletor",
+            href: "/estoque/coletor",
+            icon: ScanBarcode,
+          },
+          {
+            name: "Inventários",
+            href: "/estoque/inventarios",
+            icon: ClipboardList,
+          },
+        ],
       },
       {
-        name: "Coletor",
-        href: "/estoque/coletor",
-        icon: ScanBarcode,
-      },
-      {
-        name: "Inventários",
-        href: "/estoque/inventarios",
-        icon: ClipboardList,
+        name: "Catálogo Online",
+        href: "/catalogo",
+        icon: Store,
+        permission: "catalogo",
       },
     ],
   },
@@ -237,213 +234,10 @@ const navigation: NavItem[] = [
     permission: "fornecedores",
   },
   {
-    name: "Trade Marketing",
-    href: "/lojas",
-    icon: Megaphone,
-    children: [
-      {
-        name: "Painel do Trade",
-        href: "/trade/painel",
-        icon: LayoutDashboard,
-        permission: "trade-painel",
-      },
-      {
-        name: "Calendário de Ações",
-        href: "/trade/calendario",
-        icon: CalendarDays,
-        permission: "trade-calendario",
-      },
-      {
-        name: "Mapa de Campo",
-        href: "/trade/mapa-de-campo",
-        icon: MapIcon,
-        permission: "mapa-de-campo",
-      },
-      {
-        name: "Lojas e Mapas",
-        href: "/lojas",
-        icon: MapPinned,
-        permission: "lojas",
-      },
-      {
-        name: "Books de PDV",
-        href: "/books",
-        icon: BookImage,
-        permission: "books",
-        children: [
-          { name: "Books", href: "/books", icon: BookImage },
-          {
-            name: "Padrões de página",
-            href: "/padroes",
-            icon: BookImage,
-          },
-        ],
-      },
-      {
-        name: "Cadastros de Trade",
-        href: "/trade/cadastros",
-        icon: Library,
-        permission: "trade-cadastros",
-      },
-      {
-        name: "Catálogo PDV",
-        href: "/trade/catalogo-pdv",
-        icon: Tag,
-        permission: "catalogo-pdv",
-      },
-      {
-        name: "Planograma",
-        href: "/trade/planograma",
-        icon: LayoutGrid,
-        permission: "planograma",
-      },
-      {
-        name: "TradeGram",
-        href: "/trade/tradegram",
-        icon: Aperture,
-        permission: "tradegram",
-      },
-      {
-        name: "Interesses (TradeGram)",
-        href: "/trade/interesses",
-        icon: Inbox,
-        permission: "trade-interesses",
-      },
-      {
-        name: "Contratos",
-        href: "/trade/contratos",
-        icon: FileText,
-        permission: "contratos",
-      },
-      // Os dois apps de campo ficam juntos no fim da lista: é o par que o
-      // gestor abre no celular, não algo que ele configura.
-      {
-        name: "App Promotor",
-        href: "/promotor",
-        icon: Camera,
-        permission: "promotor",
-      },
-      {
-        // Mesmo motor do App Promotor + aba "Estou aqui" para registrar
-        // presença ao vivo — reusa `/vendedor` com `mode='vendedor'`.
-        name: "App Vendedor",
-        href: "/vendedor",
-        icon: MapPinned,
-        permission: "vendedor",
-      },
-      {
-        name: "App QR Preço",
-        href: "/trade/qr-preco",
-        icon: ScanBarcode,
-        permission: "qr-preco",
-      },
-      {
-        name: "Configurações",
-        href: "/trade/configuracoes",
-        icon: Settings,
-        children: [
-          {
-            name: "Distribuidores",
-            href: "/trade/distribuidores",
-            icon: Truck,
-            permission: "distribuidores",
-          },
-          {
-            name: "Diretório de Empresas",
-            href: "/trade/diretorio",
-            icon: Building2,
-            permission: "diretorio",
-          },
-          {
-            name: "Cupons",
-            href: "/trade/cupons",
-            icon: Ticket,
-            permission: "cupons",
-          },
-          {
-            name: "Insights do Cliente",
-            href: "/trade/insights",
-            icon: TrendingUp,
-            permission: "insights",
-          },
-          {
-            name: "Plano & Assinatura",
-            href: "/trade/plano",
-            icon: CreditCard,
-            permission: "plano",
-          },
-          {
-            name: "Vínculos de Promotores",
-            href: "/trade/promotor-vinculos",
-            icon: UsersIcon,
-            permission: "promotor-vinculos",
-          },
-        ],
-      },
-    ],
-  },
-  {
-    name: "Colaborador",
-    href: "/colaboradores",
-    icon: UserCircle2,
-    permission: "colaboradores",
-  },
-  {
-    name: "Ranking de Equipes",
-    href: "/ranking",
-    icon: Trophy,
-    permission: "ranking",
-  },
-  {
-    // Item pai sem `permission`: quem manda é a chave de cada filho, e o pai
-    // some sozinho quando nenhum filho sobrevive ao filtro.
-    name: "WhatsApp",
-    href: "/whatsapp",
-    icon: MessageCircle,
-    children: [
-      {
-        name: "Atendimento",
-        href: "/whatsapp",
-        icon: MessageCircle,
-        permission: "whatsapp",
-      },
-      {
-        name: "Funil (CRM)",
-        href: "/whatsapp/funil",
-        icon: KanbanSquare,
-        permission: "whatsapp",
-      },
-      {
-        name: "Campanhas",
-        href: "/whatsapp/campanhas",
-        icon: Megaphone,
-        permission: "whatsapp",
-      },
-      {
-        name: "Agenda",
-        href: "/whatsapp/agenda",
-        icon: CalendarClock,
-        permission: "whatsapp",
-      },
-      {
-        name: "Automações",
-        href: "/whatsapp/automacoes",
-        icon: Workflow,
-        permission: "whatsapp",
-      },
-      {
-        name: "Créditos",
-        href: "/whatsapp/creditos",
-        icon: Star,
-        permission: "whatsapp",
-      },
-      {
-        name: "Conexão",
-        href: "/whatsapp/conexao",
-        icon: Plug,
-        permission: "whatsapp",
-      },
-    ],
+    name: "Calendário de Ações",
+    href: "/trade/calendario",
+    icon: CalendarDays,
+    permission: "trade-calendario",
   },
   {
     name: "Integrações",
@@ -452,23 +246,243 @@ const navigation: NavItem[] = [
     permission: "integracoes",
   },
   {
-    name: "Catálogo Online",
-    href: "/catalogo",
-    icon: Store,
-    permission: "catalogo",
+    name: "Configurações",
+    href: "/configuracoes",
+    icon: Settings,
+    permission: "configuracoes",
   },
   {
-    name: "Catálogo Promocional",
-    href: "/catalogo-promocional",
-    icon: Tag,
-    permission: "catalogo-promocional",
-  },
-  {
-    // Apps de campo abertos no celular (antes ficavam em Trade Marketing).
-    name: "Apps",
-    href: "/promotor",
-    icon: Smartphone,
+    // O que vai além do ERP, agrupado por interesse: cada usuário abre só o
+    // que é do seu mundo. Em destaque porque é a porta das soluções.
+    name: "Mais Soluções",
+    href: "/aplicativos",
+    icon: Sparkles,
+    destaque: true,
     children: [
+      {
+        name: "Books de PDV",
+        href: "/books?aba=approval",
+        icon: BookImage,
+        permission: "books",
+        children: [
+          { name: "Books", href: "/books?aba=books", icon: BookImage },
+          {
+            name: "Padrões de página",
+            href: "/padroes",
+            icon: BookImage,
+          },
+        ],
+      },
+      {
+        name: "Trade Marketing",
+        href: "/lojas",
+        icon: Megaphone,
+        children: [
+          {
+            name: "Painel do Trade",
+            href: "/trade/painel",
+            icon: LayoutDashboard,
+            permission: "trade-painel",
+          },
+          {
+            name: "Mapa de Campo",
+            href: "/trade/mapa-de-campo",
+            icon: MapIcon,
+            permission: "mapa-de-campo",
+          },
+          {
+            name: "Lojas e Mapas",
+            href: "/lojas",
+            icon: MapPinned,
+            permission: "lojas",
+          },
+          {
+            name: "Cadastros de Trade",
+            href: "/trade/cadastros",
+            icon: Library,
+            permission: "trade-cadastros",
+          },
+          {
+            name: "Catálogo PDV",
+            href: "/trade/catalogo-pdv",
+            icon: Tag,
+            permission: "catalogo-pdv",
+          },
+          {
+            name: "Planograma",
+            href: "/trade/planograma",
+            icon: LayoutGrid,
+            permission: "planograma",
+          },
+          {
+            name: "TradeGram",
+            href: "/trade/tradegram",
+            icon: Aperture,
+            permission: "tradegram",
+          },
+          {
+            name: "Interesses (TradeGram)",
+            href: "/trade/interesses",
+            icon: Inbox,
+            permission: "trade-interesses",
+          },
+          {
+            name: "Contratos",
+            href: "/trade/contratos",
+            icon: FileText,
+            permission: "contratos",
+          },
+          // Os dois apps de campo ficam juntos no fim da lista: é o par que o
+          // gestor abre no celular, não algo que ele configura.
+          {
+            name: "App Promotor",
+            href: "/promotor",
+            icon: Camera,
+            permission: "promotor",
+          },
+          {
+            // Mesmo motor do App Promotor + aba "Estou aqui" para registrar
+            // presença ao vivo — reusa `/vendedor` com `mode='vendedor'`.
+            name: "App Vendedor",
+            href: "/vendedor",
+            icon: MapPinned,
+            permission: "vendedor",
+          },
+          {
+            name: "App QR Preço",
+            href: "/trade/qr-preco",
+            icon: ScanBarcode,
+            permission: "qr-preco",
+          },
+          {
+            name: "Configurações",
+            href: "/trade/configuracoes",
+            icon: Settings,
+            children: [
+              {
+                name: "Distribuidores",
+                href: "/trade/distribuidores",
+                icon: Truck,
+                permission: "distribuidores",
+              },
+              {
+                name: "Diretório de Empresas",
+                href: "/trade/diretorio",
+                icon: Building2,
+                permission: "diretorio",
+              },
+              {
+                name: "Cupons",
+                href: "/trade/cupons",
+                icon: Ticket,
+                permission: "cupons",
+              },
+              {
+                name: "Insights do Cliente",
+                href: "/trade/insights",
+                icon: TrendingUp,
+                permission: "insights",
+              },
+              {
+                name: "Plano & Assinatura",
+                href: "/trade/plano",
+                icon: CreditCard,
+                permission: "plano",
+              },
+              {
+                name: "Vínculos de Promotores",
+                href: "/trade/promotor-vinculos",
+                icon: UsersIcon,
+                permission: "promotor-vinculos",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        name: "Catálogo Promocional",
+        href: "/catalogo-promocional",
+        icon: Tag,
+        permission: "catalogo-promocional",
+      },
+      {
+        name: "Ranking de Equipes",
+        href: "/ranking",
+        icon: Trophy,
+        permission: "ranking",
+      },
+      {
+        // Antes "Dashboard da organização": o painel alimentado pela API/ERP.
+        name: "Dashboard API",
+        href: "/dashboard-organizacao",
+        icon: LayoutDashboard,
+        permission: "dashboard-org",
+      },
+      {
+        // Item pai sem `permission`: quem manda é a chave de cada filho, e o pai
+        // some sozinho quando nenhum filho sobrevive ao filtro.
+        name: "WhatsApp",
+        href: "/whatsapp",
+        icon: MessageCircle,
+        children: [
+          {
+            name: "Atendimento",
+            href: "/whatsapp",
+            icon: MessageCircle,
+            permission: "whatsapp",
+          },
+          {
+            name: "Funil (CRM)",
+            href: "/whatsapp/funil",
+            icon: KanbanSquare,
+            permission: "whatsapp",
+          },
+          {
+            name: "Campanhas",
+            href: "/whatsapp/campanhas",
+            icon: Megaphone,
+            permission: "whatsapp",
+          },
+          {
+            name: "Agenda",
+            href: "/whatsapp/agenda",
+            icon: CalendarClock,
+            permission: "whatsapp",
+          },
+          {
+            name: "Automações",
+            href: "/whatsapp/automacoes",
+            icon: Workflow,
+            permission: "whatsapp",
+          },
+          {
+            name: "Conexão",
+            href: "/whatsapp/conexao",
+            icon: Plug,
+            permission: "whatsapp",
+          },
+        ],
+      },
+      {
+        name: "Pedidos",
+        href: "/pedidos",
+        icon: ChefHat,
+        permission: "pedidos",
+        children: [
+          {
+            name: "Pedidos",
+            href: "/pedidos",
+            icon: ChefHat,
+            permission: "pedidos",
+          },
+          {
+            name: "Colaboradores",
+            href: "/colaboradores",
+            icon: UserCircle2,
+            permission: "colaboradores",
+          },
+        ],
+      },
       {
         name: "App Promotor",
         href: "/promotor",
@@ -493,22 +507,6 @@ const navigation: NavItem[] = [
       },
     ],
   },
-  {
-    name: "Configurações",
-    href: "/configuracoes",
-    icon: Settings,
-    permission: "configuracoes",
-  },
-  // {
-  //   name: "Relatórios",
-  //   href: "/relatorios",
-  //   icon: BarChart3,
-  // },
-  // {
-  //   name: "Configurações",
-  //   href: "/configuracoes",
-  //   icon: Settings,
-  // },
 ];
 
 export function AppSidebar() {
@@ -585,10 +583,32 @@ export function AppSidebar() {
   // Menu vazio por falha de carregamento é diferente de menu vazio por falta
   // de permissão: no primeiro caso o usuário perderia até o acesso a
   // Configurações, sem nenhuma pista do que aconteceu.
-  const navigationToRender =
+  // As soluções que a pessoa marcou no onboarding sobem no "Mais Soluções",
+  // com o selo "Para você". Nada some: é ordem, não filtro.
+  const modulosDeInteresse = new Set(
+    (currentMember?.interesses ?? [])
+      .map((id) => solucaoPorId(id)?.modulo)
+      .filter((m): m is NonNullable<typeof m> => Boolean(m)),
+  );
+  const comParaVoce = (items: NavItem[]): NavItem[] =>
+    items.map((item) => {
+      if (!item.destaque || !item.children) return item;
+      const marcados = item.children
+        .filter(
+          (c) => c.permission && modulosDeInteresse.has(c.permission as never),
+        )
+        .map((c) => ({ ...c, paraVoce: true }));
+      const restantes = item.children.filter(
+        (c) => !(c.permission && modulosDeInteresse.has(c.permission as never)),
+      );
+      return { ...item, children: [...marcados, ...restantes] };
+    });
+
+  const navigationToRender = comParaVoce(
     isMemberError || (!currentMember && !isMemberPending)
       ? fallbackNavigation
-      : visibleNavigation;
+      : visibleNavigation,
+  );
 
   // Editores em tela cheia (PDV e o editor de catálogo) recolhem a sidebar por
   // completo (offcanvas), sem deixar a régua de ícones — o usuário reabre pelo
@@ -638,7 +658,13 @@ export function AppSidebar() {
                       >
                         <SidebarMenuItem>
                           <CollapsibleTrigger asChild>
-                            <SidebarMenuButton tooltip={item.name}>
+                            <SidebarMenuButton
+                              tooltip={item.name}
+                              className={cn(
+                                item.destaque &&
+                                  "border border-primary/30 bg-gradient-to-r from-primary/15 to-primary/5 font-semibold text-primary hover:from-primary/20 hover:to-primary/10 data-[state=open]:from-primary/20",
+                              )}
+                            >
                               {item.icon && (
                                 <item.icon
                                   onClick={() => {
@@ -692,6 +718,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
+        <StarsPainelSidebar />
         <NavUser />
       </SidebarFooter>
     </Sidebar>
@@ -700,6 +727,14 @@ export function AppSidebar() {
 
 // Renderiza um filho do menu: link simples (folha) ou um sub-grupo colapsável
 // aninhado (ex.: "Configurações de Trade" dentro de Trade Marketing).
+function SeloParaVoce() {
+  return (
+    <span className="ml-1 rounded-full bg-primary/15 px-1.5 py-0.5 font-medium text-[10px] text-primary leading-none">
+      Para você
+    </span>
+  );
+}
+
 function SubItem({
   item,
   pathname,
@@ -717,13 +752,15 @@ function SubItem({
         <SidebarMenuSubButton
           asChild
           className={cn(
-            pathname === item.href &&
+            // Sem a query: "/books?aba=books" precisa acender em "/books".
+            pathname === item.href.split("?")[0] &&
               "bg-sidebar-accent text-sidebar-accent-foreground",
           )}
         >
           <Link href={item.href} onClick={onNav}>
             <item.icon />
             <span>{item.name}</span>
+            {item.paraVoce ? <SeloParaVoce /> : null}
           </Link>
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
@@ -738,6 +775,7 @@ function SubItem({
             <button type="button">
               <item.icon />
               <span>{item.name}</span>
+              {item.paraVoce ? <SeloParaVoce /> : null}
               <ChevronDown className="ml-auto transition-transform duration-200 data-[state=open]:rotate-180" />
             </button>
           </SidebarMenuSubButton>

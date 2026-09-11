@@ -123,12 +123,31 @@ export const requireUnauth = async () => {
   }
 };
 
+/**
+ * Marca o acesso da organização, no máximo uma vez por hora. É o relógio da
+ * expiração da sandbox (`expirar-sandbox.ts`) — e um `updateMany`
+ * condicionado, para toda página não virar um UPDATE.
+ */
+export const tocarUltimoAcesso = async (organizationId: string) => {
+  const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000);
+  await prisma.organization
+    .updateMany({
+      where: {
+        id: organizationId,
+        OR: [{ lastAccessAt: null }, { lastAccessAt: { lt: umaHoraAtras } }],
+      },
+      data: { lastAccessAt: new Date() },
+    })
+    .catch(() => {});
+};
+
 export const currentOrganization = async () => {
   const organization = await auth.api.getFullOrganization({
     headers: await headers(),
   });
 
   if (organization) {
+    await tocarUltimoAcesso(organization.id);
     return organization;
   }
 

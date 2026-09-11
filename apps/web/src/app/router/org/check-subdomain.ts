@@ -1,8 +1,9 @@
+import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { validarSubdominio } from "@/features/organization/lib/subdominio";
 import prisma from "@/lib/db";
-import { z } from "zod";
 
 export const checkSubdomain = base
   .use(requireAuthMiddleware)
@@ -26,10 +27,16 @@ export const checkSubdomain = base
     }),
   )
   .handler(async ({ input, context }) => {
+    // A mesma régua do `updateSubdomain`: a tela não pode dizer "disponível"
+    // para um nome que o servidor vai recusar.
+    const validacao = validarSubdominio(input.subdomain);
+    if (!validacao.ok) {
+      return { available: false, message: validacao.motivo };
+    }
+
     const existing = await prisma.organization.findUnique({
-      where: {
-        subdomain: input.subdomain,
-      },
+      where: { subdomain: validacao.subdominio },
+      select: { id: true },
     });
 
     const isAvailableToUse = !existing || existing.id === context.org.id;

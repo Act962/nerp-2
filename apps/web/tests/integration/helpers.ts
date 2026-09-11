@@ -1,4 +1,5 @@
 import type { Organization, User } from "@/generated/prisma/client";
+import { apagarOrganizacao } from "@/features/organization/server/apagar-organizacao";
 import prisma from "@/lib/db";
 import { DEFAULT_DEVICE_SCOPES } from "@/lib/device-scopes";
 
@@ -12,7 +13,9 @@ import { DEFAULT_DEVICE_SCOPES } from "@/lib/device-scopes";
 export function s2sContext(
   user: User,
   org: Organization,
-  scopes: string[] = [],
+  // `*` porque a suíte chama qualquer procedure por este contexto; passe uma
+  // lista menor para exercitar a negativa por escopo (`s2s-scopes.ts`).
+  scopes: string[] = ["*"],
 ) {
   return {
     headers: new Headers(),
@@ -102,31 +105,13 @@ export async function resetDb() {
     where: { slug: { startsWith: "org-" } },
     select: { id: true },
   });
-  const orgIds = { organizationId: { in: testOrgs.map((org) => org.id) } };
 
-  // Ordem importa: SaleItem/StockMovement/CashMovement referenciam Product/Sale
-  // (FK restrita), e a cascata da Organization tentaria apagá-los na ordem
-  // errada. Removemos os filhos que travam a cascata primeiro.
-  await prisma.cashMovement.deleteMany({ where: orgIds });
-  await prisma.stockMovement.deleteMany({ where: orgIds });
-  await prisma.sale.deleteMany({ where: orgIds }); // cascata: SaleItem + SalePayment
-  await prisma.cashSession.deleteMany({ where: orgIds });
-  await prisma.cashRegister.deleteMany({ where: orgIds });
-  // Antes do produto: PurchaseItem.product é `onDelete: Restrict`, então uma
-  // entrada de nota com itens trava o deleteMany abaixo e derruba a suíte
-  // inteira. Apagar a Purchase cascateia os itens.
-  await prisma.purchase.deleteMany({ where: orgIds });
-  await prisma.product.deleteMany({ where: orgIds });
-  // Book cascateia BookPage/BookItem, mas BookPage.storeId e PdvPhoto.storeId
-  // apontam para Store com FK restrita: sem apagar os books e as fotos antes, a
-  // cascata da Organization esbarra em `book_pages_storeId_fkey`.
-  await prisma.book.deleteMany({ where: orgIds });
-  await prisma.pdvPhoto.deleteMany({ where: orgIds });
-  await prisma.store.deleteMany({ where: orgIds });
-  await prisma.device.deleteMany({ where: orgIds });
-  await prisma.organization.deleteMany({
-    where: { slug: { startsWith: "org-" } },
-  });
+  // A ordem de exclusão mora em `apagarOrganizacao` — o mesmo caminho que o
+  // `sandbox-expire` usa. Um lugar só sabe quais FKs travam a cascata.
+  for (const org of testOrgs) {
+    await apagarOrganizacao(org.id);
+  }
+
   await prisma.user.deleteMany({
     where: { email: { endsWith: "@teste.local" } },
   });

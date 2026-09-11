@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
 import {
@@ -15,6 +16,7 @@ import z from "zod";
 export const resendInvitation = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("reenviar um convite"))
   .route({
     method: "POST",
     summary: "Reenviar o e-mail de um convite pendente",

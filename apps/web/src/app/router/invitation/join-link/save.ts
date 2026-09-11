@@ -2,6 +2,7 @@ import z from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import prisma from "@/lib/db";
 import { buildJoinLink, generateJoinToken } from "@/lib/join-link";
 import { isOrgAdmin } from "@/lib/org-access";
@@ -17,6 +18,7 @@ import { PAGE_PERMISSION_KEYS } from "@/lib/permissions";
 export const saveJoinLink = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("criar um link de entrada"))
   .route({
     method: "POST",
     summary: "Criar ou editar um link aberto de entrada",

@@ -1,6 +1,7 @@
 "use client";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { parseAsStringLiteral, useQueryState } from "nuqs";
 import { PhotosForApprovalList } from "@/features/promotor/components/photos-for-approval";
 import type { PromotorPhotoStatus } from "@/features/promotor/hooks/use-promotor";
 import {
@@ -126,8 +127,23 @@ export function BooksScreen() {
   const setStatus = (s: PromotorPhotoStatus) => () =>
     setPhotoStatus((cur) => (cur === s ? "ALL" : s));
 
+  // A aba fica na URL para o menu poder apontar direto para "Books"
+  // (`/books?aba=books`) e para o link ser compartilhável.
+  const [aba, setAba] = useQueryState(
+    "aba",
+    parseAsStringLiteral(["approval", "books"] as const).withDefault(
+      "approval",
+    ),
+  );
+
   return (
-    <Tabs defaultValue="approval" className="space-y-4">
+    <Tabs
+      value={aba}
+      onValueChange={(valor) =>
+        setAba(valor === "books" ? "books" : "approval")
+      }
+      className="space-y-4"
+    >
       <TabsList>
         <TabsTrigger value="approval">Aprovação de fotos</TabsTrigger>
         <TabsTrigger value="books">Books</TabsTrigger>

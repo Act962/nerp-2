@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { parseOracleConfig } from "@/features/erp-sync/server/connectors";
 import prisma from "@/lib/db";
 import { encryptSecret } from "@/lib/nasa-s2s-crypto";
@@ -12,6 +13,7 @@ import { winthorConnectionInputSchema } from "./_schema";
 export const saveErpConnection = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("conectar o ERP"))
   .route({
     method: "POST",
     summary: "Salvar conexão de ERP (Winthor/Oracle)",

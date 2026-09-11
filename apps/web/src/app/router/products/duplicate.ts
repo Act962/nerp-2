@@ -1,10 +1,13 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
+import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
 export const duplicateProduct = base
   .use(requireAuthMiddleware)
+  .use(requireOrgMiddleware)
   .route({
     method: "GET",
     path: "/products/duplicate",
@@ -22,11 +25,9 @@ export const duplicateProduct = base
       productName: z.string(),
     }),
   )
-  .handler(async ({ input, errors }) => {
-    const product = await prisma.product.findUnique({
-      where: {
-        id: input.productId,
-      },
+  .handler(async ({ input, context, errors }) => {
+    const product = await prisma.product.findFirst({
+      where: { id: input.productId, organizationId: context.org.id },
     });
 
     if (!product) {
@@ -34,6 +35,8 @@ export const duplicateProduct = base
         message: "Produto não encontrado",
       });
     }
+
+    await assertDentroDoLimite(context.org.id, "produtos");
 
     const newSlug = `${product.slug}-${Date.now()}`;
 

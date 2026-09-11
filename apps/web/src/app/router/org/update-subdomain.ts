@@ -1,12 +1,24 @@
+import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
+import { validarSubdominio } from "@/features/organization/lib/subdominio";
 import prisma from "@/lib/db";
-import { z } from "zod";
+import { isOrgAdmin } from "@/lib/org-access";
 
+/**
+ * Troca o subdomínio da vitrine.
+ *
+ * É o endereço público da loja no domínio da plataforma: só administrador
+ * mexe, e nome reservado (`www`, `api`, `login`…) nunca entra — o
+ * `middleware.ts` reescreve qualquer subdomínio para a vitrine, e quem
+ * registrasse `api` receberia o tráfego que parece ser nosso.
+ */
 export const updateSubdomain = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("publicar a loja online"))
   .route({
     method: "POST",
     path: "/update-subdomain",
@@ -26,31 +38,32 @@ export const updateSubdomain = base
     }),
   )
   .handler(async ({ input, context, errors }) => {
-    const existing = await prisma.organization.findUnique({
-      where: {
-        subdomain: input.subdomain,
-      },
-    });
-
-    const isAvailableToUse = !existing || existing.id === context.org.id;
-
-    if (!isAvailableToUse) {
-      throw errors.BAD_REQUEST({
-        message: "Subdomínio indisponível",
+    if (!(await isOrgAdmin(context.org.id, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Apenas administradores alteram o subdomínio da loja.",
       });
     }
 
-    const updated = await prisma.organization.update({
-      where: {
-        id: context.org.id,
-      },
-      data: {
-        subdomain: input.subdomain,
-      },
+    const validacao = validarSubdominio(input.subdomain);
+    if (!validacao.ok) {
+      throw errors.BAD_REQUEST({ message: validacao.motivo });
+    }
+    const subdomain = validacao.subdominio;
+
+    const existing = await prisma.organization.findUnique({
+      where: { subdomain },
+      select: { id: true },
     });
 
-    return {
-      organizationId: updated.id,
-      subdomain: input.subdomain,
-    };
+    if (existing && existing.id !== context.org.id) {
+      throw errors.BAD_REQUEST({ message: "Subdomínio indisponível" });
+    }
+
+    const updated = await prisma.organization.update({
+      where: { id: context.org.id },
+      data: { subdomain },
+      select: { id: true },
+    });
+
+    return { organizationId: updated.id, subdomain };
   });

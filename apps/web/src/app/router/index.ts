@@ -1,4 +1,5 @@
 import { categoryRoutes } from "./category";
+import { onboardingRoutes } from "./onboarding";
 import { orgRoutes } from "./org";
 import { deviceRoutes } from "./device";
 import { desktopReleaseRoutes } from "./desktop-release";
@@ -67,6 +68,7 @@ import { campanhasRoutes } from "./campanhas";
 import { conversationRoutes } from "./conversation";
 import { crmRoutes } from "./crm";
 import { messageRoutes } from "./message";
+import { astroRoutes } from "./astro";
 import { starsRoutes } from "./stars";
 import { whatsappRoutes } from "./whatsapp";
 import { integracoesRoutes } from "./integracoes";
@@ -147,6 +149,8 @@ export const router = {
   crm: crmRoutes,
   message: messageRoutes,
   stars: starsRoutes,
+  astro: astroRoutes,
+  onboarding: onboardingRoutes,
   whatsapp: whatsappRoutes,
   integracoes: integracoesRoutes,
   fiscalConfig: fiscalConfigRoutes,

@@ -1,8 +1,10 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { auth } from "@/lib/auth";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import {
   buildInvitationLink,
   sendOrganizationInvitation,
@@ -109,6 +111,7 @@ async function inviteOne({
 export const createInvitation = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("convidar alguém para a organização"))
   .route({
     method: "POST",
     summary: "Convidar um ou mais membros para a organização",
@@ -149,6 +152,8 @@ export const createInvitation = base
     const emails = Array.from(
       new Set(input.emails.map((e) => e.trim().toLowerCase())),
     );
+
+    await assertDentroDoLimite(context.org.id, "membros", emails.length);
 
     const sent: string[] = [];
     const failed: { email: string; reason: string }[] = [];

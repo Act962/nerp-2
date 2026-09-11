@@ -23,7 +23,7 @@ interface StoreFrontLayoutProps {
 
 async function getOrganization(subdomain: string) {
   const org = await prisma.organization.findUnique({
-    where: { subdomain },
+    where: { subdomain, verifiedAt: { not: null } },
     include: {
       catalogSettings: true,
     },

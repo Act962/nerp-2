@@ -4,6 +4,7 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { canManageStores } from "@/app/router/field-map/_can-manage-stores";
 import { resolveDirectoryStore } from "@/app/router/field-map/_resolve-directory-store";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { isInBrazil } from "@/lib/brazil-bounds";
 import { mintStoreSlug } from "@/lib/store-slug";
 import { z } from "zod";
@@ -51,6 +52,8 @@ export const createStore = base
       input.latitude != null &&
       input.longitude != null &&
       isInBrazil(input.latitude, input.longitude);
+
+    await assertDentroDoLimite(context.org.id, "lojas");
 
     const store = await prisma.store.create({
       data: {

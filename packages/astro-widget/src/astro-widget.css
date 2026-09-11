@@ -136,6 +136,25 @@
   letter-spacing: -0.01em;
 }
 
+/* A saída de emergência: fica ao lado do fechar, discreta, e só aparece
+   quando já existe conversa para recomeçar. */
+.o-astro-head__novo {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  margin-right: 6px;
+  background: #f1f3f6;
+  color: #0b1220;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.o-astro-head__novo:hover {
+  background: #e6e9ef;
+}
+
 .o-astro-head__close {
   width: 34px;
   height: 34px;
@@ -550,4 +569,290 @@
 
 .o-astro-cta__btn:hover {
   background: #1d4fd7;
+}
+
+/* --- cartão de ação (aprovação) ----------------------------------------- */
+
+/*
+  O Astro parou e está esperando um sim. O cartão é claro e destacado de
+  propósito: é a única coisa na conversa que MUDA o sistema, e precisa parecer
+  diferente de mais uma mensagem.
+*/
+.o-astro-acao {
+  align-self: flex-start;
+  max-width: 92%;
+  margin: 0.25rem 0;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 0.9rem;
+  background: rgba(37, 99, 235, 0.06);
+}
+
+.o-astro-acao__titulo {
+  margin: 0 0 0.15rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.o-astro-acao__linha {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.o-astro-acao__estado {
+  margin: 0.5rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.o-astro-acao__botoes {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+}
+
+.o-astro-acao__sim,
+.o-astro-acao__nao {
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.4rem 0.9rem;
+}
+
+.o-astro-acao__sim {
+  background: #2563eb;
+  color: #fff;
+}
+
+.o-astro-acao__nao {
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
+}
+
+/* Anexos: as miniaturas do que vai junto, o clipe e o alvo de arrastar. */
+.o-astro-body--drop {
+  outline: 2px dashed rgba(59, 130, 246, 0.6);
+  outline-offset: -8px;
+}
+
+.o-astro-anexos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 4px 8px;
+}
+
+.o-astro-anexo {
+  position: relative;
+  display: inline-flex;
+}
+
+.o-astro-anexo__mini {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+.o-astro-anexo__x {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.o-astro-anexo__aviso,
+.o-astro-anexo__erro {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.o-astro-anexo__erro {
+  color: #b91c1c;
+  opacity: 1;
+}
+
+.o-astro-clip {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.o-astro-clip:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.o-astro-clip:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* Falar com o Astro: mesmo tamanho do clipe, vermelho pulsando enquanto ouve. */
+.o-astro-voz {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+}
+
+.o-astro-voz:hover:not(:disabled) {
+  opacity: 1;
+}
+
+.o-astro-voz:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.o-astro-voz--ouvindo {
+  background: rgba(220, 38, 38, 0.14);
+  color: #dc2626;
+  opacity: 1;
+  animation: o-astro-pulsa 1.2s ease-in-out infinite;
+}
+
+@keyframes o-astro-pulsa {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(220, 38, 38, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .o-astro-voz--ouvindo {
+    animation: none;
+  }
+}
+
+/* Imagem na conversa: anexo enviado e imagem que o Astro gerou. */
+.o-astro-fotos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.o-astro-fotos--user {
+  justify-content: flex-end;
+}
+
+.o-astro-foto {
+  max-width: min(220px, 70%);
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+/* Avisos: o selo no botão e os cartões fixados no topo do painel. */
+.o-astro-selo {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.o-astro-avisos {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.o-astro-aviso {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-left-width: 3px;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(15, 23, 42, 0.03);
+}
+
+.o-astro-aviso--alta {
+  border-left-color: #dc2626;
+}
+
+.o-astro-aviso--media {
+  border-left-color: #f59e0b;
+}
+
+.o-astro-aviso--baixa {
+  border-left-color: #64748b;
+}
+
+.o-astro-aviso__titulo {
+  margin: 0;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.o-astro-aviso__corpo {
+  margin: 4px 0 0;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+.o-astro-aviso__botoes {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.o-astro-aviso__explicar,
+.o-astro-aviso__ok {
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.o-astro-aviso__explicar {
+  background: #2563eb;
+  color: #fff;
+}
+
+.o-astro-aviso__ok {
+  background: rgba(15, 23, 42, 0.08);
+  color: inherit;
 }

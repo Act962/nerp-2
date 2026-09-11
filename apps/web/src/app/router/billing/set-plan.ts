@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import prisma from "@/lib/db";
 import { hasFullAccess } from "@/lib/permissions";
 import { z } from "zod";
@@ -11,6 +12,7 @@ import { z } from "zod";
 export const setBillingPlan = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("trocar de plano"))
   .input(
     z.object({
       plan: z.enum(["BRONZE", "PRATA", "OURO"]),

@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { exigirContaVerificada } from "@/lib/conta-verificada";
 import prisma from "@/lib/db";
 import { isValidCnpj, normalizeDocument } from "@/lib/document";
 import { ORG_SEGMENTS, SEGMENT_DEFAULT_DISABLED } from "@/lib/org-segment";
@@ -46,6 +47,11 @@ export const updateOrgProfile = base
 
     let document: string | null | undefined;
     if (input.document !== undefined) {
+      // CNPJ é coluna única entre organizações: uma sandbox não pode ocupar o
+      // documento de uma empresa de verdade.
+      if (input.document) {
+        await exigirContaVerificada(context.org.id, "informar o CNPJ");
+      }
       if (input.document === null || input.document === "") {
         document = null;
       } else {

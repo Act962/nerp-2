@@ -1,10 +1,15 @@
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
+import { vagasRestantes } from "@/features/billing/server/limites";
 import { S3 } from "@/lib/s3-client";
 import type { ImportMapping } from "@/features/custom/import-fields";
 import { createCustomerForOrg } from "./create-customer-for-org";
-import { mapCustomerRow, parseSheet, type SheetRow } from "./parse-customer-import";
+import {
+  mapCustomerRow,
+  parseSheet,
+  type SheetRow,
+} from "./parse-customer-import";
 
 interface RowError {
   row: number;
@@ -58,9 +63,7 @@ export async function runCustomerImport(importId: string): Promise<void> {
     select: { email: true },
   });
   const seenEmails = new Set(
-    existing
-      .map((c) => normalizeEmail(c.email))
-      .filter((e) => e.length > 0),
+    existing.map((c) => normalizeEmail(c.email)).filter((e) => e.length > 0),
   );
 
   // 4. Processa linha a linha.
@@ -69,9 +72,19 @@ export async function runCustomerImport(importId: string): Promise<void> {
   let skippedRows = 0;
   let processedRows = 0;
 
+  // `null` = plano sem limite. Uma consulta antes do laço, não uma por linha.
+  const vagas = await vagasRestantes(record.organizationId, "clientes");
+
   for (let i = 0; i < rows.length; i++) {
     // +2: linha 1 é o cabeçalho; índice começa em 0 → número humano da planilha.
     const rowNumber = i + 2;
+    if (vagas !== null && createdRows >= vagas) {
+      errors.push({
+        row: rowNumber,
+        message: `Limite do plano atingido: ${rows.length - i} linha(s) não importada(s). Escolha um plano para cadastrar mais.`,
+      });
+      break;
+    }
     try {
       const mapped = mapCustomerRow(rows[i], mapping);
       if (mapped.error) {

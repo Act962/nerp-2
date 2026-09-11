@@ -2,8 +2,10 @@ import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { pacotesDisponiveis } from "@/features/stars/server/pacotes";
 import prisma from "@/lib/db";
+import { isOrgAdmin } from "@/lib/org-access";
 import { stripe } from "@/lib/stripe";
 
 /**
@@ -23,17 +25,26 @@ import { stripe } from "@/lib/stripe";
 export const createCheckout = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("comprar Stars"))
   .route({ method: "POST", summary: "Inicia recarga", tags: ["Stars"] })
   .input(
     z.object({
       packageId: z.string().min(1),
       /** Para onde voltar depois de pagar. Caminho relativo, nunca URL. */
-      voltarPara: z.string().startsWith("/").default("/whatsapp/creditos"),
+      voltarPara: z.string().startsWith("/").default("/configuracoes/stars"),
     }),
   )
   .output(z.object({ url: z.string(), paymentId: z.string() }))
   .handler(async ({ input, context, errors }) => {
     const organizationId = context.org.id;
+
+    // Comprar é gastar dinheiro da organização: só administrador. O saldo e o
+    // extrato continuam visíveis a todo membro.
+    if (!(await isOrgAdmin(organizationId, context.user.id))) {
+      throw errors.FORBIDDEN({
+        message: "Apenas administradores podem comprar Stars.",
+      });
+    }
 
     const pacote = (await pacotesDisponiveis()).find(
       (item) => item.id === input.packageId,
@@ -74,7 +85,7 @@ export const createCheckout = base
               product_data: {
                 name: `${pacote.label} — ${pacote.stars} ★`,
                 description:
-                  "Créditos para envio de mensagens no WhatsApp pelo nerp.",
+                  "Stars — créditos do nerp para o Astro e o WhatsApp.",
               },
             },
           },

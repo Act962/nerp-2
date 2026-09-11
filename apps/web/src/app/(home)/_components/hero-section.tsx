@@ -25,17 +25,34 @@ export default function HeroSection() {
           <div className="relative mx-auto max-w-5xl px-6 pt-28 lg:pt-24">
             <div className="relative z-10 mx-auto max-w-2xl text-center">
               <h1 className="text-balance text-4xl font-semibold md:text-5xl lg:text-6xl">
-                Sistema de ERP Moderno
+                O ERP que você usa antes de se cadastrar
               </h1>
               <p className="text-muted-foreground mx-auto my-8 max-w-2xl text-xl">
-                Sistema de ERP Moderno para empresas de todas as empresas.
+                PDV, estoque, catálogo promocional, WhatsApp, trade marketing e
+                o Astro, a IA da sua operação — tudo aberto desde o primeiro
+                clique.
               </p>
 
-              <Button asChild size="lg">
-                <Link href={session?.user ? "/dashboard" : "/login"}>
-                  <span className="btn-label">Começar agora</span>
-                </Link>
-              </Button>
+              <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Button asChild size="lg">
+                  <Link href={session?.user ? "/dashboard" : "/comecar"}>
+                    <span className="btn-label">
+                      {session?.user ? "Abrir o sistema" : "Começar agora"}
+                    </span>
+                  </Link>
+                </Button>
+                {!session?.user && (
+                  <Button asChild size="lg" variant="ghost">
+                    <Link href="/login">Já tenho conta</Link>
+                  </Button>
+                )}
+              </div>
+              {!session?.user && (
+                <p className="text-muted-foreground mt-3 text-sm">
+                  Sem cadastro. Você entra com uma empresa de teste pronta,
+                  dados de exemplo e 50 ★ para conversar com o Astro.
+                </p>
+              )}
             </div>
           </div>
 

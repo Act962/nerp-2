@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { XCircle } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import {
   Select,
@@ -131,10 +131,6 @@ export function CreateFormOrg({
       .replace(/^-+|-+$/g, "");
   }
 
-  const mutationCreateSettingsCatalog = useMutation(
-    orpc.catalogSettings.create.mutationOptions(),
-  );
-
   const onSubmit = async (formData: CreateOrgSchema) => {
     const { data } = await authClient.organization.checkSlug({
       slug: formData.slug,
@@ -185,14 +181,14 @@ export function CreateFormOrg({
       return;
     }
 
-    mutationCreateSettingsCatalog.mutate({
-      name: name,
-    });
+    // As configurações do catálogo, o bônus de ★ e os dados de exemplo nascem
+    // no servidor, no `afterCreateOrganization` (`lib/auth.ts`) — não aqui,
+    // onde um `mutate` sem `await` falharia em silêncio.
 
     toast.success("Organização criada com sucesso");
-    // O diretório, não o dashboard: é a única tela que já mostra o mercado, e
-    // dashboard de organização recém-criada é o pior primeiro contato possível.
-    router.push("/trade/diretorio");
+    // O dashboard, agora que a organização não nasce vazia: o card de
+    // boas-vindas e os dados de exemplo estão lá.
+    router.push("/dashboard");
   };
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: <explanation>

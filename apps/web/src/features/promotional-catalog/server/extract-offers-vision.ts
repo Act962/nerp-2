@@ -19,7 +19,7 @@ const GEMINI_MODEL = process.env.GEMINI_VISION_MODEL ?? "gemini-2.0-flash";
 const PAGE_CONCURRENCY = 4;
 
 function geminiApiKey(): string | undefined {
-  return process.env.GEMINI_API_KEY ?? process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  return process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? process.env.GEMINI_API_KEY;
 }
 
 export interface ExtractedOffer {

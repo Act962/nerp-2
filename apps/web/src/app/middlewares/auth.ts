@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
 import { deviceCanAccess } from "@/lib/device-scopes";
+import { s2sPodeAcessar } from "@/lib/s2s-scopes";
 import { base } from "./base";
 
 export const requireAuthMiddleware = base.middleware(
@@ -35,6 +36,15 @@ export const requireAuthMiddleware = base.middleware(
     }
 
     if (context.isS2S && context.s2sUser && context.s2sOrg) {
+      // Mesma regra do terminal: a chave de integração só alcança o que está
+      // em `s2s-scopes.ts` e para o qual tem escopo. Sem isto, qualquer chave
+      // válida da org valia como o login inteiro do dono.
+      if (!s2sPodeAcessar(path, context.s2sScopes ?? [])) {
+        throw errors.FORBIDDEN({
+          message: "Esta integração não tem permissão para esta operação",
+        });
+      }
+
       const now = new Date();
       const session = {
         id: `s2s-${context.s2sOrg.id}`,

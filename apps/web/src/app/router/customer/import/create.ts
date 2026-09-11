@@ -1,8 +1,10 @@
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { base } from "@/app/middlewares/base";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { requireVerifiedOrgMiddleware } from "@/app/middlewares/verified-org";
 import { inngest, customerImportRequested } from "@/lib/inngest/client";
 
 /**
@@ -15,6 +17,7 @@ import { inngest, customerImportRequested } from "@/lib/inngest/client";
 export const createImport = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
+  .use(requireVerifiedOrgMiddleware("importar clientes por planilha"))
   .route({
     method: "POST",
     summary: "Iniciar importação de clientes via planilha",
@@ -35,6 +38,8 @@ export const createImport = base
         message: "O campo Nome / Razão Social precisa estar mapeado",
       });
     }
+
+    await assertDentroDoLimite(context.org.id, "clientes");
 
     const record = await prisma.customerImport.create({
       data: {

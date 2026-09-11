@@ -9,6 +9,16 @@ import {
 import { enviarLote } from "@/features/campanhas/server/enviar-lote";
 import { recalcularContadores } from "@/features/campanhas/server/contadores";
 import type { Prisma } from "@/generated/prisma/client";
+import {
+  apagarSandboxExpirada,
+  avisarSandboxes,
+  listarSandboxesExpiradas,
+} from "@/features/onboarding/server/expirar-sandbox";
+import {
+  avaliarEGravar,
+  limparAvisosAntigos,
+  organizacoesParaAvaliar,
+} from "@/features/astro/server/avisos/gravar";
 import prisma from "@/lib/db";
 import {
   listOrganizationsForSync,
@@ -759,7 +769,63 @@ export const automacaoVarrerOciosos = inngest.createFunction(
   async ({ step }) => step.run("varrer", () => varrerLeadsOciosos()),
 );
 
+/**
+ * Ciclo de vida da sandbox: avisa aos 23 dias sem acesso, apaga aos 30.
+ * Diário, de madrugada, como o `erp-sync-deep-schedule`. Zero IA.
+ */
+export const sandboxExpire = inngest.createFunction(
+  {
+    id: "sandbox-expire",
+    triggers: [{ cron: "TZ=America/Fortaleza 30 3 * * *" }],
+  },
+  async ({ step }) => {
+    const avisadas = await step.run("avisar", () => avisarSandboxes());
+    const expiradas = await step.run("listar-expiradas", () =>
+      listarSandboxesExpiradas(),
+    );
+    let apagadas = 0;
+    for (const { id } of expiradas) {
+      const ok = await step.run(`apagar-${id}`, () =>
+        apagarSandboxExpirada(id),
+      );
+      if (ok) apagadas += 1;
+    }
+    return { avisadas, apagadas };
+  },
+);
+
+/**
+ * Os avisos do Astro: três passadas por dia, de segunda a sábado, no horário
+ * em que alguém está na loja para ler. **Zero IA** — é consulta ao banco, como
+ * o `dashboard-alert-check`. Uma organização por `step.run`: a falha numa não
+ * derruba a varredura das outras, e a retentativa não reavalia todas.
+ */
+export const astroAvaliarAvisos = inngest.createFunction(
+  {
+    id: "astro-avaliar-avisos",
+    triggers: [{ cron: "TZ=America/Fortaleza 0 7,13,18 * * 1-6" }],
+  },
+  async ({ step }) => {
+    const orgs = await step.run("listar-orgs", () => organizacoesParaAvaliar());
+    let criados = 0;
+    for (const organizationId of orgs) {
+      criados += await step.run(`avaliar-${organizationId}`, () =>
+        avaliarEGravar(organizationId).catch((erro) => {
+          console.error("[astro] falha ao avaliar avisos", {
+            organizationId,
+            erro,
+          });
+          return 0;
+        }),
+      );
+    }
+    const limpos = await step.run("limpar", () => limparAvisosAntigos());
+    return { orgs: orgs.length, criados, limpos };
+  },
+);
+
 export const functions = [
+  astroAvaliarAvisos,
   automacaoExecutar,
   automacaoVarrerOciosos,
   campanhaDisparar,
@@ -775,4 +841,5 @@ export const functions = [
   erpSyncDeepSchedule,
   erpSyncRun,
   dashboardAlertCheck,
+  sandboxExpire,
 ];

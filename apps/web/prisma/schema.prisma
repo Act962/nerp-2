@@ -16,6 +16,11 @@ model User {
   name                     String
   email                    String                    @unique
   emailVerified            Boolean                   @default(false)
+  /// Conta criada sem cadastro ("Começar agora"). Vira conta de verdade ao
+  /// vincular o Google; a linha fica como conta provisória (`linkedToUserId`).
+  isAnonymous              Boolean                   @default(false)
+  linkedToUserId           String?                   @map("linked_to_user_id")
+  astroAcoes               AstroAcao[]
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
@@ -149,6 +154,112 @@ enum OrganizationStatus {
   SUSPENDED
   TRIAL
   CANCELLED
+}
+
+/// Contador do limite de requisições do Better Auth (`rateLimit.storage:
+/// "database"`). `lastRequest` é Float, não BigInt: o Better Auth faz
+/// `Date.now() - lastRequest` em número, e o BigInt do Prisma estouraria a
+/// conta com "Cannot mix BigInt". Double guarda milissegundos sem perda.
+/// O que o Astro FEZ, além do que ele disse.
+///
+/// Toda tool de escrita grava uma linha: o que foi pedido, o que saiu e
+/// quanto custou. `StarTransaction` só guarda a descrição do débito — não o
+/// argumento nem o erro —, e ação de custo zero (criar evento) não geraria
+/// linha nenhuma lá. Sem isto, "o Astro criou uma campanha que eu não pedi"
+/// é indiscutível.
+model AstroAcao {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  /// Sessão de conversa (`SiteChatSession`), sem FK: a sessão expira em 24 h
+  /// e a auditoria fica.
+  sessionId      String?  @map("session_id")
+  tool           String
+  entrada        Json
+  resultado      Json?
+  erro           String?
+  starsCobradas  Decimal  @default(0) @map("stars_cobradas") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("astro_acoes")
+}
+
+/// Um aviso que o Astro tem para dar: estoque acabando, ticket abaixo do
+/// usual, ação amanhã, contrato vencendo, ★ no fim, sandbox expirando.
+/// Avaliado por consulta SQL num cron — nenhum modelo de IA participa disso.
+model AstroAviso {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  tipo           String
+  /// "alta" | "media" | "baixa" — a lista vive em código (`avisos/tipos.ts`).
+  severidade     String
+  titulo         String
+  corpo          String
+  dados          Json?
+  /// `tipo:chave:AAAA-MM-DD`. É o que impede o mesmo aviso de nascer de novo
+  /// a cada passada do cron no mesmo dia.
+  dedupeKey      String    @map("dedupe_key")
+  lidoEm         DateTime? @map("lido_em")
+  /// Quando o mascote falou este aviso no balão. Fala uma vez, não a cada
+  /// carregamento de página.
+  faladoEm       DateTime? @map("falado_em")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, lidoEm, createdAt])
+  @@map("astro_avisos")
+}
+
+/// O que o Astro guardou sobre a operação desta organização, a pedido de
+/// alguém dela. Nunca sai da organização: toda leitura é por `organizationId`,
+/// e o canal do site não tem memória nenhuma.
+model AstroMemoria {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  chave          String
+  texto          String
+  /// "pessoa" (alguém pediu para lembrar) | "resumo" (fecho de conversa).
+  origem         String   @default("pessoa")
+  criadoPorId    String?  @map("criado_por_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, chave])
+  @@index([organizationId, updatedAt])
+  @@map("astro_memorias")
+}
+
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String
+  count       Int
+  lastRequest Float
+
+  @@index([key])
+  @@map("rateLimit")
+}
+
+/// Bytes assinados para upload por organização e dia (cota do R2). A linha é
+/// reservada ANTES do presign — ver `features/uploads/server/cota.ts`.
+model UploadQuotaDaily {
+  id             String @id @default(cuid())
+  organizationId String @map("organization_id")
+  /// YYYY-MM-DD no fuso da loja.
+  day            String
+  bytes          Int    @default(0)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, day])
+  @@map("upload_quota_daily")
 }
 
 model Organization {
@@ -338,14 +449,34 @@ model Organization {
   // Saldo único, sem separar bônus: o extrato (`StarTransaction`) já registra
   // de onde cada crédito veio, e duas contas paralelas só fariam sentido se
   // alguma delas tivesse regra de uso diferente — o que não existe aqui.
-  starsBalance    Int              @default(0) @map("stars_balance")
+  /// Decimal acompanhando o preço: com saldo inteiro, uma cobrança de 0,20 ★
+  /// seria truncada a zero e a conversa sairia de graça.
+  starsBalance     Decimal          @default(0) @map("stars_balance") @db.Decimal(12, 2)
   /// Início do ciclo mensal. Nulo enquanto a organização nunca recebeu crédito.
-  starsCycleStart DateTime?        @map("stars_cycle_start")
-  agendas         Agenda[]
-  crmWorkflows    CrmWorkflow[]
-  crmWorkflowRuns CrmWorkflowRun[]
-  appointments    Appointment[]
-  reminders       Reminder[]
+  starsCycleStart  DateTime?        @map("stars_cycle_start")
+  /// ★ debitadas desde o início do ciclo. Zera quando o ciclo vira; no plano
+  /// Grátis, que não tem ciclo, acumula desde a criação — é o consumido das 50.
+  starsUsedInCycle Decimal          @default(0) @map("stars_used_in_cycle") @db.Decimal(12, 2)
+  /// Sandbox: nulo enquanto o dono não vinculou uma conta de verdade. Tudo o
+  /// que sai para o mundo (vitrine, convite, WhatsApp, ERP, compra) exige isto.
+  verifiedAt       DateTime?        @map("verified_at")
+  /// Último acesso de alguém da organização (throttle de 1 h). Sandbox sem
+  /// acesso há 30 dias é apagada pelo `sandbox-expire`.
+  lastAccessAt     DateTime?        @map("last_access_at")
+  expiryWarnedAt   DateTime?        @map("expiry_warned_at")
+  /// Ramo escolhido no onboarding (id de `nichos.ts`) e soluções de interesse.
+  niche            String?
+  interests        String[]         @default([])
+  agendas          Agenda[]
+  crmWorkflows     CrmWorkflow[]
+  crmWorkflowRuns  CrmWorkflowRun[]
+  appointments     Appointment[]
+  reminders        Reminder[]
+
+  uploadQuotas  UploadQuotaDaily[]
+  astroAcoes    AstroAcao[]
+  astroAvisos   AstroAviso[]
+  astroMemorias AstroMemoria[]
 
   @@index([slug])
   @@index([subdomain])
@@ -617,6 +748,8 @@ model Category {
   // parentId; mantidos por backfill e na escrita.
   level          Int                         @default(0)
   path           String?
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo         Boolean                     @default(false)
   createdAt      DateTime                    @default(now())
   updatedAt      DateTime                    @updatedAt
   organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -732,6 +865,8 @@ model Product {
   // KDS - tempo médio de preparo (min) usado no painel da cozinha
   prepTimeMinutes     Int?
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo              Boolean              @default(false)
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   createdById         String
@@ -1094,6 +1229,8 @@ model Customer {
   //Assas
   asaasCustomerId String?      @map("asaas_customer_id")
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo          Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
   // Tabela de preço vinculada — quem não tem cai na PriceList `isDefault` da org.
@@ -1146,6 +1283,8 @@ model Supplier {
   notes             String?                    @db.Text
   isActive          Boolean                    @default(true)
   // Timestamps
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo            Boolean                    @default(false)
   createdAt         DateTime                   @default(now())
   updatedAt         DateTime                   @updatedAt
   // Relações
@@ -1263,6 +1402,7 @@ model Sale {
   notes             String?         @db.Text
   // Timestamps
   createdAt         DateTime        @default(now())
+  isDemo            Boolean         @default(false)
   updatedAt         DateTime        @updatedAt
   completedAt       DateTime?
   cancelledAt       DateTime?
@@ -1964,6 +2104,8 @@ model PromotionalCatalog {
   // Miniatura (data URL JPEG) capturada no autosave — mostrada na lista.
   thumbnail      String?  @db.Text
   createdById    String
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo         Boolean  @default(false)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -2087,6 +2229,7 @@ model SalesGoalPeriod {
   // metas das equipes. Null = comportamento antigo (soma das equipes).
   overallGoalAmount Decimal?            @db.Decimal(15, 2)
   createdAt         DateTime            @default(now())
+  isDemo            Boolean             @default(false)
   updatedAt         DateTime            @updatedAt
 
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -2349,6 +2492,8 @@ model Store {
   /// `organizationId`. Sem ele, duas organizações com a mesma loja produzem
   /// dois pinos no mapa público.
   directoryStoreId      String?
+  /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
+  isDemo                Boolean                       @default(false)
   createdAt             DateTime                      @default(now())
   updatedAt             DateTime                      @updatedAt
   organization          Organization                  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -4489,6 +4634,7 @@ model CalendarEvent {
   location       String?
   createdById    String // Member.id, não User.id
   createdAt      DateTime            @default(now())
+  isDemo         Boolean             @default(false)
   updatedAt      DateTime            @updatedAt
 
   organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -4917,6 +5063,7 @@ model ReceiptTemplate {
   blocks         Json // array de blocos do editor (ReceiptBlock[])
   isDefault      Boolean      @default(false) @map("is_default")
   createdAt      DateTime     @default(now()) @map("created_at")
+  isDemo         Boolean      @default(false)
   updatedAt      DateTime     @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -5367,6 +5514,8 @@ model SiteChatSession {
 
   @@index([expiresAt])
   @@index([ipHash, createdAt]) // é este índice que o limite por IP usa
+  // E este, o teto diário por organização no canal do app.
+  @@index([organizationId, createdAt])
   @@index([leadId])
   @@map("site_chat_sessions")
 }
@@ -5527,6 +5676,7 @@ model CrmFunnel {
   kanbanBackgroundOpacity       Int     @default(50) @map("kanban_background_opacity")
 
   createdAt DateTime @default(now()) @map("created_at")
+  isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt @map("updated_at")
 
   organization       Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -5744,6 +5894,7 @@ model CrmLead {
   stageEnteredAt     DateTime? @map("stage_entered_at")
 
   createdAt DateTime  @default(now()) @map("created_at")
+  isDemo    Boolean   @default(false)
   updatedAt DateTime  @updatedAt @map("updated_at")
   closedAt  DateTime? @map("closed_at")
 
@@ -5894,6 +6045,7 @@ model CrmTag {
   archivedById String?   @map("archived_by_id")
 
   createdAt DateTime @default(now()) @map("created_at")
+  isDemo    Boolean  @default(false)
   updatedAt DateTime @updatedAt @map("updated_at")
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -6281,8 +6433,8 @@ model StarTransaction {
   organizationId String              @map("organization_id")
   type           StarTransactionType
   /// Positivo credita, negativo debita.
-  amount         Int
-  balanceAfter   Int                 @map("balance_after")
+  amount         Decimal             @db.Decimal(12, 2)
+  balanceAfter   Decimal             @map("balance_after") @db.Decimal(12, 2)
   description    String
   /// Ação que gerou o débito (ex.: "message_send"), quando houver.
   actionKey      String?             @map("action_key")
@@ -6304,7 +6456,10 @@ model StarRule {
   organizationId String   @map("organization_id")
   actionKey      String   @map("action_key")
   label          String
-  stars          Int      @default(0)
+  /// Decimal porque o preço por bloco de tokens não cabe em inteiro: cobrar
+  /// 1 ★ por 1.000 tokens é caro demais, e 0 desliga. Duas casas bastam —
+  /// abaixo de 0,01 ★ a conta vira ruído.
+  stars          Decimal  @default(0) @db.Decimal(12, 2)
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")

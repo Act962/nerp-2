@@ -8,6 +8,8 @@ import { AppHeader } from "@/components/app-header";
 import { NewVersionBanner } from "@/components/new-version-banner";
 import { ShellContent } from "@/components/shell-content";
 import { EmptyOrganization } from "@/components/empty-organization";
+import { AstroFlutuante } from "@/features/astro/components/astro-flutuante";
+import { BannerSandbox } from "@/features/onboarding/components/banner-sandbox";
 
 export default async function Layout({
   children,
@@ -28,6 +30,7 @@ export default async function Layout({
       <PdvMediaPanel />
       <div className="flex flex-1 flex-col overflow-hidden">
         <NewVersionBanner />
+        <BannerSandbox />
         <AppHeader />
         <main className="flex-1 overflow-y-auto">
           {org ? (
@@ -46,6 +49,9 @@ export default async function Layout({
         </main>
       </div>
       <ModalProvider />
+      {/* O mesmo Astro do site, flutuando em toda página logada. Só com
+          organização: é dela que sai o saldo que paga a conversa. */}
+      {org ? <AstroFlutuante /> : null}
     </SidebarProvider>
   );
 }

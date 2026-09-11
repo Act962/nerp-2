@@ -2,7 +2,9 @@
 
 import { Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useExtrato, useSaldo } from "../hooks/use-stars";
+import { ConversorDeTokens } from "./conversor-de-tokens";
 import { PrecosDasAcoes } from "./precos-das-acoes";
 import { Recarregar } from "./recarregar";
 
@@ -56,32 +58,66 @@ export function CreditosContainer() {
           <Star className="size-8 text-amber-500" />
           <div>
             <p className="font-semibold text-2xl">{saldo.saldo}</p>
-            <p className="text-muted-foreground text-xs">
-              créditos disponíveis
-            </p>
+            <p className="text-muted-foreground text-xs">Stars disponíveis</p>
           </div>
         </div>
 
-        {saldo.cobrancaAtiva ? (
-          <div className="text-sm">
-            <p>
-              Mensagem: <strong>{saldo.precos.mensagem} ★</strong> · Campanha:{" "}
-              <strong>{saldo.precos.campanha} ★</strong> por destinatário
-            </p>
-            {saldo.mensagensRestantes !== null ? (
-              <p className="text-muted-foreground">
-                Dá para enviar cerca de {saldo.mensagensRestantes} mensagem
-                {saldo.mensagensRestantes === 1 ? "" : "s"}.
-              </p>
+        <div className="flex min-w-[220px] flex-1 flex-col gap-1.5">
+          <div className="flex items-center justify-between text-sm">
+            <span>
+              Plano <strong>{saldo.plano.nome}</strong>
+              {saldo.limite > 0 ? (
+                <span className="text-muted-foreground">
+                  {" "}
+                  · {saldo.consumido} de {saldo.limite} ★ usadas
+                </span>
+              ) : null}
+            </span>
+            {saldo.limite > 0 ? (
+              <span className="text-muted-foreground tabular-nums">
+                {saldo.percentual}%
+              </span>
             ) : null}
           </div>
-        ) : (
-          <p className="max-w-md text-muted-foreground text-sm">
-            A cobrança está <strong>desligada</strong>: nenhuma ação tem preço
-            cadastrado, então nada é debitado e nada é bloqueado. Para ligar,
-            defina um preço em <strong>Preço das ações</strong>, logo abaixo.
+          {saldo.limite > 0 ? (
+            <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={cn(
+                  "h-full rounded-full",
+                  saldo.nivel === "ok" ? "bg-primary" : "",
+                  saldo.nivel === "atencao" ? "bg-amber-500" : "",
+                  saldo.nivel === "critico" || saldo.nivel === "esgotado"
+                    ? "bg-destructive"
+                    : "",
+                )}
+                style={{ width: `${saldo.percentual}%` }}
+              />
+            </div>
+          ) : null}
+          {saldo.usoExtra > 0 ? (
+            <p className="text-muted-foreground text-xs">
+              Uso extra: {saldo.usoExtra} ★ além do plano, pagas com Stars
+              avulsas.
+            </p>
+          ) : null}
+          <p className="text-muted-foreground text-xs">
+            Astro: <strong>{saldo.precos.astroPor1k} ★</strong> a cada 1.000
+            tokens
+            {saldo.cobrancaAtiva ? (
+              <>
+                {" "}
+                · Mensagem: <strong>{saldo.precos.mensagem} ★</strong> ·
+                Campanha: <strong>{saldo.precos.campanha} ★</strong> por
+                destinatário
+                {saldo.mensagensRestantes !== null
+                  ? ` (cerca de ${saldo.mensagensRestantes} mensagens)`
+                  : ""}
+              </>
+            ) : (
+              " · Mensagens do WhatsApp ainda sem cobrança"
+            )}
           </p>
-        )}
+        </div>
 
         <div className="ms-auto">
           <Recarregar />
@@ -89,6 +125,7 @@ export function CreditosContainer() {
       </div>
 
       <PrecosDasAcoes />
+      <ConversorDeTokens />
 
       <section className="space-y-2">
         <h2 className="font-medium text-sm">Extrato</h2>

@@ -28,6 +28,21 @@ export const astroConfigSchema = z.object({
   tetoMensagensDia: z.number().int().min(0).default(0),
   /** Sobrepõe o modelo padrão. Vazio = o que o ambiente decidir. */
   modelo: z.string().default(""),
+  /**
+   * Fechar a conversa longa com um resumo curto guardado na memória da
+   * organização. **Desligado por padrão**: é o único uso de IA fora da
+   * conversa, e uma chamada a mais por conversa longa em toda a base é conta
+   * que ninguém pediu. Quem quiser, liga.
+   */
+  resumirConversas: z.boolean().default(false),
+  /**
+   * Teto de mensagens por dia POR ORGANIZAÇÃO, no canal logado. 0 = sem teto.
+   * O `tetoMensagensDia` acima é do site inteiro; este existe porque uma
+   * organização sozinha, com um laço mal escrito ou um funcionário curioso,
+   * consegue gastar a fatura de todas as outras juntas — e o saldo de ★ não
+   * segura isso quando a cobrança está desligada por regra.
+   */
+  tetoMensagensDiaPorOrg: z.number().int().min(0).default(0),
 });
 
 export type AstroConfig = z.infer<typeof astroConfigSchema>;
@@ -46,6 +61,14 @@ export type ModeloResolvido = {
   modelo: LanguageModel;
   /** Para gravar na sessão e saber depois o que respondeu o quê. */
   nome: string;
+  /**
+   * Quem está atendendo. Busca na web e geração de imagem são tools do
+   * PROVEDOR, não do SDK: existem no Google e não na OpenAI, então quem monta
+   * o conjunto de tools precisa saber com quem está falando.
+   */
+  provedor: "google" | "openai";
+  /** O provedor Google já construído, para `google.image` e `google.tools`. */
+  google?: ReturnType<typeof createGoogleGenerativeAI>;
 };
 
 /**
@@ -66,7 +89,7 @@ export function resolverModelo(
   if (querOpenAi && chaveOpenAi) {
     const openai = createOpenAI({ apiKey: chaveOpenAi });
     const nome = escolhido ?? MODELO_OPENAI_PADRAO;
-    return { modelo: openai(nome), nome };
+    return { modelo: openai(nome), nome, provedor: "openai" };
   }
 
   if (chaveGoogle) {
@@ -74,7 +97,7 @@ export function resolverModelo(
     const nome = querOpenAi
       ? MODELO_GOOGLE_PADRAO
       : (escolhido ?? MODELO_GOOGLE_PADRAO);
-    return { modelo: google(nome), nome };
+    return { modelo: google(nome), nome, provedor: "google", google };
   }
 
   if (chaveOpenAi) {
@@ -82,7 +105,7 @@ export function resolverModelo(
     const nome = escolhido?.startsWith("gpt-")
       ? escolhido
       : MODELO_OPENAI_PADRAO;
-    return { modelo: openai(nome), nome };
+    return { modelo: openai(nome), nome, provedor: "openai" };
   }
 
   return null;
