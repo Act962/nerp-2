@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { construirToolsDoApp } from "@/features/astro/server/tools-app";
 import { lerTabelaDePrecos } from "@/features/astro-consultor/server/preco";
 import type { Organization, User } from "@/generated/prisma/client";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 import { createMember, createOrg, createUser, resetDb } from "./helpers";
 
@@ -125,14 +126,16 @@ describe("criarCatalogoPromocional", () => {
       where: { id: orgA.id },
       select: { starsBalance: true },
     });
-    expect(antes.starsBalance - depois.starsBalance).toBe(5);
+    expect(
+      emEstrelas(antes.starsBalance) - emEstrelas(depois.starsBalance),
+    ).toBe(5);
 
     const auditoria = await prisma.astroAcao.findFirstOrThrow({
       where: { organizationId: orgA.id, tool: "criarCatalogoPromocional" },
       orderBy: { createdAt: "desc" },
     });
     expect(auditoria.userId).toBe(donoA.id);
-    expect(auditoria.starsCobradas).toBe(5);
+    expect(emEstrelas(auditoria.starsCobradas)).toBe(5);
     expect(auditoria.erro).toBeNull();
   });
 
@@ -165,14 +168,16 @@ describe("criarCatalogoPromocional", () => {
       where: { id: orgA.id },
       select: { starsBalance: true },
     });
-    expect(depois.starsBalance).toBe(antes.starsBalance);
+    expect(emEstrelas(depois.starsBalance)).toBe(
+      emEstrelas(antes.starsBalance),
+    );
 
     const auditoria = await prisma.astroAcao.findFirstOrThrow({
       where: { organizationId: orgA.id, userId: membroSimples.id },
       orderBy: { createdAt: "desc" },
     });
     expect(auditoria.erro).toMatch(/permissão/i);
-    expect(auditoria.starsCobradas).toBe(0);
+    expect(emEstrelas(auditoria.starsCobradas)).toBe(0);
   });
 
   it("critério que não casa com nada não cria catálogo vazio", async () => {

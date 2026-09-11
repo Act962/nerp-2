@@ -13,6 +13,7 @@ import {
   SaldoInsuficienteError,
 } from "@/features/stars/server/debitar";
 import type { Organization, User } from "@/generated/prisma/client";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 import {
   createMember,
@@ -39,7 +40,7 @@ async function saldo(): Promise<number> {
     where: { id: org.id },
     select: { starsBalance: true },
   });
-  return atual.starsBalance;
+  return emEstrelas(atual.starsBalance);
 }
 
 beforeAll(async () => {

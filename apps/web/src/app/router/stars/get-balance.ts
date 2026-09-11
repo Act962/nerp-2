@@ -4,6 +4,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { limiteDeStars } from "@/features/billing/lib/planos";
 import { planoDaOrganizacao } from "@/features/billing/server/plano-da-organizacao";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import { calcularUso } from "@/features/stars/lib/uso";
 import { garantirCreditoDoCiclo } from "@/features/stars/server/credito-do-ciclo";
 import { ACOES, custoDaAcao } from "@/features/stars/server/debitar";
@@ -70,17 +71,19 @@ export const getBalance = base
       ]);
 
     const uso = calcularUso({
-      saldo: org.starsBalance,
+      saldo: emEstrelas(org.starsBalance),
       limite: limiteDeStars(plano),
-      consumido: org.starsUsedInCycle,
+      consumido: emEstrelas(org.starsUsedInCycle),
     });
 
     return {
-      saldo: org.starsBalance,
+      saldo: emEstrelas(org.starsBalance),
       cobrancaAtiva: mensagem > 0 || campanha > 0,
       precos: { mensagem, campanha, astroPor1k },
       mensagensRestantes:
-        mensagem > 0 ? Math.floor(org.starsBalance / mensagem) : null,
+        mensagem > 0
+          ? Math.floor(emEstrelas(org.starsBalance) / mensagem)
+          : null,
       plano: {
         id: plano.id,
         nome: plano.nome,

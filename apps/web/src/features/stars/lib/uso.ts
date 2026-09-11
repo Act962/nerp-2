@@ -7,6 +7,8 @@
  * ainda há na conta, incluindo ★ compradas avulsas.
  */
 
+import { arredondarEstrelas } from "./decimal";
+
 export type NivelDeUso = "ok" | "atencao" | "critico" | "esgotado";
 
 export interface EntradaDeUso {
@@ -67,10 +69,16 @@ function nivelDoSaldo(saldo: number, limite: number): NivelDeUso {
 }
 
 /**
- * Quanto custa uma conversa: ★ por bloco de 1.000 tokens, arredondando para
- * cima — o bloco começado é cobrado inteiro, como minuto de ligação.
+ * Quanto custa uma conversa: ★ por bloco de 1.000 tokens, arredondando o
+ * BLOCO para cima — o bloco começado é cobrado inteiro, como minuto de
+ * ligação.
+ *
+ * O preço pode ser fracionado (0,2 ★ por mil tokens), então o resultado
+ * também é: 4.300 tokens a 0,2 dão 5 blocos, 1,00 ★. O arredondamento final
+ * é o da moeda, e não outro "para cima" — cobrar o bloco inteiro já é a
+ * margem; arredondar de novo seria cobrar duas vezes pela mesma sobra.
  */
 export function custoDeTokens(totalTokens: number, precoPor1k: number): number {
   if (totalTokens <= 0 || precoPor1k <= 0) return 0;
-  return Math.ceil(totalTokens / 1000) * precoPor1k;
+  return arredondarEstrelas(Math.ceil(totalTokens / 1000) * precoPor1k);
 }

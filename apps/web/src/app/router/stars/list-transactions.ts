@@ -2,6 +2,7 @@ import { z } from "zod";
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 
 /**
@@ -60,8 +61,8 @@ export const listTransactions = base
       lancamentos: lancamentos.map((linha) => ({
         id: linha.id,
         tipo: linha.type,
-        valor: linha.amount,
-        saldoDepois: linha.balanceAfter,
+        valor: emEstrelas(linha.amount),
+        saldoDepois: emEstrelas(linha.balanceAfter),
         descricao: linha.description,
         quando: linha.createdAt.toISOString(),
       })),

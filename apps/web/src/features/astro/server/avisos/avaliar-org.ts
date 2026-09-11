@@ -7,6 +7,7 @@ import {
 import { limiteDeStars } from "@/features/billing/lib/planos";
 import { planoDaOrganizacao } from "@/features/billing/server/plano-da-organizacao";
 import { DIAS_PARA_APAGAR } from "@/features/onboarding/server/expirar-sandbox";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import { calcularUso } from "@/features/stars/lib/uso";
 import prisma from "@/lib/db";
 import { intervaloDoPeriodo } from "../periodo";
@@ -234,9 +235,9 @@ async function avisoDeStars(
 
   const { plano } = await planoDaOrganizacao(organizationId);
   const uso = calcularUso({
-    saldo: org.starsBalance,
+    saldo: emEstrelas(org.starsBalance),
     limite: limiteDeStars(plano),
-    consumido: org.starsUsedInCycle,
+    consumido: emEstrelas(org.starsUsedInCycle),
   });
 
   if (uso.nivel !== "critico" && uso.nivel !== "esgotado") return null;

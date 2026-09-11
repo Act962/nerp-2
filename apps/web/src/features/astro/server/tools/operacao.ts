@@ -9,6 +9,7 @@ import {
   resolveEffectivePlan,
 } from "@/features/billing/lib/plans";
 import { planoDaOrganizacao } from "@/features/billing/server/plano-da-organizacao";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import { calcularUso } from "@/features/stars/lib/uso";
 import prisma from "@/lib/db";
 import { SEGMENT_LABELS } from "@/lib/org-segment";
@@ -44,9 +45,9 @@ export function construirToolsDeOperacao(ctx: ContextoToolsApp): ToolSet {
         ]);
 
         const uso = calcularUso({
-          saldo: org.starsBalance,
+          saldo: emEstrelas(org.starsBalance),
           limite: limiteDeStars(plano),
-          consumido: org.starsUsedInCycle,
+          consumido: emEstrelas(org.starsUsedInCycle),
         });
 
         return {

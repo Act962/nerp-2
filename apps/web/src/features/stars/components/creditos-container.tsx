@@ -4,6 +4,7 @@ import { Loader2, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useExtrato, useSaldo } from "../hooks/use-stars";
+import { ConversorDeTokens } from "./conversor-de-tokens";
 import { PrecosDasAcoes } from "./precos-das-acoes";
 import { Recarregar } from "./recarregar";
 
@@ -124,6 +125,7 @@ export function CreditosContainer() {
       </div>
 
       <PrecosDasAcoes />
+      <ConversorDeTokens />
 
       <section className="space-y-2">
         <h2 className="font-medium text-sm">Extrato</h2>

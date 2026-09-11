@@ -5,6 +5,7 @@ import { z } from "zod";
 import { limiteDeStars } from "@/features/billing/lib/planos";
 import { planoDaOrganizacao } from "@/features/billing/server/plano-da-organizacao";
 import { getPublicSiteContent } from "@/features/site/server/public-content";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 import { executarAcao } from "../acoes/registro";
 import type { ContextoToolsApp } from "./_contexto";
@@ -92,8 +93,8 @@ export function construirToolsDeSuporte(ctx: ContextoToolsApp): ToolSet {
             origemDoPlano: origem,
             contaDeTeste: org.verifiedAt === null,
             stars: {
-              saldo: org.starsBalance,
-              consumidoNoCiclo: org.starsUsedInCycle,
+              saldo: emEstrelas(org.starsBalance),
+              consumidoNoCiclo: emEstrelas(org.starsUsedInCycle),
               limite: limiteDeStars(plano),
             },
             assunto: entrada.assunto,

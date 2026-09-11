@@ -6,6 +6,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  formatarEstrelas,
+  lerEstrelasDigitadas,
+} from "@/features/stars/lib/decimal";
 import { orpc } from "@/lib/orpc";
 
 /**
@@ -28,7 +32,7 @@ export function PrecosDasAcoes() {
         toast.success(
           resultado.stars === 0
             ? "Cobrança desta ação desligada"
-            : `Passou a custar ${resultado.stars} ★`,
+            : `Passou a custar ${formatarEstrelas(resultado.stars)} ★`,
         );
         queryClient.invalidateQueries({ queryKey: orpc.stars.key() });
       },
@@ -98,15 +102,17 @@ function LinhaDePreco({
   salvando: boolean;
   onSalvar: (stars: number) => void;
 }) {
-  const [valor, setValor] = useState(String(regra.stars));
+  const [valor, setValor] = useState(formatarEstrelas(regra.stars));
 
   // Depois de salvar, o refetch traz o valor gravado — o campo acompanha em
   // vez de continuar mostrando o que foi digitado.
-  useEffect(() => setValor(String(regra.stars)), [regra.stars]);
+  useEffect(() => setValor(formatarEstrelas(regra.stars)), [regra.stars]);
 
-  const numero = Number(valor);
-  const valido = Number.isInteger(numero) && numero >= 0 && numero <= 1000;
-  const mudou = numero !== regra.stars;
+  // Vírgula, porque em pt-BR ninguém digita "0.2". `null` é o que não é
+  // número: o botão trava em vez de gravar zero, que DESLIGARIA a cobrança.
+  const numero = lerEstrelasDigitadas(valor);
+  const valido = numero !== null && numero <= 1000;
+  const mudou = numero !== null && numero !== regra.stars;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3">
@@ -117,11 +123,12 @@ function LinhaDePreco({
 
       <div className="flex items-center gap-2">
         <Input
-          type="number"
-          min={0}
-          max={1000}
-          inputMode="numeric"
+          type="text"
+          inputMode="decimal"
+          aria-label={`Preço de ${regra.label} em Stars`}
+          aria-invalid={valor.trim() !== "" && !valido}
           className="w-24"
+          placeholder="0"
           disabled={!podeEditar}
           value={valor}
           onChange={(evento) => setValor(evento.target.value)}
@@ -132,7 +139,7 @@ function LinhaDePreco({
             size="sm"
             variant={mudou ? "default" : "outline"}
             disabled={!valido || !mudou || salvando}
-            onClick={() => onSalvar(numero)}
+            onClick={() => numero !== null && onSalvar(numero)}
           >
             {salvando ? <Loader2 className="size-4 animate-spin" /> : null}
             Salvar

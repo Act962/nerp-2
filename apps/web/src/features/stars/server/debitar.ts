@@ -4,6 +4,7 @@ import { ORPCError } from "@orpc/server";
 import type { StarTransactionType } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { PRECOS_PADRAO } from "../lib/acoes-chaves";
+import { arredondarEstrelas, emEstrelas } from "../lib/decimal";
 
 /**
  * Motor de débito de Stars.
@@ -58,7 +59,7 @@ export async function custoDaAcao(
   });
   if (!regra) return precoPadrao(actionKey);
   if (!regra.isActive) return 0;
-  return Math.max(0, regra.stars);
+  return Math.max(0, emEstrelas(regra.stars));
 }
 
 function precoPadrao(actionKey: string): number {
@@ -94,7 +95,7 @@ export async function podePagar(
     select: { starsBalance: true },
   });
   if (!org) return false;
-  if (org.starsBalance >= valor) return true;
+  if (emEstrelas(org.starsBalance) >= valor) return true;
 
   const { garantirCreditoDoCiclo } = await import("./credito-do-ciclo");
   if (!(await garantirCreditoDoCiclo(organizationId)).creditou) return false;
@@ -103,7 +104,7 @@ export async function podePagar(
     where: { id: organizationId },
     select: { starsBalance: true },
   });
-  return (depois?.starsBalance ?? 0) >= valor;
+  return emEstrelas(depois?.starsBalance) >= valor;
 }
 
 /**
@@ -138,7 +139,9 @@ export async function cobrarValor(input: {
   descricao: string;
   userId?: string;
 }): Promise<ResultadoDoDebito> {
-  const valor = Math.max(0, Math.floor(input.valor));
+  // Arredondar, e NÃO truncar: `Math.floor` aqui transformava qualquer preço
+  // abaixo de 1 ★ em zero, que é exatamente o que impedia cobrar por fração.
+  const valor = Math.max(0, arredondarEstrelas(input.valor));
   if (valor === 0) return { cobrado: false, valor: 0, saldoDepois: null };
 
   const saldoDepois = await debitarComExtrato(input, valor);
@@ -164,7 +167,7 @@ export async function cobrarValor(input: {
     where: { id: input.organizationId },
     select: { starsBalance: true },
   });
-  throw new SaldoInsuficienteError(valor, org?.starsBalance ?? 0);
+  throw new SaldoInsuficienteError(valor, emEstrelas(org?.starsBalance));
 }
 
 /**
@@ -221,7 +224,7 @@ async function debitarComExtrato(
       },
     });
 
-    return org.starsBalance;
+    return emEstrelas(org.starsBalance);
   });
 }
 
@@ -254,7 +257,7 @@ export async function cobrarAteOSaldo(input: {
   descricao: string;
   userId?: string;
 }): Promise<ResultadoDoDebitoParcial> {
-  const valorPedido = Math.max(0, Math.floor(input.valor));
+  const valorPedido = Math.max(0, arredondarEstrelas(input.valor));
   if (valorPedido === 0) {
     return {
       cobrado: false,
@@ -266,12 +269,17 @@ export async function cobrarAteOSaldo(input: {
   }
 
   return prisma.$transaction(async (tx) => {
-    const linhas = await tx.$queryRaw<{ stars_balance: number }[]>`
+    // `numeric` volta do driver como STRING, não como número: sem
+    // `emEstrelas`, o `Math.min` abaixo compararia texto com número e o
+    // cobrado sairia errado. `Decimal` morre na fronteira, e esta é uma.
+    const linhas = await tx.$queryRaw<{ stars_balance: string | number }[]>`
       SELECT "stars_balance" FROM "organization"
       WHERE "id" = ${input.organizationId} FOR UPDATE
     `;
-    const saldo = linhas[0]?.stars_balance ?? 0;
-    const efetivo = Math.min(valorPedido, Math.max(0, saldo));
+    const saldo = emEstrelas(linhas[0]?.stars_balance);
+    const efetivo = arredondarEstrelas(
+      Math.min(valorPedido, Math.max(0, saldo)),
+    );
     const parcial = efetivo < valorPedido;
 
     if (efetivo === 0) {
@@ -310,7 +318,7 @@ export async function cobrarAteOSaldo(input: {
     return {
       cobrado: true,
       valor: efetivo,
-      saldoDepois: org.starsBalance,
+      saldoDepois: emEstrelas(org.starsBalance),
       valorPedido,
       parcial,
     };
@@ -397,7 +405,7 @@ export async function creditar(input: {
       },
     });
 
-    return org.starsBalance;
+    return emEstrelas(org.starsBalance);
   });
 }
 

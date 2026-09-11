@@ -4,6 +4,7 @@ import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { ACOES_COBRAVEIS } from "@/features/stars/lib/acoes";
 import { isOrgAdmin } from "@/lib/org-access";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 
 /**
@@ -49,7 +50,7 @@ export const listRules = base
         actionKey: acao.actionKey,
         label: acao.label,
         descricao: acao.descricao,
-        stars: gravada?.stars ?? 0,
+        stars: emEstrelas(gravada?.stars),
         isActive: gravada?.isActive ?? true,
       };
     });

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Organization, User } from "@/generated/prisma/client";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 import { createMember, createOrg, createUser, resetDb } from "./helpers";
 
@@ -124,13 +125,15 @@ describe("gerarImagem", () => {
       where: { id: orgA.id },
       select: { starsBalance: true },
     });
-    expect(antes.starsBalance - depois.starsBalance).toBe(5);
+    expect(
+      emEstrelas(antes.starsBalance) - emEstrelas(depois.starsBalance),
+    ).toBe(5);
 
     const auditoria = await prisma.astroAcao.findFirstOrThrow({
       where: { organizationId: orgA.id, tool: "gerarImagem" },
       orderBy: { createdAt: "desc" },
     });
-    expect(auditoria.starsCobradas).toBe(5);
+    expect(emEstrelas(auditoria.starsCobradas)).toBe(5);
     expect(auditoria.erro).toBeNull();
   });
 
@@ -153,7 +156,9 @@ describe("gerarImagem", () => {
       where: { id: orgA.id },
       select: { starsBalance: true },
     });
-    expect(depois.starsBalance).toBe(antes.starsBalance);
+    expect(emEstrelas(depois.starsBalance)).toBe(
+      emEstrelas(antes.starsBalance),
+    );
   });
 
   it("estourada a cota do dia, recusa sem chamar o provedor", async () => {

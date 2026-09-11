@@ -3,6 +3,7 @@ import "server-only";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { ACOES } from "@/features/stars/lib/acoes-chaves";
+import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
 import type { ContextoToolsApp } from "./_contexto";
 import { intervaloDoPeriodo, PERIODOS, ROTULO_DO_PERIODO } from "../periodo";
@@ -34,8 +35,8 @@ export function construirToolsDeStars(ctx: ContextoToolsApp): ToolSet {
         return {
           lancamentos: lancamentos.map((linha) => ({
             tipo: linha.type,
-            valor: linha.amount,
-            saldoDepois: linha.balanceAfter,
+            valor: emEstrelas(linha.amount),
+            saldoDepois: emEstrelas(linha.balanceAfter),
             descricao: linha.description,
             quando: linha.createdAt.toISOString(),
           })),
@@ -60,7 +61,7 @@ export function construirToolsDeStars(ctx: ContextoToolsApp): ToolSet {
         });
         return {
           periodo: ROTULO_DO_PERIODO[periodo],
-          starsConsumidas: Math.abs(resumo._sum.amount ?? 0),
+          starsConsumidas: Math.abs(emEstrelas(resumo._sum.amount)),
           respostasCobradas: resumo._count._all,
         };
       },
