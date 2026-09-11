@@ -78,14 +78,16 @@ export function construirToolsDeCatalogos(ctx: ContextoToolsApp): ToolSet {
                 name: { contains: nome, mode: "insensitive" as const },
               })),
             },
-            select: { id: true, name: true },
+            // SLUG, e não id: é por ele que `resolvePromotionalProducts`
+            // filtra, e é o que a config do catálogo guarda.
+            select: { slug: true, name: true },
           });
           if (encontradas.length === 0) {
             return {
               erro: `Nenhuma categoria encontrada com ${categorias.join(", ")}.`,
             };
           }
-          categoryFilter = encontradas.map((c) => c.id);
+          categoryFilter = encontradas.map((c) => c.slug);
         }
 
         const produtos = await resolvePromotionalProducts(organizationId, {

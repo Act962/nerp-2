@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { unitLabel } from "@/features/products/lib/units";
 import type { CardLayoutElement, CatalogProduct } from "../../types";
+import { useFotoComFallback } from "./foto-com-fallback";
 import { cardImageSrc } from "./image-style";
 import { formatPrice } from "./price-badge";
 
@@ -146,7 +147,6 @@ export function CardFreeLayout({
         }
 
         if (el.variable === "photo") {
-          const src = cardImageSrc(thumbSrc, product);
           return (
             <div
               key={el.id}
@@ -157,8 +157,10 @@ export function CardFreeLayout({
                 borderRadius: 6,
               }}
             >
-              {/* biome-ignore lint/performance/noImgElement: card exportado via html-to-image */}
-              <img src={src} alt="" className="h-full w-full object-contain" />
+              <FotoDoProduto
+                src={cardImageSrc(thumbSrc, product)}
+                className="h-full w-full object-contain"
+              />
             </div>
           );
         }
@@ -204,4 +206,23 @@ export function CardFreeLayout({
       })}
     </div>
   );
+}
+
+/**
+ * A foto num elemento do editor livre.
+ *
+ * Componente, e não o hook direto no `.map` dos elementos: a lista muda de
+ * tamanho e de ordem conforme a pessoa arrasta, e um hook dentro do laço
+ * quebraria a regra da ordem fixa de hooks.
+ */
+function FotoDoProduto({
+  src,
+  className,
+}: {
+  src: string;
+  className?: string;
+}) {
+  const foto = useFotoComFallback(src);
+  // biome-ignore lint/performance/noImgElement: card exportado via html-to-image
+  return <img {...foto} alt="" className={className} />;
 }

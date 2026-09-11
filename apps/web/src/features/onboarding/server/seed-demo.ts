@@ -4,6 +4,11 @@ import type { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { DEFAULT_CONFIG } from "@/features/promotional-catalog/types";
 import type { PacoteDeExemplo } from "../lib/nichos";
+import {
+  type CategoriaDoPacote,
+  PACOTES,
+  type ProdutoDoPacote,
+} from "./pacotes-de-exemplo";
 
 type PrismaLike = typeof prisma;
 
@@ -264,11 +269,19 @@ export async function seedDemoDataForOrg(
   organizationId: string,
   userId: string,
   client: PrismaLike = prisma,
-  // Por enquanto há um pacote só (mercearia, com fotos reais); os outros
-  // nichos caem nele até terem fotos próprias. O parâmetro já existe para a
-  // escolha ficar em `nichos.ts`, não aqui.
-  _pacote: PacoteDeExemplo = "mercearia",
+  pacote: PacoteDeExemplo = "mercearia",
 ): Promise<ResultadoDoSeed> {
+  /*
+    A mercearia tem fotos de verdade e mora aqui; os outros ramos vêm de
+    `pacotes-de-exemplo.ts`, com a embalagem neutra que o editor de catálogo já
+    usa para produto sem foto. Ramo desconhecido cai na mercearia, que é o
+    pacote mais completo.
+  */
+  const conteudo = PACOTES[pacote];
+  const categorias: readonly CategoriaDoPacote[] =
+    conteudo?.categorias ?? CATEGORIAS;
+  const doPacote: readonly ProdutoDoPacote[] = conteudo?.produtos ?? PRODUTOS;
+
   const jaTem = await client.product.count({
     where: { organizationId, isDemo: true },
   });
@@ -276,8 +289,8 @@ export async function seedDemoDataForOrg(
 
   // Categorias: upsert pelo slug único da org, para um seed interrompido no
   // meio poder ser reexecutado sem duplicar.
-  const categoriaPorSlug = new Map<SlugDeCategoria, string>();
-  for (const categoria of CATEGORIAS) {
+  const categoriaPorSlug = new Map<string, string>();
+  for (const categoria of categorias) {
     const linha = await client.category.upsert({
       where: {
         organizationId_slug: { organizationId, slug: categoria.slug },
@@ -305,7 +318,7 @@ export async function seedDemoDataForOrg(
   );
 
   const produtos: { id: string }[] = [];
-  for (const [indice, produto] of PRODUTOS.entries()) {
+  for (const [indice, produto] of doPacote.entries()) {
     const { categoria, foto, ...campos } = produto;
     const linha = await client.product.upsert({
       where: { organizationId_slug: { organizationId, slug: produto.slug } },

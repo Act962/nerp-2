@@ -12,6 +12,7 @@ import { PriceBadge, formatPrice } from "./price-badge";
 import { PriceDisplay } from "./price-display";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { cn } from "@/lib/utils";
+import { useFotoComFallback } from "./foto-com-fallback";
 import { cardImageSrc, imageStyleFromAdjust } from "./image-style";
 
 interface CardListProps {
@@ -41,6 +42,7 @@ export function CardList({
   cardColor = "#ffffff",
 }: CardListProps) {
   const imageStyle = imageStyleFromAdjust(imageAdjust);
+  const foto = useFotoComFallback(cardImageSrc(imageSrc, product));
   const activePrice = product.promotionalPrice ?? product.salePrice;
   const textColor = getContrastColor(cardColor);
   const fontSize = TEXT_SIZE_CSS[config.textSize];
@@ -70,7 +72,7 @@ export function CardList({
       >
         <div className="relative h-full w-full overflow-hidden">
           <Image
-            src={cardImageSrc(imageSrc, product)}
+            {...foto}
             alt={product.name}
             fill
             unoptimized

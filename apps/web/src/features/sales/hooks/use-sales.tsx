@@ -54,8 +54,29 @@ export const useMutationCreateSale = () => {
       onSuccess: () => {
         toast.success("Venda criada com sucesso!");
       },
-      onError: () => {
-        toast.error("Erro ao criar venda!");
+      onError: (erro) => {
+        /*
+          A mensagem do servidor, e não "Erro ao criar venda!".
+
+          As recusas daqui são específicas e acionáveis — "a soma dos
+          pagamentos não bate com o total", "produto sem estoque" —, e o
+          `onError` as jogava fora. Quem estava no caixa via uma frase que não
+          diz o que fazer, e quem fosse investigar precisava do log do
+          servidor.
+
+          Falha inesperada continua sem detalhe (o oRPC devolve texto
+          genérico), e para essa há o complemento sobre o log.
+        */
+        const mensagem = erro.message?.trim();
+        const inutil =
+          !mensagem ||
+          /^internal server error$/i.test(mensagem) ||
+          /^unknown error$/i.test(mensagem);
+        toast.error(
+          inutil
+            ? "Não consegui registrar a venda. O motivo está no log do servidor."
+            : mensagem,
+        );
       },
     }),
   );

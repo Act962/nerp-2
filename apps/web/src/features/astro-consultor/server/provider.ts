@@ -43,6 +43,31 @@ export const astroConfigSchema = z.object({
    * segura isso quando a cobrança está desligada por regra.
    */
   tetoMensagensDiaPorOrg: z.number().int().min(0).default(0),
+  /**
+   * O que converte custo do provedor em ★.
+   *
+   * O preço do modelo está em dólar, na tabela de `astro/server/modelos.ts`,
+   * e a margem é fixa lá. O que muda com o mundo — e não com a Google — são
+   * estes dois, e por isso ficam em configuração e não em código: dá para
+   * acertar a cotação numa terça de manhã sem deploy.
+   */
+  dolar: z.number().positive().default(5.5),
+  realPorEstrela: z.number().positive().default(0.1),
+  /**
+   * Desliga a escolha de modelo por dificuldade e usa sempre o `modelo` acima.
+   * Serve para depurar "por que ele respondeu isso": com o roteador ligado, a
+   * mesma pergunta pode cair em modelos diferentes.
+   */
+  modeloFixo: z.boolean().default(false),
+  /**
+   * Orçamento mensal com o provedor de IA, em REAIS. 0 = sem teto declarado.
+   *
+   * Digitado porque não dá para ler: a API de IA do Google não expõe saldo nem
+   * fatura — isso é do Cloud Billing, com outra credencial. O painel usa este
+   * número para mostrar quanto do mês já foi, e sem ele mostra só o gasto, em
+   * vez de inventar um teto.
+   */
+  orcamentoMensalReais: z.number().min(0).default(0),
 });
 
 export type AstroConfig = z.infer<typeof astroConfigSchema>;

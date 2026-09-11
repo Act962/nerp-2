@@ -227,8 +227,16 @@ export async function getSitePartners(): Promise<SitePartnersResponse> {
   };
 }
 
-/** Para onde "Entrar" e "Começar gratuitamente" levam: o ERP. */
+/**
+ * Para onde "Entrar" e "Começar gratuitamente" levam: o ERP.
+ *
+ * `signup` aponta para `/comecar`, e NÃO para `/cadastro`. O primeiro é o
+ * onboarding guiado — escolhe ramo e soluções, cria a conta sem senha e entrega
+ * uma empresa de teste já com produtos, clientes e catálogo. O segundo é o
+ * formulário de e-mail e senha, que é exatamente a barreira que o visitante
+ * vindo do site não deve encontrar.
+ */
 export const APP_LINKS = {
   login: `${APP_URL}/login`,
-  signup: `${APP_URL}/cadastro`,
+  signup: `${APP_URL}/comecar`,
 };

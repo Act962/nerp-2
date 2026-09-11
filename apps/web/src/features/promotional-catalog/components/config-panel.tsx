@@ -4,6 +4,11 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { uploadToR2 } from "@/lib/upload-to-r2";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -1496,6 +1501,8 @@ interface ConfigPanelProps {
   // Sinal (contador) para abrir o diálogo "Adicionar produto" de fora — ex.: o
   // botão do estado de página vazia. Cada incremento abre o diálogo.
   addProductSignal?: number;
+  /** Contador que pulsa o "Trocar imagem" — ver `BackgroundProperties`. */
+  destacarTrocaDeFundo?: number;
   // Aplicação por categoria: cria as páginas e adiciona os produtos de uma vez.
   onApplyCategories?: (groups: CategoryGroup[]) => void;
   // Capacidade da página atual — a prévia converte produtos em páginas com ela.
@@ -1562,6 +1569,7 @@ export function ConfigPanel({
   onApplyCategories,
   pageCapacity,
   addProductSignal,
+  destacarTrocaDeFundo,
   onSaveCardLayout,
   onApplyStyleToAllPages,
   onApplyStyle,
@@ -1922,6 +1930,7 @@ export function ConfigPanel({
   const createTemplate = useCreateCatalogTemplate();
   const updateTemplate = useUpdateCatalogTemplate();
   const [templateName, setTemplateName] = useState("");
+  const [salvarPadraoAberto, setSalvarPadraoAberto] = useState(false);
   // Padrão "atual" (último salvo nesta sessão) — alvo do "Atualizar padrão".
   const [currentTemplateId, setCurrentTemplateId] = useState<string | null>(
     null,
@@ -2189,92 +2198,110 @@ export function ConfigPanel({
           <BackgroundProperties
             config={config}
             onConfigChange={onConfigChange}
+            destacarTroca={destacarTrocaDeFundo}
           />
 
           {/* Salvar a aparência atual como padrão (reutilizável em novos
-              catálogos via "+ Novo catálogo"). */}
-          <div className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4">
-            <p className="text-[13px] font-medium text-foreground">
+              catálogos via "+ Novo catálogo").
+
+              Fechado por padrão: quem abre a aba Fundo veio trocar o fundo, e
+              o formulário de salvar padrão empurrava os controles de imagem e
+              cor para fora da tela — a tarefa rara ocupando o lugar da
+              frequente. */}
+          <Collapsible
+            open={salvarPadraoAberto}
+            onOpenChange={setSalvarPadraoAberto}
+            className="flex flex-col gap-2 rounded-2xl border bg-card/40 p-4"
+          >
+            <CollapsibleTrigger className="flex items-center justify-between gap-2 text-[13px] font-medium text-foreground">
               Salvar como padrão
-            </p>
-            <Input
-              placeholder="Título do padrão"
-              value={templateName}
-              onChange={(e) => setTemplateName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
-            />
-            <Button
-              size="sm"
-              className="w-full gap-1"
-              disabled={!templateName.trim() || createTemplate.isPending}
-              onClick={handleSaveTemplate}
-            >
-              {createTemplate.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              Salvar padrão atual
-            </Button>
-            {/* Atualizar um padrão salvo com a aparência atual — sempre
-                acessível: escolha o padrão e clique em atualizar. */}
-            {templates.length > 0 && (
-              <div className="flex flex-col gap-2 border-t pt-2">
-                <Select
-                  value={currentTemplateId ?? ""}
-                  onValueChange={(v) => setCurrentTemplateId(v || null)}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Atualizar um padrão salvo…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {templates.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        {t.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {currentTemplateId && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full gap-1"
-                    disabled={updateTemplate.isPending}
-                    onClick={handleUpdateTemplate}
-                  >
-                    {updateTemplate.isPending ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-3.5 w-3.5" />
-                    )}
-                    Atualizar{" "}
-                    {currentTemplate ? `“${currentTemplate.name}”` : "padrão"}
-                  </Button>
+              <ChevronDown
+                className={cn(
+                  "size-4 text-muted-foreground transition-transform",
+                  salvarPadraoAberto && "rotate-180",
                 )}
-              </div>
-            )}
-            {onApplyStyleToAllPages && (
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="flex flex-col gap-2">
+              <Input
+                placeholder="Título do padrão"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveTemplate()}
+              />
               <Button
                 size="sm"
-                variant="outline"
                 className="w-full gap-1"
-                disabled={pageCount <= 1}
-                title="Copia o layout, a posição da grade e o fundo desta página para todas as páginas"
-                onClick={onApplyStyleToAllPages}
+                disabled={!templateName.trim() || createTemplate.isPending}
+                onClick={handleSaveTemplate}
               >
-                <Layers className="h-3.5 w-3.5" />
-                Aplicar padrão para todas as páginas
+                {createTemplate.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                Salvar padrão atual
               </Button>
-            )}
-            <p className="text-[11px] text-muted-foreground">
-              Guarda a aparência (layout, posição da grade, Etiquetas, cores,
-              fontes, fundo…) — sem os produtos. Aparece ao criar um novo
-              catálogo.
-              {pageCount > 1 &&
-                " “Aplicar para todas as páginas” copia o layout, a grade e o fundo desta página para as demais."}
-            </p>
-          </div>
+              {/* Atualizar um padrão salvo com a aparência atual — sempre
+                acessível: escolha o padrão e clique em atualizar. */}
+              {templates.length > 0 && (
+                <div className="flex flex-col gap-2 border-t pt-2">
+                  <Select
+                    value={currentTemplateId ?? ""}
+                    onValueChange={(v) => setCurrentTemplateId(v || null)}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Atualizar um padrão salvo…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {currentTemplateId && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full gap-1"
+                      disabled={updateTemplate.isPending}
+                      onClick={handleUpdateTemplate}
+                    >
+                      {updateTemplate.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      )}
+                      Atualizar{" "}
+                      {currentTemplate ? `“${currentTemplate.name}”` : "padrão"}
+                    </Button>
+                  )}
+                </div>
+              )}
+              {onApplyStyleToAllPages && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1"
+                  disabled={pageCount <= 1}
+                  title="Copia o layout, a posição da grade e o fundo desta página para todas as páginas"
+                  onClick={onApplyStyleToAllPages}
+                >
+                  <Layers className="h-3.5 w-3.5" />
+                  Aplicar padrão para todas as páginas
+                </Button>
+              )}
+              <p className="text-[11px] text-muted-foreground">
+                Guarda a aparência (layout, posição da grade, Etiquetas, cores,
+                fontes, fundo…) — sem os produtos. Aparece ao criar um novo
+                catálogo.
+                {pageCount > 1 &&
+                  " “Aplicar para todas as páginas” copia o layout, a grade e o fundo desta página para as demais."}
+              </p>
+            </CollapsibleContent>
+          </Collapsible>
         </div>
       </TabsContent>
 

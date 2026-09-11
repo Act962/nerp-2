@@ -59,10 +59,21 @@ export function AstroFlutuante() {
           responder.
         </p>
         {podeComprar ? (
-          <Recarregar voltarPara="/dashboard" size="sm" />
+          <>
+            <Recarregar voltarPara="/dashboard" size="sm" />
+            {/*
+              A outra saída. A recarga resolve hoje; o plano resolve todo mês —
+              e quem bate no fim do saldo com frequência está pagando mais caro
+              do que precisa. Oferecer só o avulso seria vender o pior dos dois
+              negócios justamente a quem já mostrou que usa.
+            */}
+            <a className="o-astro-cta__linha" href="/configuracoes/planos">
+              ou <strong>adquira um plano</strong> e ganhe ★ todo mês
+            </a>
+          </>
         ) : (
           <p className="o-astro-cta__linha">
-            Peça a um administrador para comprar Stars.
+            Peça a um administrador para comprar Stars ou escolher um plano.
           </p>
         )}
       </div>

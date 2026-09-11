@@ -2,13 +2,25 @@
 
 import { ArrowRight, Check, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { parseAsArrayOf, parseAsStringLiteral, useQueryState } from "nuqs";
+import {
+  parseAsArrayOf,
+  parseAsBoolean,
+  parseAsStringLiteral,
+  useQueryState,
+} from "nuqs";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
-import { NICHO_IDS, NICHOS, nichoPorId } from "../lib/nichos";
+import { Input } from "@/components/ui/input";
+import {
+  INTERESSES_PADRAO,
+  MAX_RAMO_LIVRE,
+  NICHO_IDS,
+  NICHOS,
+  nichoPorId,
+} from "../lib/nichos";
 import {
   codificarRespostas,
   RESPOSTAS_COOKIE,
@@ -39,16 +51,31 @@ export function WizardComecar() {
     "solucoes",
     parseAsArrayOf(parseAsStringLiteral(SOLUCAO_IDS)).withDefault([]),
   );
+  const [ramo, setRamo] = useQueryState("ramo");
+  /*
+    A pessoa já mexeu na lista com a própria mão?
+
+    Sem esta marca, trocar de ramo não mudava nada: a sugestão só era aplicada
+    com a lista vazia, e ela nunca mais ficava vazia. Quem escolhia
+    "Supermercados", voltava e escolhia "Clínicas" continuava com o conjunto do
+    supermercado — o sistema ignorando a resposta que a pessoa acabou de
+    corrigir. Com a marca, o ramo manda enquanto ninguém mexeu, e para de
+    mandar no instante em que alguém mexe.
+  */
+  const [editado, setEditado] = useQueryState(
+    "editado",
+    parseAsBoolean.withDefault(false),
+  );
   const [criando, setCriando] = useState(false);
 
   const escolherNicho = (id: (typeof NICHO_IDS)[number]) => {
     setNicho(id);
-    // O ramo pré-marca as soluções; quem já marcou algo não perde.
-    const sugeridas = nichoPorId(id)?.interesses ?? [];
-    setInteresses(interesses.length > 0 ? interesses : sugeridas);
+    if (editado) return;
+    setInteresses(nichoPorId(id)?.interesses ?? []);
   };
 
   const alternar = (id: SolucaoId) => {
+    setEditado(true);
     setInteresses(
       interesses.includes(id)
         ? interesses.filter((s) => s !== id)
@@ -56,12 +83,21 @@ export function WizardComecar() {
     );
   };
 
+  const nichoEscolhido = nichoPorId(nicho);
+
   const comecar = async () => {
     setCriando(true);
     const respostas: RespostasDoWizard = {
       nicho: nicho ?? undefined,
-      segment: nichoPorId(nicho)?.segment,
-      interesses,
+      // No "Outro" a tela NÃO decide o segmento: quem decide é o servidor, a
+      // partir das soluções marcadas. Mandar "VAREJO" aqui atropelaria a
+      // dedução com um chute.
+      segment:
+        nicho && nicho !== "outro" ? nichoPorId(nicho)?.segment : undefined,
+      ramo: nicho === "outro" ? (ramo ?? undefined) : undefined,
+      // Guia vazio é a tela dizendo "vire-se": quem não marcou nada leva o
+      // conjunto padrão, que é palpite, mas é palpite com passos.
+      interesses: interesses.length > 0 ? interesses : INTERESSES_PADRAO,
     };
     // O cookie é lido pelo servidor no `after` do sign-in anônimo — 10 min
     // bastam para o round-trip; depois ele é apagado.
@@ -114,8 +150,9 @@ export function WizardComecar() {
           <div>
             <h1 className="font-semibold text-2xl">Qual é o seu ramo?</h1>
             <p className="text-muted-foreground text-sm">
-              A empresa de teste já nasce com produtos, clientes e um catálogo
-              do seu jeito. Dá para pular.
+              Serve para marcar as soluções certas e organizar o seu menu. A
+              empresa de teste já nasce com produtos, clientes e um catálogo
+              para você mexer. Dá para pular.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -137,8 +174,42 @@ export function WizardComecar() {
               </button>
             ))}
           </div>
+
+          {nicho === "outro" && (
+            /*
+              O campo só aparece depois de escolher "Outro": um input solto ao
+              lado de seis cartões parece obrigatório, e ele não é. O que for
+              escrito aqui vira o ramo da organização — é o sinal que diz
+              quais pacotes de exemplo vale construir depois.
+            */
+            <div className="flex flex-col gap-1">
+              <label className="text-sm" htmlFor="ramo-livre">
+                O que a sua empresa faz?
+              </label>
+              <Input
+                id="ramo-livre"
+                autoFocus
+                maxLength={MAX_RAMO_LIVRE}
+                placeholder="Pet shop, papelaria, distribuidora de bebidas…"
+                value={ramo ?? ""}
+                onChange={(evento) => setRamo(evento.target.value || null)}
+              />
+              <p className="text-muted-foreground text-xs">
+                Opcional. Serve para a gente saber quais ramos estão chegando.
+              </p>
+            </div>
+          )}
           <div className="flex justify-between">
-            <Button variant="ghost" onClick={() => setPasso("solucoes")}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                // Pular é "não quero responder", e não "nenhum destes": quem
+                // pula ainda assim leva soluções marcadas, para não cair num
+                // dashboard com o guia em branco.
+                if (interesses.length === 0) setInteresses(INTERESSES_PADRAO);
+                setPasso("solucoes");
+              }}
+            >
               Pular
             </Button>
             <Button onClick={() => setPasso("solucoes")}>
@@ -153,8 +224,11 @@ export function WizardComecar() {
               O que você quer resolver?
             </h1>
             <p className="text-muted-foreground text-sm">
-              Marque o que interessa: essas soluções ficam em destaque no menu e
-              viram o seu guia de primeiros passos. Tudo continua disponível.
+              {nichoEscolhido && !editado
+                ? `Já marcamos o que costuma servir a ${nichoEscolhido.nome.toLowerCase()} — desmarque o que você não usa.`
+                : "Marque o que interessa."}{" "}
+              Essas soluções ficam em destaque no menu e viram o seu guia de
+              primeiros passos. Tudo continua disponível.
             </p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -189,6 +263,17 @@ export function WizardComecar() {
               );
             })}
           </div>
+          {interesses.length === 0 && (
+            /*
+              Desmarcar tudo é uma escolha, e o servidor repõe o básico para o
+              guia não nascer vazio. Dizer isso aqui evita a surpresa de chegar
+              ao painel com cinco itens que ninguém marcou.
+            */
+            <p className="text-muted-foreground text-xs">
+              Sem nada marcado, começamos pelo básico: produtos, estoque,
+              catálogo, WhatsApp e o Astro.
+            </p>
+          )}
           <div className="flex justify-between">
             <Button
               variant="ghost"
@@ -199,9 +284,9 @@ export function WizardComecar() {
             </Button>
             <Button onClick={comecar} disabled={criando}>
               {criando ? <Loader2 className="size-4 animate-spin" /> : null}
-              {interesses.length > 0
-                ? "Criar minha empresa de teste"
-                : "Pular e começar"}
+              {criando
+                ? "Montando sua empresa…"
+                : "Criar minha empresa de teste"}
             </Button>
           </div>
         </section>

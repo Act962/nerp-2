@@ -24,6 +24,7 @@ import {
 } from "./cost-centers";
 import { getCashflow, getDashboard } from "./dashboard";
 import { getDre, getDro } from "./reports";
+import { getCurvaAbc, getRelatorioDeVendas } from "./vendas";
 import {
   cancelEntry,
   createEntry,
@@ -73,5 +74,9 @@ export const financeiroRoutes = {
   reports: {
     dre: getDre,
     dro: getDro,
+  },
+  vendas: {
+    relatorio: getRelatorioDeVendas,
+    curvaAbc: getCurvaAbc,
   },
 };

@@ -23,15 +23,20 @@ import "@/orbita/orbita.css";
 export function SiteHeaderNav({
   content,
   loginHref,
+  signupHref,
   pagina,
 }: {
   content: SiteContent;
   loginHref: string;
+  /** O onboarding guiado. Vem por prop: `APP_LINKS` é módulo `server-only`. */
+  signupHref: string;
   pagina?: PaginaDoAstro;
 }) {
   return (
     <SiteContentProvider content={content}>
-      <Nav ctaHref={loginHref} signupHref={loginHref} standalone />
+      {/* "Começar gratuitamente" leva ao onboarding guiado, e não ao login:
+          quem está lendo sobre uma ferramenta ainda não tem conta. */}
+      <Nav ctaHref={loginHref} signupHref={signupHref} standalone />
       {/* O consultor acompanha a página interna: é lendo sobre uma ferramenta
           que a dúvida aparece. */}
       <AstroWidget pagina={pagina} />

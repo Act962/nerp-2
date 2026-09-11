@@ -25,7 +25,7 @@ import { legacy } from "../lib/timeline";
  */
 export function Nav({
   ctaHref = "/login",
-  signupHref = "/cadastro",
+  signupHref = "/comecar",
   standalone = false,
 }: {
   /** Para onde "Entrar" leva: o painel, se já houver sessão; senão o login. */

@@ -1,4 +1,8 @@
-import { safeValidateUIMessages, type UIMessage } from "ai";
+import {
+  createUIMessageStreamResponse,
+  safeValidateUIMessages,
+  type UIMessage,
+} from "ai";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -18,7 +22,16 @@ import {
   MENSAGENS_PARA_RESUMIR,
   resumirConversa,
 } from "@/features/astro/server/resumir-conversa";
+import { fluxoDoAtalho } from "@/features/astro/server/atalhos/fluxo";
+import { reconhecerPergunta } from "@/features/astro/server/atalhos/reconhecer";
+import { responderPorAtalho } from "@/features/astro/server/atalhos/responder";
+import { escolherNivel } from "@/features/astro/server/dificuldade";
+import { modeloDoNivel } from "@/features/astro/server/modelos";
 import { conferirTetoDiario } from "@/features/astro/server/teto-diario";
+import {
+  escolherFerramentas,
+  historicoTemEscrita,
+} from "@/features/astro/server/tools/ativas";
 import { construirToolsDoApp } from "@/features/astro/server/tools-app";
 import {
   LIMITE_TEXTO,
@@ -137,8 +150,34 @@ export async function POST(request: NextRequest) {
   const config = lerConfig(configCrua?.value);
   if (!config.ativo) return indisponivel("desligado");
 
-  const modelo = resolverModelo(config.modelo);
+  /*
+    Qual modelo atende esta mensagem.
+
+    Modelo caro em pergunta fácil é dinheiro no lixo; barato em pedido difícil
+    é resposta errada, que sai mais caro. A escolha é heurística de texto — não
+    se chama um modelo para decidir qual modelo chamar.
+
+    A configuração manda quando alguém fixou um modelo (`modelo` preenchido com
+    `modeloFixo`), que é como se depura "por que ele respondeu isso".
+  */
+  const ultimaFala = textoDaMensagem(mensagens.at(-1));
+  const nivel = escolherNivel({
+    texto: ultimaFala,
+    temAnexo: anexos.length > 0,
+    temAcaoNoHistorico: historicoTemEscrita(mensagens),
+    mensagens: mensagens.length,
+  });
+  const doNivel = modeloDoNivel(nivel.nivel);
+
+  const modelo = resolverModelo(
+    config.modeloFixo && config.modelo ? config.modelo : doNivel.id,
+  );
   if (!modelo) return indisponivel("sem_chave");
+
+  // Só vale a tabela de preço quando o modelo que respondeu é o que a tabela
+  // conhece: com a OpenAI atendendo, ou com um modelo fixado à mão, cai na
+  // regra da organização.
+  const modeloTarifado = modelo.nome === doNivel.id ? doNivel : null;
 
   // A última trava da fatura, antes do saldo: o saldo só segura quando a
   // cobrança está ligada, e nada impede abrir cem conversas curtas num dia.
@@ -254,6 +293,59 @@ export async function POST(request: NextRequest) {
     }),
   ]);
 
+  /*
+    O atalho: pergunta fechada não precisa de IA.
+
+    "Quantos produtos eu tenho" custa ~42 mil caracteres de contexto para o
+    modelo escolher a ferramenta e redigir a frase. A consulta é a mesma, e a
+    frase escrita em código nunca erra o número. Só dispara quando a frase
+    inteira casa e não há ambiguidade — no resto, cai para o modelo.
+
+    Não cobra ★: não houve token nenhum.
+  */
+  const ultima = validadas.data.at(-1);
+  const semAnexo = anexos.length === 0;
+  const pergunta =
+    semAnexo && ultima?.role === "user"
+      ? reconhecerPergunta(textoDaMensagem(ultima))
+      : null;
+
+  if (pergunta) {
+    const resposta = await responderPorAtalho(org.id, pergunta).catch(
+      (erro) => {
+        // Atalho que falha não pode derrubar a conversa: cai para o modelo,
+        // que sabe o caminho longo.
+        console.error("[astro] atalho falhou", {
+          atalho: pergunta.atalho,
+          erro,
+        });
+        return null;
+      },
+    );
+
+    if (resposta) {
+      console.info("[astro] atalho", {
+        organizationId: org.id,
+        sessaoId: sessaoAtual.id,
+        atalho: pergunta.atalho,
+      });
+      const fluxo = fluxoDoAtalho(resposta);
+      return createUIMessageStreamResponse({
+        stream: fluxo,
+        headers: { "x-astro-session": sessaoAtual.id, "x-astro-atalho": "1" },
+      });
+    }
+  }
+
+  // As 42 ferramentas custam 30 mil caracteres de schema em TODA mensagem.
+  // As de leitura da operação ficam sempre ligadas; escrita e catálogo da
+  // ÓRBITA entram só quando a conversa pede.
+  const escolha = escolherFerramentas({
+    disponiveis: Object.keys(tools),
+    texto: falaDoVisitante(validadas.data),
+    temEscritaNoHistorico: historicoTemEscrita(validadas.data),
+  });
+
   // Cada passo que volta com fontes é uma busca do provedor, cobrada no fim
   // junto com os tokens: uma escrita só, e nunca no meio do stream.
   let buscasNaWeb = 0;
@@ -273,6 +365,7 @@ export async function POST(request: NextRequest) {
     toolApproval: CONFIGURACAO_DE_APROVACAO,
     approvalSecret: segredoDeAprovacao(),
     tools,
+    ferramentasAtivas: escolha.ativas,
     // Resolução média nas imagens: alta multiplica os tokens de visão por
     // anexo, e para ler rótulo, gôndola e nota fiscal a média resolve.
     ...(modelo.provedor === "google" && anexos.length > 0
@@ -295,6 +388,9 @@ export async function POST(request: NextRequest) {
         tool: evento.tool,
         ms: evento.duracaoMs,
         falhou: evento.falhou,
+        ferramentasOferecidas: escolha.ativas.length,
+        modelo: modelo.nome,
+        nivel: nivel.nivel,
       });
     },
     onFinish: async ({ tokensIn, tokensOut }) => {
@@ -303,6 +399,9 @@ export async function POST(request: NextRequest) {
         data: {
           tokensIn: { increment: tokensIn },
           tokensOut: { increment: tokensOut },
+          // Token sem modelo não vira custo: o painel do admin precisa saber
+          // por qual tabela de preço multiplicar.
+          modelo: modelo.nome,
         },
       });
       // Falha na cobrança não pode derrubar o stream que já foi entregue;
@@ -313,6 +412,8 @@ export async function POST(request: NextRequest) {
           userId: sessaoAuth.user.id,
           tokensIn,
           tokensOut,
+          modelo: modeloTarifado,
+          base: { dolar: config.dolar, realPorEstrela: config.realPorEstrela },
         });
         if (buscasNaWeb > 0) {
           await cobrarBuscasNaWeb({

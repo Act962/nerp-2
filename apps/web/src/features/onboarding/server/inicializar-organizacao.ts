@@ -6,8 +6,9 @@ import { ensureTradeCatalogs } from "@/features/trade-catalog/lib/ensure-catalog
 import prisma from "@/lib/db";
 import { SEGMENT_DEFAULT_DISABLED } from "@/lib/org-segment";
 import { enqueueSyncOutbox } from "@/lib/sync-outbox";
-import { nichoPorId } from "../lib/nichos";
+import { INTERESSES_PADRAO, limparRamoLivre, nichoPorId } from "../lib/nichos";
 import { RESPOSTAS_VAZIAS, type RespostasDoWizard } from "../lib/respostas";
+import { segmentoPelasSolucoes } from "../lib/segmento-pelas-solucoes";
 import { seedDemoDataForOrg } from "./seed-demo";
 import { seedSolucoesDemo } from "./seed-solucoes";
 
@@ -48,8 +49,42 @@ export async function inicializarOrganizacao(input: {
   const respostas = input.respostas ?? RESPOSTAS_VAZIAS;
   const sandbox = user.isAnonymous === true;
   const nicho = nichoPorId(respostas.nicho);
-  const segment = respostas.segment ?? nicho?.segment ?? null;
   const agora = new Date();
+
+  /*
+    O ramo gravado: o que a pessoa ESCREVEU quando escolheu "Outro", e o id
+    nos demais casos. Guardar "outro" seria guardar o rótulo do botão e perder
+    a única informação que diz quais pacotes de exemplo vale construir depois.
+  */
+  const ramoLivre = limparRamoLivre(respostas.ramo);
+  const niche =
+    nicho?.id === "outro" ? (ramoLivre ?? "outro") : (nicho?.id ?? null);
+
+  /*
+    Guia vazio é a tela dizendo "vire-se". Quem pulou os dois passos recebe o
+    conjunto padrão — que é um palpite, mas é um palpite com passos.
+  */
+  const interesses =
+    respostas.interesses.length > 0 ? respostas.interesses : INTERESSES_PADRAO;
+
+  /*
+    O segmento, em ordem de força do sinal:
+
+    1. o que a tela mandou, quando o ramo é um dos seis — é a pessoa dizendo
+       o que é, e nada ganha disso;
+    2. o que as SOLUÇÕES marcadas dizem, quando o ramo é "Outro" ou foi
+       pulado — ela não disse o que é, mas disse o que quer usar;
+    3. nada, e aí o padrão do banco vale.
+
+    O segmento decide quais módulos nascem escondidos. Deduzir mal não bloqueia
+    nada, mas esconder no primeiro minuto o que a pessoa quer ver é a pior
+    primeira impressão possível — por isso a dedução devolve `OUTRO`, que não
+    esconde nada, sempre que o sinal não é claro.
+  */
+  const segment =
+    nicho && nicho.id !== "outro"
+      ? (respostas.segment ?? nicho.segment)
+      : segmentoPelasSolucoes(interesses).segmento;
 
   await prisma.organization.update({
     where: { id: organization.id },
@@ -57,8 +92,8 @@ export async function inicializarOrganizacao(input: {
       subdomain: sandbox ? null : organization.slug,
       verifiedAt: sandbox ? null : agora,
       lastAccessAt: agora,
-      niche: nicho?.id ?? null,
-      interests: respostas.interesses,
+      niche,
+      interests: interesses,
       ...(segment
         ? { segment, disabledModules: SEGMENT_DEFAULT_DISABLED[segment] }
         : {}),

@@ -57,6 +57,7 @@ export function construirToolsDeAcaoDeCatalogo(ctx: ContextoToolsApp): ToolSet {
             }
 
             let categoryFilter: string[] | undefined;
+            let nomesDasCategorias: string[] = [];
             if (entrada.categorias && entrada.categorias.length > 0) {
               const encontradas = await prisma.category.findMany({
                 where: {
@@ -65,14 +66,17 @@ export function construirToolsDeAcaoDeCatalogo(ctx: ContextoToolsApp): ToolSet {
                     name: { contains: nome, mode: "insensitive" as const },
                   })),
                 },
-                select: { id: true },
+                // SLUG, e não id: é por ele que `resolvePromotionalProducts`
+                // filtra, e é o que a config do catálogo guarda.
+                select: { slug: true, name: true },
               });
               if (encontradas.length === 0) {
                 throw new Error(
                   `Nenhuma categoria encontrada com ${entrada.categorias.join(", ")}.`,
                 );
               }
-              categoryFilter = encontradas.map((c) => c.id);
+              nomesDasCategorias = encontradas.map((c) => c.name);
+              categoryFilter = encontradas.map((c) => c.slug);
             }
 
             const produtos = await resolvePromotionalProducts(organizationId, {
@@ -81,8 +85,18 @@ export function construirToolsDeAcaoDeCatalogo(ctx: ContextoToolsApp): ToolSet {
               sortBy: entrada.ordenacao,
             });
             if (produtos.length === 0) {
+              // Dizer QUAL critério esvaziou o catálogo. A mensagem genérica
+              // virava "não existe produto nessa categoria" na boca do modelo,
+              // o que é outra coisa — e manda a pessoa procurar o problema no
+              // cadastro em vez de na promoção que falta.
+              const onde =
+                nomesDasCategorias.length > 0
+                  ? ` em ${nomesDasCategorias.join(", ")}`
+                  : "";
               throw new Error(
-                "Nenhum produto atende a esse critério — o catálogo sairia vazio.",
+                entrada.apenasPromocoes
+                  ? `Nenhum produto${onde} está com preço promocional agora, então o catálogo sairia vazio. Coloque os produtos em promoção, ou peça de novo sem se limitar às promoções.`
+                  : `Nenhum produto ativo encontrado${onde} — o catálogo sairia vazio.`,
               );
             }
 

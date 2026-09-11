@@ -13,6 +13,7 @@ import { PriceDisplay } from "./price-display";
 import { getContrastColor } from "@/utils/get-contrast-color";
 import { parseDescriptionText } from "./parse-description";
 import { cn } from "@/lib/utils";
+import { useFotoComFallback } from "./foto-com-fallback";
 import { cardImageSrc, imageStyleFromAdjust } from "./image-style";
 
 interface CardStandardProps {
@@ -47,6 +48,7 @@ export function CardStandard({
   cardColor = "#ffffff",
 }: CardStandardProps) {
   const imageStyle = imageStyleFromAdjust(imageAdjust);
+  const foto = useFotoComFallback(cardImageSrc(imageSrc, product));
   const activePrice = product.promotionalPrice ?? product.salePrice;
   const textColor = getContrastColor(cardColor);
   const descriptionText = parseDescriptionText(product.description);
@@ -80,7 +82,7 @@ export function CardStandard({
       >
         <div className="relative h-full w-full overflow-hidden">
           <Image
-            src={cardImageSrc(imageSrc, product)}
+            {...foto}
             alt={product.name}
             fill
             unoptimized

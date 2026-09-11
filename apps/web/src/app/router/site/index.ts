@@ -18,6 +18,16 @@ import { listMedia, registerMedia, removeMedia } from "./media";
 import { inviteAccess, listAccess, removeAccess } from "./access";
 import { getSettings, saveSettings } from "./settings";
 import { siteOverview } from "./overview";
+import {
+  creditarStars,
+  definirPrecoDaEmpresa,
+  diagnosticoDoAstro,
+  empresasDaPlataforma,
+  precosDaEmpresa,
+  reiniciarAstro,
+  resumoDaPlataformaProcedure,
+  testarChaveDoAstro,
+} from "./plataforma";
 import { deleteLead, getLead, listLeads, updateLead } from "./leads";
 import {
   getPricing,
@@ -40,6 +50,17 @@ import {
 
 export const siteRoutes = {
   overview: siteOverview,
+  // O painel do dono: indicadores e custo de todas as empresas de uma vez.
+  plataforma: {
+    resumo: resumoDaPlataformaProcedure,
+    empresas: empresasDaPlataforma,
+    creditarStars,
+    diagnosticoDoAstro,
+    reiniciarAstro,
+    testarChaveDoAstro,
+    precos: precosDaEmpresa,
+    definirPreco: definirPrecoDaEmpresa,
+  },
   menu: {
     list: listMenu,
     save: saveMenuItem,

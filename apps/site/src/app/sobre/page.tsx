@@ -44,6 +44,7 @@ export default async function SobrePage() {
         section="sobre"
         content={content}
         loginHref={APP_LINKS.login}
+        signupHref={APP_LINKS.signup}
       />
     </>
   );

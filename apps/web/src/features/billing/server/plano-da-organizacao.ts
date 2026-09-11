@@ -19,6 +19,10 @@ import {
  */
 export const LIMITES_A_PARTIR_DE = new Date("2026-09-10T00:00:00Z");
 
+/**
+ * COMO o plano foi decidido, e não qual plano é. `"gratis"` significa "sem
+ * assinatura e sem legado" — o plano de entrada, que hoje se chama Suit.
+ */
 export type OrigemDoPlano = "assinatura" | "legado" | "gratis";
 
 export interface PlanoDaOrganizacao {

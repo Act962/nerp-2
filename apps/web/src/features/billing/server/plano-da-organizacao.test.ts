@@ -26,16 +26,16 @@ describe("resolverPlano", () => {
       assinatura: null,
     });
     expect(origem).toBe("gratis");
-    expect(plano.id).toBe("gratis");
+    expect(plano.id).toBe("suit");
   });
 
   it("assinatura de plano pago passa na frente do corte", () => {
     const { plano, origem } = resolverPlano({
       createdAt: antes,
-      assinatura: "plano-1",
+      assinatura: "earth",
     });
     expect(origem).toBe("assinatura");
-    expect(plano.id).toBe("plano-1");
+    expect(plano.id).toBe("earth");
   });
 
   it("assinatura de plano desconhecido é ignorada", () => {

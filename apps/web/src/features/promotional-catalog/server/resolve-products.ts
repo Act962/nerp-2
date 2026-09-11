@@ -7,6 +7,17 @@ import prisma from "@/lib/db";
 export type ResolveParams = {
   excludedIds?: string[];
   manuallyAddedIds?: string[];
+  /**
+   * **SLUGS de categoria, não ids.** É o que a config do catálogo guarda (o
+   * diálogo de adicionar produto grava `categorySlug`) e o que a consulta
+   * compara — `category: { slug: { in: ... } }`.
+   *
+   * O nome não diz isso, e o tipo é `string[]`, então passar id compila,
+   * roda e devolve ZERO produtos em silêncio: foi assim que as duas tools do
+   * Astro nasceram quebradas, dizendo "não existe produto nessa categoria"
+   * para categorias cheias. Se um dia este campo for renomeado, `categorySlugs`
+   * é o nome certo — o que segura hoje é este comentário.
+   */
   categoryFilter?: string[];
   autoPromotions?: boolean;
   name?: string;
