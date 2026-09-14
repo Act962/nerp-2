@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { Badge } from "@/components/ui/badge";
@@ -86,8 +87,7 @@ export function KitchenHistory() {
           hour: "2-digit",
           minute: "2-digit",
         });
-        const showColumnTransition =
-          event.fromColumnName && event.toColumnName;
+        const showColumnTransition = event.fromColumnName && event.toColumnName;
 
         return (
           <div
@@ -112,7 +112,7 @@ export function KitchenHistory() {
                   {meta.label}
                 </Badge>
                 <span className="text-xs font-semibold">
-                  Mesa {event.tableNumber}
+                  {rotuloDaMesa(event.tableNumber)}
                 </span>
                 <span className="text-xs text-muted-foreground truncate">
                   · {event.dishName}

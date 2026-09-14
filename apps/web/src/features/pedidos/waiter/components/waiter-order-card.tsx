@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -28,9 +29,7 @@ export function WaiterOrderCard({
 }: Props) {
   const isDone = order.columnIsFinal || order.archivedAt != null;
   const now = useNow();
-  const refTime = isDone
-    ? new Date(order.columnEnteredAt).getTime()
-    : now;
+  const refTime = isDone ? new Date(order.columnEnteredAt).getTime() : now;
   const urgency = getOrderUrgency(
     order.createdAt,
     order.estimatedMinutes,
@@ -65,7 +64,7 @@ export function WaiterOrderCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">
-            Mesa {order.tableNumber} · {order.dishName}
+            {rotuloDaMesa(order.tableNumber)} · {order.dishName}
           </p>
           {order.notes && (
             <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">

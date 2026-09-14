@@ -42,6 +42,13 @@ export function useWaiterCreateOrder(
             input: { orgSlug, attendantId: attendantId ?? "" },
           }),
         });
+        // A grade do salão precisa mudar de cor NA HORA. Esperar o poll de 5 s
+        // faz o garçom achar que o pedido não entrou e lançar de novo — e o
+        // poll nem corre quando a aba está em segundo plano, que é justamente
+        // o celular no bolso entre uma mesa e outra.
+        queryClient.invalidateQueries({
+          queryKey: orpc.mesa.listForWaiter.key(),
+        });
       },
       onError: (error) => {
         toast.error(error.message);

@@ -17,7 +17,26 @@ type BarcodeDetectorCtor = new (opts?: {
   formats?: string[];
 }) => BarcodeDetectorLike;
 
+/**
+ * Formatos padrão: os códigos de barras de produto.
+ *
+ * QR fica de FORA por padrão de propósito. Cada formato extra é trabalho a mais
+ * por quadro no decodificador, e a tela do Shopper — que roda no celular do
+ * cliente, dentro da loja — não ganha nada procurando QR em prateleira.
+ */
 const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"] as const;
+
+/** Só QR: o adesivo da mesa, o crachá, o cupom. */
+export const QR_FORMATS = ["qr_code"] as const;
+
+/**
+ * União fechada em vez de `string[]`: o decodificador em wasm aceita uma lista
+ * fixa de formatos e recusa em tempo de tipo o que não conhece. Deixar `string`
+ * aqui empurraria um erro de digitação para runtime, dentro da câmera.
+ */
+export type ScannerFormat =
+  | (typeof FORMATS)[number]
+  | (typeof QR_FORMATS)[number];
 
 /** Intervalo entre tentativas de leitura. */
 const TICK_MS = 350;
@@ -40,11 +59,13 @@ type Status = "starting" | "scanning" | "unsupported" | "denied" | "error";
  * o iOS Safari e o Firefox precisam baixar, e a tela é pública, aberta no
  * celular do cliente dentro da loja.
  */
-async function resolveDetector(): Promise<BarcodeDetectorLike> {
+async function resolveDetector(
+  formats: readonly ScannerFormat[],
+): Promise<BarcodeDetectorLike> {
   const native = (
     window as unknown as { BarcodeDetector?: BarcodeDetectorCtor }
   ).BarcodeDetector;
-  if (native) return new native({ formats: [...FORMATS] });
+  if (native) return new native({ formats: [...formats] });
 
   const { BarcodeDetector, prepareZXingModule } = await import(
     "barcode-detector/ponyfill"
@@ -54,7 +75,7 @@ async function resolveDetector(): Promise<BarcodeDetectorLike> {
   prepareZXingModule({
     overrides: { locateFile: () => "/wasm/zxing_reader.wasm" },
   });
-  return new BarcodeDetector({ formats: [...FORMATS] });
+  return new BarcodeDetector({ formats: [...formats] });
 }
 
 // Scanner de código de barras por câmera. Funciona em qualquer navegador com
@@ -63,8 +84,11 @@ export function BarcodeScanner({
   onDetect,
   continuous = false,
   fill = false,
+  formats = FORMATS,
 }: {
   onDetect: (code: string) => void;
+  /** Sobrepõe os formatos procurados — ex.: `QR_FORMATS` para ler mesa. */
+  formats?: readonly ScannerFormat[];
   /**
    * Ocupa toda a altura disponível do pai em vez do quadrado padrão.
    *
@@ -99,6 +123,10 @@ export function BarcodeScanner({
   // câmera no meio da operação.
   const continuousRef = useRef(continuous);
   continuousRef.current = continuous;
+  // Mesmo motivo: o pai costuma passar o array literal, que é novo a cada
+  // render. Fora do ref, a câmera reiniciaria sem parar.
+  const formatsRef = useRef(formats);
+  formatsRef.current = formats;
   // Trocado para forçar uma nova tentativa depois de erro/negação — aí a
   // chamada nasce de um toque, que é o contexto em que o iOS reabre o pedido
   // de permissão.
@@ -148,7 +176,7 @@ export function BarcodeScanner({
     async function start() {
       let detector: BarcodeDetectorLike;
       try {
-        detector = await resolveDetector();
+        detector = await resolveDetector(formatsRef.current);
       } catch {
         if (!done) setStatus("unsupported");
         return;

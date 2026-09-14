@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { Badge } from "@/components/ui/badge";
@@ -143,7 +144,7 @@ export function OrderCard({
         <div className="min-w-0 flex-1 overflow-hidden">
           <div className="flex items-center gap-1.5">
             <p className="min-w-0 truncate text-base font-bold leading-tight tracking-tight">
-              Mesa {order.tableNumber}
+              {rotuloDaMesa(order.tableNumber)}
             </p>
             {emLote && (
               <Badge
@@ -161,7 +162,7 @@ export function OrderCard({
               </p>
             </TooltipTrigger>
             <TooltipContent>
-              Mesa {order.tableNumber} · {order.dishName}
+              {rotuloDaMesa(order.tableNumber)} · {order.dishName}
             </TooltipContent>
           </Tooltip>
 

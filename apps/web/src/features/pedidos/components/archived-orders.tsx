@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -32,7 +33,7 @@ export function ArchivedOrders() {
             <Card key={order.id} className="gap-2 p-3 opacity-80 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  Mesa {order.tableNumber} · {order.dishName}
+                  {rotuloDaMesa(order.tableNumber)} · {order.dishName}
                 </p>
                 <Button
                   type="button"

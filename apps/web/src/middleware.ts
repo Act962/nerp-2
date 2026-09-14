@@ -87,6 +87,9 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/configuracoes") ||
     pathname.startsWith("/registrar-pedido") ||
     pathname.startsWith("/pedido-cliente") ||
+    // Adesivo da mesa: caminho de topo, precisa escapar da reescrita por
+    // subdomínio, senão o QR colado na mesa dá 404.
+    pathname.startsWith("/mesa/") ||
     pathname.startsWith("/ranking-publico") ||
     pathname.startsWith("/pedidos") ||
     pathname.startsWith("/dashboard") ||

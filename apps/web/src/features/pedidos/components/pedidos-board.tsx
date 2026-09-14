@@ -7,6 +7,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -32,7 +34,6 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import {
   ExternalLink,
   LayoutGrid,
-  MoreVertical,
   Plus,
   Printer,
   Search,
@@ -184,6 +185,12 @@ export function KitchenBoard() {
             Abrir painel da TV
           </Button>
           <Button variant="outline" asChild>
+            <Link href="/pedidos/mesas">
+              <LayoutGrid className="size-4" />
+              Mesas
+            </Link>
+          </Button>
+          <Button variant="outline" asChild>
             <Link href="/pedidos/impressao">
               <Printer className="size-4" />
               Impressão
@@ -195,46 +202,57 @@ export function KitchenBoard() {
           </Button>
         </ButtonGroup>
 
-        {/* Mobile (sm): elipse vertical com as mesmas ações no dropdown.
-            Abrimos os sheets no próximo tick (setTimeout) p/ o menu terminar de
-            fechar antes — evita o pointer-events travado do Radix ao encadear
-            menu → dialog. */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="icon"
-              className="sm:hidden"
-              aria-label="Ações de pedidos"
-            >
-              <MoreVertical className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={() => setTimeout(() => setManagerOpen(true), 0)}
-            >
-              <Settings2 className="size-4" />
-              Gerenciar
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={openTvPanel} disabled={!orgSlug}>
-              <ExternalLink className="size-4" />
-              Abrir painel da TV
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href="/pedidos/impressao">
-                <Printer className="size-4" />
-                Impressão
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() => setTimeout(() => setRegisterOpen(true), 0)}
-            >
-              <Plus className="size-4" />
-              Novo pedido
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Celular: "Gerenciar" à direita da linha do título, e nada mais.
+            O título some em `sm` (`sr-only` no PageHeader, porque o breadcrumb
+            logo acima já diz a página), então esta linha fica só com o botão.
+            Os sheets abrem no próximo tick (setTimeout) para o menu terminar de
+            fechar antes — senão o Radix deixa o pointer-events travado ao
+            encadear menu → dialog. */}
+        <div className="flex w-full justify-end sm:hidden">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Settings2 className="size-4" />
+                Gerenciar
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {/* Dois grupos: o primeiro mexe NESTE board, o resto leva para
+                  outra tela. Juntos, o menu misturava configurar e navegar. */}
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Este board
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                onSelect={() => setTimeout(() => setManagerOpen(true), 0)}
+              >
+                <Settings2 className="size-4" />
+                Colunas e histórico
+              </DropdownMenuItem>
+
+              <DropdownMenuSeparator />
+
+              <DropdownMenuLabel className="text-xs text-muted-foreground">
+                Abrir
+              </DropdownMenuLabel>
+              <DropdownMenuItem asChild>
+                <Link href="/pedidos/mesas">
+                  <LayoutGrid className="size-4" />
+                  Mesas
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/pedidos/impressao">
+                  <Printer className="size-4" />
+                  Impressão
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={openTvPanel} disabled={!orgSlug}>
+                <ExternalLink className="size-4" />
+                Painel da TV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         {/* Sheets controlados — sem trigger próprio; acionados pelos layouts acima. */}
         <ColumnManager
@@ -251,6 +269,18 @@ export function KitchenBoard() {
           showTrigger={false}
         />
       </PageHeader>
+
+      {/* A ação do dia não fica atrás de menu nenhum: no celular ela é um
+          botão de ponta a ponta, logo abaixo do cabeçalho. No computador ela já
+          está no grupo de botões, então aqui fica escondida. */}
+      <Button
+        size="lg"
+        className="h-12 w-full text-base sm:hidden"
+        onClick={() => setRegisterOpen(true)}
+      >
+        <Plus className="size-5" />
+        Novo pedido
+      </Button>
 
       <PendingTicketsBar />
 

@@ -31,6 +31,10 @@ export type CreateKitchenOrdersInput = {
   items: CreateKitchenOrderItem[];
   createdById?: string | null;
   actor?: CreateKitchenOrdersActor;
+  /** Mesa do salão, quando o pedido veio da grade e não de texto digitado. */
+  tableId?: string | null;
+  /** Venda que dá preço a este pedido — é dela que sai a conta da mesa. */
+  saleId?: string | null;
 };
 
 export type CreateKitchenOrdersResult =
@@ -111,6 +115,8 @@ export async function createKitchenOrders(
       createdById: input.createdById ?? undefined,
       ticketId,
       acceptedAt: columnEnteredAt,
+      tableId: input.tableId ?? undefined,
+      saleId: input.saleId ?? undefined,
     };
   });
 

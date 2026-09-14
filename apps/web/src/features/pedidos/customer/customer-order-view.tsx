@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { orpc } from "@/lib/orpc";
@@ -104,7 +105,7 @@ export function CustomerOrderView({ orderId }: Props) {
           Acompanhe seu pedido
         </p>
         <h1 className="mt-1 text-4xl font-bold sm:text-5xl">
-          Mesa {data.tableNumber}
+          {rotuloDaMesa(data.tableNumber)}
         </h1>
       </header>
 
@@ -157,7 +158,6 @@ export function CustomerOrderView({ orderId }: Props) {
             </>
           )}
         </div>
-
       </section>
 
       {data.attendantName && (

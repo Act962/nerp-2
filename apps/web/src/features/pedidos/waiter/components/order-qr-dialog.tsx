@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -57,8 +58,8 @@ export function OrderQrDialog({
         <DialogHeader>
           <DialogTitle>Acompanhar pedido</DialogTitle>
           <DialogDescription>
-            Mesa {tableNumber} · {dishName}. Cliente escaneia o QR para ver o
-            status em tempo real.
+            {rotuloDaMesa(tableNumber)} · {dishName}. Cliente escaneia o QR para
+            ver o status em tempo real.
           </DialogDescription>
         </DialogHeader>
 

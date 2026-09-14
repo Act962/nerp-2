@@ -51,6 +51,7 @@ import {
   Plug,
   Plus,
   Printer,
+  Smartphone,
   Receipt,
   ClipboardList,
   QrCode,
@@ -474,6 +475,27 @@ const navigation: NavItem[] = [
             name: "Pedidos",
             href: "/pedidos",
             icon: ChefHat,
+            permission: "pedidos",
+          },
+          {
+            name: "Mesas",
+            href: "/pedidos/mesas",
+            icon: LayoutGrid,
+            permission: "pedidos",
+          },
+          {
+            // `/pedidos/garcom` e `/pedidos/painel` são atalhos que redirecionam
+            // para as telas reais (`/registrar-pedido/<slug>`, `/painel/<slug>`).
+            // A sidebar é um módulo estático e não conhece o slug da org ativa.
+            name: "App do garçom",
+            href: "/pedidos/garcom",
+            icon: Smartphone,
+            permission: "pedidos",
+          },
+          {
+            name: "Painel da TV",
+            href: "/pedidos/painel",
+            icon: MonitorPlay,
             permission: "pedidos",
           },
           {

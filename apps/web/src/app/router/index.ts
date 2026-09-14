@@ -21,6 +21,7 @@ import { cancelRequestRoutes } from "./cancel-request";
 import { financeiroRoutes } from "./financeiro";
 import { receiptTemplateRoutes } from "./receipt-template";
 import { kitchenRoutes } from "./pedidos";
+import { mesaRoutes } from "./mesa";
 import { collaboratorRoutes } from "./collaborators";
 import { calendarRoutes } from "./calendar";
 import { fieldMapRoutes } from "./field-map";
@@ -101,6 +102,7 @@ export const router = {
   financeiro: financeiroRoutes,
   receiptTemplate: receiptTemplateRoutes,
   kitchen: kitchenRoutes,
+  mesa: mesaRoutes,
   collaborators: collaboratorRoutes,
   calendar: calendarRoutes,
   fieldMap: fieldMapRoutes,

@@ -1,5 +1,6 @@
 "use client";
 
+import { rotuloDaMesa } from "@/utils/rotulo-da-mesa";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { orpc } from "@/lib/orpc";
@@ -69,7 +70,7 @@ export function TvDisplay({ orgSlug }: { orgSlug: string }) {
                 className="rounded-2xl border border-emerald-600/40 bg-emerald-950/40 px-6 py-8 text-center"
               >
                 <p className="text-3xl font-bold uppercase text-emerald-300 sm:text-7xl">
-                  Mesa {order.tableNumber}
+                  {rotuloDaMesa(order.tableNumber)}
                 </p>
                 <p className="mt-3 text-2xl font-medium text-white sm:text-3xl">
                   {order.dishName}

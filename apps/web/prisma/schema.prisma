@@ -345,6 +345,7 @@ model Organization {
   inventoryCountItems       InventoryCountItem[]
   kitchenColumns            KitchenColumn[]
   kitchenOrders             KitchenOrder[]
+  serviceTables             ServiceTable[]
   kitchenOrderEvents        KitchenOrderEvent[]
   collaborators             Collaborator[]
   catalogSettings           CatalogSettings?
@@ -1644,6 +1645,7 @@ model KitchenOrder {
   // Itens criados juntos compartilham o ticket — é o "pedido" que o cliente fez.
   // Null = pedido legado, anterior ao ticket; a leitura agrupa por `ticketId ?? id`.
   ticketId         String?
+  tableId          String? // Mesa do salão; `tableNumber` continua sendo o rótulo
   // Atendente (Collaborator) responsável pelo pedido
   attendantId      String? // FK opcional para sobreviver ao soft-delete do colaborador
   attendantName    String? // Snapshot do nome no momento do pedido
@@ -1665,6 +1667,7 @@ model KitchenOrder {
   createdBy        User?               @relation("CreatedKitchenOrders", fields: [createdById], references: [id])
   attendant        Collaborator?       @relation(fields: [attendantId], references: [id], onDelete: SetNull)
   sale             Sale?               @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  table            ServiceTable?       @relation(fields: [tableId], references: [id], onDelete: SetNull)
   events           KitchenOrderEvent[]
 
   @@index([organizationId, columnId])
@@ -1675,7 +1678,40 @@ model KitchenOrder {
   @@index([organizationId, acceptedAt])
   @@index([organizationId, printedAt])
   @@index([saleId])
+  @@index([tableId, archivedAt])
   @@map("kitchen_orders")
+}
+
+/// Mesa do salão.
+///
+/// O ESTADO NÃO MORA AQUI. "Livre / Consumindo / Fechando" é derivado dos
+/// pedidos ativos a cada leitura: uma coluna de status precisaria ser mantida
+/// em sincronia com a cozinha, e a primeira escrita que falhasse deixaria a
+/// mesa ocupada para sempre, sem ninguém sentado nela.
+model ServiceTable {
+  id             String @id @default(cuid())
+  organizationId String
+  number         Int // O que está escrito no adesivo e o cliente lê
+  name           String? // Apelido opcional: "Varanda 1", "Balcão"
+  seats          Int? // Lugares; informativo
+  /// Token do adesivo colado na mesa. O endereço É a credencial, então tem
+  /// entropia de credencial (`randomBytes(32)`), não de id.
+  qrToken        String @unique
+  /// Garçom pediu a conta: a mesa fica "Fechando" e o caixa sabe que vem
+  /// gente pagar. Null = ninguém pediu.
+  closingRequestedAt DateTime?
+  /// Desativa em vez de apagar: mesa com histórico de pedido não pode sumir
+  /// do relatório.
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  orders       KitchenOrder[]
+
+  @@unique([organizationId, number])
+  @@index([organizationId, isActive])
+  @@map("service_tables")
 }
 
 model Collaborator {
