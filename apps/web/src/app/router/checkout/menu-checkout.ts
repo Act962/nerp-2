@@ -7,6 +7,8 @@ import {
   nextSaleNumber,
   resolveSaleItems,
 } from "@/lib/pedidos/resolve-sale-items";
+import { resolverGateway } from "@/features/pagamentos/server/resolver-gateway";
+import prismaClient from "@/lib/db";
 import { z } from "zod";
 
 /**
@@ -51,6 +53,20 @@ export const menuCheckout = base
       saleId: z.string(),
       saleNumber: z.number(),
       ticketId: z.string().nullable(),
+      /**
+       * Quando a loja tem gateway instalado, o pedido só vai para a cozinha
+       * depois que o PIX confirmar. `null` = loja sem cobrança: o pedido fica
+       * esperando o aceite de alguém da equipe, como na Fase 1.
+       */
+      cobranca: z
+        .object({
+          id: z.string(),
+          pixPayload: z.string().nullable(),
+          pixQrImage: z.string().nullable(),
+          urlDePagamento: z.string().nullable(),
+          valor: z.number(),
+        })
+        .nullable(),
     }),
   )
   .handler(async ({ input, errors }) => {
@@ -127,5 +143,88 @@ export const menuCheckout = base
       );
     }
 
-    return { saleId: sale.id, saleNumber: sale.saleNumber, ticketId };
+    const cobranca = await abrirCobranca({
+      organizationId: organization.id,
+      saleId: sale.id,
+      saleNumber: sale.saleNumber,
+      valor: resolved.subtotal,
+      cliente: { nome: input.customer.name, telefone: input.customer.phone },
+    });
+
+    return {
+      saleId: sale.id,
+      saleNumber: sale.saleNumber,
+      ticketId,
+      cobranca,
+    };
   });
+
+/**
+ * Abre a cobrança PIX, quando a loja tem gateway instalado.
+ *
+ * Falhar aqui NÃO derruba o pedido: a venda já está gravada e o ticket já
+ * espera na fila. Sem cobrança, o caminho é o da Fase 1 — alguém da equipe
+ * aceita. Perder o pedido porque o provedor piscou seria o pior desfecho.
+ */
+async function abrirCobranca({
+  organizationId,
+  saleId,
+  saleNumber,
+  valor,
+  cliente,
+}: {
+  organizationId: string;
+  saleId: string;
+  saleNumber: number;
+  valor: number;
+  cliente: { nome: string; telefone?: string };
+}) {
+  const gateway = await resolverGateway(organizationId);
+  if (!gateway) return null;
+
+  try {
+    const criada = await gateway.provedor.criarCobranca({
+      valor,
+      metodo: "PIX",
+      descricao: `Pedido #${saleNumber}`,
+      referencia: saleId,
+      pagador: {
+        nome: cliente.nome,
+        // O Asaas exige e-mail. Sem cadastro, o telefone é o que identifica o
+        // cliente — o endereço é sintético e só serve para não criar um
+        // cadastro novo a cada pedido da mesma pessoa.
+        email: `${(cliente.telefone ?? saleId).replace(/\D/g, "") || saleId}@pedido.local`,
+      },
+    });
+
+    const registro = await prismaClient.charge.create({
+      data: {
+        organizationId,
+        saleId,
+        integrationId: gateway.integrationId,
+        provider: gateway.provedor.nome,
+        externalId: criada.externalId,
+        method: "PIX",
+        amount: valor,
+        pixPayload: criada.pixPayload ?? null,
+        pixQrImage: criada.pixQrImage ?? null,
+        expiresAt: criada.expiraEm ?? null,
+      },
+      select: { id: true },
+    });
+
+    return {
+      id: registro.id,
+      pixPayload: criada.pixPayload ?? null,
+      pixQrImage: criada.pixQrImage ?? null,
+      urlDePagamento: criada.urlDePagamento ?? null,
+      valor,
+    };
+  } catch (erro) {
+    console.error(
+      `[menu-checkout] venda ${saleNumber} criada, mas a cobrança falhou:`,
+      erro instanceof Error ? erro.message : erro,
+    );
+    return null;
+  }
+}

@@ -346,6 +346,7 @@ model Organization {
   kitchenColumns            KitchenColumn[]
   kitchenOrders             KitchenOrder[]
   serviceTables             ServiceTable[]
+  charges                   Charge[]
   kitchenOrderEvents        KitchenOrderEvent[]
   collaborators             Collaborator[]
   catalogSettings           CatalogSettings?
@@ -1431,6 +1432,7 @@ model Sale {
   cashMovements     CashMovement[]
   fiscalDocument    FiscalDocument?
   kitchenOrders     KitchenOrder[]
+  charges           Charge[]
 
   financeEntries PaymentEntry[] @relation("SaleFinanceEntries")
 
@@ -1680,6 +1682,67 @@ model KitchenOrder {
   @@index([saleId])
   @@index([tableId, archivedAt])
   @@map("kitchen_orders")
+}
+
+enum ChargeStatus {
+  PENDING // cobrança criada, cliente ainda não pagou
+  PAID // provedor confirmou — é o que libera a cozinha
+  EXPIRED
+  REFUNDED
+  FAILED
+}
+
+/// Uma tentativa de cobrança no provedor.
+///
+/// A linha não some: o status muda. Cobrança apagada é rastro de dinheiro
+/// apagado, e é justamente o que se quer poder auditar quando o cliente diz
+/// que pagou e o pedido não entrou.
+model Charge {
+  id             String       @id @default(cuid())
+  organizationId String
+  saleId         String?
+  /// A instalação do gateway que criou a cobrança (`FinancialIntegration`).
+  integrationId  String?
+  provider       String
+  /// Id da cobrança no provedor. Com `provider`, é a chave que o webhook usa.
+  externalId     String
+  status         ChargeStatus @default(PENDING)
+  method         PaymentMethod
+  amount         Decimal      @db.Decimal(10, 2)
+  /// PIX copia-e-cola, como veio do provedor.
+  pixPayload     String?      @db.Text
+  /// PNG do QR em base64. Guardado porque o provedor expira o endereço.
+  pixQrImage     String?      @db.Text
+  paidAt         DateTime?
+  expiresAt      DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sale         Sale?                 @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  integration  FinancialIntegration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalId])
+  @@index([organizationId, status])
+  @@index([saleId])
+  @@map("charges")
+}
+
+/// Evento de webhook já processado, de qualquer provedor.
+///
+/// GLOBAL, sem `organizationId`: o id do evento é do provedor, e a checagem
+/// acontece antes de saber de qual organização ele fala. Provedor reenvia
+/// quando não recebe 200 — sem esta trava, o mesmo pedido entra duas vezes na
+/// cozinha e a venda é contada duas vezes.
+model ProcessedWebhookEvent {
+  id        String   @id @default(cuid())
+  provider  String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  @@unique([provider, eventId])
+  @@index([createdAt])
+  @@map("processed_webhook_events")
 }
 
 /// Mesa do salão.
@@ -4270,6 +4333,7 @@ model FinancialIntegration {
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   installedBy  User                @relation(fields: [installedById], references: [id], onDelete: Cascade)
   bankAccount  PaymentBankAccount? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  charges      Charge[]
 
   @@unique([organizationId, providerId, externalRef])
   @@index([organizationId])

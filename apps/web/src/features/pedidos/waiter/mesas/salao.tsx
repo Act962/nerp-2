@@ -16,6 +16,7 @@ import { useMemo, useState } from "react";
 import { useMesasDoGarcom } from "../hooks/use-mesas";
 import { LeitorDeMesa } from "./leitor-de-mesa";
 import { MesaCard } from "./mesa-card";
+import { PedidosALiberar } from "./pedidos-a-liberar";
 import { TelaDaMesa } from "./tela-da-mesa";
 
 const ESQUELETO = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
@@ -66,7 +67,11 @@ export function Salao({
 
   return (
     <div className="flex flex-col gap-3 pb-40">
-      <div className="relative px-3 pt-3">
+      <div className="pt-3">
+        <PedidosALiberar orgSlug={orgSlug} attendantId={attendantId} />
+      </div>
+
+      <div className="relative px-3">
         <Search className="absolute left-6 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           value={busca}

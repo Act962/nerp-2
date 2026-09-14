@@ -15,6 +15,7 @@ import { publicTicketOrder } from "./public-ticket";
 import { waiterCollaborators } from "./waiter-collaborators";
 import { waiterCreate } from "./waiter-create";
 import { waiterListForAttendant } from "./waiter-list";
+import { waiterAcceptTicket, waiterPendingTickets } from "./waiter-pending";
 import { waiterProducts } from "./waiter-products";
 import { waiterDeliver } from "./waiter-deliver";
 import { listKitchenOrderEvents } from "./events-list";
@@ -46,6 +47,8 @@ export const kitchenRoutes = {
   waiterListForAttendant,
   waiterProducts,
   waiterDeliver,
+  waiterPendingTickets,
+  waiterAcceptTicket,
   // Públicas de verdade: a TV não tem login, e o cliente chega pelo QR.
   publicReady: publicReadyOrders,
   publicCustomerOrder,

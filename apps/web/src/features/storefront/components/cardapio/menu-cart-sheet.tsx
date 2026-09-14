@@ -17,6 +17,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { preco } from "./menu-view";
+import { type CobrancaAberta, TelaDoPix } from "./tela-do-pix";
 import { useMenuCheckout } from "./use-menu-checkout";
 
 type Produto = {
@@ -53,6 +54,7 @@ export function MenuCartSheet({
   const [nome, setNome] = useState("");
   const [telefone, setTelefone] = useState("");
   const [observacoes, setObservacoes] = useState("");
+  const [cobranca, setCobranca] = useState<CobrancaAberta | null>(null);
 
   const itens = carrinho.products
     .map((item) => {
@@ -89,7 +91,15 @@ export function MenuCartSheet({
         notes: observacoes.trim() || undefined,
       },
       {
-        onSuccess: ({ ticketId }) => {
+        onSuccess: ({ ticketId, cobranca: aberta }) => {
+          // Com cobrança, a sacola só é esvaziada quando o PIX confirma: se o
+          // cliente desistir ou o pagamento falhar, ele volta para um carrinho
+          // montado em vez de ter que escolher tudo de novo.
+          if (aberta) {
+            setCobranca(aberta);
+            return;
+          }
+
           carrinho.clearOrganizationCart();
           aoFechar();
           if (ticketId) {
@@ -106,8 +116,14 @@ export function MenuCartSheet({
     <Sheet open={aberta} onOpenChange={(v) => !v && aoFechar()}>
       <SheetContent side="bottom" className="max-h-[92vh] overflow-y-auto">
         <SheetHeader className="p-4 pb-0">
-          <SheetTitle className="text-2xl">Sua sacola</SheetTitle>
+          <SheetTitle className="text-2xl">
+            {cobranca ? "Pague para confirmar" : "Sua sacola"}
+          </SheetTitle>
         </SheetHeader>
+
+        {cobranca ? (
+          <TelaDoPix cobranca={cobranca} aoDesistir={() => setCobranca(null)} />
+        ) : (
           <div className="flex flex-col gap-5 p-4">
             <ul className="flex flex-col gap-3">
               {itens.map(({ item, produto, quantidade }) => (
@@ -229,6 +245,7 @@ export function MenuCartSheet({
               )}
             </Button>
           </div>
+        )}
       </SheetContent>
     </Sheet>
   );

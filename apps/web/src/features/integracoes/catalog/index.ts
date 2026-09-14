@@ -2,12 +2,14 @@ import type { IntegrationCategory } from "@/generated/prisma/enums";
 import { adquirentes } from "./adquirentes";
 import { bancos } from "./bancos";
 import { crms } from "./crms";
+import { gateways } from "./gateways";
 import { nativos } from "./nativos";
 import type { CredentialField, ProviderManifest } from "./types";
 
 export const CATALOGO: ProviderManifest[] = [
   ...bancos,
   ...adquirentes,
+  ...gateways,
   ...crms,
   ...nativos,
 ];
