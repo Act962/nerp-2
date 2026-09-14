@@ -23,12 +23,13 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Trash2 } from "lucide-react";
-import { Controller, useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import {
   useWaiterCreateOrder,
   useWaiterProducts,
 } from "../hooks/use-waiter-pedidos";
+import { ProductGrid } from "./product-grid";
 
 const NO_PRODUCT = "__none__";
 
@@ -92,6 +93,51 @@ export function WaiterRegisterSheet({
     name: "items",
   });
 
+  const itensAtuais = useWatch({ control: form.control, name: "items" });
+
+  // Quantos de cada produto já entraram, para o badge na foto.
+  const contagemPorProduto = (itensAtuais ?? []).reduce<Record<string, number>>(
+    (acc, item) => {
+      if (!item?.productId) return acc;
+      acc[item.productId] =
+        (acc[item.productId] ?? 0) + (Number(item.quantity) || 1);
+      return acc;
+    },
+    {},
+  );
+
+  /**
+   * Um toque na foto adiciona o item. Tocar de novo no mesmo produto soma
+   * quantidade em vez de criar outra linha — a cozinha lê "3x Coxinha" mais
+   * rápido do que três linhas iguais.
+   */
+  const escolherProduto = (produtoId: string) => {
+    const atuais = form.getValues("items");
+    const existente = atuais.findIndex((item) => item.productId === produtoId);
+
+    if (existente >= 0) {
+      const quantidade = Number(atuais[existente].quantity) || 1;
+      form.setValue(`items.${existente}.quantity`, String(quantidade + 1), {
+        shouldDirty: true,
+      });
+      return;
+    }
+
+    // A primeira linha nasce vazia com o formulário; aproveita ela.
+    const vazia = atuais.findIndex(
+      (item) => !item.productId && !item.dishName?.trim(),
+    );
+    if (vazia >= 0) {
+      form.setValue(`items.${vazia}.productId`, produtoId, {
+        shouldDirty: true,
+      });
+      form.setValue(`items.${vazia}.quantity`, "1", { shouldDirty: true });
+      return;
+    }
+
+    append({ ...emptyItem, productId: produtoId });
+  };
+
   const isLoading = createOrder.isPending;
 
   const onSubmit = (data: FormValues) => {
@@ -126,11 +172,14 @@ export function WaiterRegisterSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent>
+      {/* Tela inteira no celular: a folha padrão ocupa 75% da largura e deixa
+          uma faixa do board atrás, que rouba espaço de um formulário com grade
+          de fotos e é fácil de tocar sem querer. No desktop segue painel. */}
+      <SheetContent className="w-full">
         <SheetHeader>
           <SheetTitle>Novo pedido</SheetTitle>
           <SheetDescription>
-            Mesma estrutura do painel — sem o campo atendente.
+            Toque na foto para adicionar. Toque de novo para somar.
           </SheetDescription>
         </SheetHeader>
 
@@ -156,6 +205,12 @@ export function WaiterRegisterSheet({
                 {fieldState.error && <FieldError errors={[fieldState.error]} />}
               </Field>
             )}
+          />
+
+          <ProductGrid
+            produtos={productList}
+            aoEscolher={(produto) => escolherProduto(produto.id)}
+            contagemPorProduto={contagemPorProduto}
           />
 
           <div className="flex flex-col gap-4">
@@ -204,7 +259,9 @@ export function WaiterRegisterSheet({
                           <SelectValue placeholder="Sem produto" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value={NO_PRODUCT}>Sem produto</SelectItem>
+                          <SelectItem value={NO_PRODUCT}>
+                            Sem produto
+                          </SelectItem>
                           {productList.map((product) => (
                             <SelectItem key={product.id} value={product.id}>
                               {product.name}

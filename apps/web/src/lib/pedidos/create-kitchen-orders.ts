@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import prisma from "@/lib/db";
 import {
   KitchenOrderActorType,
@@ -33,7 +34,7 @@ export type CreateKitchenOrdersInput = {
 };
 
 export type CreateKitchenOrdersResult =
-  | { ok: true; count: number }
+  | { ok: true; count: number; ticketId: string }
   | { ok: false; reason: "column-not-found" | "attendant-not-found" };
 
 export async function createKitchenOrders(
@@ -82,6 +83,9 @@ export async function createKitchenOrders(
   let position = (last._max.position ?? -1) + 1;
 
   const columnEnteredAt = new Date();
+  // Os itens criados juntos são UM pedido. Quem monta pelo balcão ou pelo app do
+  // garçom está com o cliente na frente: entra aceito, direto na cozinha.
+  const ticketId = randomUUID();
 
   const data = input.items.map((item) => {
     const estimatedMinutes =
@@ -105,6 +109,8 @@ export async function createKitchenOrders(
       position: position++,
       columnEnteredAt,
       createdById: input.createdById ?? undefined,
+      ticketId,
+      acceptedAt: columnEnteredAt,
     };
   });
 
@@ -147,5 +153,5 @@ export async function createKitchenOrders(
     );
   }
 
-  return { ok: true, count: created.length };
+  return { ok: true, count: created.length, ticketId };
 }

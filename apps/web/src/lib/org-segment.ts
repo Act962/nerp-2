@@ -5,6 +5,7 @@ export const ORG_SEGMENTS = [
   "INDUSTRIA",
   "DISTRIBUIDOR",
   "AGENCIA",
+  "ALIMENTACAO",
   "OUTRO",
 ] as const;
 
@@ -15,6 +16,7 @@ export const SEGMENT_LABELS: Record<OrgSegmentValue, string> = {
   INDUSTRIA: "Indústria",
   DISTRIBUIDOR: "Distribuidor / Representante",
   AGENCIA: "Agência",
+  ALIMENTACAO: "Alimentação / Food service",
   OUTRO: "Outro",
 };
 
@@ -23,6 +25,7 @@ export const SEGMENT_HINTS: Record<OrgSegmentValue, string> = {
   INDUSTRIA: "Fabrica e quer presença nos pontos de venda",
   DISTRIBUIDOR: "Leva produtos da indústria até os pontos de venda",
   AGENCIA: "Presta serviço de trade para indústrias e distribuidores",
+  ALIMENTACAO: "Restaurante, lanchonete, food truck ou delivery",
   OUTRO: "Nenhum dos anteriores",
 };
 
@@ -59,6 +62,30 @@ export const SEGMENT_DEFAULT_DISABLED: Record<
     "catalogo-promocional",
     "estoque",
     "produtos",
+  ],
+  // Quem vende comida usa cardápio, cozinha e caixa. O que existe para negociar
+  // espaço em gôndola de supermercado — mapa, planograma, books, promotor — só
+  // ocuparia a tela de quem está com a chapa ligada.
+  ALIMENTACAO: [
+    "trade-painel",
+    "trade-calendario",
+    "trade-cadastros",
+    "trade-interesses",
+    "mapa-de-campo",
+    "planograma",
+    "books",
+    "catalogo-pdv",
+    "catalogo-promocional",
+    "midia-pdv",
+    "promotor",
+    "promotor-vinculos",
+    "vendedor",
+    "qr-preco",
+    "tradegram",
+    "contratos",
+    "distribuidores",
+    "diretorio",
+    "insights",
   ],
   OUTRO: [],
 };

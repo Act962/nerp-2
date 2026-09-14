@@ -643,6 +643,13 @@ enum CatalogOperationMode {
   APPROVAL
 }
 
+// Leiaute da vitrine. Não confundir com operationMode: um diz o que acontece DEPOIS
+// do checkout, o outro diz como a loja se desenha ANTES dele.
+enum CatalogLayout {
+  LISTA // Vitrine de e-commerce, como sempre foi
+  CARDAPIO // Cardápio: foto grande, categoria em faixa, "+" no card, sacola no rodapé
+}
+
 enum DeliveryMethod {
   DELIVERY_HOME
   PICKUP_STORE
@@ -674,6 +681,9 @@ model CatalogSettings {
   sortOrder               CatalogSortOrder     @default(ASC)
   // Modo de operação: MARKETPLACE (apenas venda) ou KITCHEN (envia pedidos pagos à cozinha)
   operationMode           CatalogOperationMode @default(MARKETPLACE)
+  // Como a vitrine se desenha. LISTA é o e-commerce de sempre; CARDAPIO é a tela de
+  // comida: foto grande, categoria em faixa e o "+" no próprio card.
+  layout                  CatalogLayout        @default(LISTA)
   // Contato
   whatsappNumber          String?
   showWhatsapp            Boolean              @default(true)
@@ -1419,6 +1429,7 @@ model Sale {
   transactions      Transaction[]
   cashMovements     CashMovement[]
   fiscalDocument    FiscalDocument?
+  kitchenOrders     KitchenOrder[]
 
   financeEntries PaymentEntry[] @relation("SaleFinanceEntries")
 
@@ -1441,6 +1452,7 @@ model SaleItem {
   unitPrice   Decimal @db.Decimal(10, 2)
   discount    Decimal @default(0) @db.Decimal(10, 2)
   total       Decimal @db.Decimal(10, 2)
+  notes       String? @db.Text // Observação do cliente para ESTE item ("sem cebola")
   // Relações
   sale        Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
   product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
@@ -1628,7 +1640,10 @@ model KitchenOrder {
   productId        String? // Vínculo opcional ao catálogo
   estimatedMinutes Int? // Snapshot do tempo de preparo na criação
   position         Int                 @default(0) // Ordem do card dentro da coluna
-  notes            String?
+  notes            String? // Observação DO ITEM ("sem cebola"); o cabeçalho do pedido vai em tableNumber
+  // Itens criados juntos compartilham o ticket — é o "pedido" que o cliente fez.
+  // Null = pedido legado, anterior ao ticket; a leitura agrupa por `ticketId ?? id`.
+  ticketId         String?
   // Atendente (Collaborator) responsável pelo pedido
   attendantId      String? // FK opcional para sobreviver ao soft-delete do colaborador
   attendantName    String? // Snapshot do nome no momento do pedido
@@ -1637,19 +1652,29 @@ model KitchenOrder {
   createdAt        DateTime            @default(now())
   columnEnteredAt  DateTime            @default(now()) // Quando entrou na coluna atual (tempo decorrido + auto-hide)
   archivedAt       DateTime? // Quando foi arquivado; null = ativo no board
+  // Null = pedido do cardápio esperando o dono aceitar; fica FORA do board até lá.
+  // Pedido do operador e pedido já pago nascem aceitos.
+  acceptedAt       DateTime?
+  printedAt        DateTime? // Null = ainda não saiu na impressora
   createdById      String?
+  saleId           String? // Pedido que nasceu de uma venda (cardápio/loja online)
   // Relações
   organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   column           KitchenColumn       @relation(fields: [columnId], references: [id], onDelete: Restrict)
   product          Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
   createdBy        User?               @relation("CreatedKitchenOrders", fields: [createdById], references: [id])
   attendant        Collaborator?       @relation(fields: [attendantId], references: [id], onDelete: SetNull)
+  sale             Sale?               @relation(fields: [saleId], references: [id], onDelete: SetNull)
   events           KitchenOrderEvent[]
 
   @@index([organizationId, columnId])
   @@index([columnId, position])
   @@index([createdAt])
   @@index([organizationId, archivedAt])
+  @@index([organizationId, ticketId])
+  @@index([organizationId, acceptedAt])
+  @@index([organizationId, printedAt])
+  @@index([saleId])
   @@map("kitchen_orders")
 }
 
@@ -1678,6 +1703,8 @@ enum KitchenOrderEventType {
   DELIVERED // Entregue ao cliente (entrou em coluna isFinal)
   ARCHIVED // Arquivado (sai do board)
   RESTORED // Restaurado do arquivo
+  ACCEPTED // Pedido do cardápio aceito pelo dono (entra no board)
+  REJECTED // Pedido do cardápio recusado (arquiva e cancela a venda)
 }
 
 enum KitchenOrderActorType {
@@ -2875,6 +2902,7 @@ enum OrgSegment {
   INDUSTRIA
   DISTRIBUIDOR
   AGENCIA
+  ALIMENTACAO // Restaurante, lanchonete, food truck, delivery
   OUTRO
 }
 

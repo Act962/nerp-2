@@ -6,6 +6,7 @@ export function useCart(organizationSubdomain: string) {
     addToCart,
     removeFromCart,
     updateQuantity,
+    updateNotes,
     clearCart,
     organizationCards,
   } = useCartSessionStore();
@@ -27,12 +28,22 @@ export function useCart(organizationSubdomain: string) {
     clearCart(organizationSubdomain);
   };
 
+  const setProductNotes = (productId: string, notes: string) => {
+    updateNotes(productId, organizationSubdomain, notes);
+  };
+
+  const addProduct = (productId: string, quantity: string, notes?: string) => {
+    addToCart(productId, organizationSubdomain, quantity, notes);
+  };
+
   return {
     products,
     toggleProduct,
+    addProduct,
     isProductInCart,
     clearOrganizationCart,
     updateQuantity,
+    setProductNotes,
     organizationCards,
   };
 }

@@ -31,6 +31,13 @@ export const listPendingApproval = base
       where: {
         organizationId: context.org.id,
         status: SaleStatus.PENDING_APPROVAL,
+        // Pedido do cardápio que AINDA ESPERA ACEITE não é do caixa: quem
+        // decide sobre ele é a barra "Novos pedidos" do board, e aprovar no PDV
+        // cancelaria a venda pelas costas da cozinha.
+        //
+        // Já a conta de mesa aceita e a comanda do balcão PRECISAM aparecer
+        // aqui: é assim que o caixa recebe o dinheiro no fim.
+        NOT: { kitchenOrders: { some: { acceptedAt: null } } },
       },
       include: {
         customer: { select: { name: true } },

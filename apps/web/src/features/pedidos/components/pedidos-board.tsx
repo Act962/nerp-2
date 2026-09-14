@@ -34,10 +34,12 @@ import {
   LayoutGrid,
   MoreVertical,
   Plus,
+  Printer,
   Search,
   Settings2,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
   InputGroup,
@@ -45,6 +47,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@/components/ui/input-group";
+import { PendingTicketsBar } from "./pending-tickets-bar";
 import { useKanbanDnd } from "../hooks/use-kanban-dnd";
 import { useMutationCreateColumn } from "../hooks/use-pedidos-columns";
 import { useQueryKitchenColumns } from "../hooks/use-pedidos-columns";
@@ -125,6 +128,18 @@ export function KitchenBoard() {
   const countIn = (columnId: string) =>
     ordersByColumn.get(columnId)?.length ?? 0;
 
+  // Quantos itens cada pedido tem, contando o board inteiro e não a coluna: um
+  // pedido pode estar dividido entre etapas, e o card precisa dizer o tamanho
+  // real do pedido para o botão "Pedido → próxima" não mentir.
+  const itensPorTicket = useMemo(() => {
+    const contagem: Record<string, number> = {};
+    for (const order of orders) {
+      const chave = order.ticketId ?? order.id;
+      contagem[chave] = (contagem[chave] ?? 0) + 1;
+    }
+    return contagem;
+  }, [orders]);
+
   // coluna terminal (isFinal) — alvo da ação direta "Entregue" nos cards
   const finalColumn = columns.find((c) => c.isFinal) ?? null;
 
@@ -168,6 +183,12 @@ export function KitchenBoard() {
             <ExternalLink className="size-4" />
             Abrir painel da TV
           </Button>
+          <Button variant="outline" asChild>
+            <Link href="/pedidos/impressao">
+              <Printer className="size-4" />
+              Impressão
+            </Link>
+          </Button>
           <Button onClick={() => setRegisterOpen(true)}>
             <Plus className="size-4" />
             Novo pedido
@@ -200,6 +221,12 @@ export function KitchenBoard() {
               <ExternalLink className="size-4" />
               Abrir painel da TV
             </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/pedidos/impressao">
+                <Printer className="size-4" />
+                Impressão
+              </Link>
+            </DropdownMenuItem>
             <DropdownMenuItem
               onSelect={() => setTimeout(() => setRegisterOpen(true), 0)}
             >
@@ -224,6 +251,8 @@ export function KitchenBoard() {
           showTrigger={false}
         />
       </PageHeader>
+
+      <PendingTicketsBar />
 
       <InputGroup>
         <InputGroupAddon>
@@ -310,6 +339,7 @@ export function KitchenBoard() {
                     finalColumn={finalColumn}
                     isDragActive={activeId != null}
                     activeColumnId={activeColumnId}
+                    itensPorTicket={itensPorTicket}
                     variant="main"
                   />
                 )}
@@ -323,6 +353,7 @@ export function KitchenBoard() {
                       finalColumn={finalColumn}
                       isDragActive={activeId != null}
                       activeColumnId={activeColumnId}
+                      itensPorTicket={itensPorTicket}
                       variant="side"
                     />
                   ))}

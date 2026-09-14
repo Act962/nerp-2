@@ -127,6 +127,9 @@ function BlockView({
                 {item.quantity} ×{" "}
                 {block.showUnitPrice ? currencyFormatter(item.unitPrice) : ""}
               </div>
+              {item.notes ? (
+                <div className="pl-3 font-medium">» {item.notes}</div>
+              ) : null}
             </div>
           ))}
         </div>

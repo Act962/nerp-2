@@ -80,6 +80,10 @@ export interface ReceiptSaleData {
     quantity: number;
     unitPrice: number;
     total: number;
+    // Observação do cliente para este item ("sem cebola"). Impressa sempre que
+    // houver texto: não virou opção de bloco porque `blocks` é JSON persistido
+    // e nunca migrado — template antigo ficaria sem a flag e sem a observação.
+    notes?: string | null;
   }[];
   subtotal: number;
   discount: number;

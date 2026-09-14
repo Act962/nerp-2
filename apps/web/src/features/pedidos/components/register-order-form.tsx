@@ -194,7 +194,10 @@ export function RegisterOrderForm({
           </Button>
         </SheetTrigger>
       )}
-      <SheetContent>
+      {/* Tela inteira no celular: a folha padrão ocupa 75% da largura e deixa
+          uma faixa do board atrás, que rouba espaço de um formulário com grade
+          de fotos e é fácil de tocar sem querer. No desktop segue painel. */}
+      <SheetContent className="w-full">
         <SheetHeader>
           <SheetTitle>Registrar pedidos</SheetTitle>
           <SheetDescription>

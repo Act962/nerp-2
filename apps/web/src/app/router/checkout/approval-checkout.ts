@@ -1,7 +1,11 @@
 import { base } from "@/app/middlewares/base";
 import { CatalogOperationMode, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
-import { resolveManyPrices } from "@/features/precos/server/resolve-price";
+import { resolveGuestCustomer } from "@/lib/pedidos/resolve-guest-customer";
+import {
+  nextSaleNumber,
+  resolveSaleItems,
+} from "@/lib/pedidos/resolve-sale-items";
 import { z } from "zod";
 
 /**
@@ -27,6 +31,7 @@ export const approvalCheckout = base
             z.object({
               id: z.string(),
               quantity: z.number().int().positive(),
+              notes: z.string().max(200).optional(),
             }),
           )
           .min(1),
@@ -95,104 +100,46 @@ export const approvalCheckout = base
       }
       customerId = catalogUser.customer.id;
     } else if (input.guest) {
-      const phone = input.guest.phone?.trim() || null;
-      let existing = null as { id: string } | null;
-      if (phone) {
-        existing = await prisma.customer.findFirst({
-          where: { organizationId: organization.id, phone },
-          select: { id: true },
-        });
-      }
-      if (existing) {
-        customerId = existing.id;
-        // Atualiza o nome se veio diferente — cliente pode ter digitado o
-        // nome completo esta vez.
-        await prisma.customer.update({
-          where: { id: existing.id },
-          data: { name: input.guest.name },
-        });
-      } else {
-        const created = await prisma.customer.create({
-          data: {
-            organizationId: organization.id,
-            name: input.guest.name,
-            phone,
-            notes: "Cliente criado via Catálogo Online (modo Aprovação).",
-          },
-          select: { id: true },
-        });
-        customerId = created.id;
-      }
+      customerId = await resolveGuestCustomer({
+        organizationId: organization.id,
+        guest: input.guest,
+        origem: "Cliente criado via Catálogo Online (modo Aprovação).",
+      });
     } else {
       // Refine impede — proteção redundante.
       throw errors.BAD_REQUEST({ message: "Cliente não informado." });
     }
 
-    const productIds = input.products.map((p) => p.id);
-    // Produtos sem controle de estoque (trackStock=false) não bloqueiam
-    // por currentStock — o operador confirma disponibilidade no balcão.
-    const products = await prisma.product.findMany({
-      where: {
-        id: { in: productIds },
-        organizationId: organization.id,
-        isActive: true,
-        OR: [{ trackStock: false }, { currentStock: { gte: 1 } }],
-      },
+    // Produtos validados contra a org e preço resolvido no servidor pela tabela
+    // do Customer; produto sem controle de estoque não é barrado por saldo.
+    const resolved = await resolveSaleItems({
+      organizationId: organization.id,
+      customerId,
+      products: input.products,
     });
 
-    if (products.length !== input.products.length) {
+    if (!resolved.ok) {
       throw errors.NOT_FOUND({
         message: "Alguns produtos não foram encontrados ou estão sem estoque!",
       });
     }
 
-    // Preço resolvido pelo server via `priceListId` do Customer (o pedido de
-    // catálogo já rebaixou o CatalogUser → Customer acima). Guest sem tabela
-    // cai na default da org.
-    const customerForPricing = await prisma.customer.findFirst({
-      where: { id: customerId, organizationId: organization.id },
-      select: { priceListId: true },
-    });
-    const resolved = await resolveManyPrices({
-      organizationId: organization.id,
-      priceListId: customerForPricing?.priceListId ?? null,
-      items: input.products.map((p) => ({ productId: p.id, quantity: p.quantity })),
-    });
-
-    const items = input.products.map((inputProduct, i) => {
-      const product = products.find((p) => p.id === inputProduct.id)!;
-      const unitPrice = resolved[i].unitPrice;
-      return {
-        productId: product.id,
-        productName: product.name,
-        quantity: inputProduct.quantity,
-        unitPrice,
-        total: unitPrice * inputProduct.quantity,
-      };
-    });
-
-    const subtotal = items.reduce((acc, item) => acc + item.total, 0);
-    const usedPriceListId = resolved[0]?.priceListId ?? null;
-
     // Numeração atômica (evita corrida com o count() usado no PDV).
-    const org = await prisma.organization.update({
-      where: { id: organization.id },
-      data: { lastSaleNumber: { increment: 1 } },
-      select: { lastSaleNumber: true },
-    });
+    const saleNumber = await nextSaleNumber(organization.id);
 
     const sale = await prisma.sale.create({
       data: {
         organizationId: organization.id,
         customerId,
-        priceListId: usedPriceListId,
-        subtotal,
-        total: subtotal,
-        saleNumber: org.lastSaleNumber,
+        priceListId: resolved.priceListId,
+        subtotal: resolved.subtotal,
+        total: resolved.subtotal,
+        saleNumber,
         status: SaleStatus.PENDING_APPROVAL,
-        notes: input.notes ?? "Pedido do Catálogo Online (aguardando aprovação)",
+        notes:
+          input.notes ?? "Pedido do Catálogo Online (aguardando aprovação)",
         items: {
-          createMany: { data: items },
+          createMany: { data: resolved.items },
         },
       },
     });

@@ -6,19 +6,19 @@ const POLL_MS = 5000;
 
 export function useWaiterCollaborators(orgSlug: string) {
   return useQuery(
-    orpc.kitchen.publicCollaborators.queryOptions({ input: { orgSlug } }),
+    orpc.kitchen.waiterCollaborators.queryOptions({ input: { orgSlug } }),
   );
 }
 
 export function useWaiterProducts(orgSlug: string) {
   return useQuery(
-    orpc.kitchen.publicProducts.queryOptions({ input: { orgSlug } }),
+    orpc.kitchen.waiterProducts.queryOptions({ input: { orgSlug } }),
   );
 }
 
 export function useWaiterOrders(orgSlug: string, attendantId: string | null) {
   return useQuery(
-    orpc.kitchen.publicListForAttendant.queryOptions({
+    orpc.kitchen.waiterListForAttendant.queryOptions({
       input: { orgSlug, attendantId: attendantId ?? "" },
       enabled: Boolean(attendantId),
       refetchInterval: POLL_MS,
@@ -32,13 +32,13 @@ export function useWaiterCreateOrder(
 ) {
   const queryClient = useQueryClient();
   return useMutation(
-    orpc.kitchen.publicCreate.mutationOptions({
+    orpc.kitchen.waiterCreate.mutationOptions({
       onSuccess: ({ count }) => {
         toast.success(
           count > 1 ? `${count} pedidos registrados!` : "Pedido registrado!",
         );
         queryClient.invalidateQueries({
-          queryKey: orpc.kitchen.publicListForAttendant.queryKey({
+          queryKey: orpc.kitchen.waiterListForAttendant.queryKey({
             input: { orgSlug, attendantId: attendantId ?? "" },
           }),
         });
@@ -56,11 +56,11 @@ export function useWaiterDeliverOrder(
 ) {
   const queryClient = useQueryClient();
   return useMutation(
-    orpc.kitchen.publicDeliver.mutationOptions({
+    orpc.kitchen.waiterDeliver.mutationOptions({
       onSuccess: () => {
         toast.success("Pedido entregue!");
         queryClient.invalidateQueries({
-          queryKey: orpc.kitchen.publicListForAttendant.queryKey({
+          queryKey: orpc.kitchen.waiterListForAttendant.queryKey({
             input: { orgSlug, attendantId: attendantId ?? "" },
           }),
         });

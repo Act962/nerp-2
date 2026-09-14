@@ -2,14 +2,21 @@ import { createKitchenOrder } from "./create";
 import { createKitchenOrderMany } from "./create-many";
 import { listKitchenOrders } from "./list";
 import { moveKitchenOrder } from "./move";
+import { moveKitchenTicket } from "./move-ticket";
 import { setArchivedKitchenOrder } from "./archive";
+import { acceptTicket } from "./accept-ticket";
+import { rejectTicket } from "./reject-ticket";
+import { listPendingTickets } from "./list-pending-tickets";
+import { listPendingPrint } from "./list-pending-print";
+import { markTicketPrinted } from "./mark-printed";
 import { publicReadyOrders } from "./public-ready";
-import { publicCollaborators } from "./public-collaborators";
-import { publicCreate } from "./public-create";
-import { publicListForAttendant } from "./public-list";
-import { publicProducts } from "./public-products";
 import { publicCustomerOrder } from "./public-customer";
-import { publicDeliver } from "./public-deliver";
+import { publicTicketOrder } from "./public-ticket";
+import { waiterCollaborators } from "./waiter-collaborators";
+import { waiterCreate } from "./waiter-create";
+import { waiterListForAttendant } from "./waiter-list";
+import { waiterProducts } from "./waiter-products";
+import { waiterDeliver } from "./waiter-deliver";
 import { listKitchenOrderEvents } from "./events-list";
 import { listKitchenColumns } from "./columns/list";
 import { createKitchenColumn } from "./columns/create";
@@ -23,15 +30,26 @@ export const kitchenRoutes = {
   create: createKitchenOrder,
   createMany: createKitchenOrderMany,
   move: moveKitchenOrder,
+  moveTicket: moveKitchenTicket,
   setArchived: setArchivedKitchenOrder,
+  // Fila de aceite do cardápio (fora do board até o dono aceitar).
+  listPendingTickets,
+  acceptTicket,
+  rejectTicket,
+  // Estação de impressão.
+  listPendingPrint,
+  markPrinted: markTicketPrinted,
   waiterJoinLink,
+  // App do garçom: exigem sessão + vínculo com a org do slug.
+  waiterCollaborators,
+  waiterCreate,
+  waiterListForAttendant,
+  waiterProducts,
+  waiterDeliver,
+  // Públicas de verdade: a TV não tem login, e o cliente chega pelo QR.
   publicReady: publicReadyOrders,
-  publicCollaborators,
-  publicCreate,
-  publicListForAttendant,
-  publicProducts,
   publicCustomerOrder,
-  publicDeliver,
+  publicTicketOrder,
   events: { list: listKitchenOrderEvents },
   columns: {
     list: listKitchenColumns,

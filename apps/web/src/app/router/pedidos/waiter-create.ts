@@ -1,12 +1,20 @@
+import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import prisma from "@/lib/db";
 import { createKitchenOrders } from "@/lib/pedidos/create-kitchen-orders";
 import z from "zod";
+import { requireMemberOfOrgSlug } from "./_require-member-of-org-slug";
 
-// Rota pública (sem requireAuth): a confiança vem do orgSlug + attendantId,
-// mesmo modelo do painel TV. Permite criar pedidos a partir do app do garçom
-// sem login Better Auth. Não permite mover/arquivar — só criar.
-export const publicCreate = base
+/**
+ * Registra o pedido montado no balcão ou na mesa.
+ *
+ * Exige sessão + vínculo com a organização do slug; o `attendantId` diz apenas
+ * quem está atendendo. O pedido entra direto na cozinha — quem monta está com o
+ * cliente na frente.
+ *
+ */
+export const waiterCreate = base
+  .use(requireAuthMiddleware)
   .route({
     method: "POST",
     summary: "Registrar pedidos (kiosk do garçom)",
@@ -30,16 +38,13 @@ export const publicCreate = base
         .min(1),
     }),
   )
-  .output(z.object({ count: z.number() }))
-  .handler(async ({ input, errors }) => {
-    const org = await prisma.organization.findUnique({
-      where: { slug: input.orgSlug },
-      select: { id: true },
+  .output(z.object({ count: z.number(), ticketId: z.string().nullable() }))
+  .handler(async ({ input, context, errors }) => {
+    const org = await requireMemberOfOrgSlug({
+      orgSlug: input.orgSlug,
+      userId: context.user.id,
+      errors,
     });
-
-    if (!org) {
-      throw errors.NOT_FOUND({ message: "Organização não encontrada!" });
-    }
 
     const attendant = await prisma.collaborator.findFirst({
       where: { id: input.attendantId, organizationId: org.id, isActive: true },
@@ -70,5 +75,5 @@ export const publicCreate = base
       });
     }
 
-    return { count: result.count };
+    return { count: result.count, ticketId: result.ticketId };
   });

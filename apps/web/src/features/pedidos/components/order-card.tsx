@@ -36,6 +36,7 @@ import {
 import type { KitchenColumn } from "../hooks/use-pedidos-columns";
 import {
   useMutationMoveKitchenOrder,
+  useMutationMoveTicket,
   useMutationSetArchivedKitchenOrder,
 } from "../hooks/use-pedidos";
 import type { KitchenOrder } from "../hooks/use-pedidos";
@@ -50,6 +51,10 @@ interface OrderCardProps {
   isInitialColumn?: boolean;
   // quando true, é só o "fantasma" do DragOverlay (sem listeners/sortable)
   overlay?: boolean;
+  // Quantos itens o pedido tem ao todo, quando é mais de um. A cozinha
+  // raciocina por PEDIDO — mandar meia bandeja para a próxima etapa é o erro
+  // que o botão de ticket evita.
+  itensDoTicket?: number;
 }
 
 export function OrderCard({
@@ -58,9 +63,24 @@ export function OrderCard({
   finalColumn = null,
   isInitialColumn = false,
   overlay = false,
+  itensDoTicket = 1,
 }: OrderCardProps) {
   const move = useMutationMoveKitchenOrder();
+  const moveTicket = useMutationMoveTicket();
   const setArchived = useMutationSetArchivedKitchenOrder();
+
+  // Com mais de um item, o botão leva o pedido inteiro; o arrastar continua
+  // valendo item a item, para quando um deles atrasa e o resto pode seguir.
+  const emLote = itensDoTicket > 1 && Boolean(order.ticketId);
+  const movendo = move.isPending || moveTicket.isPending;
+
+  const avancar = (toColumnId: string) => {
+    if (emLote && order.ticketId) {
+      moveTicket.mutate({ ticketId: order.ticketId, toColumnId });
+      return;
+    }
+    move.mutate({ id: order.id, toColumnId });
+  };
 
   // Pedido entregue (na coluna final): congela o contador no momento em que
   // entrou na coluna e para de pulsar — não conta mais tempo nem alerta atraso.
@@ -121,9 +141,19 @@ export function OrderCard({
         </button>
 
         <div className="min-w-0 flex-1 overflow-hidden">
-          <p className="text-base font-bold leading-tight tracking-tight">
-            Mesa {order.tableNumber}
-          </p>
+          <div className="flex items-center gap-1.5">
+            <p className="min-w-0 truncate text-base font-bold leading-tight tracking-tight">
+              Mesa {order.tableNumber}
+            </p>
+            {emLote && (
+              <Badge
+                variant="outline"
+                className="shrink-0 px-1.5 py-0 text-[10px] leading-4"
+              >
+                {itensDoTicket} itens
+              </Badge>
+            )}
+          </div>
           <Tooltip>
             <TooltipTrigger asChild>
               <p className="mt-0.5 block w-full truncate text-xs font-medium text-muted-foreground">
@@ -196,13 +226,11 @@ export function OrderCard({
           size="sm"
           variant="outline"
           className="w-full justify-center"
-          disabled={move.isPending}
-          onClick={() =>
-            move.mutate({ id: order.id, toColumnId: nextColumn.id })
-          }
+          disabled={movendo}
+          onClick={() => avancar(nextColumn.id)}
         >
           <ArrowRight className="size-3.5" />
-          {nextColumn.name}
+          {emLote ? `Pedido → ${nextColumn.name}` : nextColumn.name}
         </Button>
       )}
 
@@ -236,22 +264,18 @@ export function OrderCard({
 
       {/* Ação direta: marca como entregue movendo o card p/ a coluna final.
           Sempre no rodapé do card; não aparece na coluna inicial. */}
-      {finalColumn &&
-        order.columnId !== finalColumn.id &&
-        !isInitialColumn && (
-          <Button
-            type="button"
-            size="sm"
-            className="mt-auto w-full justify-center"
-            disabled={move.isPending}
-            onClick={() =>
-              move.mutate({ id: order.id, toColumnId: finalColumn.id })
-            }
-          >
-            <CheckCheck className="size-3.5" />
-            Entregue
-          </Button>
-        )}
+      {finalColumn && order.columnId !== finalColumn.id && !isInitialColumn && (
+        <Button
+          type="button"
+          size="sm"
+          className="mt-auto w-full justify-center"
+          disabled={movendo}
+          onClick={() => avancar(finalColumn.id)}
+        >
+          <CheckCheck className="size-3.5" />
+          Entregue
+        </Button>
+      )}
     </Card>
   );
 }

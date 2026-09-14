@@ -1,5 +1,11 @@
-import { ChefHat, Store, ShoppingBag } from "lucide-react";
-import { CatalogOperationMode } from "@/generated/prisma/enums";
+import {
+  ChefHat,
+  LayoutGrid,
+  Store,
+  ShoppingBag,
+  UtensilsCrossed,
+} from "lucide-react";
+import { CatalogLayout, CatalogOperationMode } from "@/generated/prisma/enums";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { CatalogSettingsProps } from "./catalog";
@@ -33,6 +39,26 @@ const MODES = [
   },
 ] as const;
 
+// Leiaute é como a vitrine se DESENHA; modo de operação é o que acontece DEPOIS
+// do checkout. São coisas independentes de propósito: uma padaria pode querer
+// cardápio com aprovação presencial, e um mercado, lista com pagamento online.
+const LAYOUTS = [
+  {
+    layout: CatalogLayout.LISTA,
+    icon: LayoutGrid,
+    title: "Lista",
+    description:
+      "A vitrine de e-commerce: grade de produtos, filtros e página de detalhe. Boa para catálogo grande.",
+  },
+  {
+    layout: CatalogLayout.CARDAPIO,
+    icon: UtensilsCrossed,
+    title: "Cardápio",
+    description:
+      "Tela de comida no celular: foto grande, categorias em faixa, botão de adicionar no próprio card e a sacola fixa no rodapé. O cliente pede sem se cadastrar.",
+  },
+] as const;
+
 export function OperationTab({ settings, setSettings }: OperationTabProps) {
   return (
     <div className="space-y-6 mt-4">
@@ -55,6 +81,61 @@ export function OperationTab({ settings, setSettings }: OperationTabProps) {
               type="button"
               aria-pressed={selected}
               onClick={() => setSettings({ ...settings, operationMode: mode })}
+              className="text-left outline-none"
+            >
+              <Card
+                className={cn(
+                  "h-full cursor-pointer p-6 transition-colors",
+                  selected
+                    ? "border-primary ring-2 ring-primary"
+                    : "hover:border-muted-foreground/40",
+                )}
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-md",
+                      selected
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-base font-medium text-foreground">
+                      {title}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {description}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="pt-2">
+        <h2 className="text-xl font-semibold text-foreground">
+          Leiaute da vitrine
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          Como a loja se desenha para quem abre o link. Não muda o que acontece
+          no pagamento.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        {LAYOUTS.map(({ layout, icon: Icon, title, description }) => {
+          const selected = settings.layout === layout;
+          return (
+            <button
+              key={layout}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => setSettings({ ...settings, layout })}
               className="text-left outline-none"
             >
               <Card

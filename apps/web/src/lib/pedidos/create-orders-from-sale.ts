@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { CatalogOperationMode } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 
@@ -8,12 +9,22 @@ import prisma from "@/lib/db";
  * Só age quando o catálogo da organização está no modo KITCHEN — no modo
  * MARKETPLACE (padrão) é um no-op, preservando o comportamento de e-commerce.
  *
- * Gera 1 `KitchenOrder` por item da venda, na coluna de entrada (isInitial) da org.
+ * Gera 1 `KitchenOrder` por item da venda, na coluna de entrada (isInitial) da org,
+ * todos sob o mesmo `ticketId` — é esse agrupamento que vira um cupom só e uma
+ * tela de acompanhamento só.
  * É tolerante a falhas (não lança): a venda já existe e o pagamento não deve
  * falhar por causa de um problema na cozinha. Os webhooks devem chamar dentro de
  * try/catch mesmo assim, por garantia.
+ *
+ * `requiresAcceptance` nasce FALSE de propósito: os chamadores de hoje são os
+ * webhooks de pagamento, e pedido já pago não pode ficar esperando alguém
+ * clicar "aceitar". Só o cardápio sem pagamento online passa true.
  */
-export async function createKitchenOrdersFromSale(saleId: string) {
+export async function createKitchenOrdersFromSale(
+  saleId: string,
+  options: { requiresAcceptance?: boolean } = {},
+) {
+  const requiresAcceptance = options.requiresAcceptance ?? false;
   const sale = await prisma.sale.findUnique({
     where: { id: saleId },
     select: {
@@ -27,6 +38,7 @@ export async function createKitchenOrdersFromSale(saleId: string) {
           productId: true,
           productName: true,
           quantity: true,
+          notes: true,
         },
       },
     },
@@ -74,19 +86,27 @@ export async function createKitchenOrdersFromSale(saleId: string) {
   });
   let position = (last._max.position ?? -1) + 1;
 
-  // 5. Identificação do card: "Pedido #<saleNumber>" + cliente/observações nas notes.
-  const tableNumber = `Pedido #${sale.saleNumber}`;
-  const baseNote = [
-    sale.customer?.name ? `Cliente: ${sale.customer.name}` : null,
-    sale.notes ? `Obs: ${sale.notes}` : null,
-  ]
+  // 5. Identificação do card. O cabeçalho do pedido (número + cliente) vai no
+  // tableNumber, que já é texto livre e aparece em destaque no board, na TV e na
+  // busca. `notes` fica reservado ao que o cliente pediu para ESTE item ("sem
+  // cebola") — antes os dois significados dividiam o mesmo campo e a observação
+  // do pedido era repetida em todos os itens.
+  const tableNumber = [`Pedido #${sale.saleNumber}`, sale.customer?.name]
     .filter(Boolean)
     .join(" · ");
 
-  const data = sale.items.map((item) => {
+  const ticketId = randomUUID();
+  const acceptedAt = requiresAcceptance ? null : new Date();
+
+  const data = sale.items.map((item, index) => {
     const quantity = Number(item.quantity);
     const dishName =
       quantity > 1 ? `${quantity}x ${item.productName}` : item.productName;
+
+    // A observação geral da venda cabe no primeiro item: é onde a cozinha lê.
+    const notes = [item.notes, index === 0 && sale.notes ? sale.notes : null]
+      .filter(Boolean)
+      .join(" · ");
 
     return {
       organizationId,
@@ -95,11 +115,16 @@ export async function createKitchenOrdersFromSale(saleId: string) {
       dishName,
       productId: item.productId,
       estimatedMinutes: prepTimeByProduct.get(item.productId) ?? null,
-      notes: baseNote || null,
+      notes: notes || null,
       position: position++,
       columnEnteredAt: new Date(),
+      ticketId,
+      acceptedAt,
+      saleId: sale.id,
     };
   });
 
   await prisma.kitchenOrder.createMany({ data });
+
+  return ticketId;
 }

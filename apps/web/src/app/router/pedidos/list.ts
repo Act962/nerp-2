@@ -29,6 +29,7 @@ export const listKitchenOrders = base
         dishName: z.string(),
         notes: z.string().nullable(),
         estimatedMinutes: z.number().nullable(),
+        ticketId: z.string().nullable(),
         position: z.number(),
         attendantId: z.string().nullable(),
         attendantName: z.string().nullable(),
@@ -48,6 +49,9 @@ export const listKitchenOrders = base
       organizationId: context.org.id,
       ...(input.columnId ? { columnId: input.columnId } : {}),
       archivedAt: input.archived ? { not: null } : null,
+      // Pedido do cardápio ainda não aceito não entra no board: ele espera na
+      // barra "Novos pedidos". Pedido do balcão e pedido pago nascem aceitos.
+      acceptedAt: { not: null },
     };
 
     const orders = await prisma.kitchenOrder.findMany({
@@ -70,6 +74,7 @@ function serializeOrder(order: {
   dishName: string;
   notes: string | null;
   estimatedMinutes: number | null;
+  ticketId: string | null;
   position: number;
   attendantId: string | null;
   attendantName: string | null;
@@ -86,6 +91,7 @@ function serializeOrder(order: {
     dishName: order.dishName,
     notes: order.notes,
     estimatedMinutes: order.estimatedMinutes,
+    ticketId: order.ticketId,
     position: order.position,
     attendantId: order.attendantId,
     attendantName: order.attendantName,

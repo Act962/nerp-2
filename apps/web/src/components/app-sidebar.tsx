@@ -50,6 +50,7 @@ import {
   MessageCircle,
   Plug,
   Plus,
+  Printer,
   Receipt,
   ClipboardList,
   QrCode,
@@ -473,6 +474,15 @@ const navigation: NavItem[] = [
             name: "Pedidos",
             href: "/pedidos",
             icon: ChefHat,
+            permission: "pedidos",
+          },
+          {
+            // Tela que fica aberta no celular junto da impressora: nasce da
+            // mesma permissão do board, porque quem aceita pedido é quem
+            // imprime.
+            name: "Impressão",
+            href: "/pedidos/impressao",
+            icon: Printer,
             permission: "pedidos",
           },
           {

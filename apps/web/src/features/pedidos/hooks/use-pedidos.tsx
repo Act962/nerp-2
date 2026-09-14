@@ -11,6 +11,9 @@ export type KitchenOrder = {
   dishName: string;
   notes: string | null;
   estimatedMinutes: number | null;
+  // Itens do mesmo pedido compartilham o ticket. Null = pedido anterior ao
+  // ticket; a UI agrupa por `ticketId ?? id`, então ele vira ticket de um item.
+  ticketId: string | null;
   position: number;
   attendantId: string | null;
   attendantName: string | null;
@@ -146,6 +149,68 @@ export function useMutationMoveKitchenOrder() {
         }
         toast.error(error.message);
       },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.kitchen.list.key() });
+      },
+    }),
+  );
+}
+
+// --- Pedidos do cardápio aguardando aceite ------------------------------
+
+export function useQueryPendingTickets() {
+  return useQuery(
+    orpc.kitchen.listPendingTickets.queryOptions({
+      input: {},
+      refetchInterval: POLL_MS,
+    }),
+  );
+}
+
+function useInvalidarFilaDeAceite() {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({
+      queryKey: orpc.kitchen.listPendingTickets.key(),
+    });
+    queryClient.invalidateQueries({ queryKey: orpc.kitchen.list.key() });
+    queryClient.invalidateQueries({
+      queryKey: orpc.kitchen.listPendingPrint.key(),
+    });
+  };
+}
+
+export function useMutationAcceptTicket() {
+  const invalidar = useInvalidarFilaDeAceite();
+  return useMutation(
+    orpc.kitchen.acceptTicket.mutationOptions({
+      onSuccess: () => {
+        toast.success("Pedido aceito! Já foi para a cozinha.");
+        invalidar();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useMutationRejectTicket() {
+  const invalidar = useInvalidarFilaDeAceite();
+  return useMutation(
+    orpc.kitchen.rejectTicket.mutationOptions({
+      onSuccess: () => {
+        toast.success("Pedido recusado.");
+        invalidar();
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useMutationMoveTicket() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.kitchen.moveTicket.mutationOptions({
+      onError: (error) => toast.error(error.message),
       onSettled: () => {
         queryClient.invalidateQueries({ queryKey: orpc.kitchen.list.key() });
       },

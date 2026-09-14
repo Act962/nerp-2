@@ -73,3 +73,10 @@ feature depois de trabalhar em outra coisa.
 - [`impressao-cupom.md`](./impressao-cupom.md) — **(6)** ESC-POS/PDF/DANFE + editor de cupom · `feat/impressao-cupom` · 📋 esboço · depende de (1)/(5)
 - [`pdv-atalhos-ui.md`](./pdv-atalhos-ui.md) — **(7)** Atalhos globais (F8/F11…) + refino da UI do PDV · `feat/pdv-atalhos-ui` · 📋 esboço · depende de (1)
 - [`pdv-offline.md`](./pdv-offline.md) — **(8)** Offline transparente do PDV (PWA + outbox + sync) · `feat/pdv-offline` · 📋 esboço · depende de (1)
+
+## Orbita Food (epico)
+
+> O food truck que anota no papel: cardápio no Instagram, pedido sem cadastro, cupom saindo sozinho e fidelidade. Seis fases; cada fase = 1 branch = 1 PR. Segmento dentro do Órbita, não produto separado.
+
+- [`food-service.md`](./food-service.md) — **Mapa do épico**: o problema, quem usa, as seis fases, e as decisões que valem para todas (marca "STAR pay" só na UI, modelos `Loyalty*`; impressão por Web Bluetooth; cardápio como leiaute da loja online; pedido sem cadastro por nome + WhatsApp) · 📋 planejado
+- [`food-fase-1-pedido-sem-papel.md`](./food-fase-1-pedido-sem-papel.md) — **(1)** Cardápio mobile, pedido sem cadastro, aceite do dono acima do kanban, balcão de botões grandes e cupom ESC-POS por Bluetooth · `feat/food-fase-1-pedido-sem-papel` · 🟢 código pronto, aguardando teste do dev

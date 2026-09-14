@@ -26,6 +26,8 @@ interface KitchenColumnProps {
   isDragActive?: boolean;
   // coluna de origem do card em arraste (p/ não realçar a própria origem)
   activeColumnId?: string | null;
+  // Tamanho de cada pedido (ticket → nº de itens), contado no board inteiro.
+  itensPorTicket?: Record<string, number>;
   onEdit?: (column: KitchenColumnType) => void;
   // Layout iFood: "main" ocupa a área principal à esquerda com cards em grid
   // (3 colunas), enquanto "side" empilha colunas estreitas à direita.
@@ -39,6 +41,7 @@ export function KitchenColumn({
   finalColumn,
   isDragActive = false,
   activeColumnId = null,
+  itensPorTicket = {},
   onEdit,
   variant = "side",
 }: KitchenColumnProps) {
@@ -123,6 +126,7 @@ export function KitchenColumn({
                 nextColumn={nextColumn}
                 finalColumn={finalColumn}
                 isInitialColumn={column.isInitial}
+                itensDoTicket={itensPorTicket[order.ticketId ?? order.id] ?? 1}
               />
             ))}
             {count === 0 && (
