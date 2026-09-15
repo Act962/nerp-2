@@ -32,7 +32,7 @@ export function DashboardShortcuts() {
   if (shortcuts.length === 0) return null;
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div data-jornada="dashboard-atalhos" className="flex flex-wrap gap-2">
       {shortcuts.map((shortcut) => (
         <Button key={shortcut.key} asChild variant="outline" size="sm">
           <Link href={shortcut.href}>{shortcut.label}</Link>

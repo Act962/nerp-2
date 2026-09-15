@@ -1,6 +1,10 @@
 "use client";
 
 import { AstroWidget, type FalhaDoAstro } from "@nerp/astro-widget";
+import { useState } from "react";
+import { FerramentasDoAstro } from "@/features/jornadas/components/ferramentas-do-astro";
+import { ListaDeJornadas } from "@/features/jornadas/components/lista-de-jornadas";
+import { MelhoriasDialog } from "@/features/jornadas/components/melhorias-dialog";
 import { ROTULO_DA_ACAO } from "@/features/astro/server/acoes/aprovacao";
 import { subirAnexoDoAstro } from "@/features/astro/lib/anexar";
 import {
@@ -48,6 +52,8 @@ export function AstroFlutuante() {
   const marcarFalado = useMarcarAvisoFalado();
   const { member } = useCurrentMember();
   const podeComprar = hasFullAccess(member?.role);
+  const [jornadasAbertas, setJornadasAbertas] = useState(false);
+  const [melhoriasAbertas, setMelhoriasAbertas] = useState(false);
 
   const aoFalhar = (falha: FalhaDoAstro) => {
     if (falha.status !== 402) return null;
@@ -81,22 +87,40 @@ export function AstroFlutuante() {
   };
 
   return (
-    <AstroWidget
-      api="/api/astro/chat"
-      abertura="O que você quer saber da sua operação?"
-      sugestoes={SUGESTOES}
-      baseDosLinks={SITE}
-      linksEmNovaAba
-      nota="O Astro é uma inteligência artificial e pode errar. Cada resposta consome Stars da organização."
-      acoes={ROTULO_DA_ACAO}
-      avisos={avisos?.avisos}
-      aoFalarAviso={(id) => marcarFalado.mutate({ id })}
-      aoLerAviso={(id) => marcarLido.mutate({ id })}
-      enviarArquivo={subirAnexoDoAstro}
-      tiposDeArquivo={TIPOS_DE_ANEXO_ACEITOS}
-      maxArquivos={MAX_ANEXOS_POR_MENSAGEM}
-      aoFalhar={aoFalhar}
-      onResposta={invalidarSaldo}
-    />
+    <>
+      <AstroWidget
+        api="/api/astro/chat"
+        abertura="O que você quer saber da sua operação?"
+        sugestoes={SUGESTOES}
+        baseDosLinks={SITE}
+        linksEmNovaAba
+        nota="O Astro é uma inteligência artificial e pode errar. Cada resposta consome Stars da organização."
+        acoes={ROTULO_DA_ACAO}
+        avisos={avisos?.avisos}
+        aoFalarAviso={(id) => marcarFalado.mutate({ id })}
+        aoLerAviso={(id) => marcarLido.mutate({ id })}
+        enviarArquivo={subirAnexoDoAstro}
+        tiposDeArquivo={TIPOS_DE_ANEXO_ACEITOS}
+        maxArquivos={MAX_ANEXOS_POR_MENSAGEM}
+        aoFalhar={aoFalhar}
+        onResposta={invalidarSaldo}
+        ferramentas={({ fechar }) => (
+          <FerramentasDoAstro
+            fechar={fechar}
+            aoAbrirJornadas={() => setJornadasAbertas(true)}
+            aoAbrirMelhorias={() => setMelhoriasAbertas(true)}
+          />
+        )}
+      />
+
+      <ListaDeJornadas
+        aberto={jornadasAbertas}
+        aoFechar={() => setJornadasAbertas(false)}
+      />
+      <MelhoriasDialog
+        aberto={melhoriasAbertas}
+        aoFechar={() => setMelhoriasAbertas(false)}
+      />
+    </>
   );
 }

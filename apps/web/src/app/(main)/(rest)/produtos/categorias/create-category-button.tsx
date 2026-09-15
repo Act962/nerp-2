@@ -8,7 +8,7 @@ export function CreateCategoryButton() {
   const { onOpen } = useCategoryModal();
 
   return (
-    <Button size="sm" onClick={onOpen}>
+    <Button data-jornada="categorias-nova" size="sm" onClick={onOpen}>
       <Plus className="h-4 w-4 mr-2" />
       Nova Categoria
     </Button>

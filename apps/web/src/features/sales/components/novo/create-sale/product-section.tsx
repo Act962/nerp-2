@@ -126,6 +126,7 @@ export function ProductSection({
                   preço em destaque do tile. */}
               <Input
                 ref={searchInputRef}
+                data-jornada="pdv-busca"
                 autoFocus
                 placeholder="Buscar por nome, SKU ou código de barras..."
                 className="h-16 rounded-lg border-slate-200 bg-white pl-12 pr-16 text-xl text-slate-900 placeholder:text-slate-500 dark:bg-white md:text-xl"
@@ -187,6 +188,7 @@ export function ProductSection({
                         <button
                           type="button"
                           key={product.id}
+                          data-jornada={index === 0 ? "pdv-produto" : undefined}
                           onClick={() => !outOfStock && addToCart(product)}
                           disabled={outOfStock}
                           className={cn(
@@ -254,13 +256,14 @@ export function ProductSection({
                   ? Array.from({ length: 16 }).map((_, index) => (
                       <Skeleton key={index} className="h-16 w-full" />
                     ))
-                  : products.map((product) => {
+                  : products.map((product, index) => {
                       const outOfStock =
                         product.trackStock && product.currentStock <= 0;
                       return (
                         <button
                           type="button"
                           key={product.id}
+                          data-jornada={index === 0 ? "pdv-produto" : undefined}
                           onClick={() => !outOfStock && addToCart(product)}
                           disabled={outOfStock}
                           className="w-full flex items-center gap-3 rounded-lg border bg-card p-3 transition-all hover:border-primary hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed"

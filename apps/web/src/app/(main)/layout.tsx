@@ -9,6 +9,8 @@ import { NewVersionBanner } from "@/components/new-version-banner";
 import { ShellContent } from "@/components/shell-content";
 import { EmptyOrganization } from "@/components/empty-organization";
 import { AstroFlutuante } from "@/features/astro/components/astro-flutuante";
+import { ConviteFlutuante } from "@/features/jornadas/components/convite-flutuante";
+import { JornadaRunner } from "@/features/jornadas/components/jornada-runner";
 import { BannerSandbox } from "@/features/onboarding/components/banner-sandbox";
 
 export default async function Layout({
@@ -50,8 +52,15 @@ export default async function Layout({
       </div>
       <ModalProvider />
       {/* O mesmo Astro do site, flutuando em toda página logada. Só com
-          organização: é dela que sai o saldo que paga a conversa. */}
-      {org ? <AstroFlutuante /> : null}
+          organização: é dela que sai o saldo que paga a conversa — e é dela
+          que saem as jornadas guiadas e as ★ que elas pagam. */}
+      {org ? (
+        <>
+          <AstroFlutuante />
+          <ConviteFlutuante />
+          <JornadaRunner />
+        </>
+      ) : null}
     </SidebarProvider>
   );
 }

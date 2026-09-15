@@ -663,6 +663,15 @@ export type AstroWidgetProps = {
   aoFalarAviso?: (id: string) => void;
   /** A pessoa leu (ou pediu para explicar) este aviso. */
   aoLerAviso?: (id: string) => void;
+  /**
+   * Botões que o app pendura no cabeçalho do painel.
+   *
+   * O pacote não sabe o que eles são — no site não há nenhum, e no nerp são
+   * "Jornadas" e "Melhorias". Recebem `fechar` porque abrir um diálogo por
+   * cima do painel exige fechá-lo antes: ele é `z-index: 200` e, no celular,
+   * ocupa a tela inteira.
+   */
+  ferramentas?: (painel: { fechar: () => void }) => ReactNode;
 };
 
 /**
@@ -726,6 +735,7 @@ export function AstroWidget({
   avisos: avisosDoAstro,
   aoFalarAviso,
   aoLerAviso,
+  ferramentas,
 }: AstroWidgetProps) {
   const [aberto, setAberto] = useState(false);
   const [falha, setFalha] = useState<FalhaDoAstro | null>(null);
@@ -1381,6 +1391,11 @@ export function AstroWidget({
           zangado={semResposta && !carregando}
         />
         <span className="o-astro-head__name">Astro</span>
+        {ferramentas && (
+          <div className="o-astro-head__ferramentas">
+            {ferramentas({ fechar })}
+          </div>
+        )}
         {messages.length > 0 && (
           <button
             type="button"

@@ -113,6 +113,12 @@ type NavItem = {
   destaque?: boolean;
   /** Solução marcada no onboarding: sobe no grupo e ganha o selo. */
   paraVoce?: boolean;
+  /**
+   * Âncora das jornadas guiadas (`data-jornada`). O motor destaca o item e
+   * espera o clique da pessoa — e é por ela que ele abre o grupo antes,
+   * porque `Collapsible` fechado não monta os filhos.
+   */
+  jornada?: string;
 };
 
 // Casa a rota atual com o item ou qualquer descendente — usado pra abrir os
@@ -168,9 +174,15 @@ const navigation: NavItem[] = [
         href: "/produtos",
         icon: Package,
         permission: "produtos",
+        jornada: "sidebar-grupo-produtos",
         children: [
           { name: "Produtos", href: "/produtos", icon: Package },
-          { name: "Categorias", href: "/produtos/categorias", icon: Tag },
+          {
+            name: "Categorias",
+            href: "/produtos/categorias",
+            icon: Tag,
+            jornada: "sidebar-categorias",
+          },
           {
             name: "Tabelas de preço",
             href: "/precos",
@@ -659,6 +671,7 @@ export function AppSidebar() {
                         <SidebarMenuItem>
                           <CollapsibleTrigger asChild>
                             <SidebarMenuButton
+                              data-jornada={item.jornada}
                               tooltip={item.name}
                               className={cn(
                                 item.destaque &&
@@ -705,7 +718,11 @@ export function AppSidebar() {
                       )}
                       asChild
                     >
-                      <Link href={item.href} onClick={handleNavClick}>
+                      <Link
+                        data-jornada={item.jornada}
+                        href={item.href}
+                        onClick={handleNavClick}
+                      >
                         {item.icon && <item.icon />}
                         <span>{item.name}</span>
                       </Link>
@@ -757,7 +774,7 @@ function SubItem({
               "bg-sidebar-accent text-sidebar-accent-foreground",
           )}
         >
-          <Link href={item.href} onClick={onNav}>
+          <Link data-jornada={item.jornada} href={item.href} onClick={onNav}>
             <item.icon />
             <span>{item.name}</span>
             {item.paraVoce ? <SeloParaVoce /> : null}
@@ -772,7 +789,7 @@ function SubItem({
       <SidebarMenuSubItem>
         <CollapsibleTrigger asChild>
           <SidebarMenuSubButton asChild className="cursor-pointer">
-            <button type="button">
+            <button data-jornada={item.jornada} type="button">
               <item.icon />
               <span>{item.name}</span>
               {item.paraVoce ? <SeloParaVoce /> : null}

@@ -61,7 +61,10 @@ export function ProductsDashboard({
   if (!data) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+    <div
+      data-jornada="produtos-painel"
+      className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7"
+    >
       {/* Total: limpa o filtro em vez de aplicar um. */}
       <Indicador
         titulo="Cadastrados"

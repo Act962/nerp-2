@@ -113,7 +113,7 @@ export function CartSale({
     // Altura total do carrinho ocupa a coluna do grid. A lista de itens
     // rola internamente; o rodapé (cliente/desconto/total/finalizar) fica
     // fixo — o botão "Finalizar Venda" precisa estar SEMPRE visível.
-    <div className="flex h-full min-h-0 flex-col">
+    <div data-jornada="pdv-carrinho" className="flex h-full min-h-0 flex-col">
       <Card className="receipt-edge flex h-full min-h-0 flex-col rounded-b-none border-0 bg-card pb-4 shadow-sm">
         <CardHeader className="pb-2">
           {/* Cliente ocupa o topo do carrinho (antes ficava embaixo). A logo
@@ -390,6 +390,7 @@ export function CartSale({
               </div>
 
               <Button
+                data-jornada="pdv-finalizar"
                 size="lg"
                 className="h-14 w-full text-lg font-semibold"
                 onClick={() => setPaymentDialogOpen(true)}

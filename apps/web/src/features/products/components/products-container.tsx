@@ -135,7 +135,7 @@ export function ProductsContainer() {
             </Link>
           </Button>
           <Button size={"sm"} asChild>
-            <Link href={"/produtos/novo"}>
+            <Link data-jornada="produtos-novo" href={"/produtos/novo"}>
               <Plus className="size-4" />
               Adicionar Produto
             </Link>

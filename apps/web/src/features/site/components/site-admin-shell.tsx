@@ -10,7 +10,9 @@ import {
   LayoutDashboard,
   ListTree,
   Handshake,
+  Lightbulb,
   Menu as MenuIcon,
+  Route,
   Shield,
   Sparkles,
   Star,
@@ -38,6 +40,8 @@ const SITE_ENTRIES: Entry[] = [
 const PLATAFORMA_ENTRIES: Entry[] = [
   { href: "/site/empresas", label: "Empresas", icon: Building2 },
   { href: "/site/stars", label: "Stars", icon: Star },
+  { href: "/site/jornadas", label: "Jornadas", icon: Route },
+  { href: "/site/melhorias", label: "Melhorias", icon: Lightbulb },
 ];
 
 /**
