@@ -118,7 +118,7 @@ export const AddSupplierModal = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent data-jornada="fornecedores-form">
         <DialogHeader>
           <DialogTitle>Novo Fornecedor</DialogTitle>
           <DialogDescription>

@@ -73,7 +73,9 @@ export function CloseCaixaDialog() {
       onOpenChange={(next) => (next ? setOpen(true) : close())}
     >
       <DialogTrigger asChild>
-        <Button variant="destructive">Fechar caixa</Button>
+        <Button data-jornada="caixa-fechar" variant="destructive">
+          Fechar caixa
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         {result ? (

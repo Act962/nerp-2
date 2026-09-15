@@ -103,6 +103,7 @@ export function ListSuppliers({ readOnly = false }: { readOnly?: boolean }) {
                 <SearchIcon />
               </InputGroupAddon>
               <InputGroupInput
+                data-jornada="fornecedores-busca"
                 placeholder="Buscar por nome, documento ou e-mail..."
                 value={search}
                 onChange={(e) => {
@@ -114,7 +115,7 @@ export function ListSuppliers({ readOnly = false }: { readOnly?: boolean }) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div data-jornada="fornecedores-tabela" className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>

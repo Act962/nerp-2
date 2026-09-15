@@ -17,13 +17,16 @@ export default async function Page() {
         {!readOnly && (
           <>
             <Button variant="outline" asChild>
-              <Link href="/fornecedores/importar">
+              <Link
+                data-jornada="fornecedores-importar"
+                href="/fornecedores/importar"
+              >
                 <UploadIcon className="size-4" />
                 Importar
               </Link>
             </Button>
             <AddSupplierModal>
-              <Button>
+              <Button data-jornada="fornecedores-novo">
                 <PlusIcon className="size-4" />
                 Novo Fornecedor
               </Button>

@@ -194,7 +194,7 @@ export function RegisterOrderForm({
           </Button>
         </SheetTrigger>
       )}
-      <SheetContent>
+      <SheetContent data-jornada="pedidos-form">
         <SheetHeader>
           <SheetTitle>Registrar pedidos</SheetTitle>
           <SheetDescription>

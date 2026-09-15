@@ -15,13 +15,13 @@ export default async function Page() {
         description="Gerencie seus clientes e acompanhe o histórico de compras"
       >
         <Button variant="outline" asChild>
-          <Link href="/clientes/importar">
+          <Link data-jornada="clientes-importar" href="/clientes/importar">
             <UploadIcon className="size-4" />
             Importar
           </Link>
         </Button>
         <AddCustomerModal>
-          <Button>
+          <Button data-jornada="clientes-novo">
             <PlusIcon className="size-4" />
             Novo Cliente
           </Button>

@@ -16,11 +16,17 @@ export function OrganizationSettingsTabs() {
 
   return (
     <Tabs defaultValue="members">
-      <TabsList>
+      <TabsList data-jornada="config-abas">
         <TabsTrigger value="members">Membros</TabsTrigger>
-        <TabsTrigger value="invitations">Convites</TabsTrigger>
-        <TabsTrigger value="permissions">Permissões</TabsTrigger>
-        <TabsTrigger value="modules">Módulos</TabsTrigger>
+        <TabsTrigger data-jornada="config-aba-convites" value="invitations">
+          Convites
+        </TabsTrigger>
+        <TabsTrigger data-jornada="config-aba-permissoes" value="permissions">
+          Permissões
+        </TabsTrigger>
+        <TabsTrigger data-jornada="config-aba-modulos" value="modules">
+          Módulos
+        </TabsTrigger>
         <TabsTrigger value="pdv">PDV</TabsTrigger>
       </TabsList>
 

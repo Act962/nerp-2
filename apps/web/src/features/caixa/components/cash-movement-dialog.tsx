@@ -66,7 +66,14 @@ export function CashMovementDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline">{label}</Button>
+        <Button
+          data-jornada={
+            kind === "SANGRIA" ? "caixa-sangria" : "caixa-suprimento"
+          }
+          variant="outline"
+        >
+          {label}
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-sm">
         <DialogHeader>

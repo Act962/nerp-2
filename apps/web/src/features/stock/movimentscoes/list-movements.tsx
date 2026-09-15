@@ -118,7 +118,7 @@ export function ListMovements({ members }: ListMovementsProps) {
       className="space-y-4"
       onValueChange={setTypeFilter}
     >
-      <TabsList>
+      <TabsList data-jornada="estoque-tipos">
         <TabsTrigger value="all">Todas</TabsTrigger>
         <TabsTrigger value="ENTRADA">Entradas</TabsTrigger>
         <TabsTrigger value="SAIDA">Saídas</TabsTrigger>
@@ -134,6 +134,7 @@ export function ListMovements({ members }: ListMovementsProps) {
               <div className="relative w-full sm:flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
+                  data-jornada="estoque-busca"
                   placeholder="Buscar por produto ou SKU..."
                   className="pl-9"
                   value={searchTerm}

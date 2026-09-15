@@ -61,7 +61,9 @@ describe("catálogo de jornadas", () => {
     expect(jornadasQueComecamEm("/produtos").map((j) => j.id)).toEqual([
       "produtos-cadastro",
     ]);
-    expect(jornadasQueComecamEm("/clientes")).toEqual([]);
+    expect(jornadasQueComecamEm("/clientes").map((j) => j.id)).toEqual([
+      "clientes-cadastro",
+    ]);
     // Tela sem jornada não devolve nada — é o que faz o convite não aparecer.
     expect(jornadasQueComecamEm("/sem-acesso")).toEqual([]);
   });

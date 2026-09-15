@@ -71,7 +71,7 @@ export function InvitationsPanel({ canManage }: { canManage: boolean }) {
         {canManage && (
           <CardAction>
             <InviteMemberDialog>
-              <Button size="sm">
+              <Button data-jornada="config-convidar" size="sm">
                 <MailPlus />
                 Convidar membro
               </Button>

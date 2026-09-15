@@ -56,9 +56,17 @@ export function FinanceiroPage() {
       {/* O filtro some nas abas que não têm data, em vez de ficar visível sem
           efeito — controle que não faz nada é pior que controle ausente. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <TabsList className="h-auto w-full flex-wrap justify-start">
+        <TabsList
+          data-jornada="financeiro-abas"
+          className="h-auto w-full flex-wrap justify-start"
+        >
           <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
-          <TabsTrigger value="entries">Lançamentos</TabsTrigger>
+          <TabsTrigger
+            data-jornada="financeiro-aba-lancamentos"
+            value="entries"
+          >
+            Lançamentos
+          </TabsTrigger>
           <TabsTrigger value="cashflow">Fluxo de Caixa</TabsTrigger>
           <TabsTrigger value="dre">DRE</TabsTrigger>
           <TabsTrigger value="dro">DRO</TabsTrigger>
@@ -69,7 +77,7 @@ export function FinanceiroPage() {
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
         </TabsList>
         {ABAS_COM_PERIODO.has(aba) && (
-          <div className="shrink-0">
+          <div data-jornada="financeiro-periodo" className="shrink-0">
             <PeriodFilter value={periodo} onChange={aplicarPeriodo} />
           </div>
         )}

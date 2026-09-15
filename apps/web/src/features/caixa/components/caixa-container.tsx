@@ -71,7 +71,10 @@ export function CaixaContainer() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
+      <div
+        data-jornada="caixa-status"
+        className="flex flex-wrap items-center gap-3"
+      >
         <h1 className="text-2xl font-semibold">Caixa</h1>
         <CaixaStatusBadge
           open={!!session}
@@ -82,7 +85,11 @@ export function CaixaContainer() {
           <div className="ml-auto">
             <ManageRegistersDialog
               trigger={
-                <Button variant="outline" size="sm">
+                <Button
+                  data-jornada="caixa-gerenciar"
+                  variant="outline"
+                  size="sm"
+                >
                   Gerenciar caixas
                 </Button>
               }

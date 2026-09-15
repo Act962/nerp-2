@@ -45,7 +45,7 @@ export function CollaboratorsList() {
 
   return (
     <>
-      <Card>
+      <Card data-jornada="colaboradores-lista">
         <CardContent className="p-0">
           {isLoading ? (
             <div className="space-y-2 p-4">

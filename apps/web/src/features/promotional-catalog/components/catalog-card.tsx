@@ -177,7 +177,12 @@ export function CatalogCard({
         </div>
 
         <CardFooter className="mt-auto flex items-center gap-1 p-3 pt-1">
-          <Button asChild size="sm" className="flex-1">
+          <Button
+            data-jornada="catalogo-promocional-editar"
+            asChild
+            size="sm"
+            className="flex-1"
+          >
             <Link href={`/catalogo-promocional/${id}`}>Editar</Link>
           </Button>
           <Button
