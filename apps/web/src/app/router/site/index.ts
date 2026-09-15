@@ -29,6 +29,8 @@ import {
   testarChaveDoAstro,
 } from "./plataforma";
 import { deleteLead, getLead, listLeads, updateLead } from "./leads";
+import { getJornadas, saveJornada } from "./jornadas";
+import { deleteMelhoria, listMelhorias, updateMelhoria } from "./melhorias";
 import {
   getPricing,
   saveAstroConfig,
@@ -111,6 +113,17 @@ export const siteRoutes = {
     savePricing,
     saveConfig: saveAstroConfig,
     simular: simularPreco,
+  },
+  // As jornadas guiadas do Astro: quanto cada uma paga e como estão indo.
+  jornadas: {
+    list: getJornadas,
+    save: saveJornada,
+  },
+  // O que os clientes pedem de dentro do sistema.
+  melhorias: {
+    list: listMelhorias,
+    update: updateMelhoria,
+    delete: deleteMelhoria,
   },
   leads: {
     list: listLeads,

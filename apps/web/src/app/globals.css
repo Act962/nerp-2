@@ -347,3 +347,90 @@
     min-width: 44px;
   }
 }
+
+/*
+  Jornadas guiadas do Astro.
+  ---------------------------------------------------------------------------
+  CSS puro, e não Tailwind: o anel e o balão são posicionados por `left`/`top`
+  calculados em pixel a cada quadro — classe utilitária não expressa isso.
+
+  As camadas, de baixo para cima: diálogos do Radix (50) → anel e balão da
+  jornada (150) → painel do Astro (200). O balão precisa ficar sobre o diálogo
+  porque ele ensina o que está DENTRO do diálogo; o painel do Astro sobre tudo
+  porque abri-lo é sempre um pedido explícito.
+*/
+@keyframes jornada-pulso {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--primary) 70%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 10px color-mix(in oklab, var(--primary) 0%, transparent);
+  }
+}
+
+.jornada-anel {
+  position: absolute;
+  z-index: 150;
+  /* O anel é enfeite: clique nele é clique no botão que ele destaca. */
+  pointer-events: none;
+  border: 2px solid var(--primary);
+  border-radius: 10px;
+  animation: jornada-pulso 1.8s ease-out infinite;
+  transition:
+    top 120ms ease,
+    left 120ms ease,
+    width 120ms ease,
+    height 120ms ease;
+}
+
+.jornada-balao {
+  position: absolute;
+  z-index: 151;
+  width: min(20rem, calc(100vw - 2rem));
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+/*
+  No telefone não há espaço para um balão flutuando ao lado de um botão: ele
+  vira uma tira no rodapé, acima do disco do Astro para não cobri-lo.
+
+  Quem decide isto é o motor, que simplesmente NÃO escreve posição embutida
+  numa tela estreita — estilo embutido venceria esta regra, e cobrir isso com
+  `!important` seria esconder a mão do JS em vez de tirá-la.
+*/
+@media (max-width: 767px) {
+  .jornada-balao {
+    position: fixed;
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: calc(var(--o-astro-espaco, 5rem) + 0.75rem);
+    width: auto;
+  }
+}
+
+.jornada-convite {
+  position: fixed;
+  /* À esquerda do Astro, somando o disco dele: o canto já tem dono. */
+  right: calc(var(--o-astro-espaco, 5rem) + 0.75rem);
+  bottom: var(--o-astro-recuo, 1rem);
+  z-index: 40;
+  width: var(--o-astro-disco, 64px);
+  height: var(--o-astro-disco, 64px);
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  background: var(--primary);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
+  animation: jornada-pulso 2.4s ease-out infinite;
+}

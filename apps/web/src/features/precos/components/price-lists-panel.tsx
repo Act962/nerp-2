@@ -39,7 +39,7 @@ export function PriceListsPanel() {
           <CardTitle>Tabelas</CardTitle>
           <CreatePriceListDialog />
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent data-jornada="precos-tabelas" className="space-y-2">
           {isLoading && <Spinner />}
           {!isLoading && lists.length === 0 && (
             <p className="text-sm text-muted-foreground">
@@ -100,7 +100,7 @@ function CreatePriceListDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button data-jornada="precos-nova-tabela" size="sm" variant="outline">
           <Plus className="mr-1 size-4" />
           Nova tabela
         </Button>

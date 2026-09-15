@@ -160,15 +160,27 @@ export function KitchenBoard() {
       <PageHeader title="Pedidos">
         {/* Desktop: grupo de botões unidos. */}
         <ButtonGroup className="hidden sm:flex">
-          <Button variant="outline" onClick={() => setManagerOpen(true)}>
+          <Button
+            data-jornada="pedidos-gerenciar"
+            variant="outline"
+            onClick={() => setManagerOpen(true)}
+          >
             <Settings2 className="size-4" />
             Gerenciar
           </Button>
-          <Button variant="outline" onClick={openTvPanel} disabled={!orgSlug}>
+          <Button
+            data-jornada="pedidos-painel-tv"
+            variant="outline"
+            onClick={openTvPanel}
+            disabled={!orgSlug}
+          >
             <ExternalLink className="size-4" />
             Abrir painel da TV
           </Button>
-          <Button onClick={() => setRegisterOpen(true)}>
+          <Button
+            data-jornada="pedidos-novo"
+            onClick={() => setRegisterOpen(true)}
+          >
             <Plus className="size-4" />
             Novo pedido
           </Button>
@@ -230,6 +242,7 @@ export function KitchenBoard() {
           <Search className="size-4" />
         </InputGroupAddon>
         <InputGroupInput
+          data-jornada="pedidos-busca"
           placeholder="Buscar por mesa, garçom, produto ou usuário..."
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -300,7 +313,10 @@ export function KitchenBoard() {
                 : null;
             };
             return (
-              <div className="grid grid-cols-1 gap-4 lg:h-[calc(100vh-14rem)] lg:grid-cols-[1fr_1fr] xl:grid-cols-[9fr_7fr]">
+              <div
+                data-jornada="pedidos-quadro"
+                className="grid grid-cols-1 gap-4 lg:h-[calc(100vh-14rem)] lg:grid-cols-[1fr_1fr] xl:grid-cols-[9fr_7fr]"
+              >
                 {mainColumn && (
                   <KitchenColumn
                     key={mainColumn.id}

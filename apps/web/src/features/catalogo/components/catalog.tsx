@@ -136,12 +136,23 @@ export function CatalogSettings() {
             <div className="flex justify-between items-center overflow-x-auto">
               <TabsList>
                 {tabs.map((tab) => (
-                  <TabsTrigger key={tab.id} value={tab.id}>
+                  <TabsTrigger
+                    key={tab.id}
+                    data-jornada={
+                      tab.id === "geral"
+                        ? "catalogo-abas"
+                        : tab.id === "visibility"
+                          ? "catalogo-aba-visibilidade"
+                          : undefined
+                    }
+                    value={tab.id}
+                  >
                     {tab.label}{" "}
                   </TabsTrigger>
                 ))}
               </TabsList>
               <Button
+                data-jornada="catalogo-salvar"
                 className="hidden sm:flex"
                 onClick={onSubmit}
                 disabled={useUpdateFieldsCatalogSettings.isPending}

@@ -8,23 +8,40 @@ import { usePathname } from "next/navigation";
 // aba é uma ROTA própria, então o coletor abre direto no celular do operador
 // sem passar pela lista de movimentações.
 const TABS = [
-  { href: "/estoque/movimentacoes", label: "Movimentações" },
-  { href: "/estoque/entradas", label: "Entradas" },
-  { href: "/estoque/coletor", label: "Coletor" },
-  { href: "/estoque/inventarios", label: "Inventários" },
+  {
+    href: "/estoque/movimentacoes",
+    label: "Movimentações",
+    jornada: "estoque-aba-movimentacoes",
+  },
+  {
+    href: "/estoque/entradas",
+    label: "Entradas",
+    jornada: "estoque-aba-entradas",
+  },
+  {
+    href: "/estoque/coletor",
+    label: "Coletor",
+    jornada: "estoque-aba-coletor",
+  },
+  {
+    href: "/estoque/inventarios",
+    label: "Inventários",
+    jornada: "estoque-aba-inventarios",
+  },
 ];
 
 export function EstoqueTabs() {
   const pathname = usePathname();
 
   return (
-    <nav className="flex gap-1 border-b">
+    <nav data-jornada="estoque-abas" className="flex gap-1 border-b">
       {TABS.map((tab) => {
         const active = pathname.startsWith(tab.href);
         return (
           <Link
             key={tab.href}
             href={tab.href}
+            data-jornada={tab.jornada}
             aria-current={active ? "page" : undefined}
             className={cn(
               "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors",

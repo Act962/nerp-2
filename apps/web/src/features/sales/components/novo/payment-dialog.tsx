@@ -192,7 +192,10 @@ export function PaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[95vh] gap-3 overflow-y-auto sm:max-w-2xl">
+      <DialogContent
+        data-jornada="pdv-pagamento"
+        className="max-h-[95vh] gap-3 overflow-y-auto sm:max-w-2xl"
+      >
         <DialogHeader className="space-y-1">
           <DialogTitle>Finalizar Venda</DialogTitle>
           <DialogDescription asChild>

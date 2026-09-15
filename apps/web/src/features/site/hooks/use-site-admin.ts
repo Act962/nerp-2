@@ -2,7 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { orpc } from "@/lib/orpc";
 import type { SiteBlock } from "@nerp/site-content";
-import type { SiteLeadStatus } from "@/generated/prisma/enums";
+import type {
+  SiteLeadStatus,
+  SiteMelhoriaStatus,
+} from "@/generated/prisma/enums";
 
 /**
  * Todas as chamadas do admin do site. Componente nenhum fala com `orpc`
@@ -568,6 +571,72 @@ export function useDefinirPrecoDaEmpresa() {
         queryClient.invalidateQueries({
           queryKey: orpc.site.plataforma.precos.key(),
         });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+/* ── Jornadas guiadas do Astro ─────────────────────────────────────────── */
+
+export function useSiteJornadas() {
+  const { data, isPending } = useQuery(
+    orpc.site.jornadas.list.queryOptions({ input: {} }),
+  );
+  return { dados: data, isLoading: isPending };
+}
+
+export function useSaveSiteJornada() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.jornadas.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Jornada salva");
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.jornadas.list.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+/* ── Melhorias pedidas de dentro do ERP ────────────────────────────────── */
+
+export function useSiteMelhorias(input: {
+  status?: SiteMelhoriaStatus;
+  cursor?: string;
+}) {
+  const { data, isPending } = useQuery(
+    orpc.site.melhorias.list.queryOptions({ input }),
+  );
+  return { dados: data, isLoading: isPending };
+}
+
+function invalidateMelhorias(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: orpc.site.melhorias.list.key() });
+}
+
+export function useUpdateSiteMelhoria() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.melhorias.update.mutationOptions({
+      onSuccess: () => {
+        toast.success("Melhoria atualizada");
+        invalidateMelhorias(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteSiteMelhoria() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.melhorias.delete.mutationOptions({
+      onSuccess: () => {
+        toast.success("Melhoria excluída");
+        invalidateMelhorias(queryClient);
       },
       onError: (error) => toast.error(error.message),
     }),

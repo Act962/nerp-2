@@ -111,7 +111,7 @@ export function SalesPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Vendas" description="Gerencie todas as suas vendas">
-        <Link href="/vendas/novo">
+        <Link data-jornada="vendas-frente-de-caixa" href="/vendas/novo">
           <Button>
             <Plus className="h-4 w-4 mr-2" />
             Frente de caixa
@@ -124,7 +124,9 @@ export function SalesPage() {
         onValueChange={setStatusFilter}
       >
         <TabsList>
-          <TabsTrigger value="all">Todas</TabsTrigger>
+          <TabsTrigger data-jornada="vendas-abas" value="all">
+            Todas
+          </TabsTrigger>
           <TabsTrigger value="DRAFT">Rascunhos</TabsTrigger>
           <TabsTrigger value="CONFIRMED">Confirmadas</TabsTrigger>
           <TabsTrigger value="COMPLETED">Concluídas</TabsTrigger>
@@ -138,6 +140,7 @@ export function SalesPage() {
                 <div className="relative w-full sm:flex-1">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
+                    data-jornada="vendas-busca"
                     placeholder="Buscar por número ou cliente..."
                     className="pl-9"
                     value={searchTerm}
@@ -169,7 +172,7 @@ export function SalesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="rounded-md border">
+              <div data-jornada="vendas-tabela" className="rounded-md border">
                 <Table stacked>
                   <TableHeader>
                     <TableRow>

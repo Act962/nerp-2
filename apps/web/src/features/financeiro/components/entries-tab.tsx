@@ -118,6 +118,7 @@ export function EntriesTab({ periodo }: { periodo: Periodo }) {
         <div className="relative w-full sm:max-w-xs">
           <SearchIcon className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            data-jornada="financeiro-busca"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Buscar por descrição"
@@ -164,7 +165,11 @@ export function EntriesTab({ periodo }: { periodo: Periodo }) {
           />
           Só vencidos
         </label>
-        <Button className="ml-auto" onClick={openCreate}>
+        <Button
+          data-jornada="financeiro-novo-lancamento"
+          className="ml-auto"
+          onClick={openCreate}
+        >
           <PlusIcon className="size-4" />
           Novo lançamento
         </Button>

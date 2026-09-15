@@ -103,7 +103,11 @@ export function PriceTableEditor({ priceList }: { priceList: PriceListRow }) {
             <AddTierDialog priceListId={priceList.id} />
             <Popover>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button
+                  data-jornada="precos-opcoes"
+                  variant="outline"
+                  size="sm"
+                >
                   Opções
                 </Button>
               </PopoverTrigger>
@@ -270,7 +274,7 @@ function AddTierDialog({ priceListId }: { priceListId: string }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm">
+        <Button data-jornada="precos-adicionar-faixa" size="sm">
           <Plus className="mr-1 size-4" />
           Adicionar faixa
         </Button>

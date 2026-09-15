@@ -167,6 +167,33 @@
   cursor: pointer;
 }
 
+/*
+  Os botões que o app acrescenta (no nerp: Jornadas e Melhorias). Ficam antes
+  de "Nova conversa" porque são destino, e não ação sobre a conversa atual.
+*/
+.o-astro-head__ferramentas {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 6px;
+}
+
+.o-astro-head__ferramenta {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #f1f3f6;
+  color: #0b1220;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.o-astro-head__ferramenta:hover {
+  background: #e3e7ee;
+}
+
 .o-astro-head__novo:hover {
   background: #e6e9ef;
 }

@@ -67,7 +67,11 @@ export function CatalogList() {
             redes sociais.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)} disabled={!canEdit}>
+        <Button
+          data-jornada="catalogo-promocional-novo"
+          onClick={() => setCreateOpen(true)}
+          disabled={!canEdit}
+        >
           <Plus className="h-4 w-4 mr-2" />
           Novo Catálogo
         </Button>
@@ -90,7 +94,11 @@ export function CatalogList() {
               Crie seu primeiro catálogo promocional para começar.
             </p>
           </div>
-          <Button onClick={() => setCreateOpen(true)} disabled={!canEdit}>
+          <Button
+            data-jornada="catalogo-promocional-novo"
+            onClick={() => setCreateOpen(true)}
+            disabled={!canEdit}
+          >
             <Plus className="h-4 w-4 mr-2" />
             Criar primeiro catálogo
           </Button>
@@ -116,7 +124,10 @@ export function CatalogList() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         {/* Altura limitada + rolagem: com muitos padrões o diálogo crescia além
             da tela e o botão de criar ficava inalcançável. */}
-        <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogContent
+          data-jornada="catalogo-promocional-form"
+          className="max-h-[85vh] overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle>Novo catálogo</DialogTitle>
           </DialogHeader>

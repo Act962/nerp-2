@@ -189,12 +189,12 @@ export function CreateStockMovimentModal({
     <Dialog open={openModal} onOpenChange={setOpenModal}>
       <DialogTrigger asChild>
         {trigger ?? (
-          <Button size="sm">
+          <Button data-jornada="estoque-nova-movimentacao" size="sm">
             <Plus className="size-4" /> Nova Movimentação
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent data-jornada="estoque-form-movimentacao">
         <DialogHeader>
           <DialogTitle>Nova Movimentação</DialogTitle>
           <DialogDescription>
