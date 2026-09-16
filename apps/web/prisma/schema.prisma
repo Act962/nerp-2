@@ -5494,6 +5494,32 @@ model SiteSetting {
   @@map("site_settings")
 }
 
+// Uma animação do mascote, montada no editor de `/site/animacoes`.
+//
+// A cena inteira é um `Json` — camadas, estados de início e fim, tempos — e o
+// formato quem garante é o Zod de `@nerp/site-content`. Coluna por campo aqui
+// significaria migração a cada propriedade nova de camada, e o formato precisa
+// ser o MESMO que trafega até o `apps/site`.
+//
+// `momento` é o que coloca a animação no ar: quem desenha pede `momento`, não
+// slug. Nulo é rascunho — a cena existe no editor e nenhuma tela a alcança, que
+// é o par rascunho/publicado de `SitePage` sem uma segunda coluna. Único porque
+// um momento só pode ter uma resposta; quem salva roubando um momento ocupado
+// devolve o antigo ao rascunho.
+model SiteAstroAnimacao {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  nome         String
+  momento      String?   @unique
+  cena         Json
+  criadaPor    String?
+  atualizadaEm DateTime  @updatedAt
+  criadaEm     DateTime  @default(now())
+
+  @@index([atualizadaEm])
+  @@map("site_astro_animacoes")
+}
+
 enum SiteLeadStatus {
   NOVO
   EM_CONTATO
