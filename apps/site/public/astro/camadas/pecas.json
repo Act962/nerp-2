@@ -1,0 +1,379 @@
+{
+  "olhos": [
+    {
+      "id": "aberto",
+      "nome": "Aberto",
+      "esq": "/astro/camadas/olhos/aberto_esq.webp",
+      "dir": "/astro/camadas/olhos/aberto_dir.webp",
+      "w": 266,
+      "h": 494
+    },
+    {
+      "id": "wink",
+      "nome": "Piscada",
+      "esq": "/astro/camadas/olhos/wink_esq.webp",
+      "dir": "/astro/camadas/olhos/wink_dir.webp",
+      "w": 388,
+      "h": 430
+    },
+    {
+      "id": "apertado",
+      "nome": "Espremido",
+      "esq": "/astro/camadas/olhos/apertado_esq.webp",
+      "dir": "/astro/camadas/olhos/apertado_dir.webp",
+      "w": 328,
+      "h": 304
+    },
+    {
+      "id": "feliz",
+      "nome": "Feliz",
+      "esq": "/astro/camadas/olhos/feliz_esq.webp",
+      "dir": "/astro/camadas/olhos/feliz_dir.webp",
+      "w": 364,
+      "h": 169
+    },
+    {
+      "id": "dormindo",
+      "nome": "Dormindo",
+      "esq": "/astro/camadas/olhos/dormindo_esq.webp",
+      "dir": "/astro/camadas/olhos/dormindo_dir.webp",
+      "w": 328,
+      "h": 130
+    },
+    {
+      "id": "surpreso",
+      "nome": "Surpreso",
+      "esq": "/astro/camadas/olhos/surpreso_esq.webp",
+      "dir": "/astro/camadas/olhos/surpreso_dir.webp",
+      "w": 190,
+      "h": 406
+    },
+    {
+      "id": "triste",
+      "nome": "Triste",
+      "esq": "/astro/camadas/olhos/triste_esq.webp",
+      "dir": "/astro/camadas/olhos/triste_dir.webp",
+      "w": 388,
+      "h": 245
+    },
+    {
+      "id": "cansado",
+      "nome": "Cansado",
+      "esq": "/astro/camadas/olhos/cansado_esq.webp",
+      "dir": "/astro/camadas/olhos/cansado_dir.webp",
+      "w": 340,
+      "h": 125
+    },
+    {
+      "id": "bravo",
+      "nome": "Bravo",
+      "esq": "/astro/camadas/olhos/bravo_esq.webp",
+      "dir": "/astro/camadas/olhos/bravo_dir.webp",
+      "w": 382,
+      "h": 334
+    },
+    {
+      "id": "morto",
+      "nome": "X (erro)",
+      "esq": "/astro/camadas/olhos/morto_esq.webp",
+      "dir": "/astro/camadas/olhos/morto_dir.webp",
+      "w": 288,
+      "h": 288
+    },
+    {
+      "id": "estrela",
+      "nome": "Estrela",
+      "esq": "/astro/camadas/olhos/estrela_esq.webp",
+      "dir": "/astro/camadas/olhos/estrela_dir.webp",
+      "w": 364,
+      "h": 348
+    },
+    {
+      "id": "coracao",
+      "nome": "Coração",
+      "esq": "/astro/camadas/olhos/coracao_esq.webp",
+      "dir": "/astro/camadas/olhos/coracao_dir.webp",
+      "w": 306,
+      "h": 266
+    }
+  ],
+  "bocas": [
+    {
+      "id": "sorriso",
+      "nome": "Sorriso oficial",
+      "src": "/astro/camadas/bocas/sorriso.webp",
+      "w": 727,
+      "h": 711
+    },
+    {
+      "id": "sorriso_largo",
+      "nome": "Sorriso largo",
+      "src": "/astro/camadas/bocas/sorriso_largo.webp",
+      "w": 1084,
+      "h": 608
+    },
+    {
+      "id": "sorriso_peq",
+      "nome": "Sorriso pequeno",
+      "src": "/astro/camadas/bocas/sorriso_peq.webp",
+      "w": 526,
+      "h": 282
+    },
+    {
+      "id": "neutra",
+      "nome": "Neutra",
+      "src": "/astro/camadas/bocas/neutra.webp",
+      "w": 748,
+      "h": 152
+    },
+    {
+      "id": "triste",
+      "nome": "Triste",
+      "src": "/astro/camadas/bocas/triste.webp",
+      "w": 652,
+      "h": 236
+    },
+    {
+      "id": "ondulada",
+      "nome": "Ondulada",
+      "src": "/astro/camadas/bocas/ondulada.webp",
+      "w": 730,
+      "h": 168
+    },
+    {
+      "id": "surpresa",
+      "nome": "Surpresa (O)",
+      "src": "/astro/camadas/bocas/surpresa.webp",
+      "w": 292,
+      "h": 388
+    },
+    {
+      "id": "gargalhada",
+      "nome": "Gargalhada",
+      "src": "/astro/camadas/bocas/gargalhada.webp",
+      "w": 928,
+      "h": 421
+    },
+    {
+      "id": "lingua",
+      "nome": "Boca aberta",
+      "src": "/astro/camadas/bocas/lingua.webp",
+      "w": 736,
+      "h": 288
+    }
+  ],
+  "objetos": [
+    {
+      "id": "lampada",
+      "nome": "Lâmpada",
+      "src": "/astro/camadas/objetos/lampada.webp",
+      "w": 1054,
+      "h": 929
+    },
+    {
+      "id": "trofeu",
+      "nome": "Troféu",
+      "src": "/astro/camadas/objetos/trofeu.webp",
+      "w": 1025,
+      "h": 809
+    },
+    {
+      "id": "livro",
+      "nome": "Livro",
+      "src": "/astro/camadas/objetos/livro.webp",
+      "w": 1008,
+      "h": 554
+    },
+    {
+      "id": "laptop",
+      "nome": "Laptop",
+      "src": "/astro/camadas/objetos/laptop.webp",
+      "w": 1012,
+      "h": 520
+    },
+    {
+      "id": "lupa",
+      "nome": "Lupa",
+      "src": "/astro/camadas/objetos/lupa.webp",
+      "w": 930,
+      "h": 744
+    },
+    {
+      "id": "celular",
+      "nome": "Celular",
+      "src": "/astro/camadas/objetos/celular.webp",
+      "w": 532,
+      "h": 814
+    },
+    {
+      "id": "dinheiro",
+      "nome": "Dinheiro",
+      "src": "/astro/camadas/objetos/dinheiro.webp",
+      "w": 720,
+      "h": 505
+    },
+    {
+      "id": "bateria",
+      "nome": "Bateria",
+      "src": "/astro/camadas/objetos/bateria.webp",
+      "w": 932,
+      "h": 472
+    },
+    {
+      "id": "nuvem_chuva",
+      "nome": "Nuvem de chuva",
+      "src": "/astro/camadas/objetos/nuvem_chuva.webp",
+      "w": 924,
+      "h": 694
+    },
+    {
+      "id": "gorro",
+      "nome": "Gorro de dormir",
+      "src": "/astro/camadas/objetos/gorro.webp",
+      "w": 952,
+      "h": 708
+    },
+    {
+      "id": "oculos",
+      "nome": "Óculos escuros",
+      "src": "/astro/camadas/objetos/oculos.webp",
+      "w": 1020,
+      "h": 400
+    },
+    {
+      "id": "zzz",
+      "nome": "Zzz",
+      "src": "/astro/camadas/objetos/zzz.webp",
+      "w": 667,
+      "h": 557
+    },
+    {
+      "id": "interrogacao",
+      "nome": "Interrogação",
+      "src": "/astro/camadas/objetos/interrogacao.webp",
+      "w": 559,
+      "h": 942
+    },
+    {
+      "id": "raiva",
+      "nome": "Marca de raiva",
+      "src": "/astro/camadas/objetos/raiva.webp",
+      "w": 737,
+      "h": 750
+    },
+    {
+      "id": "vapor",
+      "nome": "Vapor",
+      "src": "/astro/camadas/objetos/vapor.webp",
+      "w": 604,
+      "h": 398
+    },
+    {
+      "id": "espiral",
+      "nome": "Espiral (tontura)",
+      "src": "/astro/camadas/objetos/espiral.webp",
+      "w": 365,
+      "h": 868
+    },
+    {
+      "id": "tela404",
+      "nome": "Tela 404",
+      "src": "/astro/camadas/objetos/tela404.webp",
+      "w": 926,
+      "h": 650
+    },
+    {
+      "id": "balao_erro",
+      "nome": "Balão de reticências",
+      "src": "/astro/camadas/objetos/balao_erro.webp",
+      "w": 524,
+      "h": 513
+    },
+    {
+      "id": "coracao",
+      "nome": "Coração",
+      "src": "/astro/camadas/objetos/coracao.webp",
+      "w": 688,
+      "h": 598
+    },
+    {
+      "id": "estrela5",
+      "nome": "Estrela",
+      "src": "/astro/camadas/objetos/estrela5.webp",
+      "w": 642,
+      "h": 611
+    },
+    {
+      "id": "brilho4",
+      "nome": "Brilho",
+      "src": "/astro/camadas/objetos/brilho4.webp",
+      "w": 664,
+      "h": 664
+    },
+    {
+      "id": "confete",
+      "nome": "Confete",
+      "src": "/astro/camadas/objetos/confete.webp",
+      "w": 1199,
+      "h": 1198
+    },
+    {
+      "id": "planeta",
+      "nome": "Planetinha",
+      "src": "/astro/camadas/objetos/planeta.webp",
+      "w": 742,
+      "h": 454
+    },
+    {
+      "id": "rastro",
+      "nome": "Rastro de velocidade",
+      "src": "/astro/camadas/objetos/rastro.webp",
+      "w": 1174,
+      "h": 519
+    }
+  ],
+  "fundos": [
+    {
+      "id": "espaco",
+      "nome": "Espaço estrelado",
+      "src": "/astro/camadas/fundos/espaco.webp",
+      "w": 1332,
+      "h": 1190
+    },
+    {
+      "id": "espaco-liso",
+      "nome": "Espaço liso",
+      "src": "/astro/camadas/fundos/espaco-liso.webp",
+      "w": 1332,
+      "h": 1190
+    },
+    {
+      "id": "noite",
+      "nome": "Noite profunda",
+      "src": "/astro/camadas/fundos/noite.webp",
+      "w": 1332,
+      "h": 1190
+    },
+    {
+      "id": "azul-orbita",
+      "nome": "Azul Órbita",
+      "src": "/astro/camadas/fundos/azul-orbita.webp",
+      "w": 1332,
+      "h": 1190
+    },
+    {
+      "id": "claro",
+      "nome": "Claro",
+      "src": "/astro/camadas/fundos/claro.webp",
+      "w": 1332,
+      "h": 1190
+    },
+    {
+      "id": "ciano",
+      "nome": "Ciano",
+      "src": "/astro/camadas/fundos/ciano.webp",
+      "w": 1332,
+      "h": 1190
+    }
+  ]
+}

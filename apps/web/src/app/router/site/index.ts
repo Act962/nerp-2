@@ -1,4 +1,10 @@
 import {
+  deleteAnimacao,
+  getAnimacao,
+  listAnimacoes,
+  saveAnimacao,
+} from "./animacoes";
+import {
   deleteMenuItem,
   listMenu,
   reorderMenu,
@@ -113,6 +119,14 @@ export const siteRoutes = {
     savePricing,
     saveConfig: saveAstroConfig,
     simular: simularPreco,
+    // As animações do mascote. Mesmo ASTRO, outro assunto: aqui é o que ele
+    // faz na tela, não o que ele responde.
+    animacoes: {
+      list: listAnimacoes,
+      get: getAnimacao,
+      save: saveAnimacao,
+      delete: deleteAnimacao,
+    },
   },
   // As jornadas guiadas do Astro: quanto cada uma paga e como estão indo.
   jornadas: {

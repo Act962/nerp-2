@@ -1,0 +1,320 @@
+{
+  "viewBox": {
+    "w": 1332,
+    "h": 1190
+  },
+  "fundo": "#011121",
+  "corpo": {
+    "cx": 678.5,
+    "cy": 592.0,
+    "rx": 371.6,
+    "ry": 377.4
+  },
+  "camadas": [
+    {
+      "id": "globo",
+      "nome": "Globo",
+      "src": "/astro/camadas/globo.webp",
+      "x": 678.0,
+      "y": 591.5,
+      "w": 815.9,
+      "h": 828.8
+    },
+    {
+      "id": "boca",
+      "nome": "Boca",
+      "src": "/astro/camadas/boca.webp",
+      "x": 541.0,
+      "y": 700.7,
+      "w": 245.1,
+      "h": 233.8
+    },
+    {
+      "id": "olho_esq",
+      "nome": "Olho esquerdo",
+      "src": "/astro/camadas/olho_esq.webp",
+      "x": 572.8,
+      "y": 591.5,
+      "w": 103.6,
+      "h": 179.1
+    },
+    {
+      "id": "olho_dir",
+      "nome": "Olho direito",
+      "src": "/astro/camadas/olho_dir.webp",
+      "x": 748.2,
+      "y": 659.8,
+      "w": 143.5,
+      "h": 123.5
+    },
+    {
+      "id": "bola",
+      "nome": "Bola branca",
+      "src": "/astro/camadas/bola_branca.webp",
+      "x": 1059.0,
+      "y": 319.3,
+      "w": 234.0,
+      "h": 235.0
+    }
+  ],
+  "maos": [
+    {
+      "id": 1,
+      "src": "/astro/camadas/maos/mao_01.webp",
+      "prop": 2.0645
+    },
+    {
+      "id": 2,
+      "src": "/astro/camadas/maos/mao_02.webp",
+      "prop": 1.0
+    },
+    {
+      "id": 3,
+      "src": "/astro/camadas/maos/mao_03.webp",
+      "prop": 0.7314
+    },
+    {
+      "id": 4,
+      "src": "/astro/camadas/maos/mao_04.webp",
+      "prop": 1.1419
+    },
+    {
+      "id": 5,
+      "src": "/astro/camadas/maos/mao_05.webp",
+      "prop": 0.5587
+    },
+    {
+      "id": 6,
+      "src": "/astro/camadas/maos/mao_06.webp",
+      "prop": 0.8828
+    },
+    {
+      "id": 7,
+      "src": "/astro/camadas/maos/mao_07.webp",
+      "prop": 1.1871
+    },
+    {
+      "id": 8,
+      "src": "/astro/camadas/maos/mao_08.webp",
+      "prop": 0.8659
+    },
+    {
+      "id": 9,
+      "src": "/astro/camadas/maos/mao_09.webp",
+      "prop": 0.5897
+    },
+    {
+      "id": 10,
+      "src": "/astro/camadas/maos/mao_10.webp",
+      "prop": 1.0398
+    },
+    {
+      "id": 11,
+      "src": "/astro/camadas/maos/mao_11.webp",
+      "prop": 0.6685
+    },
+    {
+      "id": 12,
+      "src": "/astro/camadas/maos/mao_12.webp",
+      "prop": 0.803
+    },
+    {
+      "id": 13,
+      "src": "/astro/camadas/maos/mao_13.webp",
+      "prop": 1.1013
+    },
+    {
+      "id": 14,
+      "src": "/astro/camadas/maos/mao_14.webp",
+      "prop": 1.0211
+    },
+    {
+      "id": 15,
+      "src": "/astro/camadas/maos/mao_15.webp",
+      "prop": 1.4915
+    },
+    {
+      "id": 16,
+      "src": "/astro/camadas/maos/mao_16.webp",
+      "prop": 1.4054
+    },
+    {
+      "id": 17,
+      "src": "/astro/camadas/maos/mao_17.webp",
+      "prop": 1.0224
+    },
+    {
+      "id": 18,
+      "src": "/astro/camadas/maos/mao_18.webp",
+      "prop": 0.9366
+    },
+    {
+      "id": 19,
+      "src": "/astro/camadas/maos/mao_19.webp",
+      "prop": 0.6648
+    },
+    {
+      "id": 20,
+      "src": "/astro/camadas/maos/mao_20.webp",
+      "prop": 0.8322
+    },
+    {
+      "id": 21,
+      "src": "/astro/camadas/maos/mao_21.webp",
+      "prop": 0.9195
+    },
+    {
+      "id": 22,
+      "src": "/astro/camadas/maos/mao_22.webp",
+      "prop": 1.007
+    },
+    {
+      "id": 23,
+      "src": "/astro/camadas/maos/mao_23.webp",
+      "prop": 0.9693
+    },
+    {
+      "id": 24,
+      "src": "/astro/camadas/maos/mao_24.webp",
+      "prop": 1.0076
+    },
+    {
+      "id": 25,
+      "src": "/astro/camadas/maos/mao_25.webp",
+      "prop": 1.0
+    },
+    {
+      "id": 26,
+      "src": "/astro/camadas/maos/mao_26.webp",
+      "prop": 1.951
+    },
+    {
+      "id": 27,
+      "src": "/astro/camadas/maos/mao_27.webp",
+      "prop": 1.3577
+    },
+    {
+      "id": 28,
+      "src": "/astro/camadas/maos/mao_28.webp",
+      "prop": 0.9189
+    },
+    {
+      "id": 29,
+      "src": "/astro/camadas/maos/mao_29.webp",
+      "prop": 1.034
+    },
+    {
+      "id": 30,
+      "src": "/astro/camadas/maos/mao_30.webp",
+      "prop": 0.7987
+    },
+    {
+      "id": 31,
+      "src": "/astro/camadas/maos/mao_31.webp",
+      "prop": 0.7742
+    },
+    {
+      "id": 32,
+      "src": "/astro/camadas/maos/mao_32.webp",
+      "prop": 0.8535
+    },
+    {
+      "id": 33,
+      "src": "/astro/camadas/maos/mao_33.webp",
+      "prop": 0.8441
+    },
+    {
+      "id": 34,
+      "src": "/astro/camadas/maos/mao_34.webp",
+      "prop": 1.1369
+    },
+    {
+      "id": 35,
+      "src": "/astro/camadas/maos/mao_35.webp",
+      "prop": 0.7803
+    },
+    {
+      "id": 36,
+      "src": "/astro/camadas/maos/mao_36.webp",
+      "prop": 1.0986
+    },
+    {
+      "id": 37,
+      "src": "/astro/camadas/maos/mao_37.webp",
+      "prop": 1.3228
+    },
+    {
+      "id": 38,
+      "src": "/astro/camadas/maos/mao_38.webp",
+      "prop": 1.186
+    },
+    {
+      "id": 39,
+      "src": "/astro/camadas/maos/mao_39.webp",
+      "prop": 1.3448
+    },
+    {
+      "id": 40,
+      "src": "/astro/camadas/maos/mao_40.webp",
+      "prop": 0.9541
+    },
+    {
+      "id": 41,
+      "src": "/astro/camadas/maos/mao_41.webp",
+      "prop": 0.9808
+    },
+    {
+      "id": 42,
+      "src": "/astro/camadas/maos/mao_42.webp",
+      "prop": 1.1119
+    },
+    {
+      "id": 43,
+      "src": "/astro/camadas/maos/mao_43.webp",
+      "prop": 1.197
+    },
+    {
+      "id": 44,
+      "src": "/astro/camadas/maos/mao_44.webp",
+      "prop": 0.7605
+    },
+    {
+      "id": 45,
+      "src": "/astro/camadas/maos/mao_45.webp",
+      "prop": 1.3237
+    },
+    {
+      "id": 46,
+      "src": "/astro/camadas/maos/mao_46.webp",
+      "prop": 1.1121
+    },
+    {
+      "id": 47,
+      "src": "/astro/camadas/maos/mao_47.webp",
+      "prop": 0.6099
+    },
+    {
+      "id": 48,
+      "src": "/astro/camadas/maos/mao_48.webp",
+      "prop": 1.0065
+    }
+  ],
+  "apelidos": {
+    "palma": 3,
+    "palma_alta": 47,
+    "espalmada": 42,
+    "punho": 40,
+    "punho_lado": 17,
+    "joinha": 31,
+    "joinha_lado": 28,
+    "aponta": 44,
+    "aponta2": 5,
+    "aponta_dir": 26,
+    "aponta_esq": 39,
+    "segura": 16,
+    "concha": 33,
+    "lateral": 13,
+    "paz": 48,
+    "ok": 11
+  }
+}
