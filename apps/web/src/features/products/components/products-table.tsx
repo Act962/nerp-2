@@ -245,6 +245,7 @@ export function ProductsTable({
               <Search className="size-4" />
             </InputGroupAddon>
             <InputGroupInput
+              data-jornada="produtos-busca"
               placeholder="Buscar por nome, SKU ou código de barras..."
               className="pl-9"
               value={searchTerm}

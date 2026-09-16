@@ -49,7 +49,10 @@ export function PurchasesList() {
           className="max-w-sm"
         />
         <Button asChild className="ml-auto">
-          <Link href="/estoque/entradas/nova">
+          <Link
+            data-jornada="estoque-nova-entrada"
+            href="/estoque/entradas/nova"
+          >
             <Plus className="size-4" />
             Nova entrada
           </Link>

@@ -9,7 +9,7 @@ export function AddCollaboratorButton() {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
+      <Button data-jornada="colaboradores-novo" onClick={() => setOpen(true)}>
         <PlusIcon className="size-4" />
         Novo colaborador
       </Button>

@@ -151,6 +151,7 @@ export function CreateProductForm() {
 
                       <Input
                         id="name"
+                        data-jornada="produto-nome"
                         aria-invalid={fieldState.invalid}
                         placeholder="Ex: Notebook Dell Inspiron 15"
                         disabled={isCreating}
@@ -396,6 +397,7 @@ export function CreateProductForm() {
                   </Label>
                   <Input
                     id="salePrice"
+                    data-jornada="produto-preco-venda"
                     type="number"
                     step="0.01"
                     disabled={isCreating}
@@ -560,7 +562,12 @@ export function CreateProductForm() {
 
           {/* AÇÕES */}
           <div className="flex flex-col gap-2">
-            <Button type="submit" className="w-full" disabled={isCreating}>
+            <Button
+              data-jornada="produto-salvar"
+              type="submit"
+              className="w-full"
+              disabled={isCreating}
+            >
               {isCreating && <Spinner />}
               Salvar Produto
             </Button>

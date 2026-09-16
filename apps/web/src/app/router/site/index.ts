@@ -1,4 +1,10 @@
 import {
+  deleteAnimacao,
+  getAnimacao,
+  listAnimacoes,
+  saveAnimacao,
+} from "./animacoes";
+import {
   deleteMenuItem,
   listMenu,
   reorderMenu,
@@ -29,6 +35,8 @@ import {
   testarChaveDoAstro,
 } from "./plataforma";
 import { deleteLead, getLead, listLeads, updateLead } from "./leads";
+import { getJornadas, saveJornada } from "./jornadas";
+import { deleteMelhoria, listMelhorias, updateMelhoria } from "./melhorias";
 import {
   getPricing,
   saveAstroConfig,
@@ -111,6 +119,25 @@ export const siteRoutes = {
     savePricing,
     saveConfig: saveAstroConfig,
     simular: simularPreco,
+    // As animações do mascote. Mesmo ASTRO, outro assunto: aqui é o que ele
+    // faz na tela, não o que ele responde.
+    animacoes: {
+      list: listAnimacoes,
+      get: getAnimacao,
+      save: saveAnimacao,
+      delete: deleteAnimacao,
+    },
+  },
+  // As jornadas guiadas do Astro: quanto cada uma paga e como estão indo.
+  jornadas: {
+    list: getJornadas,
+    save: saveJornada,
+  },
+  // O que os clientes pedem de dentro do sistema.
+  melhorias: {
+    list: listMelhorias,
+    update: updateMelhoria,
+    delete: deleteMelhoria,
   },
   leads: {
     list: listLeads,

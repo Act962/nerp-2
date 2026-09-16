@@ -1,4 +1,4 @@
-import { CatalogSettingsProps } from "./catalog";
+import type { CatalogSettingsProps } from "./catalog";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { SORT_ORDER } from "./mock/catalog-moc";
-import { CatalogSortOrder } from "@/generated/prisma/enums";
+import type { CatalogSortOrder } from "@/generated/prisma/enums";
 
 interface VisibilityTabProps {
   settings: CatalogSettingsProps;
@@ -39,6 +39,7 @@ export function VisibilityTab({ settings, setSettings }: VisibilityTabProps) {
               </p>
             </div>
             <Switch
+              data-jornada="catalogo-ativo"
               id="isActive"
               checked={settings.isActive}
               onCheckedChange={(checked) =>

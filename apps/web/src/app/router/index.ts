@@ -1,4 +1,6 @@
 import { categoryRoutes } from "./category";
+import { jornadasRoutes } from "./jornadas";
+import { melhoriasRoutes } from "./melhorias";
 import { onboardingRoutes } from "./onboarding";
 import { orgRoutes } from "./org";
 import { deviceRoutes } from "./device";
@@ -153,6 +155,8 @@ export const router = {
   stars: starsRoutes,
   astro: astroRoutes,
   onboarding: onboardingRoutes,
+  jornadas: jornadasRoutes,
+  melhorias: melhoriasRoutes,
   whatsapp: whatsappRoutes,
   integracoes: integracoesRoutes,
   fiscalConfig: fiscalConfigRoutes,

@@ -63,7 +63,9 @@ export const AddCustomerModal = ({
   children: React.ReactNode;
 }) => {
   const [open, setOpen] = useState(false);
-  const { data: priceLists = [] } = useQuery(orpc.precos.list.queryOptions({ input: {} }));
+  const { data: priceLists = [] } = useQuery(
+    orpc.precos.list.queryOptions({ input: {} }),
+  );
   const form = useForm<z.infer<typeof createCustomerSchema>>({
     resolver: zodResolver(createCustomerSchema),
     defaultValues: {
@@ -111,7 +113,7 @@ export const AddCustomerModal = ({
           "address",
           `${addressData.logradouro}${
             addressData.bairro ? `, ${addressData.bairro}` : ""
-          }`
+          }`,
         );
       }
     }
@@ -128,7 +130,7 @@ export const AddCustomerModal = ({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent data-jornada="clientes-form">
         <DialogHeader>
           <DialogTitle>Novo Cliente</DialogTitle>
           <DialogDescription>
@@ -320,9 +322,7 @@ export const AddCustomerModal = ({
               control={form.control}
               render={({ field }) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>
-                    Tabela de preço
-                  </FieldLabel>
+                  <FieldLabel htmlFor={field.name}>Tabela de preço</FieldLabel>
                   <Select
                     name={field.name}
                     value={field.value ?? NO_PRICE_LIST}

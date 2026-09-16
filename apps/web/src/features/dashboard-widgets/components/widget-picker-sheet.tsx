@@ -307,7 +307,11 @@ export function WidgetPickerSheetCore({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full sm:max-w-lg">
+      <SheetContent
+        data-jornada="dashboard-seletor-widgets"
+        side="right"
+        className="w-full sm:max-w-lg"
+      >
         <SheetHeader>
           <SheetTitle>Adicionar widget</SheetTitle>
           <SheetDescription>

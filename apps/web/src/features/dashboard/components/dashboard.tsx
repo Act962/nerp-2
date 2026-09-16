@@ -71,6 +71,7 @@ export default function DashboardPage() {
       {!fullscreen && <BoasVindasCard />}
       {!fullscreen && <GuiaCard />}
       <div
+        data-jornada="dashboard-cabecalho"
         className={cn(
           "flex flex-wrap items-start justify-between gap-3",
           fullscreen && "mb-6",
@@ -94,6 +95,7 @@ export default function DashboardPage() {
           )}
           {!fullscreen && (
             <Button
+              data-jornada="dashboard-adicionar-widget"
               type="button"
               size="sm"
               className="gap-1.5"
@@ -165,7 +167,9 @@ function DashboardTabs({ fullscreen }: { fullscreen: boolean }) {
     <Tabs defaultValue="my">
       <TabsList>
         <TabsTrigger value="my">Meu dashboard</TabsTrigger>
-        <TabsTrigger value="org">Da organização</TabsTrigger>
+        <TabsTrigger data-jornada="dashboard-aba-org" value="org">
+          Da organização
+        </TabsTrigger>
       </TabsList>
       <TabsContent value="my" className="mt-4">
         <DashboardGrid

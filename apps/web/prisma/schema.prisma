@@ -21,6 +21,7 @@ model User {
   isAnonymous              Boolean                   @default(false)
   linkedToUserId           String?                   @map("linked_to_user_id")
   astroAcoes               AstroAcao[]
+  jornadaProgressos        JornadaProgresso[]
   image                    String?
   // WhatsApp em E.164 (+55DDDNNNNNNNNN). Obrigatório para o promotor capturar
   // fotos: é como a coordenação identifica e contata quem está em campo.
@@ -235,6 +236,44 @@ model AstroMemoria {
   @@unique([organizationId, chave])
   @@index([organizationId, updatedAt])
   @@map("astro_memorias")
+}
+
+/// O progresso de uma jornada guiada do Astro, por pessoa e por organização.
+///
+/// O catálogo das jornadas vive em código (`features/jornadas/catalogo`), não
+/// aqui: passo é conteúdo, e conteúdo em tabela viraria migration a cada frase
+/// reescrita. O que muda de pessoa para pessoa é só isto.
+///
+/// `iniciadaEm` é o relógio do SERVIDOR, e é ele que a conclusão confere
+/// contra o tempo mínimo de leitura. Com o horário vindo do navegador, quem
+/// quisesse as ★ sem ler só precisaria adiantar o relógio.
+model JornadaProgresso {
+  id              String    @id @default(cuid())
+  organizationId  String    @map("organization_id")
+  userId          String    @map("user_id")
+  jornadaId       String    @map("jornada_id")
+  passoAtual      Int       @default(0) @map("passo_atual")
+  iniciadaEm      DateTime  @default(now()) @map("iniciada_em")
+  concluidaEm     DateTime? @map("concluida_em")
+  /// Quantas vezes clicou "Próximo" antes do tempo mínimo. Telemetria para o
+  /// admin enxergar jornada com texto longo demais — nunca regra de bloqueio.
+  apressos        Int       @default(0)
+  /// ★ creditadas à organização por ESTA conclusão. Zero quando um colega já
+  /// resgatou a recompensa da empresa. A trava de "uma vez por organização" é
+  /// um índice parcial no SQL (`WHERE stars_creditadas > 0`), que o Prisma não
+  /// sabe declarar: sem ele, duas conclusões simultâneas creditariam duas
+  /// vezes pela mesma jornada.
+  starsCreditadas Decimal   @default(0) @map("stars_creditadas") @db.Decimal(12, 2)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId, jornadaId])
+  @@index([organizationId, jornadaId, concluidaEm])
+  @@index([jornadaId, concluidaEm])
+  @@map("jornada_progressos")
 }
 
 model RateLimit {
@@ -475,10 +514,11 @@ model Organization {
   appointments     Appointment[]
   reminders        Reminder[]
 
-  uploadQuotas  UploadQuotaDaily[]
-  astroAcoes    AstroAcao[]
-  astroAvisos   AstroAviso[]
-  astroMemorias AstroMemoria[]
+  uploadQuotas      UploadQuotaDaily[]
+  astroAcoes        AstroAcao[]
+  astroAvisos       AstroAviso[]
+  astroMemorias     AstroMemoria[]
+  jornadaProgressos JornadaProgresso[]
 
   @@index([slug])
   @@index([subdomain])
@@ -5582,6 +5622,32 @@ model SiteSetting {
   @@map("site_settings")
 }
 
+// Uma animação do mascote, montada no editor de `/site/animacoes`.
+//
+// A cena inteira é um `Json` — camadas, estados de início e fim, tempos — e o
+// formato quem garante é o Zod de `@nerp/site-content`. Coluna por campo aqui
+// significaria migração a cada propriedade nova de camada, e o formato precisa
+// ser o MESMO que trafega até o `apps/site`.
+//
+// `momento` é o que coloca a animação no ar: quem desenha pede `momento`, não
+// slug. Nulo é rascunho — a cena existe no editor e nenhuma tela a alcança, que
+// é o par rascunho/publicado de `SitePage` sem uma segunda coluna. Único porque
+// um momento só pode ter uma resposta; quem salva roubando um momento ocupado
+// devolve o antigo ao rascunho.
+model SiteAstroAnimacao {
+  id           String    @id @default(cuid())
+  slug         String    @unique
+  nome         String
+  momento      String?   @unique
+  cena         Json
+  criadaPor    String?
+  atualizadaEm DateTime  @updatedAt
+  criadaEm     DateTime  @default(now())
+
+  @@index([atualizadaEm])
+  @@map("site_astro_animacoes")
+}
+
 enum SiteLeadStatus {
   NOVO
   EM_CONTATO
@@ -5680,6 +5746,50 @@ model SiteLead {
   @@index([status, createdAt])
   @@index([email])
   @@map("site_leads")
+}
+
+enum SiteMelhoriaStatus {
+  NOVA
+  EM_ANALISE
+  FEITA
+  DESCARTADA
+
+  @@map("site_melhoria_status")
+}
+
+/// Uma sugestão de melhoria enviada de dentro do ERP, pelo painel do Astro.
+///
+/// GLOBAL, como toda `site_*`: o pedido é para a equipe da ÓRBITA, não é dado
+/// da organização — e ele não pode sumir quando a empresa some. Por isso
+/// `organizationId`/`userId` são referências SOLTAS, sem chave estrangeira, e
+/// o nome de quem pediu vem copiado: uma sandbox expira e é apagada depois de
+/// 30 dias, e o que ela apontou continua valendo como backlog.
+///
+/// Não é `SiteLead`: lead é funil de venda, isto é fila de produto. Misturar
+/// os dois faria alguém trabalhar um pedido de melhoria como oportunidade
+/// comercial, ou deixar a sugestão morrer na caixa de quem só olha vendas.
+model SiteMelhoria {
+  id               String             @id @default(cuid())
+  organizationId   String?
+  organizationName String?
+  userId           String?
+  userName         String?
+  userEmail        String?
+  /// A tela em que a pessoa estava. É o que transforma "não achei o botão" em
+  /// um pedido acionável.
+  pathname         String
+  mensagem         String
+  /// URLs públicas no bucket, sempre sob o prefixo da organização que enviou.
+  imagens          String[]           @default([])
+  status           SiteMelhoriaStatus @default(NOVA)
+  resposta         String?
+  respondidaEm     DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@index([organizationId, createdAt])
+  @@map("site_melhorias")
 }
 
 // CRM — funil de atendimento (port do Órbita/nasaex-wey)
@@ -6554,6 +6664,8 @@ enum StarTransactionType {
   MANUAL_ADJUST
   REFUND
   WELCOME_BONUS
+  /// Recompensa por concluir uma jornada guiada do Astro (uma por empresa).
+  JORNADA_REWARD
 
   @@map("star_transaction_type")
 }

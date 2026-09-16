@@ -37,7 +37,7 @@ import { CalendarFilter } from "@/features/products/components/filter-calendar";
 import { FilterClients } from "./filter";
 import { useQueryState } from "nuqs";
 import dayjs from "dayjs";
-import { PersonType } from "@/generated/prisma/enums";
+import type { PersonType } from "@/generated/prisma/enums";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { ViewCustomer } from "./view-customer";
@@ -79,7 +79,7 @@ export function ListCustomers() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="rounded-md border">
+          <div data-jornada="clientes-tabela" className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>

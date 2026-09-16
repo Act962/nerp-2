@@ -75,7 +75,7 @@ export function OpenCaixaDialog() {
     <>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button>Abrir caixa</Button>
+          <Button data-jornada="caixa-abrir">Abrir caixa</Button>
         </DialogTrigger>
         <DialogContent className="max-w-sm">
           <DialogHeader>

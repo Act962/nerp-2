@@ -182,7 +182,7 @@ export function EntryFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent data-jornada="financeiro-form-lancamento">
         <DialogHeader>
           <DialogTitle>
             {isEdit ? "Editar lançamento" : "Novo lançamento"}
