@@ -86,6 +86,11 @@ function applyFallback(data: SiteContentResponse | null): SiteContent {
 
   return {
     solucoes: data.solucoes.length ? data.solucoes : DEFAULT_CONTENT.solucoes,
+    // Áreas ausentes (resposta antiga) ou vazias caem no catálogo do código,
+    // do mesmo jeito que as soluções — senão o filtro apareceria sem botões.
+    solutionAreas: data.solutionAreas?.length
+      ? data.solutionAreas
+      : DEFAULT_CONTENT.solutionAreas,
     segmentos: data.segmentos.length
       ? data.segmentos
       : DEFAULT_CONTENT.segmentos,

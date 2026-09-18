@@ -15,6 +15,7 @@ import {
   useDeleteMenuItem,
   useReorderMenu,
   useSaveMenuItem,
+  useSiteAreas,
   useSiteMenu,
   useToggleMenuItem,
 } from "../hooks/use-site-admin";
@@ -27,7 +28,7 @@ const PANELS: { id: Panel; label: string; hint: string }[] = [
   {
     id: "SOLUCOES",
     label: "Soluções",
-    hint: "As ferramentas da suíte. A coluna é a categoria.",
+    hint: "As ferramentas da suíte. Marque as áreas da empresa de cada uma.",
   },
   {
     id: "SEGMENTOS",
@@ -51,6 +52,7 @@ type Draft = {
   href: string;
   iconImage: string;
   visible: boolean;
+  areaSlugs: string[];
 };
 
 const emptyDraft: Draft = {
@@ -62,6 +64,7 @@ const emptyDraft: Draft = {
   href: "",
   iconImage: "",
   visible: true,
+  areaSlugs: [],
 };
 
 export function SiteMenuManager() {
@@ -69,12 +72,15 @@ export function SiteMenuManager() {
   const [draft, setDraft] = useState<Draft | null>(null);
 
   const { items, isLoading } = useSiteMenu(panel);
+  const { items: areas } = useSiteAreas();
   const save = useSaveMenuItem();
   const toggle = useToggleMenuItem();
   const reorder = useReorderMenu();
   const remove = useDeleteMenuItem();
 
   const active = PANELS.find((p) => p.id === panel);
+  const areaName = (slug: string) =>
+    areas.find((a) => a.slug === slug)?.name ?? slug;
 
   function move(index: number, direction: -1 | 1) {
     const next = [...items];
@@ -169,6 +175,7 @@ export function SiteMenuManager() {
                       href: item.href ?? "",
                       iconImage: item.iconImage ?? "",
                       visible: item.visible,
+                      areaSlugs: item.areas,
                     })
                   }
                 >
@@ -178,7 +185,21 @@ export function SiteMenuManager() {
                   </span>
                 </button>
 
-                <Badge variant="secondary">{item.groupTitle}</Badge>
+                {panel === "SOLUCOES" ? (
+                  <div className="flex flex-wrap gap-1">
+                    {item.areas.length === 0 ? (
+                      <Badge variant="outline">sem área</Badge>
+                    ) : (
+                      item.areas.map((slug) => (
+                        <Badge key={slug} variant="secondary">
+                          {areaName(slug)}
+                        </Badge>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <Badge variant="secondary">{item.groupTitle}</Badge>
+                )}
 
                 <Switch
                   checked={item.visible}
@@ -214,17 +235,58 @@ export function SiteMenuManager() {
                     }
                   />
                 </Field>
-                <Field>
-                  <FieldLabel htmlFor="menu-group">Coluna</FieldLabel>
-                  <Input
-                    id="menu-group"
-                    value={draft.groupTitle}
-                    onChange={(e) =>
-                      setDraft({ ...draft, groupTitle: e.target.value })
-                    }
-                  />
-                </Field>
+                {panel !== "SOLUCOES" && (
+                  <Field>
+                    <FieldLabel htmlFor="menu-group">Coluna</FieldLabel>
+                    <Input
+                      id="menu-group"
+                      value={draft.groupTitle}
+                      onChange={(e) =>
+                        setDraft({ ...draft, groupTitle: e.target.value })
+                      }
+                    />
+                  </Field>
+                )}
               </div>
+
+              {panel === "SOLUCOES" && (
+                <Field>
+                  <FieldLabel>Áreas</FieldLabel>
+                  <div className="flex flex-wrap gap-2">
+                    {areas.length === 0 && (
+                      <span className="text-sm text-muted-foreground">
+                        Nenhuma área cadastrada. Crie em “Áreas”.
+                      </span>
+                    )}
+                    {areas.map((area) => {
+                      const on = draft.areaSlugs.includes(area.slug);
+                      return (
+                        <Button
+                          key={area.id}
+                          type="button"
+                          size="sm"
+                          variant={on ? "default" : "outline"}
+                          aria-pressed={on}
+                          onClick={() =>
+                            setDraft({
+                              ...draft,
+                              areaSlugs: on
+                                ? draft.areaSlugs.filter((s) => s !== area.slug)
+                                : [...draft.areaSlugs, area.slug],
+                            })
+                          }
+                        >
+                          {area.name}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <FieldDescription>
+                    Uma solução pode estar em várias áreas. Ela aparece no
+                    filtro de cada área marcada — e sempre em “Todas”.
+                  </FieldDescription>
+                </Field>
+              )}
 
               <Field>
                 <FieldLabel htmlFor="menu-summary">Descrição curta</FieldLabel>
@@ -299,7 +361,10 @@ export function SiteMenuManager() {
                       {
                         id: draft.id,
                         panel,
-                        groupTitle: draft.groupTitle,
+                        // Soluções não usa mais "coluna": um valor neutro só
+                        // satisfaz o min(1) do campo, que a UX ignora.
+                        groupTitle:
+                          panel === "SOLUCOES" ? "Soluções" : draft.groupTitle,
                         slug: draft.slug,
                         name: draft.name,
                         summary: draft.summary,
@@ -309,6 +374,7 @@ export function SiteMenuManager() {
                         iconImage: draft.iconImage || null,
                         pageId: null,
                         visible: draft.visible,
+                        areaSlugs: panel === "SOLUCOES" ? draft.areaSlugs : [],
                       },
                       { onSuccess: () => setDraft(null) },
                     )

@@ -2,6 +2,7 @@ import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
   ABOUT_PAGES,
+  AREA_BY_TOOL,
   buildAllAboutPages,
   buildAllSegmentPages,
   buildAllSolutionPages,
@@ -10,6 +11,7 @@ import {
   MENU_COLUMNS,
   SEGMENTS,
   type SitePageSeed,
+  SOLUTION_AREAS,
   solutionSlug,
 } from "@nerp/site-content";
 import { type Prisma, PrismaClient } from "@/generated/prisma/client";
@@ -148,7 +150,36 @@ async function seedPages() {
   return idBySlug;
 }
 
-async function seedMenu(pageIdBySlug: Map<string, string>) {
+/**
+ * As áreas da empresa. Nascem do catálogo do código e são idempotentes: o
+ * `update: {}` garante que a área EXISTE sem sobrescrever nome, cor ou ordem
+ * que alguém já tenha ajustado no admin. Devolve o mapa slug→id para o menu
+ * amarrar as memberships.
+ */
+async function seedAreas() {
+  const idBySlug = new Map<string, string>();
+  let position = 0;
+  for (const area of SOLUTION_AREAS) {
+    const row = await prisma.siteSolutionArea.upsert({
+      where: { slug: area.slug },
+      create: {
+        slug: area.slug,
+        name: area.name,
+        color: area.color ?? null,
+        position: position++,
+      },
+      update: {},
+      select: { id: true },
+    });
+    idBySlug.set(area.slug, row.id);
+  }
+  return idBySlug;
+}
+
+async function seedMenu(
+  pageIdBySlug: Map<string, string>,
+  areaIdBySlug: Map<string, string>,
+) {
   const ligar = (slug: string | null) =>
     slug ? (pageIdBySlug.get(slug) ?? null) : null;
 
@@ -160,7 +191,7 @@ async function seedMenu(pageIdBySlug: Map<string, string>) {
       const tool = findCatalogTool(id);
       if (!tool) continue;
       const pageId = ligar(solutionSlug(tool.id));
-      await prisma.siteMenuItem.upsert({
+      const item = await prisma.siteMenuItem.upsert({
         where: { panel_slug: { panel: "SOLUCOES", slug: tool.id } },
         create: {
           panel: "SOLUCOES",
@@ -174,7 +205,20 @@ async function seedMenu(pageIdBySlug: Map<string, string>) {
         // Amarra a página mesmo em item que já existia — é o que faz o menu
         // apontar para ela assim que alguém publicar.
         update: { groupTitle: column.title, pageId: pageId ?? undefined },
+        select: { id: true },
       });
+
+      // As áreas da solução. Upsert por (item, área) e sem apagar o que já
+      // existe: rodar de novo não desfaz uma atribuição feita no admin.
+      for (const slug of AREA_BY_TOOL[tool.id] ?? []) {
+        const areaId = areaIdBySlug.get(slug);
+        if (!areaId) continue;
+        await prisma.siteMenuItemArea.upsert({
+          where: { menuItemId_areaId: { menuItemId: item.id, areaId } },
+          create: { menuItemId: item.id, areaId },
+          update: {},
+        });
+      }
     }
   }
 
@@ -242,17 +286,19 @@ async function seedSettings() {
 }
 
 async function main() {
+  const areaIdBySlug = await seedAreas();
   const pageIdBySlug = await seedPages();
-  await seedMenu(pageIdBySlug);
+  await seedMenu(pageIdBySlug, areaIdBySlug);
   await seedSettings();
 
-  const [menu, pages, published] = await Promise.all([
+  const [menu, pages, published, areas] = await Promise.all([
     prisma.siteMenuItem.count(),
     prisma.sitePage.count(),
     prisma.sitePage.count({ where: { status: "PUBLISHED" } }),
+    prisma.siteSolutionArea.count(),
   ]);
   console.log(
-    `site: ${menu} itens de menu, ${pages} páginas (${published} publicadas)`,
+    `site: ${menu} itens de menu, ${areas} áreas, ${pages} páginas (${published} publicadas)`,
   );
   if (!REFRESCAR) {
     console.log(

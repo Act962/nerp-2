@@ -5,6 +5,13 @@ import {
   saveAnimacao,
 } from "./animacoes";
 import {
+  deleteArea,
+  listAreas,
+  reorderAreas,
+  saveArea,
+  toggleArea,
+} from "./areas";
+import {
   deleteMenuItem,
   listMenu,
   reorderMenu,
@@ -75,6 +82,14 @@ export const siteRoutes = {
     reorder: reorderMenu,
     toggle: toggleMenuItem,
     delete: deleteMenuItem,
+  },
+  // As áreas da empresa que organizam o painel de Soluções.
+  areas: {
+    list: listAreas,
+    save: saveArea,
+    reorder: reorderAreas,
+    toggle: toggleArea,
+    delete: deleteArea,
   },
   pages: {
     list: listPages,

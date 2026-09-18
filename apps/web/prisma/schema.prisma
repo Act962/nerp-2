@@ -5380,11 +5380,52 @@ model SiteMenuItem {
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
 
-  page SitePage? @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  page  SitePage?          @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  areas SiteMenuItemArea[]
 
   @@unique([panel, slug])
   @@index([panel, position])
   @@map("site_menu_items")
+}
+
+// Uma área da empresa (Comercial, Financeiro, RH…). É o filtro do painel de
+// Soluções, e substituiu as antigas colunas editoriais. Entidade própria — e
+// não um `groupTitle` — porque o botão tem ícone, cor e ordem próprios, e uma
+// solução pode estar em várias áreas ao mesmo tempo.
+model SiteSolutionArea {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      String
+  iconKey   String?
+  iconImage String? // key do R2
+  color     String?
+  position  Int      @default(0)
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items SiteMenuItemArea[]
+
+  @@index([visible, position])
+  @@map("site_solution_areas")
+}
+
+// A relação N:N entre uma solução (item do painel SOLUCOES) e suas áreas.
+// Tabela explícita, e não relação implícita do Prisma, para seguir o padrão
+// snake_case/índices das demais site_* e guardar `position` (a ordem da solução
+// dentro da área — reservada, ainda não lida na UX).
+model SiteMenuItemArea {
+  menuItemId String
+  areaId     String
+  position   Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  menuItem SiteMenuItem     @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  area     SiteSolutionArea @relation(fields: [areaId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, areaId])
+  @@index([areaId, position])
+  @@map("site_menu_item_areas")
 }
 
 // Página interna de uma solução/segmento. O conteúdo é uma LISTA DE BLOCOS em

@@ -513,6 +513,60 @@
 }
 
 /*
+  Os botões de área do painel de Soluções.
+
+  "Todas" e uma por área da empresa. Funcionam como filtro: a lista embaixo
+  encolhe para a área escolhida, e "Todas" volta ao conjunto inteiro. O botão
+  ativo usa a cor da própria área quando ela tem uma.
+*/
+.o-mega__areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.1rem;
+}
+
+.o-mega__area {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--o-mega-ink);
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  padding: 0.32rem 0.85rem;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.o-mega__area:hover {
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.o-mega__area[aria-pressed="true"] {
+  /* Fundo branco e texto escuro sempre — "Todas" não tem cor, e um fundo
+     colorido com texto branco a deixaria ilegível. A cor da área entra como
+     acento embaixo. */
+  background: #fff;
+  border-color: #fff;
+  color: var(--o-mega-soft, #0f4a76);
+  box-shadow: 0 2px 0 var(--o-area-color, #0f4a76);
+}
+
+/*
+  A lista sem colunas: uma grade única de ferramentas, que preenche a largura
+  do painel em vez das seis colunas editoriais de antes.
+*/
+.o-mega__list--flat {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: clamp(0.25rem, 0.6vw, 0.5rem) clamp(1rem, 1.8vw, 2rem);
+  align-items: start;
+}
+
+/*
   A busca do painel.
 
   Com 28 ferramentas, achar com o olho ficou lento. O campo é claro sobre o

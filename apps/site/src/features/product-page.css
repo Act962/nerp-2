@@ -1300,6 +1300,49 @@ body {
   text-align: center;
 }
 
+/*
+  Os botões de área da página de Soluções. Mesmo filtro do painel da barra:
+  "Todas" no início, uma por área, e a cor da área como acento no ativo.
+*/
+.sp-areas {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: clamp(1.5rem, 3vw, 2rem);
+}
+
+.sp-area {
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  color: inherit;
+  background: rgba(15, 74, 118, 0.06);
+  border: 1px solid rgba(15, 74, 118, 0.18);
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.sp-area:hover {
+  background: rgba(15, 74, 118, 0.12);
+}
+
+.sp-area[aria-pressed="true"] {
+  background: #fff;
+  border-color: rgba(15, 74, 118, 0.28);
+  box-shadow: 0 2px 0 var(--sp-area-color, #0f4a76);
+  font-weight: 600;
+}
+
+.sp-areas__empty {
+  text-align: center;
+  color: rgba(15, 74, 118, 0.7);
+}
+
 /* As grades de trecho alinham à esquerda: com `center` a última linha de uma
    coluna de cinco cards ficava centralizada sob quatro, e a leitura quebrava. */
 .sp-secao .sp-cards {

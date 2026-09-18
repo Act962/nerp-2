@@ -4,6 +4,7 @@ import type { MenuEntry, SiteContent, SiteSection } from "@nerp/site-content";
 import { metadataDaPagina, SECTION_LABEL } from "@/lib/seo";
 import { SiteHeaderNav } from "./site-header-nav";
 import { SiteFooter, Trilha } from "./site-chrome";
+import { SolucoesFilter } from "./solucoes-filter";
 import "./product-page.css";
 
 /**
@@ -121,10 +122,8 @@ export function gruposDaSecao(
   content: SiteContent,
 ): Array<{ titulo?: string; itens: MenuEntry[] }> {
   if (section === "solucoes") {
-    return content.solucoes.map((grupo) => ({
-      titulo: grupo.title,
-      itens: grupo.items,
-    }));
+    // Lista única: o agrupamento virou filtro por área, feito no cliente.
+    return [{ itens: content.solucoes }];
   }
   if (section === "segmentos") {
     return [{ itens: content.segmentos }];
@@ -143,11 +142,14 @@ export function SectionIndexPage({
   content,
   loginHref,
   signupHref,
+  initialArea,
 }: {
   section: SiteSection;
   content: SiteContent;
   loginHref: string;
   signupHref: string;
+  /** Área pré-selecionada por deep-link (`/solucoes?area=comercial`). */
+  initialArea?: string;
 }) {
   const abertura = ABERTURA[section];
   const grupos = gruposDaSecao(section, content);
@@ -185,13 +187,21 @@ export function SectionIndexPage({
 
       <div className="sp-band sp-band--claro">
         <section className="sp-section sp-secao">
-          {grupos.map((grupo, index) => (
-            <Grupo
-              key={grupo.titulo ?? `grupo-${index}`}
-              titulo={grupo.titulo}
-              itens={grupo.itens}
+          {section === "solucoes" ? (
+            <SolucoesFilter
+              solucoes={content.solucoes}
+              areas={content.solutionAreas}
+              initialArea={initialArea}
             />
-          ))}
+          ) : (
+            grupos.map((grupo, index) => (
+              <Grupo
+                key={grupo.titulo ?? `grupo-${index}`}
+                titulo={grupo.titulo}
+                itens={grupo.itens}
+              />
+            ))
+          )}
         </section>
       </div>
 
