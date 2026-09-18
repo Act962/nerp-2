@@ -15,8 +15,15 @@ import { jsonLdScript, secaoLd, SECTION_LABEL } from "@/lib/seo";
  */
 export const metadata: Metadata = metadataDaSecao("solucoes");
 
-export default async function SolucoesPage() {
-  const content = await getSiteContent();
+export default async function SolucoesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ area?: string }>;
+}) {
+  const [content, { area }] = await Promise.all([
+    getSiteContent(),
+    searchParams,
+  ]);
 
   const itens = gruposDaSecao("solucoes", content)
     .flatMap((grupo) => grupo.itens)
@@ -45,6 +52,7 @@ export default async function SolucoesPage() {
         content={content}
         loginHref={APP_LINKS.login}
         signupHref={APP_LINKS.signup}
+        initialArea={area}
       />
     </>
   );

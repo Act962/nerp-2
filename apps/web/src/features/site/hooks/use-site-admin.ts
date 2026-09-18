@@ -32,6 +32,69 @@ export function useSiteMenu(panel: Panel) {
 function invalidateMenu(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: orpc.site.menu.list.key() });
   queryClient.invalidateQueries({ queryKey: orpc.site.overview.key() });
+  // O menu passou a depender das áreas (chips de cada solução).
+  queryClient.invalidateQueries({ queryKey: orpc.site.areas.list.key() });
+}
+
+/* --- áreas da empresa ---------------------------------------------------- */
+
+function invalidateAreas(queryClient: ReturnType<typeof useQueryClient>) {
+  queryClient.invalidateQueries({ queryKey: orpc.site.areas.list.key() });
+  // Trocar uma área mexe nos chips que o menu mostra.
+  queryClient.invalidateQueries({ queryKey: orpc.site.menu.list.key() });
+}
+
+export function useSiteAreas() {
+  const { data, isPending } = useQuery(
+    orpc.site.areas.list.queryOptions({ input: {} }),
+  );
+  return { items: data?.items ?? [], isLoading: isPending };
+}
+
+export function useSaveSiteArea() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.areas.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Área salva");
+        invalidateAreas(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useToggleSiteArea() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.areas.toggle.mutationOptions({
+      onSuccess: () => invalidateAreas(queryClient),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useReorderSiteAreas() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.areas.reorder.mutationOptions({
+      onSuccess: () => invalidateAreas(queryClient),
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useDeleteSiteArea() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.areas.delete.mutationOptions({
+      onSuccess: () => {
+        toast.success("Área excluída");
+        invalidateAreas(queryClient);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
 }
 
 export function useSaveMenuItem() {

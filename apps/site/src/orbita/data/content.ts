@@ -1,4 +1,10 @@
-import type { MenuEntry, MenuGroup, SiteContent } from "@nerp/site-content";
+import {
+  AREA_BY_TOOL,
+  type MenuEntry,
+  type MenuGroup,
+  type SiteContent,
+  SOLUTION_AREAS,
+} from "@nerp/site-content";
 import { ABOUT_GROUPS, ABOUT_HIGHLIGHT, ABOUT_LINKS } from "./about";
 import { TOOLS_BY_COLUMN } from "./catalog";
 import { SEGMENTS_WITH_LINKS } from "./segments";
@@ -23,15 +29,19 @@ import { STATS, WHATSAPP } from "./site";
 export type { MenuEntry, MenuGroup, SiteContent };
 
 export const DEFAULT_CONTENT: SiteContent = {
-  solucoes: TOOLS_BY_COLUMN.map((group) => ({
-    title: group.title,
-    items: group.tools.map((tool) => ({
+  // Lista plana, na ordem editorial das colunas (preservada como sequência), já
+  // com a área de cada ferramenta. O painel filtra por área; "Todas" mostra
+  // tudo, como antes.
+  solucoes: TOOLS_BY_COLUMN.flatMap((group) =>
+    group.tools.map((tool) => ({
       id: tool.id,
       name: tool.name,
       summary: tool.tagline,
       href: tool.href,
+      areas: AREA_BY_TOOL[tool.id] ?? [],
     })),
-  })),
+  ),
+  solutionAreas: SOLUTION_AREAS,
   segmentos: SEGMENTS_WITH_LINKS.map((segment) => ({
     id: segment.id,
     name: segment.name,

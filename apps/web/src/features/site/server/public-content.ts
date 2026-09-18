@@ -4,6 +4,7 @@ import type {
   MenuEntry,
   MenuGroup,
   SiteContentResponse,
+  SolutionArea,
 } from "@nerp/site-content";
 import prisma from "@/lib/db";
 import { siteSettingsSchema } from "@/app/router/site/settings";
@@ -31,8 +32,8 @@ const SECAO_URL = {
 } as const;
 
 export async function getPublicSiteContent(): Promise<SiteContentResponse> {
-  const [items, settingRow, astroConfigRow, astroPrecosRow] = await Promise.all(
-    [
+  const [items, areas, settingRow, astroConfigRow, astroPrecosRow] =
+    await Promise.all([
       prisma.siteMenuItem.findMany({
         where: { visible: true },
         orderBy: [{ position: "asc" }],
@@ -46,13 +47,26 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
           href: true,
           iconImage: true,
           page: { select: { slug: true, section: true, status: true } },
+          areas: {
+            select: { area: { select: { slug: true, visible: true } } },
+          },
+        },
+      }),
+      prisma.siteSolutionArea.findMany({
+        where: { visible: true },
+        orderBy: [{ position: "asc" }],
+        select: {
+          slug: true,
+          name: true,
+          iconKey: true,
+          iconImage: true,
+          color: true,
         },
       }),
       prisma.siteSetting.findUnique({ where: { key: "site" } }),
       prisma.siteSetting.findUnique({ where: { key: ASTRO_CONFIG_KEY } }),
       prisma.siteSetting.findUnique({ where: { key: ASTRO_PRECOS_KEY } }),
-    ],
-  );
+    ]);
 
   const toEntry = (item: (typeof items)[number]): MenuEntry => ({
     id: item.slug,
@@ -66,7 +80,18 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
         : (item.href ?? undefined),
     color: item.color ?? undefined,
     iconImage: item.iconImage ?? undefined,
+    // Só áreas visíveis: uma área escondida não deve reaparecer pela solução.
+    areas: item.areas.filter((a) => a.area.visible).map((a) => a.area.slug),
   });
+
+  const solutionAreas: SolutionArea[] = areas.map((a) => ({
+    id: a.slug,
+    slug: a.slug,
+    name: a.name,
+    iconKey: a.iconKey ?? undefined,
+    iconImage: a.iconImage ?? undefined,
+    color: a.color ?? undefined,
+  }));
 
   const grouped = (panel: "SOLUCOES" | "SEGMENTOS" | "SOBRE"): MenuGroup[] => {
     const groups: MenuGroup[] = [];
@@ -90,7 +115,10 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
   const settings = parsed.success ? parsed.data : null;
 
   return {
-    solucoes: grouped("SOLUCOES"),
+    // Lista plana: o painel filtra por área no cliente. As colunas editoriais
+    // deixaram de organizar Soluções.
+    solucoes: items.filter((i) => i.panel === "SOLUCOES").map(toEntry),
+    solutionAreas,
     segmentos: items.filter((i) => i.panel === "SEGMENTOS").map(toEntry),
     sobre: {
       groups: sobreGroups.filter((g) => g !== highlightGroup),

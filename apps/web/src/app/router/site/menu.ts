@@ -20,11 +20,42 @@ const menuItem = z.object({
   pageId: z.string().nullable(),
   position: z.number(),
   visible: z.boolean(),
+  // As áreas da empresa (slugs) a que a solução pertence. Só faz sentido em
+  // SOLUCOES; nos outros painéis fica vazio.
+  areas: z.array(z.string()),
 });
 
 const siteAdmin = base
   .use(requireAuthMiddleware)
   .use(requireSiteAdminMiddleware);
+
+// A membership solução↔área é N:N. Substituir tudo de uma vez (apaga e recria)
+// é mais simples que reconciliar, e a transação garante que o item nunca fica
+// com metade das áreas. Só vale para SOLUCOES; nos outros painéis é no-op.
+async function syncAreas(
+  menuItemId: string,
+  itemPanel: z.infer<typeof panel>,
+  areaSlugs: string[],
+) {
+  if (itemPanel !== "SOLUCOES") return;
+  const areas = areaSlugs.length
+    ? await prisma.siteSolutionArea.findMany({
+        where: { slug: { in: areaSlugs } },
+        select: { id: true },
+      })
+    : [];
+  await prisma.$transaction([
+    prisma.siteMenuItemArea.deleteMany({ where: { menuItemId } }),
+    ...(areas.length
+      ? [
+          prisma.siteMenuItemArea.createMany({
+            data: areas.map((a) => ({ menuItemId, areaId: a.id })),
+            skipDuplicates: true,
+          }),
+        ]
+      : []),
+  ]);
+}
 
 export const listMenu = siteAdmin
   .input(z.object({ panel: panel.optional() }))
@@ -33,8 +64,14 @@ export const listMenu = siteAdmin
     const items = await prisma.siteMenuItem.findMany({
       where: { panel: input.panel },
       orderBy: [{ panel: "asc" }, { position: "asc" }],
+      include: { areas: { select: { area: { select: { slug: true } } } } },
     });
-    return { items };
+    return {
+      items: items.map((item) => ({
+        ...item,
+        areas: item.areas.map((a) => a.area.slug),
+      })),
+    };
   });
 
 export const saveMenuItem = siteAdmin
@@ -55,6 +92,8 @@ export const saveMenuItem = siteAdmin
       href: z.string().nullable().default(null),
       pageId: z.string().nullable().default(null),
       visible: z.boolean().default(true),
+      // Áreas da empresa (slugs) da solução. Ignorado fora de SOLUCOES.
+      areaSlugs: z.array(z.string()).default([]),
     }),
   )
   .output(z.object({ id: z.string() }))
@@ -65,7 +104,7 @@ export const saveMenuItem = siteAdmin
       });
     }
 
-    const { id, ...data } = input;
+    const { id, areaSlugs, ...data } = input;
 
     if (id) {
       const existing = await prisma.siteMenuItem.findUnique({
@@ -80,6 +119,7 @@ export const saveMenuItem = siteAdmin
         data,
         select: { id: true },
       });
+      await syncAreas(updated.id, data.panel, areaSlugs);
       return { id: updated.id };
     }
 
@@ -94,6 +134,7 @@ export const saveMenuItem = siteAdmin
       data: { ...data, position: (last?.position ?? -1) + 1 },
       select: { id: true },
     });
+    await syncAreas(created.id, data.panel, areaSlugs);
     return { id: created.id };
   });
 

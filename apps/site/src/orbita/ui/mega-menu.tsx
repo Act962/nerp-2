@@ -118,23 +118,25 @@ export function MegaMenu({
     Coluna que fica sem item some, em vez de deixar um título órfão.
   */
   const [busca, setBusca] = useState("");
+  // `null` = "Todas", o estado inicial: o painel mostra tudo, e a área é um
+  // filtro por cima, não uma navegação a mais.
+  const [area, setArea] = useState<string | null>(null);
 
-  const colunas = useMemo(() => {
+  const solucoes = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return content.solucoes;
-    return content.solucoes
-      .map((coluna) => ({
-        ...coluna,
-        items: coluna.items.filter((item) =>
-          `${item.name} ${item.summary}`.toLowerCase().includes(termo),
-        ),
-      }))
-      .filter((coluna) => coluna.items.length > 0);
-  }, [busca, content.solucoes]);
+    return content.solucoes.filter((item) => {
+      if (area !== null && !item.areas?.includes(area)) return false;
+      if (!termo) return true;
+      return `${item.name} ${item.summary}`.toLowerCase().includes(termo);
+    });
+  }, [busca, area, content.solucoes]);
 
-  // Fechar e reabrir o painel não deve trazer a busca da vez passada.
+  // Fechar e reabrir o painel não deve trazer a busca nem a área da vez passada.
   useEffect(() => {
-    if (!open) setBusca("");
+    if (!open) {
+      setBusca("");
+      setArea(null);
+    }
   }, [open]);
 
   /*
@@ -269,23 +271,47 @@ export function MegaMenu({
               />
             </div>
 
-            <div className="o-mega__grid">
-              {colunas.map((group) => (
-                <section className="o-mega__col" key={group.title}>
-                  <h3 className="o-mega__title">{group.title}</h3>
-                  <ul className="o-mega__list">
-                    {group.items.map((tool) => (
-                      <li key={tool.id}>
-                        <ToolItem tool={tool} onNavigate={onClose} />
-                      </li>
-                    ))}
-                  </ul>
-                </section>
+            <div className="o-mega__areas">
+              <button
+                type="button"
+                className="o-mega__area"
+                aria-pressed={area === null}
+                onClick={() => setArea(null)}
+              >
+                Todas
+              </button>
+              {content.solutionAreas.map((a) => (
+                <button
+                  key={a.slug}
+                  type="button"
+                  className="o-mega__area"
+                  aria-pressed={area === a.slug}
+                  onClick={() => setArea(a.slug)}
+                  style={
+                    a.color
+                      ? ({ "--o-area-color": a.color } as React.CSSProperties)
+                      : undefined
+                  }
+                >
+                  {a.name}
+                </button>
               ))}
             </div>
 
-            {colunas.length === 0 && (
-              <p className="o-mega__empty">Nada encontrado com essa palavra.</p>
+            <ul className="o-mega__list o-mega__list--flat">
+              {solucoes.map((tool) => (
+                <li key={tool.id}>
+                  <ToolItem tool={tool} onNavigate={onClose} />
+                </li>
+              ))}
+            </ul>
+
+            {solucoes.length === 0 && (
+              <p className="o-mega__empty">
+                {busca.trim()
+                  ? "Nada encontrado com essa palavra."
+                  : "Nenhuma solução nesta área por enquanto."}
+              </p>
             )}
 
             {/*
