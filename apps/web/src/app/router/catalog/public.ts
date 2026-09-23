@@ -39,6 +39,8 @@ export const publicSettingsCatalog = base
         bannerImages: z.array(z.string()).nullable(),
         aboutText: z.string().nullable(),
         theme: z.string().nullable(),
+        backgroundColor: z.string().nullable(),
+        astroEnabled: z.boolean(),
         instagram: z.string().nullable(),
         facebook: z.string().nullable(),
         twitter: z.string().nullable(),

@@ -9,6 +9,7 @@ import {
 import type { AstroPricing } from "./preco";
 import {
   type AvisoNoPrompt,
+  type ContextoDaLoja,
   type ContextoDeNavegacao,
   type EscopoConsultor,
   type FatoNaMemoria,
@@ -141,6 +142,8 @@ export type EntradaConsultor = {
   /** Só no canal logado: avisos abertos e memória da organização. */
   avisos?: AvisoNoPrompt[];
   memoria?: FatoNaMemoria[];
+  /** Só na vitrine: a loja que ele está atendendo. */
+  loja?: ContextoDaLoja;
   /**
    * As tools prontas, quando quem chama já as montou — é o caso do canal
    * logado, cujas tools carregam `organizationId` em closure. Ausente, valem
@@ -208,6 +211,7 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
       visitante: entrada.visitante,
       avisos: entrada.avisos,
       memoria: entrada.memoria,
+      loja: entrada.loja,
     }),
     // As tools vão junto: é assim que o conversor reconhece as partes de
     // chamada de ferramenta que já estão no histórico do cliente.

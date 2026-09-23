@@ -147,7 +147,7 @@ export function DetailsPoduct({ subdomain, slug }: DetailsPoductProps) {
         <div className="grid sm:grid-cols-2 grid-cols-1 w-full gap-10 items-center">
           <div className="flex flex-col gap-y-5 w-full justify-center ">
             <div className="items-center w-full">
-              <div className="items-center sm:block w-full h-120 bg-accent/30 rounded-sm py-1 relative">
+              <div className="items-center sm:block w-full aspect-square bg-accent/30 rounded-sm py-1 relative">
                 <Image
                   src={imageSrc}
                   alt={product.name}
@@ -161,7 +161,7 @@ export function DetailsPoduct({ subdomain, slug }: DetailsPoductProps) {
                 product.images.map((image, index) => (
                   <div
                     key={`image-thumbnail-${index}-${image}`}
-                    className="flex justify-center items-center w-10 h-10 relative"
+                    className="flex justify-center items-center size-12 shrink-0 aspect-square relative"
                   >
                     <Image
                       data-selected={imageSelected === image}
@@ -305,7 +305,7 @@ export function DetailsPoduct({ subdomain, slug }: DetailsPoductProps) {
                 className="flex flex-col items-center gap-5 bg-foreground/5 rounded-2xl pb-5 shadow-md cursor-pointer 
                 hover:shadow-lg"
               >
-                <div className="w-full h-35 rounded-t-2xl overflow-hidden items-center relative">
+                <div className="w-full aspect-square rounded-t-2xl overflow-hidden items-center relative">
                   <Image
                     src={
                       relatedProduct.thumbnail
