@@ -732,6 +732,12 @@ model CatalogSettings {
   bannerImages            String[]             @default([])
   aboutText               String?              @db.Text
   theme                   String?              @default("#00bcd4")
+  /// Cor de fundo da vitrine. `null` = o fundo neutro do tema, que é o que
+  /// todo catálogo tinha antes de a cor existir.
+  backgroundColor         String?
+  /// O Astro atende na vitrine. Liga cobrança de ★ por conversa de visitante,
+  /// então a loja precisa poder desligar sem falar com ninguém.
+  astroEnabled            Boolean              @default(true)
   //Payment
   paymentMethodSettings   PaymentMethod[]
   //Delivery
@@ -5575,6 +5581,10 @@ enum SiteLeadStatus {
 enum SiteChatChannel {
   SITE // visitante anônimo no site institucional
   APP // cliente logado no ERP
+  // Visitante anônimo na vitrine de UMA loja. Único canal em que
+  // `organizationId` é a dona do catálogo e não quem está logado — é dela a
+  // conta de ★ que paga a conversa.
+  CATALOGO
 
   @@map("site_chat_channel")
 }

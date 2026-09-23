@@ -37,9 +37,16 @@ export async function podeConversar(organizationId: string): Promise<boolean> {
 
 export async function cobrarTokensDoAstro(entrada: {
   organizationId: string;
-  userId: string;
+  /**
+   * Quem falou. Opcional porque a vitrine é atendida por visitante ANÔNIMO:
+   * lá a conversa é da organização, e o extrato sai sem autor — sem isto, o
+   * canal público não teria como cobrar.
+   */
+  userId?: string;
   tokensIn: number;
   tokensOut: number;
+  /** O texto do extrato, quando o padrão ("Astro — N tokens") não serve. */
+  descricao?: string;
   /** O modelo que de fato respondeu. Sem ele, vale a regra antiga da org. */
   modelo?: ModeloDef | null;
   base?: BaseDeCobranca;
@@ -77,9 +84,11 @@ export async function cobrarTokensDoAstro(entrada: {
     organizationId: entrada.organizationId,
     actionKey: ACOES.astroTokens,
     valor: custo,
-    descricao: entrada.modelo
-      ? `Astro — ${total.toLocaleString("pt-BR")} tokens (${entrada.modelo.nome})`
-      : `Astro — ${total.toLocaleString("pt-BR")} tokens`,
+    descricao:
+      entrada.descricao ??
+      (entrada.modelo
+        ? `Astro — ${total.toLocaleString("pt-BR")} tokens (${entrada.modelo.nome})`
+        : `Astro — ${total.toLocaleString("pt-BR")} tokens`),
     userId: entrada.userId,
   });
 

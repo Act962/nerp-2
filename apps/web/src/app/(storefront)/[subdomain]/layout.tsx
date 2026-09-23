@@ -3,6 +3,7 @@ import { Header } from "../../../features/storefront/components/header";
 import { notFound } from "next/navigation";
 import { Footer } from "../../../features/storefront/components/footer";
 import type { Metadata } from "next";
+import type { CSSProperties } from "react";
 // `constructUrl` e não `useConstructUrl`: as duas são a MESMA função (o "hook"
 // só a repassa), mas aqui estamos em `generateMetadata`, que não é componente.
 // Chamar algo com nome de hook fora de um componente — e ainda dentro de um
@@ -15,6 +16,8 @@ import {
   ROBOTS_VITRINE,
   storeCanonical,
 } from "@/features/storefront/lib/seo";
+import { isHexValido, tintaSobre } from "@/features/storefront/lib/cores";
+import { AstroDaLoja } from "@/features/storefront/components/astro-da-loja";
 
 interface StoreFrontLayoutProps {
   children: React.ReactNode;
@@ -123,9 +126,32 @@ export default async function SubdomainLayout({
   const hdrs = await headers();
   const catalogBase = hdrs.get("x-catalog-base") ?? "";
 
+  /*
+    A cor de fundo escolhida na Personalização.
+
+    Além do `background-color`, ela redefine `--background` e `--foreground`
+    para a subárvore: a vitrine inteira é desenhada com os tokens do tema, e
+    pintar só o `div` deixaria texto preto sobre um fundo escuro. Sem cor
+    cadastrada nada disso existe e vale o neutro de sempre.
+  */
+  const fundo = isHexValido(settings.backgroundColor)
+    ? settings.backgroundColor
+    : null;
+  const estiloDoFundo = fundo
+    ? ({
+        backgroundColor: fundo,
+        ["--background" as string]: fundo,
+        ["--foreground" as string]: tintaSobre(fundo),
+        color: tintaSobre(fundo),
+      } as CSSProperties)
+    : undefined;
+
   return (
     <CatalogBaseProvider base={catalogBase}>
-      <div className="bg-accent-foreground/5 min-h-screen flex flex-col">
+      <div
+        className={`min-h-screen flex flex-col${fundo ? "" : " bg-accent-foreground/5"}`}
+        style={estiloDoFundo}
+      >
         <Header
           settings={{
             subdomain,
@@ -137,6 +163,13 @@ export default async function SubdomainLayout({
           }}
         />
         <main className="mt-15 sm:mt-19 flex-1">{children}</main>
+        {settings.astroEnabled && (
+          <AstroDaLoja
+            subdomain={subdomain}
+            loja={settings.metaTitle || org.name}
+            whatsapp={settings.showWhatsapp ? settings.whatsappNumber : null}
+          />
+        )}
         <Footer
           settings={{
             theme: settings.theme,

@@ -76,7 +76,12 @@ export function ProductCard({
       transition-shadow overflow-hidden animate-fade-in
       hover:shadow-md hover:shadow-elegant"
     >
-      <div className="aspect-square overflow-hidden w-full relative h-45">
+      {/*
+        1:1, e a altura fixa saiu junto: com `h-45` o quadrado do
+        `aspect-square` nunca valia, e cada grade ficava com uma proporção
+        diferente conforme a largura da coluna.
+      */}
+      <div className="aspect-square overflow-hidden w-full relative">
         <Link href={productHref}>
           <Image
             className="object-cover transition-transform rounded-sm cursor-pointer"

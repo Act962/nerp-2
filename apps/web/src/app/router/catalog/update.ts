@@ -1,5 +1,6 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
+import { requireOrgMiddleware } from "@/app/middlewares/org";
 import {
   CatalogOperationMode,
   CatalogSortOrder,
@@ -13,6 +14,7 @@ import z from "zod";
 
 export const updateSettingsCatalog = base
   .use(requireAuthMiddleware)
+  .use(requireOrgMiddleware)
   .route({
     method: "PUT",
     path: "/settings-catalog/:id",
@@ -37,6 +39,8 @@ export const updateSettingsCatalog = base
       bannerImages: z.string().array().optional(),
       aboutText: z.string().optional(),
       theme: z.string().optional(),
+      backgroundColor: z.string().optional(),
+      astroEnabled: z.boolean().optional(),
       instagram: z.string().optional(),
       facebook: z.string().optional(),
       twitter: z.string().optional(),
@@ -63,29 +67,28 @@ export const updateSettingsCatalog = base
       walletId: z.string().optional(),
     }),
   )
-  .handler(async ({ input, errors }) => {
-    try {
-      const catalogSettings = await prisma.catalogSettings.findUnique({
-        where: {
-          id: input.id,
-        },
+  .handler(async ({ input, context, errors }) => {
+    // O `id` vem do cliente, então ele é reconferido contra a organização da
+    // sessão: sem `organizationId` aqui, um id de outra loja atualizaria o
+    // catálogo dela (multi-tenancy é manual neste app). A conferência fica
+    // FORA do try — dentro dele, o `catch` transformaria o 404 em 500.
+    const catalogSettings = await prisma.catalogSettings.findFirst({
+      where: { id: input.id, organizationId: context.org.id },
+      select: { id: true },
+    });
+
+    if (!catalogSettings) {
+      throw errors.NOT_FOUND({
+        message: "Configuração do catálogo não encontrada.",
       });
+    }
 
-      if (!catalogSettings) {
-        throw errors.NOT_FOUND({
-          message: "Configuração do catálogo não encontrada.",
-        });
-      }
+    const { id, ...rest } = input;
 
-      const { id, ...rest } = input;
-
+    try {
       await prisma.catalogSettings.update({
-        where: {
-          id,
-        },
-        data: {
-          ...rest,
-        },
+        where: { id, organizationId: context.org.id },
+        data: { ...rest },
       });
     } catch (error) {
       console.log(error);

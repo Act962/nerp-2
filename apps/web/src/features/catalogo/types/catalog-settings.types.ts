@@ -28,6 +28,7 @@ export type CatalogSettingsProps = Omit<
   | "logo"
   | "aboutText"
   | "theme"
+  | "backgroundColor"
   | "instagram"
   | "facebook"
   | "twitter"
@@ -54,6 +55,7 @@ export type CatalogSettingsProps = Omit<
   logo: string;
   aboutText: string;
   theme: string;
+  backgroundColor: string;
   instagram: string;
   facebook: string;
   twitter: string;
