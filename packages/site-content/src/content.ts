@@ -43,6 +43,15 @@ export type SolutionArea = {
   color?: string;
 };
 
+/** Uma rede social do rodapé: o rótulo que aparece e o endereço que abre. */
+export type SiteSocial = { label: string; href: string };
+
+export type SiteContact = {
+  email: string;
+  phone: string;
+  social: SiteSocial[];
+};
+
 export type SiteContent = {
   /**
    * Lista plana das soluções — o painel filtra por área no cliente. As áreas
@@ -58,7 +67,7 @@ export type SiteContent = {
     highlight: MenuEntry & { action: string };
   };
   stats: Array<{ value: string; label: string }>;
-  contact: { email: string; phone: string };
+  contact: SiteContact;
   whatsapp: { number: string; href: string; label: string };
   astro: AstroDisponibilidade;
 };
@@ -92,7 +101,8 @@ export type SiteContentResponse = {
     highlight: (MenuEntry & { action: string }) | null;
   };
   stats: Array<{ value: string; label: string }>;
-  contact: { email: string; phone: string } | null;
+  /** `social` ausente numa resposta antiga: quem lê cai nas redes do código. */
+  contact: (Omit<SiteContact, "social"> & { social?: SiteSocial[] }) | null;
   whatsapp: { number: string; label: string } | null;
   /** Ausente numa resposta antiga: quem lê assume o consultor desligado. */
   astro?: AstroDisponibilidade;

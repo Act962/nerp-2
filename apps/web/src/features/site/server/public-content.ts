@@ -127,7 +127,14 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
         : null,
     },
     stats: settings?.stats ?? [],
-    contact: settings?.contact.email ? settings.contact : null,
+    // Basta uma forma de contato preenchida: quem cadastrou só as redes não
+    // deve ver as três voltarem para o que vem no código.
+    contact:
+      settings?.contact.email ||
+      settings?.contact.phone ||
+      settings?.contact.social.length
+        ? settings.contact
+        : null,
     whatsapp: settings?.whatsapp.number ? settings.whatsapp : null,
     // Dois booleanos, nunca a tabela: o preço é calculado no servidor, na hora
     // da estimativa. O site só precisa saber se pode oferecer a pergunta.

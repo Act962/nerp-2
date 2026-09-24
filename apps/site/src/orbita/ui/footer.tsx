@@ -78,8 +78,8 @@ export function Footer() {
                   {contact.phone}
                 </a>
               </li>
-              {FOOTER.contact.social.map((s) => (
-                <li key={s.label}>
+              {contact.social.map((s) => (
+                <li key={s.href}>
                   <a href={s.href} target="_blank" rel="noreferrer noopener">
                     {s.label}
                   </a>

@@ -19,6 +19,7 @@ import {
   useSiteMenu,
   useToggleMenuItem,
 } from "../hooks/use-site-admin";
+import { SiteContactSettings } from "./site-contact-settings";
 import { SitePageHeader } from "./site-page-header";
 import { SiteImagePicker } from "./site-image-picker";
 
@@ -118,100 +119,106 @@ export function SiteMenuManager() {
       </Tabs>
 
       <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr] lg:items-start">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{active?.label}</CardTitle>
-            <p className="text-sm text-muted-foreground">{active?.hint}</p>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-1 p-0 pb-2">
-            {isLoading && <Skeleton className="mx-4 h-24" />}
-            {!isLoading && items.length === 0 && (
-              <p className="px-6 pb-4 text-sm text-muted-foreground">
-                Nenhum item ainda. Enquanto esta lista estiver vazia, o site usa
-                o catálogo que já vem no código.
-              </p>
-            )}
-            {items.map((item, index) => (
-              <div
-                key={item.id}
-                className="flex flex-wrap items-center gap-3 border-b px-4 py-3 last:border-b-0"
-              >
-                <div className="flex flex-col">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-6"
-                    aria-label="Subir"
-                    disabled={index === 0}
-                    onClick={() => move(index, -1)}
-                  >
-                    <ChevronUp className="size-3.5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="size-6"
-                    aria-label="Descer"
-                    disabled={index === items.length - 1}
-                    onClick={() => move(index, 1)}
-                  >
-                    <ChevronDown className="size-3.5" />
-                  </Button>
-                </div>
-
-                <button
-                  type="button"
-                  className="min-w-40 flex-1 text-left"
-                  onClick={() =>
-                    setDraft({
-                      id: item.id,
-                      groupTitle: item.groupTitle,
-                      slug: item.slug,
-                      name: item.name,
-                      summary: item.summary,
-                      color: item.color ?? "",
-                      href: item.href ?? "",
-                      iconImage: item.iconImage ?? "",
-                      visible: item.visible,
-                      areaSlugs: item.areas,
-                    })
-                  }
+        <div className="flex flex-col gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">{active?.label}</CardTitle>
+              <p className="text-sm text-muted-foreground">{active?.hint}</p>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-1 p-0 pb-2">
+              {isLoading && <Skeleton className="mx-4 h-24" />}
+              {!isLoading && items.length === 0 && (
+                <p className="px-6 pb-4 text-sm text-muted-foreground">
+                  Nenhum item ainda. Enquanto esta lista estiver vazia, o site
+                  usa o catálogo que já vem no código.
+                </p>
+              )}
+              {items.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="flex flex-wrap items-center gap-3 border-b px-4 py-3 last:border-b-0"
                 >
-                  <span className="block text-sm font-medium">{item.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {item.href || "sem página — leva à órbita"}
-                  </span>
-                </button>
-
-                {panel === "SOLUCOES" ? (
-                  <div className="flex flex-wrap gap-1">
-                    {item.areas.length === 0 ? (
-                      <Badge variant="outline">sem área</Badge>
-                    ) : (
-                      item.areas.map((slug) => (
-                        <Badge key={slug} variant="secondary">
-                          {areaName(slug)}
-                        </Badge>
-                      ))
-                    )}
+                  <div className="flex flex-col">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6"
+                      aria-label="Subir"
+                      disabled={index === 0}
+                      onClick={() => move(index, -1)}
+                    >
+                      <ChevronUp className="size-3.5" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-6"
+                      aria-label="Descer"
+                      disabled={index === items.length - 1}
+                      onClick={() => move(index, 1)}
+                    >
+                      <ChevronDown className="size-3.5" />
+                    </Button>
                   </div>
-                ) : (
-                  <Badge variant="secondary">{item.groupTitle}</Badge>
-                )}
 
-                <Switch
-                  checked={item.visible}
-                  onCheckedChange={(visible) =>
-                    toggle.mutate({ id: item.id, visible })
-                  }
-                  aria-label={`Mostrar ${item.name} no site`}
-                />
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+                  <button
+                    type="button"
+                    className="min-w-40 flex-1 text-left"
+                    onClick={() =>
+                      setDraft({
+                        id: item.id,
+                        groupTitle: item.groupTitle,
+                        slug: item.slug,
+                        name: item.name,
+                        summary: item.summary,
+                        color: item.color ?? "",
+                        href: item.href ?? "",
+                        iconImage: item.iconImage ?? "",
+                        visible: item.visible,
+                        areaSlugs: item.areas,
+                      })
+                    }
+                  >
+                    <span className="block text-sm font-medium">
+                      {item.name}
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      {item.href || "sem página — leva à órbita"}
+                    </span>
+                  </button>
+
+                  {panel === "SOLUCOES" ? (
+                    <div className="flex flex-wrap gap-1">
+                      {item.areas.length === 0 ? (
+                        <Badge variant="outline">sem área</Badge>
+                      ) : (
+                        item.areas.map((slug) => (
+                          <Badge key={slug} variant="secondary">
+                            {areaName(slug)}
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                  ) : (
+                    <Badge variant="secondary">{item.groupTitle}</Badge>
+                  )}
+
+                  <Switch
+                    checked={item.visible}
+                    onCheckedChange={(visible) =>
+                      toggle.mutate({ id: item.id, visible })
+                    }
+                    aria-label={`Mostrar ${item.name} no site`}
+                  />
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {panel === "SOBRE" && <SiteContactSettings />}
+        </div>
 
         {draft && (
           <Card>
