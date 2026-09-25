@@ -21,8 +21,13 @@ export const siteSettingsSchema = z.object({
     .object({
       email: z.string().default(""),
       phone: z.string().default(""),
+      // As redes entram com `.default([])` porque o ajuste já existe gravado
+      // sem elas: exigir a lista invalidaria o registro atual de uma vez.
+      social: z
+        .array(z.object({ label: z.string(), href: z.string() }))
+        .default([]),
     })
-    .default({ email: "", phone: "" }),
+    .default({ email: "", phone: "", social: [] }),
   whatsapp: z
     .object({
       number: z.string().default(""),

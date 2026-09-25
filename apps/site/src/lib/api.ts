@@ -101,7 +101,17 @@ function applyFallback(data: SiteContentResponse | null): SiteContent {
         }
       : DEFAULT_CONTENT.sobre,
     stats: data.stats.length ? data.stats : DEFAULT_CONTENT.stats,
-    contact: data.contact ?? DEFAULT_CONTENT.contact,
+    contact: data.contact
+      ? {
+          email: data.contact.email || DEFAULT_CONTENT.contact.email,
+          phone: data.contact.phone || DEFAULT_CONTENT.contact.phone,
+          // Mesma regra dos painéis: lista vazia (ou resposta antiga, sem o
+          // campo) cai nas redes do código em vez de sumir com o rodapé.
+          social: data.contact.social?.length
+            ? data.contact.social
+            : DEFAULT_CONTENT.contact.social,
+        }
+      : DEFAULT_CONTENT.contact,
     whatsapp: data.whatsapp
       ? {
           number: data.whatsapp.number,

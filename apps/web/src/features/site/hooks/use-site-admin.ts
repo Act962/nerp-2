@@ -705,3 +705,29 @@ export function useDeleteSiteMelhoria() {
     }),
   );
 }
+
+/**
+ * Os ajustes soltos do site (contato, redes, números, WhatsApp).
+ *
+ * `save` grava o objeto inteiro, então quem edita um pedaço tem de mandar o
+ * resto junto — por isso a tela sempre parte do que o `get` devolveu.
+ */
+export function useSiteSettings() {
+  const { data, isPending } = useQuery(
+    orpc.site.settings.get.queryOptions({ input: {} }),
+  );
+  return { settings: data?.settings, isLoading: isPending };
+}
+
+export function useSaveSiteSettings() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.settings.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Contato salvo");
+        queryClient.invalidateQueries({ queryKey: orpc.site.settings.key() });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}

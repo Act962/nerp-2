@@ -8,7 +8,7 @@ import {
 import { ABOUT_GROUPS, ABOUT_HIGHLIGHT, ABOUT_LINKS } from "./about";
 import { TOOLS_BY_COLUMN } from "./catalog";
 import { SEGMENTS_WITH_LINKS } from "./segments";
-import { STATS, WHATSAPP } from "./site";
+import { FOOTER, STATS, WHATSAPP } from "./site";
 
 /**
  * O conteúdo editável do site, num formato só.
@@ -68,7 +68,13 @@ export const DEFAULT_CONTENT: SiteContent = {
     },
   },
   stats: STATS,
-  contact: { email: "suporteorbitahub@gmail.com", phone: "+55 (86) 9489-2129" },
+  // O contato de reserva é o do rodapé: um só lugar para o e-mail, o telefone
+  // e as redes enquanto o painel não tiver nada gravado.
+  contact: {
+    email: FOOTER.contact.email,
+    phone: FOOTER.contact.phone,
+    social: FOOTER.contact.social,
+  },
   whatsapp: WHATSAPP,
   // O consultor nasce desligado no conteúdo de reserva: quem liga é o painel,
   // e o site não deve prometer uma conversa que o ERP fora do ar não sustenta.
