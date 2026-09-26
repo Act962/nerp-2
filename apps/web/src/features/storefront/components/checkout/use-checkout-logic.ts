@@ -293,7 +293,7 @@ export function useCheckoutLogic(subdomain: string) {
         ...(user?.id ? { customerId: user.id } : { guest: { name, phone } }),
         phone,
         delivery: {
-          method: deliveryMethod || null,
+          method: deliveryMethod ? getDeliveryMethodLabel(deliveryMethod) : null,
           address:
             deliveryMethod === "DELIVERY_HOME" && trimmedAddress
               ? trimmedAddress
