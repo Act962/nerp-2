@@ -23,6 +23,8 @@ export const S2S_ESCOPO_TOTAL = "*";
 const ESCOPO_POR_PATH = new Map<string, string>([
   ["mapObject.listSpaces", "pdv:read"],
   ["mapObject.listOpportunities", "pdv:read"],
+  // Retorno do Órbita sobre pedido do Catálogo Online (modo ORBITA).
+  ["catalogOrder.updateStatus", "sales:rw"],
 ]);
 
 /** Escopo exigido por uma procedure, ou `null` se ela não é da integração. */

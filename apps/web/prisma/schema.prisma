@@ -681,6 +681,10 @@ enum CatalogOperationMode {
   // aprova em /vendas/novo (pagamento presencial). Extensão da loja: sem
   // integração de pagamento online.
   APPROVAL
+  // Pedido do catálogo cai como Sale.PENDING_APPROVAL e é empurrado ao Órbita
+  // (NASA): o Astro negocia com o cliente, cobra via PIX e devolve a
+  // confirmação por `catalogOrder.updateStatus`.
+  ORBITA
 }
 
 enum DeliveryMethod {
@@ -1453,6 +1457,12 @@ model Sale {
   completedAt       DateTime?
   cancelledAt       DateTime?
   createdById       String?
+  // Pedido do Catálogo no modo ORBITA: o que o Órbita devolveu ao receber o
+  // pedido. `orbitaSyncedAt` preenchido = já entregue (a entrega é idempotente).
+  orbitaOrderToken  String?
+  orbitaPortalUrl   String?
+  orbitaWhatsappUrl String?
+  orbitaSyncedAt    DateTime?
   // Relações
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
