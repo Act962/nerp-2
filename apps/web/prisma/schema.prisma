@@ -681,6 +681,10 @@ enum CatalogOperationMode {
   // aprova em /vendas/novo (pagamento presencial). Extensão da loja: sem
   // integração de pagamento online.
   APPROVAL
+  // Pedido do catálogo cai como Sale.PENDING_APPROVAL e é empurrado ao Órbita
+  // (NASA): o Astro negocia com o cliente, cobra via PIX e devolve a
+  // confirmação por `catalogOrder.updateStatus`.
+  ORBITA
 }
 
 enum DeliveryMethod {
@@ -1408,6 +1412,16 @@ enum SaleStatus {
   CANCELLED // Cancelado
 }
 
+// De onde a venda veio. As do Catálogo Online aparecem na aba "Catálogo
+// online" do /pedidos; PDV é o balcão e fica fora dela.
+enum SaleOrigin {
+  PDV
+  CATALOGO_APROVACAO // Modo APPROVAL: a loja confirma e finaliza no PDV
+  CATALOGO_ORBITA // Modo ORBITA: o Órbita negocia, cobra e confirma
+  CATALOGO_COZINHA // Modo KITCHEN: vai direto para o quadro da cozinha
+  CATALOGO_MARKETPLACE // Modo MARKETPLACE: pago online (Asaas/Stripe)
+}
+
 enum PaymentMethod {
   DINHEIRO
   PIX
@@ -1436,6 +1450,7 @@ model Sale {
   priceListId       String?
   // Status
   status            SaleStatus      @default(DRAFT)
+  origin            SaleOrigin      @default(PDV)
   // Valores
   subtotal          Decimal         @db.Decimal(10, 2)
   discount          Decimal         @default(0) @db.Decimal(10, 2)
@@ -1453,6 +1468,12 @@ model Sale {
   completedAt       DateTime?
   cancelledAt       DateTime?
   createdById       String?
+  // Pedido do Catálogo no modo ORBITA: o que o Órbita devolveu ao receber o
+  // pedido. `orbitaSyncedAt` preenchido = já entregue (a entrega é idempotente).
+  orbitaOrderToken  String?
+  orbitaPortalUrl   String?
+  orbitaWhatsappUrl String?
+  orbitaSyncedAt    DateTime?
   // Relações
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
@@ -1465,6 +1486,7 @@ model Sale {
   transactions      Transaction[]
   cashMovements     CashMovement[]
   fiscalDocument    FiscalDocument?
+  kitchenOrders     KitchenOrder[]
 
   financeEntries PaymentEntry[] @relation("SaleFinanceEntries")
 
@@ -1474,6 +1496,7 @@ model Sale {
   @@index([status])
   @@index([createdAt])
   @@index([priceListId])
+  @@index([organizationId, origin, status])
   @@map("sales")
 }
 
@@ -1672,6 +1695,8 @@ model KitchenOrder {
   tableNumber      String // Texto livre: "18", "Balcão 3"
   dishName         String // Nome do prato (texto livre)
   productId        String? // Vínculo opcional ao catálogo
+  // Venda do Catálogo Online (modo KITCHEN) que originou o prato
+  saleId           String?
   estimatedMinutes Int? // Snapshot do tempo de preparo na criação
   position         Int                 @default(0) // Ordem do card dentro da coluna
   notes            String?
@@ -1688,6 +1713,7 @@ model KitchenOrder {
   organization     Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   column           KitchenColumn       @relation(fields: [columnId], references: [id], onDelete: Restrict)
   product          Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
+  sale             Sale?               @relation(fields: [saleId], references: [id], onDelete: SetNull)
   createdBy        User?               @relation("CreatedKitchenOrders", fields: [createdById], references: [id])
   attendant        Collaborator?       @relation(fields: [attendantId], references: [id], onDelete: SetNull)
   events           KitchenOrderEvent[]
@@ -1696,6 +1722,7 @@ model KitchenOrder {
   @@index([columnId, position])
   @@index([createdAt])
   @@index([organizationId, archivedAt])
+  @@index([saleId])
   @@map("kitchen_orders")
 }
 

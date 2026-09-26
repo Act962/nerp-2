@@ -44,15 +44,16 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
     user,
     userHasHydrated,
     isApprovalMode,
+    isOrbitaMode,
     guestName,
     setGuestName,
     guestPhone,
     setGuestPhone,
   } = useCheckoutLogic(subdomain);
 
-  // Modo APPROVAL dispensa login (paga presencial). Nos demais modos, redireciona
-  // pra cadastro quando anônimo.
-  if (!user && userHasHydrated && !isApprovalMode) {
+  // Modos APPROVAL e ORBITA dispensam login (o pedido é identificado por nome
+  // e telefone). Nos demais modos, redireciona pra cadastro quando anônimo.
+  if (!user && userHasHydrated && !isApprovalMode && !isOrbitaMode) {
     redirect("/sign-up");
   }
 
@@ -93,8 +94,8 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
                 <CardTitle>Seus dados</CardTitle>
                 <p className="text-sm text-muted-foreground">
                   Precisamos do seu nome pra identificar o pedido quando você
-                  chegar na loja. Telefone é opcional (usado só se
-                  precisarmos falar com você).
+                  chegar na loja. Telefone é opcional (usado só se precisarmos
+                  falar com você).
                 </p>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -112,6 +113,42 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
                   <Label htmlFor="guest-phone">Telefone (opcional)</Label>
                   <Input
                     id="guest-phone"
+                    placeholder="(00) 00000-0000"
+                    value={guestPhone ?? ""}
+                    onChange={(e) => setGuestPhone(e.target.value)}
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          {isOrbitaMode && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Seus dados</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  A loja vai confirmar o pedido e enviar o pagamento pelo
+                  WhatsApp informado.
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!user && (
+                  <div className="space-y-2">
+                    <Label htmlFor="orbita-name">Nome</Label>
+                    <Input
+                      id="orbita-name"
+                      placeholder="Ex.: Maria Silva"
+                      value={guestName ?? ""}
+                      onChange={(e) => setGuestName(e.target.value)}
+                      autoComplete="name"
+                    />
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="orbita-phone">WhatsApp com DDD</Label>
+                  <Input
+                    id="orbita-phone"
                     placeholder="(00) 00000-0000"
                     value={guestPhone ?? ""}
                     onChange={(e) => setGuestPhone(e.target.value)}

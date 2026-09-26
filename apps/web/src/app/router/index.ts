@@ -7,6 +7,7 @@ import { deviceRoutes } from "./device";
 import { desktopReleaseRoutes } from "./desktop-release";
 import { productsRoutes } from "./products";
 import { catalogSettingsRouter } from "./catalog";
+import { catalogOrderRoutes } from "./catalog-order";
 import { stockRoutes } from "./stock";
 import { scannerRoutes } from "./scanner";
 import { inventoryRoutes } from "./inventory";
@@ -86,6 +87,7 @@ export const router = {
   products: productsRoutes,
   categories: categoryRoutes,
   catalogSettings: catalogSettingsRouter,
+  catalogOrder: catalogOrderRoutes,
   stocks: stockRoutes,
   scanner: scannerRoutes,
   inventory: inventoryRoutes,

@@ -2,11 +2,17 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
-import { PersonType, SaleStatus } from "@/generated/prisma/enums";
+import { PersonType, SaleOrigin, SaleStatus } from "@/generated/prisma/enums";
+import {
+  ORBITA_OWNS_ORDER_MESSAGE,
+  appendNote,
+  approvedAtPdvNote,
+} from "@/features/pedidos/utils/catalog-order-status";
 import { z } from "zod";
 
 // Aprovar pedido pendente do catálogo:
-//   1. Valida que a Sale pertence à org e está PENDING_APPROVAL.
+//   1. Valida que a Sale pertence à org e está PENDING_APPROVAL — e que não é
+//      do modo ORBITA, onde só o Órbita confirma ou cancela.
 //   2. Devolve os itens (com dados do produto atual: preço, estoque, imagem)
 //      para o PDV hidratar o carrinho — assim o operador finaliza a venda
 //      pelo fluxo normal (nova Sale, nova numeração, pagamento presencial).
@@ -76,6 +82,10 @@ export const approvePending = base
       });
     }
 
+    if (sale.origin === SaleOrigin.CATALOGO_ORBITA) {
+      throw errors.BAD_REQUEST({ message: ORBITA_OWNS_ORDER_MESSAGE });
+    }
+
     const productIds = sale.items
       .map((item) => item.productId)
       .filter((id): id is string => Boolean(id));
@@ -136,9 +146,10 @@ export const approvePending = base
       data: {
         status: SaleStatus.CANCELLED,
         cancelledAt: new Date(),
-        notes:
-          (sale.notes ? `${sale.notes}\n` : "") +
-          `Aprovada no PDV por ${context.user.name ?? context.user.email} — venda gerada no balcão.`,
+        notes: appendNote(
+          sale.notes,
+          approvedAtPdvNote(context.user.name ?? context.user.email),
+        ),
       },
     });
 

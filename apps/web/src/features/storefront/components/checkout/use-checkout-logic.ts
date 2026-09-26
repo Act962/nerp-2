@@ -14,6 +14,8 @@ import {
 } from "../../types/payments";
 import { useCart } from "@/hooks/use-cart";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
+import { useCatalogBase } from "@/features/storefront/lib/catalog-base";
+import { useOrbitaCheckout } from "@/features/storefront/hooks/use-orbita-checkout";
 
 const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || "558688923098";
 
@@ -27,6 +29,7 @@ export function useCheckoutLogic(subdomain: string) {
   const [guestName, setGuestName] = useState("");
   const [guestPhone, setGuestPhone] = useState("");
   const { products, clearOrganizationCart } = useCart(subdomain);
+  const catalogBase = useCatalogBase();
   const { user } = useUserStore();
   const { data: catalogSettings } = useCatalogSettings({ subdomain });
   const userHasHydrated = useUserHasHydrated();
@@ -85,6 +88,10 @@ export function useCheckoutLogic(subdomain: string) {
       },
     }),
   );
+
+  // Modo ORBITA — o pedido vai ao Órbita, que negocia e cobra. A tela de
+  // sucesso acompanha a resposta dele pelo id da venda (`?venda=`).
+  const orbitaPurchase = useOrbitaCheckout();
 
   const availablePaymentMethods = useMemo(() => {
     return catalogSettings?.paymentMethodSettings.filter(
@@ -262,12 +269,60 @@ export function useCheckoutLogic(subdomain: string) {
 
   const isKitchenMode = catalogSettings?.operationMode === "KITCHEN";
   const isApprovalMode = catalogSettings?.operationMode === "APPROVAL";
+  const isOrbitaMode = catalogSettings?.operationMode === "ORBITA";
+
+  const checkoutWithOrbita = (
+    cartProducts: Array<{ id: string; quantity: number }>,
+  ) => {
+    const phone = guestPhone.trim();
+    if (phone.replace(/\D/g, "").length < 10) {
+      toast.error("Informe seu WhatsApp com DDD pra a loja falar com você");
+      return;
+    }
+    const name = guestName.trim();
+    if (!user?.id && !name) {
+      toast.error("Informe seu nome pra a loja te identificar");
+      return;
+    }
+
+    const trimmedAddress = address.trim();
+    orbitaPurchase.mutate(
+      {
+        domain: subdomain,
+        products: cartProducts,
+        ...(user?.id ? { customerId: user.id } : { guest: { name, phone } }),
+        phone,
+        delivery: {
+          method: deliveryMethod ? getDeliveryMethodLabel(deliveryMethod) : null,
+          address:
+            deliveryMethod === "DELIVERY_HOME" && trimmedAddress
+              ? trimmedAddress
+              : null,
+        },
+        notes: observations.trim() || undefined,
+      },
+      {
+        onSuccess: (data) => {
+          clearOrganizationCart();
+          router.push(
+            `${catalogBase}/checkout/sucesso?pedido=${data.saleNumber}&venda=${data.saleId}`,
+          );
+        },
+      },
+    );
+  };
 
   const onCheckout = () => {
     const products = productsOfCart?.map((item) => ({
       id: item.id.toString(),
       quantity: findAndConvertQuantity(item.id),
     }));
+
+    if (isOrbitaMode) {
+      if (!products?.length) return;
+      checkoutWithOrbita(products);
+      return;
+    }
 
     if (isApprovalMode) {
       // Logado → passa customerId; senão exige nome (guest.name é required).
@@ -337,6 +392,7 @@ export function useCheckoutLogic(subdomain: string) {
     purchase,
     isKitchenMode,
     isApprovalMode,
+    isOrbitaMode,
     guestName,
     setGuestName,
     guestPhone,
@@ -344,7 +400,8 @@ export function useCheckoutLogic(subdomain: string) {
     isCheckoutPending:
       purchase.isPending ||
       kitchenPurchase.isPending ||
-      approvalPurchase.isPending,
+      approvalPurchase.isPending ||
+      orbitaPurchase.isPending,
     router,
     userHasHydrated,
     user,

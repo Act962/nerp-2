@@ -4,7 +4,7 @@ import { stripe } from "@/lib/stripe";
 import prisma from "@/lib/db";
 import { createKitchenOrdersFromSale } from "@/lib/pedidos/create-orders-from-sale";
 import type { ExpandedLineItem } from "@/context/checkout/types";
-import { SaleStatus } from "@/generated/prisma/enums";
+import { SaleOrigin, SaleStatus } from "@/generated/prisma/enums";
 
 export async function POST(req: Request) {
   console.log("Chegou aqui!!!");
@@ -116,6 +116,7 @@ export async function POST(req: Request) {
               total,
               saleNumber,
               status: SaleStatus.CONFIRMED,
+              origin: SaleOrigin.CATALOGO_MARKETPLACE,
               items: {
                 createMany: {
                   data: lineItems.map((item) => ({

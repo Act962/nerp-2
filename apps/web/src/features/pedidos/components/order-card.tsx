@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { kitchenOrderLabel } from "../utils/kitchen-order-label";
 import {
   Archive,
   ArrowRight,
@@ -122,7 +123,7 @@ export function OrderCard({
 
         <div className="min-w-0 flex-1 overflow-hidden">
           <p className="text-base font-bold leading-tight tracking-tight">
-            Mesa {order.tableNumber}
+            {kitchenOrderLabel(order)}
           </p>
           <Tooltip>
             <TooltipTrigger asChild>
@@ -131,7 +132,7 @@ export function OrderCard({
               </p>
             </TooltipTrigger>
             <TooltipContent>
-              Mesa {order.tableNumber} · {order.dishName}
+              {kitchenOrderLabel(order)} · {order.dishName}
             </TooltipContent>
           </Tooltip>
 

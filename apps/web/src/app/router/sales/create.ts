@@ -5,6 +5,7 @@ import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 import { createSaleFinanceEntries } from "@/features/financeiro/server/sale-entries";
+import { applySaleStockOut } from "@/features/sales/server/stock-out";
 import { round2 } from "@/utils/pricing";
 import z from "zod";
 
@@ -248,28 +249,13 @@ export const createSale = base
 
       // Baixa de estoque + movimento de auditoria (só para produtos que
       // controlam estoque).
-      for (const item of input.items) {
-        const product = productById.get(item.productId);
-        if (!product || !product.trackStock) continue;
-        const previousStock = Number(product.currentStock);
-        const newStock = previousStock - item.quantity;
-        await tx.stockMovement.create({
-          data: {
-            organizationId: orgId,
-            productId: item.productId,
-            type: "VENDA",
-            quantity: item.quantity,
-            previousStock,
-            newStock,
-            saleId: sale.id,
-            createdById: context.user.id,
-          },
-        });
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { currentStock: newStock },
-        });
-      }
+      await applySaleStockOut(tx, {
+        organizationId: orgId,
+        saleId: sale.id,
+        createdById: context.user.id,
+        items: input.items,
+        productById,
+      });
 
       // Um movimento de caixa POR forma: só as parcelas em DINHEIRO afetam a
       // gaveta física; cartão/PIX entram no total da sessão, não na gaveta.

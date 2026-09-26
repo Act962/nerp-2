@@ -4,6 +4,7 @@ import { listSettingsCatalog } from "./list";
 import { listProductsOfCart } from "./list-my-products";
 import { listProducts } from "./list-products";
 import { loginCatalog } from "./login";
+import { orbitaConnectionCatalog } from "./orbita-connection";
 import { getProductAndProductsByCategory } from "./product_with_category";
 import { publicSettingsCatalog } from "./public";
 import { signupCatalog } from "./signup";
@@ -22,4 +23,5 @@ export const catalogSettingsRouter = {
   getUser: getUserCatalog,
   updateCustomer: updateCustomer,
   listProductsOfCart: listProductsOfCart,
+  orbitaConnection: orbitaConnectionCatalog,
 };
