@@ -9,6 +9,7 @@ import {
   useMutationSetArchivedKitchenOrder,
   useQueryArchivedKitchenOrders,
 } from "../hooks/use-pedidos";
+import { kitchenOrderLabel } from "../utils/kitchen-order-label";
 
 export function ArchivedOrders() {
   const { data: orders = [] } = useQueryArchivedKitchenOrders();
@@ -32,7 +33,7 @@ export function ArchivedOrders() {
             <Card key={order.id} className="gap-2 p-3 opacity-80 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-                  Mesa {order.tableNumber} · {order.dishName}
+                  {kitchenOrderLabel(order)} · {order.dishName}
                 </p>
                 <Button
                   type="button"

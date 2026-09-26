@@ -109,3 +109,57 @@ output: { ok: true, status: string }
 4. No NERP, Catálogo → Modo de operação → **Órbita**, com "aceitar pedidos"
    ligado.
 5. `pnpm inngest:dev` em desenvolvimento para a entrega rodar.
+
+## Pedidos unificados
+
+Todo pedido do Catálogo online — de qualquer modo — aparece em `/pedidos`, na
+aba **Catálogo online** (a padrão; `?aba=cozinha` abre o quadro da cozinha,
+que não mudou).
+
+**Origem da venda.** `Sale.origin` (`SaleOrigin`, default `PDV`) diz de onde a
+venda veio e é gravada na criação:
+
+| Origem | Quem grava | Quem fecha |
+|---|---|---|
+| `CATALOGO_APROVACAO` | `approvalCheckout` via `createPendingSale` | a loja: "Abrir no PDV" ou "Recusar" |
+| `CATALOGO_ORBITA` | `orbitaCheckout` via `createPendingSale` | só o Órbita (`catalogOrder.updateStatus`) |
+| `CATALOGO_COZINHA` | `pedidosCheckout` | nasce `CONFIRMED`; os pratos vão para a cozinha |
+| `CATALOGO_MARKETPLACE` | webhooks Asaas e Stripe | nasce `CONFIRMED` (pago online) |
+| `PDV` | balcão, device, seed | fora da aba |
+
+A migration `20260926150000_sale_origin_unified_orders` preenche o passado com o
+que dá para afirmar: token do Órbita → `CATALOGO_ORBITA`; `PENDING_APPROVAL` sem
+token → `CATALOGO_APROVACAO`. Pedidos antigos de cozinha e marketplace não
+deixaram rastro e ficam `PDV`.
+
+**Procedures** (`src/app/router/pedidos/catalog-orders/`):
+
+- `kitchen.catalogOrders.list` — `{ status?: PENDING|CONFIRMED|CANCELLED,
+  origin?, cursor?, limit }`. Grupos: `PENDING` = `PENDING_APPROVAL`;
+  `CONFIRMED` = `CONFIRMED`/`PROCESSING`/`COMPLETED`; `CANCELLED`. Devolve
+  itens, cliente, total, pagamento, `orbitaPortalUrl` e `closure` (lido da nota:
+  "virou venda no PDV" ou "recusado: motivo").
+- `kitchen.catalogOrders.reject` — `{ saleId, reason }`, só para
+  `CATALOGO_APROVACAO` em `PENDING_APPROVAL`; transição condicional
+  (`updateMany` por status) para não atropelar uma aprovação simultânea.
+
+**O pedido do Órbita não é da loja.** `sales.listPendingApproval` exclui
+`CATALOGO_ORBITA`, e `sales.approvePending` e `kitchen.catalogOrders.reject`
+respondem "Pedido em negociação no Órbita — só o Órbita confirma ou cancela".
+Antes disso o operador via o pedido na fila do PDV e podia fechá-lo por baixo
+de uma negociação em andamento. Na aba, o card do Órbita só tem o selo
+"Negociando no Órbita" e o link "Ver pedido no Órbita".
+
+**"Abrir no PDV"** reaproveita o `approvePending` do diálogo do PDV: a venda
+pendente fecha como `CANCELLED` com a nota "Aprovada no PDV por …", o carrinho
+vai pelo `usePdvUiStore.hydratePayload` e o `/vendas/novo` o consome ao montar.
+Por isso ela aparece em Cancelados com o selo "Virou venda no PDV" — a venda de
+verdade é a nova, do balcão.
+
+**Cozinha.** `createKitchenOrdersFromSale` grava `KitchenOrder.saleId` e um
+evento `CREATED` com ator `SYSTEM` ("Catálogo online"). O card da cozinha mostra
+"Catálogo #N" no lugar de "Mesa Pedido #N".
+
+As regras sem I/O (grupos de status, notas de fechamento, mensagem do Órbita)
+ficam em `src/features/pedidos/utils/catalog-order-status.ts`; o teste de
+integração é `tests/integration/catalog-orders-list.test.ts`.

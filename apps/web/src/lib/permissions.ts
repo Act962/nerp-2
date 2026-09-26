@@ -13,7 +13,7 @@ export const PAGE_PERMISSIONS = [
   },
   {
     key: "pedidos",
-    label: "Pedidos (cozinha)",
+    label: "Pedidos",
     href: "/pedidos",
   },
   {

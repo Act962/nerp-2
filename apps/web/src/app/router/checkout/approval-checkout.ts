@@ -1,5 +1,5 @@
 import { base } from "@/app/middlewares/base";
-import { CatalogOperationMode } from "@/generated/prisma/enums";
+import { CatalogOperationMode, SaleOrigin } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { createPendingSale } from "@/features/storefront/server/create-pending-sale";
 import { toCheckoutError } from "./pending-sale-errors";
@@ -82,6 +82,7 @@ export const approvalCheckout = base
     try {
       return await createPendingSale({
         organizationId: organization.id,
+        origin: SaleOrigin.CATALOGO_APROVACAO,
         products: input.products,
         customerId: input.customerId,
         guest: input.guest,

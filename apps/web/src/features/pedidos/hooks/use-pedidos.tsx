@@ -8,6 +8,8 @@ export type KitchenOrder = {
   id: string;
   columnId: string;
   tableNumber: string;
+  saleId: string | null;
+  saleNumber: number | null;
   dishName: string;
   notes: string | null;
   estimatedMinutes: number | null;

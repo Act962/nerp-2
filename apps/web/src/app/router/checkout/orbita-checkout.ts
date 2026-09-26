@@ -1,5 +1,5 @@
 import { base } from "@/app/middlewares/base";
-import { CatalogOperationMode } from "@/generated/prisma/enums";
+import { CatalogOperationMode, SaleOrigin } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { createPendingSale } from "@/features/storefront/server/create-pending-sale";
 import { enqueueOrbitaOrder } from "@/features/orbita-orders/server/enqueue";
@@ -103,6 +103,7 @@ export const orbitaCheckout = base
     try {
       created = await createPendingSale({
         organizationId: organization.id,
+        origin: SaleOrigin.CATALOGO_ORBITA,
         products: input.products,
         customerId: input.customerId,
         guest: input.guest ? { name: input.guest.name, phone } : undefined,

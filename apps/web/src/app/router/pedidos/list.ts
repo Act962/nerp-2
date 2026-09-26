@@ -26,6 +26,9 @@ export const listKitchenOrders = base
         id: z.string(),
         columnId: z.string(),
         tableNumber: z.string(),
+        // Prato vindo do Catálogo Online (modo KITCHEN): número da venda.
+        saleId: z.string().nullable(),
+        saleNumber: z.number().nullable(),
         dishName: z.string(),
         notes: z.string().nullable(),
         estimatedMinutes: z.number().nullable(),
@@ -57,6 +60,7 @@ export const listKitchenOrders = base
         : [{ column: { position: "asc" } }, { position: "asc" }],
       include: {
         createdBy: { select: { name: true } },
+        sale: { select: { saleNumber: true } },
       },
     });
 
@@ -67,6 +71,8 @@ function serializeOrder(order: {
   id: string;
   columnId: string;
   tableNumber: string;
+  saleId: string | null;
+  sale: { saleNumber: number } | null;
   dishName: string;
   notes: string | null;
   estimatedMinutes: number | null;
@@ -83,6 +89,8 @@ function serializeOrder(order: {
     id: order.id,
     columnId: order.columnId,
     tableNumber: order.tableNumber,
+    saleId: order.saleId,
+    saleNumber: order.sale?.saleNumber ?? null,
     dishName: order.dishName,
     notes: order.notes,
     estimatedMinutes: order.estimatedMinutes,

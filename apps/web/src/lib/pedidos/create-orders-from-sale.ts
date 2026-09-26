@@ -1,5 +1,10 @@
-import { CatalogOperationMode } from "@/generated/prisma/enums";
+import {
+  CatalogOperationMode,
+  KitchenOrderActorType,
+  KitchenOrderEventType,
+} from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
+import { recordOrderEvent } from "./order-events";
 
 /**
  * Cria pedidos na cozinha (KDS) a partir de uma venda confirmada.
@@ -8,7 +13,9 @@ import prisma from "@/lib/db";
  * Só age quando o catálogo da organização está no modo KITCHEN — no modo
  * MARKETPLACE (padrão) é um no-op, preservando o comportamento de e-commerce.
  *
- * Gera 1 `KitchenOrder` por item da venda, na coluna de entrada (isInitial) da org.
+ * Gera 1 `KitchenOrder` por item da venda, na coluna de entrada (isInitial) da org,
+ * com `saleId` apontando para a venda — é o que deixa o card mostrar
+ * "Catálogo #N" e o /pedidos cruzar cozinha e catálogo.
  * É tolerante a falhas (não lança): a venda já existe e o pagamento não deve
  * falhar por causa de um problema na cozinha. Os webhooks devem chamar dentro de
  * try/catch mesmo assim, por garantia.
@@ -47,7 +54,7 @@ export async function createKitchenOrdersFromSale(saleId: string) {
   // 2. Resolve a coluna de entrada (isInitial) da org.
   const column = await prisma.kitchenColumn.findFirst({
     where: { organizationId, isInitial: true },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!column) {
@@ -94,6 +101,7 @@ export async function createKitchenOrdersFromSale(saleId: string) {
       tableNumber,
       dishName,
       productId: item.productId,
+      saleId: sale.id,
       estimatedMinutes: prepTimeByProduct.get(item.productId) ?? null,
       notes: baseNote || null,
       position: position++,
@@ -101,5 +109,24 @@ export async function createKitchenOrdersFromSale(saleId: string) {
     };
   });
 
-  await prisma.kitchenOrder.createMany({ data });
+  const created = await prisma.kitchenOrder.createManyAndReturn({ data });
+
+  await Promise.all(
+    created.map((order) =>
+      recordOrderEvent({
+        type: KitchenOrderEventType.CREATED,
+        order: {
+          id: order.id,
+          organizationId: order.organizationId,
+          tableNumber: order.tableNumber,
+          dishName: order.dishName,
+        },
+        toColumn: { id: column.id, name: column.name },
+        actor: {
+          type: KitchenOrderActorType.SYSTEM,
+          name: "Catálogo online",
+        },
+      }),
+    ),
+  );
 }

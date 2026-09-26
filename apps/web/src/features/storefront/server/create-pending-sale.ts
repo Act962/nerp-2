@@ -1,5 +1,5 @@
 import "server-only";
-import { SaleStatus } from "@/generated/prisma/enums";
+import { type SaleOrigin, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 
@@ -28,8 +28,14 @@ export class PendingSaleError extends Error {
   }
 }
 
+/** As duas origens que nascem pendentes: modo APPROVAL e modo ORBITA. */
+export type PendingSaleOrigin =
+  | typeof SaleOrigin.CATALOGO_APROVACAO
+  | typeof SaleOrigin.CATALOGO_ORBITA;
+
 export type CreatePendingSaleInput = {
   organizationId: string;
+  origin: PendingSaleOrigin;
   products: Array<{ id: string; quantity: number }>;
   /** Id do `CatalogUser` logado no catálogo. */
   customerId?: string;
@@ -185,6 +191,7 @@ export async function createPendingSale(
       total: subtotal,
       saleNumber: organization.lastSaleNumber,
       status: SaleStatus.PENDING_APPROVAL,
+      origin: input.origin,
       notes: input.notes ?? input.defaultSaleNote,
       items: {
         createMany: { data: items },
