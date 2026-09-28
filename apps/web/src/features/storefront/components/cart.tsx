@@ -24,7 +24,10 @@ export function Cart({ subdomain }: CartProps) {
   const { data: catalogSettings } = useCatalogSettings({ subdomain });
   // Modo APPROVAL: cliente paga presencial → não faz sentido exigir login.
   // Vai direto pro /checkout, que aceita nome + telefone quando não logado.
-  const isApprovalMode = catalogSettings?.operationMode === "APPROVAL";
+  // Modo ORBITA segue a mesma regra: o Órbita fala com o cliente pelo telefone.
+  const isApprovalMode =
+    catalogSettings?.operationMode === "APPROVAL" ||
+    catalogSettings?.operationMode === "ORBITA";
 
   const { data: productsOfCart, isLoading } = useQueryProductsOfCart({
     subdomain,
@@ -56,7 +59,7 @@ export function Cart({ subdomain }: CartProps) {
 
   const total = cartItems.reduce(
     (sum: number, item) => sum + item.salePrice * item.quantity,
-    0
+    0,
   );
 
   function handlerCheckout() {

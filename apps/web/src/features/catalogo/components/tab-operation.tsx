@@ -1,7 +1,15 @@
-import { ChefHat, Store, ShoppingBag } from "lucide-react";
+import {
+  ChefHat,
+  Orbit,
+  ShoppingBag,
+  Store,
+  TriangleAlert,
+} from "lucide-react";
 import { CatalogOperationMode } from "@/generated/prisma/enums";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useOrbitaConnection } from "../hooks/use-orbita-connection";
 import type { CatalogSettingsProps } from "./catalog";
 
 interface OperationTabProps {
@@ -31,9 +39,20 @@ const MODES = [
     description:
       "O cliente monta o pedido no catálogo e vai à loja pagar. O pedido cai como novo na tela do PDV (/vendas/novo); o operador aprova e finaliza a venda presencialmente. Não integra pagamento online.",
   },
+  {
+    mode: CatalogOperationMode.ORBITA,
+    icon: Orbit,
+    title: "Órbita",
+    description:
+      "Pedidos vão para o Órbita: o Astro negocia, cobra via PIX e acompanha a entrega",
+  },
 ] as const;
 
 export function OperationTab({ settings, setSettings }: OperationTabProps) {
+  const isOrbitaMode = settings.operationMode === CatalogOperationMode.ORBITA;
+  const { orbitaConnected, isLoading: isOrbitaConnectionLoading } =
+    useOrbitaConnection({ enabled: isOrbitaMode });
+
   return (
     <div className="space-y-6 mt-4">
       <div>
@@ -90,6 +109,18 @@ export function OperationTab({ settings, setSettings }: OperationTabProps) {
           );
         })}
       </div>
+
+      {isOrbitaMode && !isOrbitaConnectionLoading && !orbitaConnected && (
+        <Alert variant="destructive">
+          <TriangleAlert />
+          <AlertTitle>O Órbita ainda não está conectado</AlertTitle>
+          <AlertDescription>
+            Autorize a integração no Órbita com a permissão &quot;Enviar pedidos
+            do Catálogo online ao Órbita&quot;. Até lá, o catálogo recusa os
+            pedidos neste modo.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 }

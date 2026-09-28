@@ -1,5 +1,9 @@
 import { base } from "@/app/middlewares/base";
-import { CatalogOperationMode, SaleStatus } from "@/generated/prisma/enums";
+import {
+  CatalogOperationMode,
+  SaleOrigin,
+  SaleStatus,
+} from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { createKitchenOrdersFromSale } from "@/lib/pedidos/create-orders-from-sale";
 import { z } from "zod";
@@ -108,6 +112,7 @@ export const kitchenCheckout = base
         total: subtotal,
         saleNumber,
         status: SaleStatus.CONFIRMED,
+        origin: SaleOrigin.CATALOGO_COZINHA,
         notes: input.notes,
         items: {
           createMany: {

@@ -37,6 +37,7 @@ import { generateBook } from "@/features/books/server/generate-book";
 import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-catalog-pdf";
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
 import { checkWidgetAlerts } from "@/features/dashboard-widgets/server/check-widget-alerts";
+import { deliverOrbitaOrder } from "@/features/orbita-orders/server/deliver-order";
 import {
   automacaoDisparada,
   bookGenerateRequested,
@@ -44,6 +45,7 @@ import {
   customerImportRequested,
   erpSyncRequested,
   inngest,
+  orbitaOrderRequested,
   productImportRequested,
   shopperPriceChanged,
   storeImportRequested,
@@ -824,7 +826,42 @@ export const astroAvaliarAvisos = inngest.createFunction(
   },
 );
 
+/**
+ * Entrega de pedido do Catálogo Online (modo ORBITA) ao Órbita.
+ *
+ * Disparada por `catalog/orbita-order.requested`. `idempotency` e
+ * `concurrency` na `saleId` impedem duas entregas simultâneas da mesma venda;
+ * dentro do step, `orbitaSyncedAt` preenchido faz a entrega virar no-op. Falha
+ * de rede ou 5xx reagenda com backoff; integração inativa (409) ou chave sem o
+ * escopo `catalog-orders:push` é `NonRetriableError` — repetir não resolve.
+ */
+export const orbitaOrderDelivery = inngest.createFunction(
+  {
+    id: "orbita-order-delivery",
+    triggers: [orbitaOrderRequested],
+    retries: 5,
+    idempotency: "event.data.saleId",
+    concurrency: { key: "event.data.saleId", limit: 1 },
+    onFailure: async ({ event, error }) => {
+      console.error(
+        `[orbita-order] falha ao entregar a venda ${event.data.event.data.saleId}:`,
+        error,
+      );
+    },
+  },
+  async ({ event, step }) => {
+    const { saleId, delivery } = event.data;
+
+    const result = await step.run("deliver", () =>
+      deliverOrbitaOrder(saleId, delivery),
+    );
+
+    return { saleId, ...result };
+  },
+);
+
 export const functions = [
+  orbitaOrderDelivery,
   astroAvaliarAvisos,
   automacaoExecutar,
   automacaoVarrerOciosos,

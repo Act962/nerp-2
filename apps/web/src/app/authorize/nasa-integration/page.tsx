@@ -54,6 +54,16 @@ const SCOPE_LABELS: Record<string, { title: string; description: string }> = {
     title: "Criar e atualizar vendas",
     description: "Registrar pedidos e alterar status no nerp.",
   },
+  "sales:rw": {
+    title: "Ler e atualizar vendas",
+    description:
+      "Consultar pedidos e confirmar ou cancelar os que o Órbita negociou.",
+  },
+  "catalog-orders:push": {
+    title: "Enviar pedidos do Catálogo online ao Órbita",
+    description:
+      "Cada pedido feito no Catálogo online vai ao Órbita, que negocia, cobra via PIX e acompanha a entrega.",
+  },
 };
 
 function describeScope(scope: string) {

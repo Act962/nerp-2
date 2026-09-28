@@ -1,4 +1,4 @@
-import { SaleStatus } from "@/generated/prisma/enums";
+import { SaleOrigin, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { createKitchenOrdersFromSale } from "@/lib/pedidos/create-orders-from-sale";
 import type { AsaasCheckoutEventType } from "@/schemas/assas";
@@ -104,6 +104,7 @@ export async function POST(req: Request) {
             total,
             saleNumber,
             status: SaleStatus.CONFIRMED,
+            origin: SaleOrigin.CATALOGO_MARKETPLACE,
             items: {
               createMany: {
                 data: items.map((item) => ({

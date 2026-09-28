@@ -17,6 +17,8 @@ import { updateKitchenColumn } from "./columns/update";
 import { deleteKitchenColumn } from "./columns/delete";
 import { reorderKitchenColumns } from "./columns/reorder";
 import { waiterJoinLink } from "./waiter-join-link";
+import { listCatalogOrders } from "./catalog-orders/list";
+import { rejectCatalogOrder } from "./catalog-orders/reject";
 
 export const kitchenRoutes = {
   list: listKitchenOrders,
@@ -33,6 +35,10 @@ export const kitchenRoutes = {
   publicCustomerOrder,
   publicDeliver,
   events: { list: listKitchenOrderEvents },
+  catalogOrders: {
+    list: listCatalogOrders,
+    reject: rejectCatalogOrder,
+  },
   columns: {
     list: listKitchenColumns,
     create: createKitchenColumn,

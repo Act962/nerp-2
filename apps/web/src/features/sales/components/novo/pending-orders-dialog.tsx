@@ -17,6 +17,7 @@ import {
 } from "@/features/sales/hooks/use-pending-orders";
 import { toast } from "sonner";
 import dayjs from "dayjs";
+import Link from "next/link";
 
 // Modal listando pedidos do Catálogo Online aguardando aprovação.
 // Ao clicar "Aprovar": chama backend, recebe items + cliente, injeta no
@@ -115,6 +116,15 @@ export function PendingOrdersDialog() {
             ))}
           </ul>
         )}
+
+        {/* Pedidos do Órbita e o histórico de todos os modos ficam no /pedidos. */}
+        <div className="flex justify-end">
+          <Button asChild variant="link" size="sm" className="px-0">
+            <Link href="/pedidos" onClick={() => setOpen(false)}>
+              Ver todos em Pedidos
+            </Link>
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

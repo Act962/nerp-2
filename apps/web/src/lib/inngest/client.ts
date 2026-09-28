@@ -239,3 +239,26 @@ export type AutomacaoDisparadaData = {
 export const automacaoDisparada = eventType("crm/automacao.disparada", {
   schema: staticSchema<AutomacaoDisparadaData>(),
 });
+
+/**
+ * Entrega de um pedido do Catálogo Online (modo ORBITA) ao Órbita.
+ *
+ * Disparado por `checkout.orbitaCheckout` depois de a `Sale` nascer
+ * `PENDING_APPROVAL`. A entrega (`delivery`) viaja no evento porque a `Sale`
+ * não guarda o método de entrega nem o endereço digitados no checkout.
+ */
+export type OrbitaOrderRequestedData = {
+  saleId: string;
+  delivery: {
+    method: string | null;
+    address: string | null;
+    notes: string | null;
+  };
+};
+
+export const orbitaOrderRequested = eventType(
+  "catalog/orbita-order.requested",
+  {
+    schema: staticSchema<OrbitaOrderRequestedData>(),
+  },
+);

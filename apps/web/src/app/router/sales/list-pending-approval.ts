@@ -2,11 +2,12 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
-import { SaleStatus } from "@/generated/prisma/enums";
+import { SaleOrigin, SaleStatus } from "@/generated/prisma/enums";
 import { z } from "zod";
 
 // Fila de pedidos do Catálogo Online aguardando aprovação no PDV.
-// Usada pelo botão "X novos pedidos" no header do /vendas/novo.
+// Usada pelo botão "X novos pedidos" no header do /vendas/novo. Pedido do modo
+// ORBITA fica de fora: quem confirma ou cancela é o Órbita, não o balcão.
 export const listPendingApproval = base
   .use(requireAuthMiddleware)
   .use(requireOrgMiddleware)
@@ -31,6 +32,7 @@ export const listPendingApproval = base
       where: {
         organizationId: context.org.id,
         status: SaleStatus.PENDING_APPROVAL,
+        origin: { not: SaleOrigin.CATALOGO_ORBITA },
       },
       include: {
         customer: { select: { name: true } },

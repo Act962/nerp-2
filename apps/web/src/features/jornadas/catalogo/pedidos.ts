@@ -15,6 +15,13 @@ export const JORNADA_PEDIDOS: Jornada = {
   starsSugeridas: 10,
   passos: [
     {
+      tipo: "clicar",
+      alvo: "pedidos-aba-cozinha",
+      titulo: "A fila da cozinha tem aba própria",
+      texto:
+        'O /pedidos abre nos pedidos do Catálogo Online. Clique em "Cozinha" para ver o quadro que a cozinha usa.',
+    },
+    {
       tipo: "ler",
       alvo: "pedidos-quadro",
       titulo: "O pedido anda da esquerda para a direita",
