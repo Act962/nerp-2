@@ -12,6 +12,7 @@ import {
   ListTree,
   Handshake,
   Lightbulb,
+  Megaphone,
   Menu as MenuIcon,
   PanelLeftClose,
   PanelLeftOpen,
@@ -41,6 +42,7 @@ const SITE_ENTRIES: Entry[] = [
   { href: "/site/midia", label: "Mídia", icon: ImageIcon },
   { href: "/site/parceiros", label: "Parceiros", icon: Handshake },
   { href: "/site/leads", label: "Leads", icon: UserRoundSearch },
+  { href: "/site/marketing", label: "Marketing", icon: Megaphone },
   { href: "/site/precos", label: "Faixas do Astro", icon: Sparkles },
   { href: "/site/animacoes", label: "Animações", icon: PlayCircle },
 ];

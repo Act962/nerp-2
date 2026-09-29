@@ -1,0 +1,213 @@
+/*
+  O aviso de saída e a barra fixa. Mesma linguagem do aviso de cookies: vidro
+  escuro, o azul da marca no que se clica.
+*/
+
+.o-conversao__botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1.15rem;
+  border: 0;
+  border-radius: 999px;
+  background: #30aafd;
+  color: #01040c;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.o-conversao__botao:hover {
+  background: #5cbdfd;
+}
+
+.o-conversao__botao:focus-visible,
+.o-saida__fechar:focus-visible,
+.o-saida__copiar:focus-visible,
+.o-barra__fechar:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* ─── Aviso de saída ─────────────────────────────────────────────────── */
+
+.o-saida {
+  position: fixed;
+  inset: 0;
+  z-index: 220; /* acima do Astro (200) e do aviso de cookies (210) */
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(1, 4, 12, 0.66);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: o-saida-entra 0.2s ease-out;
+}
+
+.o-saida__fundo {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.o-saida__caixa {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: min(440px, 100%);
+  padding: 1.6rem 1.5rem 1.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: #07142a;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  line-height: 1.5;
+}
+
+.o-saida__titulo {
+  margin: 0;
+  padding-right: 2rem;
+  color: #fff;
+  font-size: 1.35rem;
+  line-height: 1.25;
+}
+
+.o-saida__texto {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.o-saida__fechar,
+.o-barra__fechar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.o-saida__fechar:hover,
+.o-barra__fechar:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.o-saida__fechar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.o-saida__cupom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55rem 0.55rem 0.55rem 0.9rem;
+  border: 1px dashed rgba(48, 170, 253, 0.6);
+  border-radius: 12px;
+}
+
+.o-saida__cupom code {
+  color: #fff;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+}
+
+.o-saida__copiar {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.o-saida__acao {
+  display: flex;
+}
+
+.o-saida__acao .o-conversao__botao {
+  flex: 1;
+}
+
+@keyframes o-saida-entra {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ─── Barra fixa ─────────────────────────────────────────────────────── */
+
+.o-barra {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* Abaixo do botão do Astro (40), que flutua por cima no canto direito. */
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  /* A reserva à direita é o lugar do botão do Astro. */
+  padding: 0.75rem calc(clamp(1rem, 2vw, 1.6rem) + 76px) 0.75rem 1.25rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(6, 14, 30, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #fff;
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 0.95rem;
+
+  transform: translateY(110%);
+  transition: transform 0.25s ease;
+}
+
+.o-barra[data-visivel="true"] {
+  transform: none;
+}
+
+.o-barra__texto {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .o-barra {
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding-left: 16px;
+    font-size: 0.85rem;
+  }
+
+  .o-barra .o-conversao__botao {
+    padding: 0.55rem 0.9rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .o-saida {
+    animation: none;
+  }
+
+  .o-barra {
+    transition: none;
+  }
+}

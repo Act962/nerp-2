@@ -6,8 +6,10 @@ import type {
   SiteContentResponse,
   SolutionArea,
 } from "@nerp/site-content";
+import { lerConversao, lerMarketing } from "@nerp/site-content";
 import prisma from "@/lib/db";
 import { siteSettingsSchema } from "@/app/router/site/settings";
+import { CONVERSAO_KEY, MARKETING_KEY } from "@/app/router/site/marketing";
 import {
   ASTRO_PRECOS_KEY,
   lerTabelaDePrecos,
@@ -32,41 +34,50 @@ const SECAO_URL = {
 } as const;
 
 export async function getPublicSiteContent(): Promise<SiteContentResponse> {
-  const [items, areas, settingRow, astroConfigRow, astroPrecosRow] =
-    await Promise.all([
-      prisma.siteMenuItem.findMany({
-        where: { visible: true },
-        orderBy: [{ position: "asc" }],
-        select: {
-          panel: true,
-          groupTitle: true,
-          slug: true,
-          name: true,
-          summary: true,
-          color: true,
-          href: true,
-          iconImage: true,
-          page: { select: { slug: true, section: true, status: true } },
-          areas: {
-            select: { area: { select: { slug: true, visible: true } } },
-          },
+  const [
+    items,
+    areas,
+    settingRow,
+    astroConfigRow,
+    astroPrecosRow,
+    marketingRow,
+    conversaoRow,
+  ] = await Promise.all([
+    prisma.siteMenuItem.findMany({
+      where: { visible: true },
+      orderBy: [{ position: "asc" }],
+      select: {
+        panel: true,
+        groupTitle: true,
+        slug: true,
+        name: true,
+        summary: true,
+        color: true,
+        href: true,
+        iconImage: true,
+        page: { select: { slug: true, section: true, status: true } },
+        areas: {
+          select: { area: { select: { slug: true, visible: true } } },
         },
-      }),
-      prisma.siteSolutionArea.findMany({
-        where: { visible: true },
-        orderBy: [{ position: "asc" }],
-        select: {
-          slug: true,
-          name: true,
-          iconKey: true,
-          iconImage: true,
-          color: true,
-        },
-      }),
-      prisma.siteSetting.findUnique({ where: { key: "site" } }),
-      prisma.siteSetting.findUnique({ where: { key: ASTRO_CONFIG_KEY } }),
-      prisma.siteSetting.findUnique({ where: { key: ASTRO_PRECOS_KEY } }),
-    ]);
+      },
+    }),
+    prisma.siteSolutionArea.findMany({
+      where: { visible: true },
+      orderBy: [{ position: "asc" }],
+      select: {
+        slug: true,
+        name: true,
+        iconKey: true,
+        iconImage: true,
+        color: true,
+      },
+    }),
+    prisma.siteSetting.findUnique({ where: { key: "site" } }),
+    prisma.siteSetting.findUnique({ where: { key: ASTRO_CONFIG_KEY } }),
+    prisma.siteSetting.findUnique({ where: { key: ASTRO_PRECOS_KEY } }),
+    prisma.siteSetting.findUnique({ where: { key: MARKETING_KEY } }),
+    prisma.siteSetting.findUnique({ where: { key: CONVERSAO_KEY } }),
+  ]);
 
   const toEntry = (item: (typeof items)[number]): MenuEntry => ({
     id: item.slug,
@@ -145,5 +156,9 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
         return tabela.ativo && tabela.portes.length > 0;
       })(),
     },
+    // Os IDs são públicos por natureza — saem no HTML de qualquer página que
+    // usa pixel. O que importa é que passem pelo formato antes de sair daqui.
+    marketing: lerMarketing(marketingRow?.value),
+    conversao: lerConversao(conversaoRow?.value),
   };
 }

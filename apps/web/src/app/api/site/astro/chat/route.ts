@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { CABECALHO_DA_VISITA, idDeVisitaValido } from "@nerp/site-content";
 import type { UIMessage } from "ai";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -21,6 +21,7 @@ import {
   ipDaRequisicao,
   verificarLimite,
 } from "@/features/astro-consultor/server/rate-limit";
+import { tokenDoSiteConfere } from "@/features/site/server/token-do-site";
 import prisma from "@/lib/db";
 
 /**
@@ -84,16 +85,6 @@ const corpoSchema = z.object({
     .optional(),
 });
 
-function tokenConfere(recebido: string | null): boolean {
-  const esperado = process.env.SITE_ASTRO_TOKEN;
-  // Sem segredo configurado a rota fica aberta em dev — em produção, defina.
-  if (!esperado) return true;
-  if (!recebido) return false;
-  const a = Buffer.from(recebido);
-  const b = Buffer.from(esperado);
-  return a.length === b.length && timingSafeEqual(a, b);
-}
-
 function indisponivel(motivo: string) {
   return NextResponse.json(
     { erro: "astro_indisponivel", motivo },
@@ -102,7 +93,7 @@ function indisponivel(motivo: string) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!tokenConfere(request.headers.get("x-site-token"))) {
+  if (!tokenDoSiteConfere(request.headers.get("x-site-token"))) {
     return NextResponse.json({ erro: "nao_autorizado" }, { status: 401 });
   }
 
@@ -131,6 +122,21 @@ export async function POST(request: NextRequest) {
 
   const ipHash = hashDeIp(ipDaRequisicao(request.headers));
 
+  // A visita medida em que a conversa acontece, quando o site mediu. É dela
+  // que o lead herda a campanha: o widget só conhece a página atual.
+  const idDaVisita = request.headers.get(CABECALHO_DA_VISITA);
+  const visita = idDeVisitaValido(idDaVisita)
+    ? await prisma.siteVisit.findUnique({
+        where: { id: idDaVisita as string },
+        select: {
+          id: true,
+          utmSource: true,
+          utmMedium: true,
+          utmCampaign: true,
+        },
+      })
+    : null;
+
   const agora = new Date();
   const sessao = corpo.data.sessionId
     ? await prisma.siteChatSession.findFirst({
@@ -139,7 +145,7 @@ export async function POST(request: NextRequest) {
           channel: "SITE",
           expiresAt: { gt: agora },
         },
-        select: { id: true, messageCount: true },
+        select: { id: true, messageCount: true, visitId: true },
       })
     : null;
 
@@ -165,6 +171,7 @@ export async function POST(request: NextRequest) {
           // A trilha cresce com a visita: guardar a mais recente é o que
           // permite ler depois por onde a pessoa andou antes de virar lead.
           ...(corpo.data.trilha ? { trilha: corpo.data.trilha } : {}),
+          ...(visita && !sessao.visitId ? { visitId: visita.id } : {}),
         },
         select: { id: true },
       })
@@ -175,9 +182,10 @@ export async function POST(request: NextRequest) {
           userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
           landingPage: corpo.data.landingPage ?? null,
           trilha: corpo.data.trilha ?? undefined,
-          utmSource: corpo.data.utmSource ?? null,
-          utmMedium: corpo.data.utmMedium ?? null,
-          utmCampaign: corpo.data.utmCampaign ?? null,
+          visitId: visita?.id ?? null,
+          utmSource: corpo.data.utmSource ?? visita?.utmSource ?? null,
+          utmMedium: corpo.data.utmMedium ?? visita?.utmMedium ?? null,
+          utmCampaign: corpo.data.utmCampaign ?? visita?.utmCampaign ?? null,
           messageCount: 1,
           consentAt: corpo.data.consent ? agora : null,
           expiresAt: new Date(agora.getTime() + SESSAO_HORAS * 60 * 60 * 1000),

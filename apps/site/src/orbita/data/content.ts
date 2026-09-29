@@ -2,6 +2,8 @@ import {
   AREA_BY_TOOL,
   type MenuEntry,
   type MenuGroup,
+  CONVERSAO_PADRAO,
+  MARKETING_VAZIO,
   type SiteContent,
   SOLUTION_AREAS,
 } from "@nerp/site-content";
@@ -79,4 +81,8 @@ export const DEFAULT_CONTENT: SiteContent = {
   // O consultor nasce desligado no conteúdo de reserva: quem liga é o painel,
   // e o site não deve prometer uma conversa que o ERP fora do ar não sustenta.
   astro: { ativo: false, precos: false },
+  // Pixel nenhum sem o painel: o ID de anúncio é da conta de quem anuncia.
+  marketing: MARKETING_VAZIO,
+  // Sem painel, nenhum popup: tudo nasce desligado.
+  conversao: CONVERSAO_PADRAO,
 };

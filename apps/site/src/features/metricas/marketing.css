@@ -1,0 +1,92 @@
+/*
+  O aviso de cookies. Canto esquerdo, pequeno: o direito é do Astro, e um
+  banner de largura inteira cobriria a cena na primeira impressão do site.
+*/
+
+.o-cookies {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 210; /* acima do painel do Astro (200): é a primeira decisão da visita */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 380px;
+  padding: 1rem 1.1rem;
+
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(6, 14, 30, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+
+  color: rgba(255, 255, 255, 0.86);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.o-cookies__texto {
+  margin: 0;
+}
+
+.o-cookies__acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.o-cookies__botao {
+  padding: 0.5rem 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.o-cookies__botao:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.o-cookies__botao:focus-visible {
+  outline: 2px solid #30aafd;
+  outline-offset: 2px;
+}
+
+.o-cookies__botao--principal {
+  border-color: #30aafd;
+  background: #30aafd;
+  color: #01040c;
+}
+
+.o-cookies__botao--principal:hover {
+  background: #5cbdfd;
+}
+
+@media (max-width: 480px) {
+  .o-cookies {
+    right: 16px;
+    max-width: none;
+  }
+}
+
+/* O link do rodapé que reabre o aviso. Botão com cara de link do rodapé. */
+.o-footer__cookies {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.o-footer__cookies:hover {
+  opacity: 1;
+}

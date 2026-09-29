@@ -12,6 +12,8 @@ import type {
 import {
   ASTRO_PAGINA_VAZIA,
   lerAstroPagina,
+  lerConversao,
+  lerMarketing,
   parseBlocks,
   parsePartners,
 } from "@nerp/site-content";
@@ -122,6 +124,10 @@ function applyFallback(data: SiteContentResponse | null): SiteContent {
     // Sem o campo — resposta antiga, ou este app à frente do outro — o
     // consultor fica desligado. Silêncio é melhor que um botão que não abre.
     astro: data.astro ?? { ativo: false, precos: false },
+    // Conferido de novo deste lado: o ID vira `<script>` inline no visitante.
+    marketing: lerMarketing(data.marketing),
+    // Validado deste lado também: o link vira `href` em todas as páginas.
+    conversao: lerConversao(data.conversao),
   };
 }
 

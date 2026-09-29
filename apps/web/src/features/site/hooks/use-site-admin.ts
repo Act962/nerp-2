@@ -731,3 +731,59 @@ export function useSaveSiteSettings() {
     }),
   );
 }
+
+/**
+ * O painel da aba Marketing. `placeholderData` mantém o período anterior na
+ * tela enquanto o novo carrega — trocar de 7 para 30 dias não pisca vazio.
+ */
+export function useMarketingPainel(dias: number) {
+  const { data, isPending, isFetching } = useQuery({
+    ...orpc.site.marketing.painel.queryOptions({ input: { dias } }),
+    placeholderData: (anterior) => anterior,
+  });
+  return { painel: data, isLoading: isPending, isFetching };
+}
+
+export function useSiteMarketing() {
+  const { data, isPending } = useQuery(
+    orpc.site.marketing.get.queryOptions({ input: {} }),
+  );
+  return { marketing: data?.marketing, isLoading: isPending };
+}
+
+export function useSaveSiteMarketing() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.marketing.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Pixels salvos — o site passa a usar em até 1 minuto");
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.marketing.get.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+export function useSiteConversao() {
+  const { data, isPending } = useQuery(
+    orpc.site.marketing.conversao.get.queryOptions({ input: {} }),
+  );
+  return { conversao: data?.conversao, isLoading: isPending };
+}
+
+export function useSaveSiteConversao() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.marketing.conversao.save.mutationOptions({
+      onSuccess: () => {
+        toast.success("Conversão salva — o site passa a usar em até 1 minuto");
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.marketing.conversao.get.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
