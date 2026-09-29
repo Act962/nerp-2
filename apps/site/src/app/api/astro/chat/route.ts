@@ -1,4 +1,6 @@
+import { CABECALHO_DA_VISITA, idDeVisitaValido } from "@nerp/site-content";
 import type { NextRequest } from "next/server";
+import { COOKIE_DA_VISITA } from "@/features/metricas/cookie";
 
 /**
  * O proxy do consultor.
@@ -60,6 +62,9 @@ const FORA_DO_AR =
 
 export async function POST(request: NextRequest) {
   const corpo = await request.text();
+  // A visita medida, para o lead herdar a campanha que o trouxe. Vem por
+  // cookie porque o widget é um pacote e não sabe do medidor.
+  const visita = request.cookies.get(COOKIE_DA_VISITA)?.value;
 
   let resposta: Response;
   try {
@@ -81,6 +86,9 @@ export async function POST(request: NextRequest) {
           : {}),
         ...(request.headers.get("user-agent")
           ? { "user-agent": request.headers.get("user-agent") as string }
+          : {}),
+        ...(idDeVisitaValido(visita)
+          ? { [CABECALHO_DA_VISITA]: visita as string }
           : {}),
       },
       body: corpo,

@@ -62,6 +62,13 @@ import {
   toggleBrand,
   togglePartner,
 } from "./partners";
+import {
+  getConversao,
+  getMarketing,
+  painelDeMarketing,
+  saveConversao,
+  saveMarketing,
+} from "./marketing";
 
 export const siteRoutes = {
   overview: siteOverview,
@@ -159,5 +166,12 @@ export const siteRoutes = {
     get: getLead,
     update: updateLead,
     delete: deleteLead,
+  },
+  // As métricas de visita do site e os pixels de anúncio.
+  marketing: {
+    painel: painelDeMarketing,
+    get: getMarketing,
+    save: saveMarketing,
+    conversao: { get: getConversao, save: saveConversao },
   },
 };

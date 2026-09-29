@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import type { ReactNode } from "react";
+import { Conversao } from "@/features/conversao/conversao";
+import { Marketing } from "@/features/metricas/marketing";
+import { getSiteContent } from "@/lib/api";
 import { NavigationOverlay } from "./_components/navigation-overlay";
 import {
   ROBOTS_INDEXAVEL,
@@ -120,7 +123,15 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
+  // Os pixels vêm do painel. A busca é a mesma das páginas (cache de 60s do
+  // `fetch`), então o layout não custa uma ida a mais ao `apps/web`.
+  const { marketing, conversao, whatsapp, astro } = await getSiteContent();
+
   return (
     <html lang="pt-BR">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
@@ -128,6 +139,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         {/* Fica fora de `children` para sobreviver à troca de página: é ele
             que cobre a viagem de uma para a outra. */}
         <NavigationOverlay />
+        <Marketing marketing={marketing} />
+        <Conversao
+          conversao={conversao}
+          whatsappHref={whatsapp.href}
+          astroAtivo={astro.ativo}
+        />
       </body>
     </html>
   );

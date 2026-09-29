@@ -1,5 +1,7 @@
 "use client";
 
+import { temPixel } from "@nerp/site-content";
+import { reabrirAvisoDeCookies } from "@/features/metricas/consentimento";
 import { BRAND, FOOTER } from "../data/site";
 import { useSiteContent } from "../lib/content-context";
 import { useReveal } from "../hooks/use-reveal";
@@ -7,7 +9,7 @@ import { OrbitaLogo } from "./orbita-logo";
 
 /** 14. Footer — a experiência desacelera, o espaço fica quase preto. */
 export function Footer() {
-  const { contact } = useSiteContent();
+  const { contact, marketing } = useSiteContent();
   const ref = useReveal({
     inStart: 0.972,
     inEnd: 0.995,
@@ -94,6 +96,16 @@ export function Footer() {
             © {year} {BRAND.name} {BRAND.suffix}. Todos os direitos reservados.
           </span>
           <span>Feito para orbitar o futuro.</span>
+          {/* Revogar tem de ser tão fácil quanto aceitar (LGPD, art. 8º §5º). */}
+          {temPixel(marketing) && (
+            <button
+              type="button"
+              className="o-footer__cookies"
+              onClick={reabrirAvisoDeCookies}
+            >
+              Preferências de cookies
+            </button>
+          )}
         </div>
       </div>
     </div>

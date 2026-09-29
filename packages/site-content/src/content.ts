@@ -1,4 +1,6 @@
 import type { AstroPagina } from "./astro-pagina";
+import type { SiteConversao } from "./conversao";
+import type { SiteMarketing } from "./marketing";
 
 /**
  * O conteúdo dos painéis da barra e dos ajustes do site.
@@ -70,6 +72,8 @@ export type SiteContent = {
   contact: SiteContact;
   whatsapp: { number: string; href: string; label: string };
   astro: AstroDisponibilidade;
+  marketing: SiteMarketing;
+  conversao: SiteConversao;
 };
 
 /**
@@ -106,6 +110,10 @@ export type SiteContentResponse = {
   whatsapp: { number: string; label: string } | null;
   /** Ausente numa resposta antiga: quem lê assume o consultor desligado. */
   astro?: AstroDisponibilidade;
+  /** Ausente numa resposta antiga: quem lê assume nenhum pixel. */
+  marketing?: SiteMarketing;
+  /** Ausente numa resposta antiga: tudo desligado. */
+  conversao?: SiteConversao;
 };
 
 /** O que `/api/site/page/[slug]` devolve. */

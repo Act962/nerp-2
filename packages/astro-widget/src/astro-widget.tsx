@@ -635,6 +635,11 @@ export type AstroWidgetProps = {
   /** Chamado quando uma resposta termina de chegar. */
   onResposta?: () => void;
   /**
+   * O Astro acabou de registrar um lead. No site, é o que dispara o evento de
+   * conversão dos pixels — o pacote não sabe de pixel nenhum.
+   */
+  aoRegistrarLead?: () => void;
+  /**
    * Rótulo e resumo de cada ação que pede aprovação. O pacote não conhece o
    * domínio: quem monta o widget é que sabe o que "criarCatalogoPromocional"
    * significa para quem está lendo.
@@ -728,6 +733,7 @@ export function AstroWidget({
   consentimento = true,
   aoFalhar,
   onResposta,
+  aoRegistrarLead,
   acoes,
   enviarArquivo,
   tiposDeArquivo = TIPOS_DE_IMAGEM,
@@ -1020,6 +1026,38 @@ export function AstroWidget({
     onFinish: () => onResposta?.(),
   });
   const carregando = status === "submitted" || status === "streaming";
+
+  /*
+    O lead registrado, uma vez por chamada da tool. Olha as partes e não o
+    texto: é a tool que grava, e o `toolCallId` impede que um re-render (ou a
+    conversa restaurada) conte a mesma conversão de novo.
+  */
+  const leadsAvisadosRef = useRef(new Set<string>());
+  useEffect(() => {
+    if (!aoRegistrarLead) return;
+    for (const mensagem of messages) {
+      for (const parte of mensagem.parts) {
+        if (parte.type !== "tool-registrarDiagnostico") continue;
+        const chamada = parte as {
+          toolCallId?: string;
+          state?: string;
+          output?: unknown;
+        };
+        if (chamada.state !== "output-available" || !chamada.toolCallId) {
+          continue;
+        }
+        const registrado =
+          typeof chamada.output === "object" &&
+          chamada.output !== null &&
+          (chamada.output as { registrado?: unknown }).registrado === true;
+        if (!registrado || leadsAvisadosRef.current.has(chamada.toolCallId)) {
+          continue;
+        }
+        leadsAvisadosRef.current.add(chamada.toolCallId);
+        aoRegistrarLead();
+      }
+    }
+  }, [messages, aoRegistrarLead]);
 
   /** Quantos avisos ainda não foram lidos — o número do selo. */
   const naoLidos = (avisosDoAstro ?? []).filter((aviso) => !aviso.lido).length;

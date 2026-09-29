@@ -5581,14 +5581,14 @@ model SiteSetting {
 // um momento só pode ter uma resposta; quem salva roubando um momento ocupado
 // devolve o antigo ao rascunho.
 model SiteAstroAnimacao {
-  id           String    @id @default(cuid())
-  slug         String    @unique
+  id           String   @id @default(cuid())
+  slug         String   @unique
   nome         String
-  momento      String?   @unique
+  momento      String?  @unique
   cena         Json
   criadaPor    String?
-  atualizadaEm DateTime  @updatedAt
-  criadaEm     DateTime  @default(now())
+  atualizadaEm DateTime @updatedAt
+  criadaEm     DateTime @default(now())
 
   @@index([atualizadaEm])
   @@map("site_astro_animacoes")
@@ -5653,18 +5653,23 @@ model SiteChatSession {
   trilha         Json?
   summary        String?
   leadId         String?
+  /// A visita medida em que a conversa aconteceu. É a ponte entre o lead e a
+  /// campanha que o trouxe: o chat só vê a página atual, a visita sabe a UTM.
+  visitId        String?
   consentAt      DateTime?
   expiresAt      DateTime
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
-  lead SiteLead? @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  lead  SiteLead?  @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  visit SiteVisit? @relation(fields: [visitId], references: [id], onDelete: SetNull)
 
   @@index([expiresAt])
   @@index([ipHash, createdAt]) // é este índice que o limite por IP usa
   // E este, o teto diário por organização no canal do app.
   @@index([organizationId, createdAt])
   @@index([leadId])
+  @@index([visitId])
   @@map("site_chat_sessions")
 }
 
@@ -5696,6 +5701,74 @@ model SiteLead {
   @@index([status, createdAt])
   @@index([email])
   @@map("site_leads")
+}
+
+// ─── Métricas do site ───────────────────────────────────────────────────────
+//
+// Coletadas pelo próprio site, sem terceiro no meio: é o que alimenta a aba
+// Marketing do admin. Os IDs de visita e de página vista nascem no navegador,
+// e é isso que torna o envio idempotente — o mesmo beacon pode chegar duas
+// vezes (troca de aba e saída) sem contar em dobro.
+//
+// Nada aqui identifica a pessoa: `visitorId` é um número aleatório guardado
+// no navegador, e da origem fica só o domínio.
+
+// Uma visita: a sessão de navegação, que termina após 30 minutos parada.
+model SiteVisit {
+  id           String   @id
+  visitorId    String
+  landingPath  String
+  referrerHost String?
+  utmSource    String?
+  utmMedium    String?
+  utmCampaign  String?
+  utmContent   String?
+  utmTerm      String?
+  device       String?
+  startedAt    DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+
+  pageViews    SitePageView[]
+  events       SiteVisitEvent[]
+  chatSessions SiteChatSession[]
+
+  @@index([startedAt])
+  @@index([visitorId])
+  @@map("site_visits")
+}
+
+// Uma página vista dentro da visita. `activeSeconds` é tempo com a aba à
+// frente e alguém mexendo — relógio de parede contaria a aba esquecida aberta.
+model SitePageView {
+  id            String   @id
+  visitId       String
+  path          String
+  title         String?
+  activeSeconds Int      @default(0)
+  maxScroll     Int      @default(0)
+  enteredAt     DateTime @default(now())
+
+  visit SiteVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([visitId, enteredAt])
+  @@index([enteredAt])
+  @@map("site_page_views")
+}
+
+// Um clique num link ou botão. `label` é o texto que a pessoa viu.
+model SiteVisitEvent {
+  id        String   @id @default(cuid())
+  visitId   String
+  path      String
+  label     String
+  target    String?
+  createdAt DateTime @default(now())
+
+  visit SiteVisit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([visitId])
+  @@map("site_visit_events")
 }
 
 enum SiteMelhoriaStatus {

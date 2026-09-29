@@ -2,6 +2,7 @@
 
 import { AstroWidget as Widget } from "@nerp/astro-widget";
 import { useMemo } from "react";
+import { pixelLead } from "@/features/metricas/pixels";
 import { findToolBySlug } from "@/orbita/data/catalog";
 import { useSiteContent } from "@/orbita/lib/content-context";
 import type { PaginaDoAstro } from "./pagina";
@@ -43,6 +44,7 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
       produto={produto}
       precos={Boolean(astro.precos)}
       whatsappHref={whatsapp.href}
+      aoRegistrarLead={pixelLead}
     />
   );
 }
