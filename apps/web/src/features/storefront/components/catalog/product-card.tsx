@@ -1,160 +1,255 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { ProductCatalog } from "../../types/product";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { currencyFormatter } from "@/utils/currency-formatter";
+import { Check, Plus } from "lucide-react";
 import Image from "next/image";
-import { useConstructUrl } from "@/hooks/use-construct-url";
-import placeholder from "@/assets/background-default-image.svg";
 import Link from "next/link";
-import { useCart } from "@/hooks/use-cart";
+import { useEffect, useState } from "react";
+import placeholder from "@/assets/background-default-image.svg";
 import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
-import { ButtonSale } from "../button-sale";
-import { SafeContent } from "@/components/rich-text/safe-content";
-import { type JSONContent, generateText } from "@tiptap/react";
-import { baseExtensions } from "@/components/rich-text/extensions";
+import { tintaSobre } from "@/features/storefront/lib/cores";
+import { useCart } from "@/hooks/use-cart";
+import { constructUrl } from "@/hooks/use-construct-url";
+import { cn } from "@/lib/utils";
+import { currencyFormatter } from "@/utils/currency-formatter";
 
-function parseDescription(raw: string | null | undefined): {
-  plainText: string;
-  json: JSONContent | null;
-} {
-  if (!raw) return { plainText: "", json: null };
-  try {
-    const json: JSONContent = JSON.parse(raw);
-    const plainText = generateText(json, baseExtensions);
-    return { plainText, json };
-  } catch {
-    return { plainText: raw, json: null };
-  }
-}
+/**
+ * - `grade`: o cartão em pé da lista de produtos.
+ * - `horizontal`: foto ao lado do texto, para duas ofertas dividirem a linha.
+ * - `destaque`: uma oferta sozinha ocupando a largura inteira.
+ */
+export type FormatoDoCartao = "grade" | "horizontal" | "destaque";
 
-interface ProductCardProps extends ProductCatalog {
-  allowsOrders?: boolean;
+interface ProductCardProps {
+  id: string;
+  name: string;
+  slug: string;
+  thumbnail: string;
+  salePrice: number;
+  promotionalPrice: number | null;
+  categoria?: string;
   subdomain: string;
   isDisponile: boolean;
-  promotionalPrice: number | null;
+  allowsOrders?: boolean;
+  tema: string;
+  formato?: FormatoDoCartao;
+  /** Catálogo sem preço (pedido de orçamento): some o preço e o selo. */
+  mostrarPreco?: boolean;
+  className?: string;
+}
+
+/**
+ * Preço promocional só vale quando existe e é menor que o de venda: a API
+ * devolve `Number(null)`, que é 0, para quem não tem promoção.
+ */
+export function precoEmOferta(
+  salePrice: number,
+  promotionalPrice: number | null,
+): number | null {
+  return promotionalPrice &&
+    promotionalPrice > 0 &&
+    promotionalPrice < salePrice
+    ? promotionalPrice
+    : null;
 }
 
 export function ProductCard({
   id,
   name,
-  description,
+  slug,
+  thumbnail,
   salePrice,
   promotionalPrice,
-  thumbnail,
-  allowsOrders,
-  slug,
+  categoria,
   subdomain,
   isDisponile,
+  allowsOrders,
+  tema,
+  formato = "grade",
+  mostrarPreco = true,
+  className,
 }: ProductCardProps) {
   const { toggleProduct, isProductInCart } = useCart(subdomain);
-  const [isMounted, setIsMounted] = useState(false);
-  const parsedDescription = parseDescription(description);
+  // O carrinho mora no navegador: antes de montar, o servidor não sabe o que
+  // está nele, e marcar "adicionado" no SSR daria erro de hidratação.
+  const [montado, setMontado] = useState(false);
+  useEffect(() => setMontado(true), []);
+  // A chave pode apontar para um arquivo que sumiu do storage: sem isto o
+  // navegador desenha o texto alternativo por cima do cartão.
+  const [fotoQuebrou, setFotoQuebrou] = useState(false);
+
   const productHref = useCatalogHref(`/${slug}`);
-
-  useEffect(() => {
-    setIsMounted(true);
-  }, []);
-
-  const showAsInCart = isMounted && isProductInCart(id);
-
-  const imageSrc =
-    thumbnail && thumbnail.trim() !== ""
-      ? useConstructUrl(thumbnail)
+  const noCarrinho = montado && isProductInCart(id);
+  const oferta = mostrarPreco
+    ? precoEmOferta(salePrice, promotionalPrice)
+    : null;
+  const desconto = oferta ? Math.round((1 - oferta / salePrice) * 100) : 0;
+  const imagem =
+    !fotoQuebrou && thumbnail && thumbnail.trim() !== ""
+      ? constructUrl(thumbnail)
       : placeholder;
+
+  const deitado = formato !== "grade";
+  const grande = formato === "destaque";
+  const corDoTema = { backgroundColor: tema, color: tintaSobre(tema) };
 
   return (
     <div
       id={id}
-      className="flex flex-col items-center 
-      gap-y-3 pb-5 rounded-sm bg-accent-foreground/5 shadow-sm 
-      transition-shadow overflow-hidden animate-fade-in
-      hover:shadow-md hover:shadow-elegant"
-    >
-      {/*
-        1:1, e a altura fixa saiu junto: com `h-45` o quadrado do
-        `aspect-square` nunca valia, e cada grade ficava com uma proporção
-        diferente conforme a largura da coluna.
-      */}
-      <div className="aspect-square overflow-hidden w-full relative">
-        <Link href={productHref}>
-          <Image
-            className="object-cover transition-transform rounded-sm cursor-pointer"
-            src={imageSrc}
-            alt={name}
-            fill
-          />
-        </Link>
-      </div>
-      <div className="flex flex-col w-full px-5">
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <h2 className="text-sm font-semibold line-clamp-1 min-h-7.5 truncate">
-              {name}
-            </h2>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{name}</p>
-          </TooltipContent>
-        </Tooltip>
-        <div className="min-h-8">
-          {parsedDescription.plainText ? (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <p className="text-[11px] text-muted-foreground line-clamp-2 leading-tight mb-1 cursor-default">
-                  {parsedDescription.plainText}
-                </p>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-60 bg-popover text-popover-foreground border border-border shadow-md">
-                {parsedDescription.json ? (
-                  <SafeContent
-                    content={parsedDescription.json}
-                    className="prose prose-sm prose-p:my-0.5 prose-ul:my-0.5 prose-ol:my-0.5 text-xs max-w-none"
-                  />
-                ) : (
-                  <p>{parsedDescription.plainText}</p>
-                )}
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <Link
-              href={productHref}
-              className="text-[11px] text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors leading-tight"
-            >
-              ver detalhes
-            </Link>
-          )}
-        </div>
-        {promotionalPrice ? (
-          <div className="flex items-center gap-x-2">
-            <p className="text-lg font-bold">
-              R${currencyFormatter(promotionalPrice)}
-            </p>
-            <p className="text-sm font-semibold line-through">
-              R${currencyFormatter(salePrice)}
-            </p>
-          </div>
-        ) : (
-          <p className="text-lg font-bold">R${currencyFormatter(salePrice)}</p>
-        )}
-      </div>
-      {allowsOrders && (
-        <div className="flex items-center gap-x-2 w-full px-5">
-          <ButtonSale
-            className="w-full"
-            data={{
-              productIsDisponile: isDisponile,
-              showAsInCart: showAsInCart,
-            }}
-            onClick={() => toggleProduct(id, "1")}
-          />
-        </div>
+      className={cn(
+        "group relative flex overflow-hidden rounded-xl border border-black/5 bg-white text-neutral-900 shadow-xs transition-shadow hover:shadow-md",
+        deitado ? "flex-row" : "flex-col",
+        grande && "flex-col sm:flex-row",
+        className,
       )}
+    >
+      {desconto > 0 && (
+        <span
+          className={cn(
+            "absolute z-10 rounded-full font-semibold",
+            grande
+              ? "top-4 left-4 px-3 py-1 text-sm"
+              : "top-2.5 left-2.5 px-2 py-0.5 text-[11px]",
+          )}
+          style={corDoTema}
+        >
+          -{desconto}%
+        </span>
+      )}
+
+      <Link
+        href={productHref}
+        aria-label={name}
+        className={cn(
+          "relative shrink-0 bg-white",
+          formato === "grade" && "aspect-square w-full",
+          formato === "horizontal" && "aspect-square w-2/5",
+          grande && "aspect-square w-full sm:aspect-auto sm:min-h-72 sm:w-1/2",
+        )}
+      >
+        <Image
+          src={imagem}
+          alt={name}
+          fill
+          sizes={
+            grande
+              ? "(max-width: 640px) 100vw, 50vw"
+              : "(max-width: 640px) 50vw, 20vw"
+          }
+          onError={() => setFotoQuebrou(true)}
+          className={cn(
+            "object-contain transition-transform duration-300 group-hover:scale-105",
+            grande ? "p-6 sm:p-10" : "p-3",
+          )}
+        />
+      </Link>
+
+      <div
+        className={cn(
+          "flex min-w-0 flex-1 flex-col",
+          formato === "grade" && "gap-1 px-3 pt-2 pb-3",
+          formato === "horizontal" && "gap-1.5 p-4",
+          grande && "justify-center gap-3 p-6 sm:p-10",
+        )}
+      >
+        {categoria && (
+          <span
+            className={cn(
+              "truncate text-neutral-500 uppercase tracking-wide",
+              grande ? "text-xs" : "text-[11px]",
+            )}
+          >
+            {categoria}
+          </span>
+        )}
+        <Link
+          href={productHref}
+          title={name}
+          className={cn(
+            "font-medium hover:underline",
+            formato === "grade" && "line-clamp-2 min-h-10 text-sm leading-5",
+            formato === "horizontal" && "line-clamp-3 text-base leading-snug",
+            grande &&
+              "line-clamp-3 font-bold text-2xl leading-tight sm:text-3xl",
+          )}
+        >
+          {name}
+        </Link>
+
+        <div
+          className={cn(
+            "flex gap-2",
+            grande
+              ? "flex-col items-start gap-4 pt-2"
+              : "mt-auto items-end justify-between pt-1",
+          )}
+        >
+          <div className={cn("flex flex-col", !mostrarPreco && "hidden")}>
+            {oferta && (
+              <span
+                className={cn(
+                  "text-neutral-500 line-through",
+                  grande ? "text-base" : "text-xs",
+                )}
+              >
+                R$ {currencyFormatter(salePrice)}
+              </span>
+            )}
+            <span
+              className={cn(
+                "font-bold",
+                oferta && "text-red-600",
+                formato === "grade" && "text-base",
+                formato === "horizontal" && "text-xl",
+                grande && "text-4xl sm:text-5xl",
+              )}
+            >
+              R$ {currencyFormatter(oferta ?? salePrice)}
+            </span>
+            {grande && oferta && (
+              <span className="text-neutral-600 text-sm">
+                Você economiza R$ {currencyFormatter(salePrice - oferta)}
+              </span>
+            )}
+          </div>
+
+          {allowsOrders &&
+            (isDisponile ? (
+              <button
+                type="button"
+                onClick={() => toggleProduct(id, "1")}
+                aria-label={
+                  noCarrinho
+                    ? "Tirar do pedido"
+                    : mostrarPreco
+                      ? "Adicionar ao pedido"
+                      : "Adicionar ao orçamento"
+                }
+                aria-pressed={noCarrinho}
+                className={cn(
+                  "flex shrink-0 items-center justify-center gap-2 rounded-full font-semibold shadow-sm transition-transform active:scale-95",
+                  grande ? "h-12 px-6 text-base" : "ml-auto size-9",
+                )}
+                style={corDoTema}
+              >
+                {noCarrinho ? (
+                  <Check className={grande ? "size-5" : "size-4"} />
+                ) : (
+                  <Plus className={grande ? "size-5" : "size-4"} />
+                )}
+                {grande &&
+                  (noCarrinho
+                    ? "No pedido"
+                    : mostrarPreco
+                      ? "Adicionar ao pedido"
+                      : "Adicionar ao orçamento")}
+              </button>
+            ) : (
+              <span className="shrink-0 rounded-full bg-neutral-100 px-2 py-1 text-[11px] text-neutral-500">
+                Esgotado
+              </span>
+            ))}
+        </div>
+      </div>
     </div>
   );
 }

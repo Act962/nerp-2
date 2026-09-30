@@ -9,7 +9,6 @@ import { NewVersionBanner } from "@/components/new-version-banner";
 import { ShellContent } from "@/components/shell-content";
 import { EmptyOrganization } from "@/components/empty-organization";
 import { AstroFlutuante } from "@/features/astro/components/astro-flutuante";
-import { ConviteFlutuante } from "@/features/jornadas/components/convite-flutuante";
 import { JornadaRunner } from "@/features/jornadas/components/jornada-runner";
 import { BannerSandbox } from "@/features/onboarding/components/banner-sandbox";
 
@@ -57,7 +56,6 @@ export default async function Layout({
       {org ? (
         <>
           <AstroFlutuante />
-          <ConviteFlutuante />
           <JornadaRunner />
         </>
       ) : null}

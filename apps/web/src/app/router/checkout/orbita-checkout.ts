@@ -75,7 +75,7 @@ export const orbitaCheckout = base
 
     const settings = await prisma.catalogSettings.findUnique({
       where: { organizationId: organization.id },
-      select: { operationMode: true, allowOrders: true },
+      select: { operationMode: true, allowOrders: true, showPrices: true },
     });
 
     if (
@@ -111,6 +111,8 @@ export const orbitaCheckout = base
         notes,
         defaultSaleNote: "Pedido do Catálogo Online (enviado ao Órbita)",
         newCustomerNote: "Cliente criado via Catálogo Online (modo Órbita).",
+        // Catálogo sem preço: o cliente pediu orçamento, não comprou.
+        orcamento: !settings.showPrices,
       });
     } catch (error) {
       throw toCheckoutError(error, errors);

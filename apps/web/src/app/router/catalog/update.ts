@@ -2,6 +2,7 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import {
+  CatalogCategoryDisplay,
   CatalogOperationMode,
   CatalogSortOrder,
   DeliveryMethod,
@@ -40,7 +41,23 @@ export const updateSettingsCatalog = base
       aboutText: z.string().optional(),
       theme: z.string().optional(),
       backgroundColor: z.string().optional(),
+      headerColor: z.string().optional(),
+      // A paleta da marca: só hexadecimais inteiros, e poucas — é atalho de
+      // seletor, não um acervo.
+      brandColors: z
+        .string()
+        .regex(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i, "Cor inválida na paleta")
+        .array()
+        .max(8, "A paleta aceita até 8 cores")
+        .optional(),
       astroEnabled: z.boolean().optional(),
+      categoryDisplay: z.enum(CatalogCategoryDisplay).optional(),
+      showOffersButton: z.boolean().optional(),
+      categoryCardColor: z.string().optional(),
+      categoryIconColor: z.string().optional(),
+      categoryTextColor: z.string().optional(),
+      hideProductsWithoutImage: z.boolean().optional(),
+      offerCatalogIds: z.string().array().optional(),
       instagram: z.string().optional(),
       facebook: z.string().optional(),
       twitter: z.string().optional(),
@@ -83,12 +100,29 @@ export const updateSettingsCatalog = base
       });
     }
 
-    const { id, ...rest } = input;
+    const { id, offerCatalogIds, ...rest } = input;
+
+    // Os ids chegam do cliente: só ficam os catálogos promocionais DESTA
+    // organização, senão a vitrine exporia o link de outra loja.
+    const ofertasDaOrg = offerCatalogIds
+      ? (
+          await prisma.promotionalCatalog.findMany({
+            where: {
+              id: { in: offerCatalogIds },
+              organizationId: context.org.id,
+            },
+            select: { id: true },
+          })
+        ).map((catalogo) => catalogo.id)
+      : undefined;
 
     try {
       await prisma.catalogSettings.update({
         where: { id, organizationId: context.org.id },
-        data: { ...rest },
+        data: {
+          ...rest,
+          ...(ofertasDaOrg && { offerCatalogIds: ofertasDaOrg }),
+        },
       });
     } catch (error) {
       console.log(error);

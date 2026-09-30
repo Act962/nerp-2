@@ -690,6 +690,11 @@ export type AvisoDoAstro = {
   corpo: string;
   lido: boolean;
   falado: boolean;
+  /**
+   * Troca o "Explicar" por uma ação do app. O painel fecha antes: ela quase
+   * sempre abre um diálogo, e o painel ficaria por cima dele.
+   */
+  acao?: { rotulo: string; executar: () => void };
 };
 
 const PESO: Record<AvisoDoAstro["severidade"], number> = {
@@ -1490,16 +1495,29 @@ export function AstroWidget({
                 <p className="o-astro-aviso__titulo">{aviso.titulo}</p>
                 <p className="o-astro-aviso__corpo">{aviso.corpo}</p>
                 <div className="o-astro-aviso__botoes">
-                  <button
-                    type="button"
-                    className="o-astro-aviso__explicar"
-                    onClick={() => {
-                      aoLerAviso?.(aviso.id);
-                      enviar(`Me explica este aviso: ${aviso.titulo}`);
-                    }}
-                  >
-                    Explicar
-                  </button>
+                  {aviso.acao ? (
+                    <button
+                      type="button"
+                      className="o-astro-aviso__explicar"
+                      onClick={() => {
+                        setAberto(false);
+                        aviso.acao?.executar();
+                      }}
+                    >
+                      {aviso.acao.rotulo}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="o-astro-aviso__explicar"
+                      onClick={() => {
+                        aoLerAviso?.(aviso.id);
+                        enviar(`Me explica este aviso: ${aviso.titulo}`);
+                      }}
+                    >
+                      Explicar
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="o-astro-aviso__ok"

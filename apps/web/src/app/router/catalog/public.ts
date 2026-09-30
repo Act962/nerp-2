@@ -1,5 +1,6 @@
 import { base } from "@/app/middlewares/base";
 import {
+  CatalogCategoryDisplay,
   CatalogOperationMode,
   CatalogSortOrder,
   DeliveryMethod,
@@ -7,6 +8,7 @@ import {
   FreightOption,
   PaymentMethod,
 } from "@/generated/prisma/enums";
+import { ofertasDaVitrine } from "@/features/storefront/server/ofertas";
 import prisma from "@/lib/db";
 import z from "zod";
 
@@ -41,6 +43,11 @@ export const publicSettingsCatalog = base
         theme: z.string().nullable(),
         backgroundColor: z.string().nullable(),
         astroEnabled: z.boolean(),
+        categoryDisplay: z.enum(CatalogCategoryDisplay),
+        showOffersButton: z.boolean(),
+        categoryCardColor: z.string().nullable(),
+        categoryIconColor: z.string().nullable(),
+        categoryTextColor: z.string().nullable(),
         instagram: z.string().nullable(),
         facebook: z.string().nullable(),
         twitter: z.string().nullable(),
@@ -66,6 +73,9 @@ export const publicSettingsCatalog = base
         cnpj: z.string().nullable(),
         operationMode: z.enum(CatalogOperationMode),
       }),
+      // Os catálogos promocionais do botão "Ofertas". Só os que têm link
+      // público ligado: sem `shareToken` o link daria 404 para o visitante.
+      ofertas: z.array(z.object({ nome: z.string(), shareToken: z.string() })),
     }),
   )
   .handler(async ({ input, errors }) => {
@@ -90,6 +100,12 @@ export const publicSettingsCatalog = base
     }
 
     return {
+      ofertas: catalogSettings.showOffersButton
+        ? await ofertasDaVitrine(
+            organization.id,
+            catalogSettings.offerCatalogIds,
+          )
+        : [],
       catalogSettings: {
         ...catalogSettings,
         freightFixedValue: Number(catalogSettings.freightFixedValue),

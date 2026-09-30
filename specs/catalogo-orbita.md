@@ -96,6 +96,55 @@ output: { ok: true, status: string }
   venda. Como no PDV, lançamento financeiro só acontece em venda `COMPLETED`.
 - `CANCELED`: status `CANCELLED` com `cancelledAt` e nota, sem mexer em estoque.
 
+## Pedido de orçamento (catálogo sem preço)
+
+Com **Mostrar preços desligado** (`CatalogSettings.showPrices = false`) e o
+modo ORBITA, o pedido vira orçamento: o cliente manda só a lista, e o valor é
+combinado pelo consultor no Órbita.
+
+**Vitrine.** Cartões, página do produto, cabeçalho, carrinho e checkout não
+mostram valor (a faixa "Em oferta" some); os botões viram "Adicionar ao
+orçamento" e "Pedir orçamento". A tela de sucesso diz "Orçamento pedido" e o
+acompanhamento (`/pedido/<id>`) mostra "aguardando o valor da loja" até o
+valor chegar.
+
+**Venda.** `orbitaCheckout` passa `orcamento: !showPrices` a
+`createPendingSale`: itens a R$ 0 e `Sale.quoteRequested = true`
+(migration `20260930190000_venda_pedido_de_orcamento`, que também cria
+`Sale.quotedAt`).
+
+**Envio ao Órbita (campos novos, aditivos).** `quote: boolean` no corpo e
+`referenceUnitPrice: number | null` em cada item — o preço de tabela, só como
+referência para o consultor. Em orçamento, `unitPrice`/`total`/`subtotal`
+chegam 0.
+
+**Valor combinado — `catalogOrder.updateQuote`** (S2S, escopo `sales:rw`,
+mesma assinatura `X-Nerp-*` do `updateStatus`):
+
+```ts
+input:  { saleId: string,
+          total?: number,                                      // rateado pela quantidade quando não há `items`
+          items?: Array<{ productId: string, unitPrice: number }>, // preço de cada produto do pedido
+          shipping?: number }
+output: { ok: true, total: number }
+```
+
+- Só vale para venda `CATALOGO_ORBITA` com `quoteRequested` em
+  `PENDING_APPROVAL`; pode ser chamado de novo (renegociação).
+- O rateio é em centavos e a soma fecha no total
+  (`src/features/orbita-orders/lib/valor-combinado.ts`, com teste).
+- Grava itens, `subtotal`, `shipping`, `total` e `quotedAt`.
+
+**Rede de segurança.** Se o Órbita confirmar (`updateStatus` CONFIRMED com
+`payment.amount`) um orçamento que nunca recebeu `updateQuote`, o valor pago
+vira o total, rateado nos itens — a venda não fica confirmada a R$ 0.
+
+**Lado do Órbita (pendente, no nasaex-wey).** Ao receber `quote: true`, o
+pedido entra como "Aguardando valor"; no chat do pedido, o "+" ganha "Cobrar
+pedido": o consultor informa o valor (total ou por item), o Órbita chama
+`updateQuote` e gera o PIX ou o link de cartão com esse valor —
+`createOrderPixCharge`/`createOrderPaymentLink` hoje cobram `order.total`.
+
 ## Configuração
 
 1. Migration `20260926120000_catalog_orbita_mode` (`pnpm db:deploy`) e

@@ -46,6 +46,7 @@ export function LoginFormCatalog({
   ...props
 }: React.ComponentProps<"div"> & LoginFormProps) {
   const router = useRouter();
+  const homeHref = useCatalogHref("/");
   const { signIn } = useUserStore();
   const signUpHref = useCatalogHref("/sign-up");
 
@@ -66,14 +67,14 @@ export function LoginFormCatalog({
           },
         });
 
-        router.push("/");
+        router.push(homeHref);
         return;
       },
       onError: (error) => {
         console.error("Erro ao logar:", error);
         toast.error(error.message || "Erro ao realizar login");
       },
-    })
+    }),
   );
 
   const onLogin = (data: LoginSchema) => {

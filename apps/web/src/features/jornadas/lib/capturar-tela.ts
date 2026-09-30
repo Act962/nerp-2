@@ -12,7 +12,7 @@
  * abre o formulário de melhorias.
  */
 const FORA_DA_FOTO =
-  ".o-astro-panel, .o-astro-btn, .jornada-balao, .jornada-anel, .jornada-convite, [data-melhorias-dialog]";
+  ".o-astro-panel, .o-astro-btn, .jornada-balao, .jornada-anel, [data-melhorias-dialog]";
 
 export async function capturarTela(): Promise<File | null> {
   if (typeof document === "undefined") return null;

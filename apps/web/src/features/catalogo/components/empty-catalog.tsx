@@ -1,3 +1,5 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
 import {
   Empty,
@@ -6,8 +8,29 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
+import { useCriarCatalogo } from "@/features/storefront/hooks/use-catalog-settings";
 
-export function EmptyCatalog() {
+/**
+ * `erro`: o catálogo existe (ou pode existir), mas não foi possível lê-lo.
+ * Oferecer "Criar" nesse caso seria mentir — o clique não mudaria nada.
+ */
+export function EmptyCatalog({ erro = false }: { erro?: boolean }) {
+  const criar = useCriarCatalogo();
+
+  if (erro) {
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Não foi possível carregar o catálogo</EmptyTitle>
+          <EmptyDescription>
+            Tente recarregar a página. Se continuar, fale com o suporte.
+          </EmptyDescription>
+        </EmptyHeader>
+      </Empty>
+    );
+  }
+
   return (
     <Empty>
       <EmptyHeader>
@@ -18,7 +41,10 @@ export function EmptyCatalog() {
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent className="flex-row justify-center gap-2">
-        <Button>Criar catálogo</Button>
+        <Button disabled={criar.isPending} onClick={() => criar.mutate({})}>
+          Criar catálogo
+          {criar.isPending && <Spinner />}
+        </Button>
       </EmptyContent>
     </Empty>
   );
