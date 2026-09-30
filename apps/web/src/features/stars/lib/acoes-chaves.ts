@@ -19,6 +19,16 @@ export const ACOES = {
   astroImagem: "astro_imagem_gerada",
   /** Astro consultou a web: cobrado por passo que voltou com fontes. */
   astroBuscaWeb: "astro_busca_web",
+  /**
+   * Gerador de oferta do catálogo promocional: a IA desenhou a página. Sem
+   * preço padrão de propósito — sem regra, cobra o CUSTO REAL do modelo do
+   * nível escolhido (ver `promotional-catalog/server/gerar-oferta.ts`).
+   */
+  astroOferta: "astro_oferta_pagina",
+  /** Gerador de oferta: logo criado por IA. Sem regra, custo real da imagem. */
+  astroOfertaLogo: "astro_oferta_logo",
+  /** Gerador de oferta: arte premium da página desenhada por IA. */
+  astroOfertaArte: "astro_oferta_arte",
 } as const;
 
 export type AcaoCobravel = (typeof ACOES)[keyof typeof ACOES];

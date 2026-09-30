@@ -21,6 +21,7 @@ import {
   resolveEntityImageKey,
   resolveEntityText,
 } from "../lib/resolve-entity";
+import { capitalizarPalavras } from "../lib/capitalizar";
 
 export type SupplierLogo = { id: string; name: string; logo: string };
 
@@ -1047,9 +1048,12 @@ export const CatalogPreview = forwardRef<HTMLDivElement, CatalogPreviewProps>(
             {/* Blocos de texto (ferramenta "Texto") — px no canvas 1080×pageH.
                 Texto dinâmico: resolve da entidade; senão usa o texto estático. */}
             {(config.texts ?? []).map((t) => {
-              const content = t.binding
+              const bruto = t.binding
                 ? (resolveEntityText(t.binding, dynCtx) ?? t.text)
                 : t.text;
+              const content = t.capitalizar
+                ? capitalizarPalavras(bruto)
+                : bruto;
               return (
                 <div
                   key={t.id}

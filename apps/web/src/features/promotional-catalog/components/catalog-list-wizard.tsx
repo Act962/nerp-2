@@ -41,6 +41,7 @@ import {
 import type { CatalogConfig, CatalogListItem } from "../types";
 import { itemFolderKey } from "../types";
 import { matchKey, normalizeCode } from "../lib/product-match";
+import { ColorSwatch } from "./panel-ui";
 
 // Produto do cadastro casado com uma linha da planilha.
 type ProdHit = {
@@ -768,7 +769,7 @@ export function CatalogListWizard({
                 }}
               />
               <div className="mt-1 flex flex-wrap items-center gap-3">
-                <label
+                <div
                   className={cn(
                     "flex cursor-pointer items-center gap-2 rounded-md border-2 px-2 py-1 text-xs transition-colors",
                     bgKind === "color"
@@ -781,16 +782,15 @@ export function CatalogListWizard({
                     style={{ backgroundColor: customColor }}
                   />
                   Cor sólida
-                  <input
-                    type="color"
+                  <ColorSwatch
                     value={customColor}
-                    onChange={(e) => {
-                      setCustomColor(e.target.value);
+                    onChange={(cor) => {
+                      setCustomColor(cor);
                       setBgKind("color");
                     }}
-                    className="h-6 w-8 cursor-pointer rounded border p-0"
+                    className="h-6 w-8"
                   />
-                </label>
+                </div>
 
                 <Button
                   type="button"

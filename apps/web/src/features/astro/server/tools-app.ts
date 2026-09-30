@@ -5,6 +5,7 @@ import { construirTools } from "@/features/astro-consultor/server/tools";
 import { construirToolsDeAcaoDeCalendario } from "./tools/acoes-calendario";
 import { construirToolsDeAcaoDeCampanha } from "./tools/acoes-campanha";
 import { construirToolsDeAcaoDeCatalogo } from "./tools/acoes-catalogo";
+import { construirToolsDeOferta } from "./tools/acoes-oferta";
 import { construirToolsDeAcaoDeProdutos } from "./tools/acoes-produtos";
 import type { ContextoToolsApp } from "./tools/_contexto";
 import { construirToolsDeBuscaWeb } from "./tools/busca-web";
@@ -64,6 +65,7 @@ export function construirToolsDoApp(contexto: ContextoToolsApp): ToolSet {
     // Escrita: cada uma para o laço e espera o sim da pessoa no cartão da
     // conversa (`acoes/aprovacao.ts`).
     ...construirToolsDeAcaoDeCatalogo(contexto),
+    ...construirToolsDeOferta(contexto),
     ...construirToolsDeAcaoDeCampanha(contexto),
     ...construirToolsDeAcaoDeCalendario(contexto),
     ...construirToolsDeAcaoDeProdutos(contexto),

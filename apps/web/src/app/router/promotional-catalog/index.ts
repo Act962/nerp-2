@@ -1,6 +1,11 @@
 import { listCatalogs } from "./list";
 import { getCatalog } from "./get";
 import { createCatalog } from "./create";
+import { createCatalogByCategories } from "./create-by-categories";
+import { offerAiEstimate } from "./offer-ai-estimate";
+import { offerGenerate } from "./offer-generate";
+import { offerGenerationGet } from "./offer-generation-get";
+import { offerLogoGenerate } from "./offer-logo-generate";
 import { updateCatalog } from "./update";
 import { deleteCatalog } from "./delete";
 import { duplicateCatalog } from "./duplicate";
@@ -38,6 +43,11 @@ export const promotionalCatalogRouter = {
   list: listCatalogs,
   get: getCatalog,
   create: createCatalog,
+  createByCategories: createCatalogByCategories,
+  offerAiEstimate,
+  offerGenerate,
+  offerGeneration: offerGenerationGet,
+  offerLogoGenerate,
   update: updateCatalog,
   delete: deleteCatalog,
   duplicate: duplicateCatalog,

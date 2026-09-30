@@ -22,6 +22,7 @@
 /** As que executam alguma coisa no mundo. Todas param em cartão de aprovação. */
 export const FERRAMENTAS_DE_ESCRITA = [
   "criarCatalogoPromocional",
+  "gerarPaginaDeOferta",
   "criarCampanhaWhatsapp",
   "enviarCampanhaWhatsapp",
   "criarEventoNoCalendario",

@@ -34,6 +34,12 @@ import {
   runStoreImportChunk,
 } from "@/features/stores/server/store-import-runner";
 import { generateBook } from "@/features/books/server/generate-book";
+import {
+  concluirGeracao,
+  desenharGeracao,
+  falharGeracao,
+  gerarArteDaGeracao,
+} from "@/features/promotional-catalog/server/gerar-oferta";
 import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-catalog-pdf";
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
 import { checkWidgetAlerts } from "@/features/dashboard-widgets/server/check-widget-alerts";
@@ -45,6 +51,7 @@ import {
   customerImportRequested,
   erpSyncRequested,
   inngest,
+  offerGenerateRequested,
   orbitaOrderRequested,
   productImportRequested,
   shopperPriceChanged,
@@ -277,6 +284,40 @@ export const storeImportProcess = inngest.createFunction(
     throw new Error(
       `Importação ${importId} excedeu ${MAX_IMPORT_BATCHES} lotes de ${CHUNK_ROWS} linhas`,
     );
+  },
+);
+
+/**
+ * Gerador de oferta com IA (catálogo promocional).
+ *
+ * Três passos de propósito: o 1º paga o modelo de texto, o 2º a arte (só
+ * quando pedida) e o 3º cria o catálogo e cobra. Um retry reaproveita o que
+ * já foi memorizado e não chama a OpenAI de novo. Uma tentativa extra só — erro de chave ou de schema não
+ * melhora insistindo, e cada tentativa do passo 1 custa.
+ */
+export const promoOfferGenerate = inngest.createFunction(
+  {
+    id: "promo-offer-generate",
+    triggers: [offerGenerateRequested],
+    retries: 1,
+    onFailure: async ({ event, error }) => {
+      const { generationId } = event.data.event.data;
+      await falharGeracao(generationId, error.message);
+      console.error(`[promo-offer-generate] falha em ${generationId}:`, error);
+    },
+  },
+  async ({ event, step }) => {
+    const { generationId } = event.data;
+    const feito = await step.run("desenhar", () =>
+      desenharGeracao(generationId),
+    );
+    const arte = await step.run("arte", () =>
+      gerarArteDaGeracao(generationId, feito),
+    );
+    await step.run("concluir", () =>
+      concluirGeracao(generationId, feito, arte),
+    );
+    return { generationId };
   },
 );
 
@@ -872,6 +913,7 @@ export const functions = [
   customerImportProcess,
   storeImportProcess,
   bookGenerate,
+  promoOfferGenerate,
   tradeCatalogGenerate,
   shopperPriceAlert,
   erpSyncSchedule,

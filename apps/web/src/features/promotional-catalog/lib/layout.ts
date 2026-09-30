@@ -1,4 +1,4 @@
-import type { CatalogConfig, CatalogProduct } from "../types";
+import type { CatalogConfig, CatalogPage, CatalogProduct } from "../types";
 import { ensurePages } from "../types";
 import { distributeProducts } from "./page-chunks";
 
@@ -124,11 +124,13 @@ export function finalizeProducts(
   const excluded = new Set(config.excludedProductIds ?? []);
   const overrides = config.priceOverrides ?? {};
   const offers = config.offerOverrides ?? {};
+  const fotos = config.imageOverrides ?? {};
   // Produtos da LISTA: o preço vive no item (fonte única) — overrides não se
   // aplicam a eles (evita override defasado divergir da lista).
   const listItemIds = new Set((config.list?.items ?? []).map((it) => it.id));
   let list = rawProducts
     .filter((p) => !excluded.has(p.id))
+    .map((p) => (fotos[p.id] ? { ...p, thumbnail: fotos[p.id] } : p))
     .map((p) => {
       const isListItem = listItemIds.has(p.id);
       const override = isListItem ? undefined : overrides[p.id];
@@ -265,4 +267,28 @@ export function distributePages(
     cfg: effectivePageConfig(config, i),
     products: chunks[i] ?? [],
   }));
+}
+
+/**
+ * Quantos produtos cabem numa página — a mesma regra do `capacityOf` do
+ * editor: multi-grupo soma as grades dos grupos; grupo único usa a
+ * Disposição da página. Existe para o servidor montar páginas por categoria
+ * (`createByCategories`) sem abrir o editor.
+ */
+export function capacidadeDaPagina(
+  pagina: CatalogPage,
+  config: CatalogConfig,
+): number {
+  if (pagina.productGroups && pagina.productGroups.length > 0) {
+    return pagina.productGroups.reduce(
+      (soma, g) => soma + Math.max(1, g.gridCols) * Math.max(1, g.gridRows),
+      0,
+    );
+  }
+  return getItemsPerPage(pagina.layout, config.pageSize, {
+    ...config,
+    layout: pagina.layout,
+    gridCols: pagina.gridCols ?? config.gridCols,
+    gridRows: pagina.gridRows ?? config.gridRows,
+  });
 }
