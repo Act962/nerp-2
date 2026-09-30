@@ -4,6 +4,7 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { PaymentMethod, SaleStatus } from "@/generated/prisma/enums";
 import prisma from "@/lib/db";
 import { applySaleStockOut } from "@/features/sales/server/stock-out";
+import { distribuirValorCombinado } from "@/features/orbita-orders/lib/valor-combinado";
 import { z } from "zod";
 
 const ORBITA_METHOD_TO_PAYMENT_METHOD = {
@@ -59,7 +60,13 @@ export const updateCatalogOrderStatus = base
 
     const sale = await prisma.sale.findFirst({
       where: { id: input.saleId, organizationId: context.org.id },
-      select: { id: true, status: true, notes: true },
+      select: {
+        id: true,
+        status: true,
+        notes: true,
+        quoteRequested: true,
+        quotedAt: true,
+      },
     });
     if (!sale) {
       throw errors.NOT_FOUND({ message: "Pedido não encontrado." });
@@ -122,6 +129,42 @@ export const updateCatalogOrderStatus = base
         },
       });
       if (transitioned.count === 0) return false;
+
+      // Orçamento pago sem o valor ter vindo antes por `updateQuote`: o valor
+      // pago vira o valor da venda, senão ela ficaria confirmada a R$ 0.
+      if (
+        sale.quoteRequested &&
+        !sale.quotedAt &&
+        payment &&
+        payment.amount > 0
+      ) {
+        const itensDaVenda = await tx.saleItem.findMany({
+          where: { saleId: sale.id },
+          select: { id: true, productId: true, quantity: true },
+        });
+        const precificado = distribuirValorCombinado(
+          itensDaVenda.map((item) => ({
+            id: item.id,
+            productId: item.productId,
+            quantity: Number(item.quantity),
+          })),
+          { total: payment.amount },
+        );
+        for (const item of precificado.itens) {
+          await tx.saleItem.update({
+            where: { id: item.id },
+            data: { unitPrice: item.unitPrice, total: item.total },
+          });
+        }
+        await tx.sale.update({
+          where: { id: sale.id },
+          data: {
+            subtotal: precificado.total,
+            total: precificado.total,
+            quotedAt: now,
+          },
+        });
+      }
 
       if (payment && paymentMethod) {
         await tx.salePayment.create({

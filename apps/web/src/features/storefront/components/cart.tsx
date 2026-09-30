@@ -13,6 +13,7 @@ import { useCart } from "@/hooks/use-cart";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCatalogSettings } from "@/features/storefront/hooks/use-catalog-settings";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 
 interface CartProps {
   subdomain: string;
@@ -22,6 +23,8 @@ export function Cart({ subdomain }: CartProps) {
   const { user } = useUserStore();
   const { products, updateQuantity, toggleProduct } = useCart(subdomain);
   const { data: catalogSettings } = useCatalogSettings({ subdomain });
+  // Catálogo sem preço: o carrinho é a lista do orçamento, sem valores.
+  const mostrarPreco = catalogSettings?.showPrices !== false;
   // Modo APPROVAL: cliente paga presencial → não faz sentido exigir login.
   // Vai direto pro /checkout, que aceita nome + telefone quando não logado.
   // Modo ORBITA segue a mesma regra: o Órbita fala com o cliente pelo telefone.
@@ -48,6 +51,10 @@ export function Cart({ subdomain }: CartProps) {
   }));
 
   const router = useRouter();
+  // Com o prefixo do modo caminho (/catalogo/<loja>): um push("/") puro
+  // levava o cliente para o início do admin, não da loja.
+  const homeHref = useCatalogHref("/");
+  const signInHref = useCatalogHref("/sign-in");
 
   const handleUpdateQuantity = (cartId: string, newQuantity: number) => {
     updateQuantity(cartId, subdomain, newQuantity.toString());
@@ -66,7 +73,7 @@ export function Cart({ subdomain }: CartProps) {
     // Modo aprovação presencial: dispensa login (o checkout coleta nome +
     // telefone). Nos demais modos, mantém o gate de login.
     if (!user && !isApprovalMode) {
-      router.push("/sign-in");
+      router.push(signInHref);
       return;
     }
     router.push("checkout");
@@ -77,7 +84,7 @@ export function Cart({ subdomain }: CartProps) {
       <div className="container mx-auto px-4 py-4">
         <Button
           variant="ghost"
-          onClick={() => router.push("/")}
+          onClick={() => router.push(homeHref)}
           className="mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -147,7 +154,7 @@ export function Cart({ subdomain }: CartProps) {
         {!isLoading && cartItems.length === 0 && (
           <Card className="p-8 text-center">
             <p className="h-6 w-64 text-lg">Seu carrinho está vazio</p>
-            <Button className="mt-4" onClick={() => router.push("/")}>
+            <Button className="mt-4" onClick={() => router.push(homeHref)}>
               Começar a comprar
             </Button>
           </Card>
@@ -216,9 +223,12 @@ export function Cart({ subdomain }: CartProps) {
                           </Button>
                         </div>
 
-                        <p className="text-lg font-bold">
-                          R${currencyFormatter(item.salePrice * item.quantity)}
-                        </p>
+                        {mostrarPreco && (
+                          <p className="text-lg font-bold">
+                            R$
+                            {currencyFormatter(item.salePrice * item.quantity)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </CardContent>
@@ -229,38 +239,61 @@ export function Cart({ subdomain }: CartProps) {
             <div className="lg:col-span-1">
               <Card className="sticky top-8">
                 <CardContent className="p-6 space-y-4">
-                  <h2 className="text-xl font-bold">Resumo do Pedido</h2>
+                  <h2 className="text-xl font-bold">
+                    {mostrarPreco ? "Resumo do Pedido" : "Seu orçamento"}
+                  </h2>
 
                   <Separator />
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span className="font-medium ">
-                        R${currencyFormatter(total)}
-                      </span>
-                    </div>
-                  </div>
+                  {mostrarPreco ? (
+                    <>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">
+                            Subtotal
+                          </span>
+                          <span className="font-medium">
+                            R${currencyFormatter(total)}
+                          </span>
+                        </div>
+                      </div>
 
-                  <Separator />
+                      <Separator />
 
-                  <div className="flex justify-between text-lg font-bold">
-                    <span>Total</span>
-                    <span className="bg-gradient-primary bg-clip-text">
-                      R${currencyFormatter(total)}
-                    </span>
-                  </div>
+                      <div className="flex justify-between text-lg font-bold">
+                        <span>Total</span>
+                        <span>R${currencyFormatter(total)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">
+                      {products.length}{" "}
+                      {products.length === 1 ? "item" : "itens"} na lista. A
+                      loja confere e te manda o valor pelo WhatsApp.
+                    </p>
+                  )}
 
                   <Button
                     className="w-full"
                     size="lg"
                     onClick={() => handlerCheckout()}
                   >
-                    {isApprovalMode
-                      ? "Enviar pedido para a loja"
-                      : !user
-                        ? "Faça Login"
-                        : "Finalizar Pedido"}
+                    {!mostrarPreco && isApprovalMode
+                      ? "Pedir orçamento"
+                      : isApprovalMode
+                        ? "Enviar pedido para a loja"
+                        : !user
+                          ? "Faça Login"
+                          : "Finalizar Pedido"}
+                  </Button>
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    variant="outline"
+                    onClick={() => router.push(homeHref)}
+                  >
+                    <ArrowLeft className="size-4" />
+                    Continuar comprando
                   </Button>
                 </CardContent>
               </Card>

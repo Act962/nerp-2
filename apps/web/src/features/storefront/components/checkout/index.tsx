@@ -10,6 +10,7 @@ import { PaymentMethodCard } from "./payment-method-card";
 import { ObservationsCard } from "./observations-card";
 import { OrderSummaryCard } from "./order-summary-card";
 import { useCheckoutLogic } from "./use-checkout-logic";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 import { redirect } from "next/navigation";
 import { useCheckoutStates } from "@/features/checkout/hooks/use-checkout-states";
 import { useEffect } from "react";
@@ -50,6 +51,8 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
     guestPhone,
     setGuestPhone,
   } = useCheckoutLogic(subdomain);
+  const homeHref = useCatalogHref("/");
+  const cartHref = useCatalogHref("/cart");
 
   // Modos APPROVAL e ORBITA dispensam login (o pedido é identificado por nome
   // e telefone). Nos demais modos, redireciona pra cadastro quando anônimo.
@@ -64,7 +67,7 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
   useEffect(() => {
     if (checkoutStates.success) {
       clearOrganizationCart();
-      router.push("/");
+      router.push(homeHref);
     }
   }, [checkoutStates.success]);
 
@@ -77,7 +80,7 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
   return (
     <div className="mx-auto w-full px-5 max-w-6xl py-4">
       <Button
-        onClick={() => router.push("/cart")}
+        onClick={() => router.push(cartHref)}
         variant={"secondary"}
         className="mb-4"
       >
@@ -182,6 +185,7 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
 
         <div className="lg:col-span-1">
           <OrderSummaryCard
+            mostrarPreco={catalogSettings?.showPrices !== false}
             cartItems={cartItems}
             subtotal={subtotal}
             freightValue={freightValue}

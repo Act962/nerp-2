@@ -16,8 +16,14 @@ import {
   ROBOTS_VITRINE,
   storeCanonical,
 } from "@/features/storefront/lib/seo";
-import { isHexValido, tintaSobre } from "@/features/storefront/lib/cores";
+import {
+  TEMA_PADRAO_CATALOGO,
+  isHexValido,
+  tintaSobre,
+} from "@/features/storefront/lib/cores";
 import { AstroDaLoja } from "@/features/storefront/components/astro-da-loja";
+import { VitrineClara } from "@/features/storefront/components/vitrine-clara";
+import { ofertasDaVitrine } from "@/features/storefront/server/ofertas";
 
 interface StoreFrontLayoutProps {
   children: React.ReactNode;
@@ -120,6 +126,9 @@ export default async function SubdomainLayout({
   }
 
   const settings = org.catalogSettings;
+  const ofertas = settings.showOffersButton
+    ? await ofertasDaVitrine(org.id, settings.offerCatalogIds)
+    : [];
 
   // Modo caminho (/catalogo/{slug}/...) coloca "/catalogo/{slug}" no header
   // via middleware; modo subdomínio deixa vazio (hostname resolve o tenant).
@@ -137,32 +146,51 @@ export default async function SubdomainLayout({
   const fundo = isHexValido(settings.backgroundColor)
     ? settings.backgroundColor
     : null;
-  const estiloDoFundo = fundo
-    ? ({
-        backgroundColor: fundo,
-        ["--background" as string]: fundo,
-        ["--foreground" as string]: tintaSobre(fundo),
-        color: tintaSobre(fundo),
-      } as CSSProperties)
-    : undefined;
+  // A cor do tema vira a `--primary` da loja: todo botão padrão do carrinho,
+  // do checkout e da conta passa a falar a cor da marca, sem estilo à mão.
+  const tema = isHexValido(settings.theme)
+    ? settings.theme
+    : TEMA_PADRAO_CATALOGO;
+  const estiloDaLoja = {
+    ["--primary" as string]: tema,
+    ["--primary-foreground" as string]: tintaSobre(tema),
+    ["--ring" as string]: tema,
+    ...(fundo && {
+      backgroundColor: fundo,
+      ["--background" as string]: fundo,
+      ["--foreground" as string]: tintaSobre(fundo),
+      color: tintaSobre(fundo),
+    }),
+  } as CSSProperties;
 
   return (
     <CatalogBaseProvider base={catalogBase}>
+      <VitrineClara />
+      <script
+        // biome-ignore lint/security/noDangerouslySetInnerHtml: literal fixo, sem dado do usuário.
+        dangerouslySetInnerHTML={{
+          __html: 'document.documentElement.classList.add("vitrine-clara")',
+        }}
+      />
       <div
-        className={`min-h-screen flex flex-col${fundo ? "" : " bg-accent-foreground/5"}`}
-        style={estiloDoFundo}
+        className={`vitrine-loja min-h-screen flex flex-col${fundo ? "" : " bg-accent-foreground/5"}`}
+        style={estiloDaLoja}
       >
         <Header
           settings={{
             subdomain,
             metaTitle: settings.metaTitle,
             theme: settings.theme,
+            headerColor: settings.headerColor,
             organizationId: org.id,
             bannerImage: settings.logo,
             allowOrders: settings.allowOrders,
+            showPrices: settings.showPrices,
+            ofertas,
           }}
         />
-        <main className="mt-15 sm:mt-19 flex-1">{children}</main>
+        {/* O `pb` no celular abre espaço para a barra inferior fixa. */}
+        <main className="flex-1 pb-24 sm:pb-0">{children}</main>
         {settings.astroEnabled && (
           <AstroDaLoja
             subdomain={subdomain}

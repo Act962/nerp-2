@@ -19,6 +19,11 @@ export type OrbitaOrderItem = {
   unitPrice: number;
   total: number;
   imageUrl: string | null;
+  /**
+   * Preço de tabela, só como referência para o consultor. Vem em pedido de
+   * orçamento, onde `unitPrice`/`total` chegam 0 — o valor é combinado lá.
+   */
+  referenceUnitPrice: number | null;
 };
 
 export type OrbitaOrderPayload = {
@@ -38,6 +43,11 @@ export type OrbitaOrderPayload = {
   discount: number;
   total: number;
   catalogUrl: string | null;
+  /**
+   * Pedido de orçamento: o cliente mandou só a lista, sem preço. O consultor
+   * combina o valor e o devolve por `catalogOrder.updateQuote` antes de cobrar.
+   */
+  quote: boolean;
 };
 
 export type OrbitaOrderResponse = {

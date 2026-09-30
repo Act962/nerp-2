@@ -50,6 +50,11 @@ export type CreatePendingSaleInput = {
   defaultSaleNote: string;
   /** Nota gravada no `Customer` criado a partir do convidado. */
   newCustomerNote: string;
+  /**
+   * Pedido de orçamento: o catálogo não mostra preço e o valor é combinado
+   * depois, no Órbita. A venda nasce com itens a R$ 0 e `quoteRequested`.
+   */
+  orcamento?: boolean;
 };
 
 export type PendingSaleResult = { saleId: string; saleNumber: number };
@@ -162,7 +167,9 @@ export async function createPendingSale(
         "Alguns produtos não foram encontrados ou estão sem estoque!",
       );
     }
-    const unitPrice = resolved[index].unitPrice;
+    // Orçamento nasce sem valor: o preço de tabela vai ao Órbita só como
+    // referência para o consultor (ver `buildOrbitaOrderPayload`).
+    const unitPrice = input.orcamento ? 0 : resolved[index].unitPrice;
     return {
       productId: product.id,
       productName: product.name,
@@ -192,6 +199,7 @@ export async function createPendingSale(
       saleNumber: organization.lastSaleNumber,
       status: SaleStatus.PENDING_APPROVAL,
       origin: input.origin,
+      quoteRequested: input.orcamento === true,
       notes: input.notes ?? input.defaultSaleNote,
       items: {
         createMany: { data: items },

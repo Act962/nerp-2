@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { phoneMask, normalizePhone } from "@/utils/format-phone";
@@ -20,7 +19,7 @@ import { EmptyCatalog } from "./empty-catalog";
 export type { CatalogSettingsProps };
 
 export function CatalogSettings() {
-  const { data, isLoading } = useCatalogSettingsPrivate();
+  const { data, isLoading, isError } = useCatalogSettingsPrivate();
   const useUpdateFieldsCatalogSettings = updateFieldCatalog();
   const [settings, setSettings] = useState<CatalogSettingsProps>();
 
@@ -47,7 +46,16 @@ export function CatalogSettings() {
       aboutText: data.aboutText ?? "",
       theme: data.theme ?? "",
       backgroundColor: data.backgroundColor ?? "",
+      headerColor: data.headerColor ?? "",
+      brandColors: data.brandColors,
       astroEnabled: data.astroEnabled,
+      categoryDisplay: data.categoryDisplay,
+      showOffersButton: data.showOffersButton,
+      categoryCardColor: data.categoryCardColor ?? "",
+      categoryIconColor: data.categoryIconColor ?? "",
+      categoryTextColor: data.categoryTextColor ?? "",
+      hideProductsWithoutImage: data.hideProductsWithoutImage,
+      offerCatalogIds: data.offerCatalogIds,
       instagram: data.instagram ?? "",
       facebook: data.facebook ?? "",
       twitter: data.twitter ?? "",
@@ -73,7 +81,6 @@ export function CatalogSettings() {
       walletId: data.walletId ?? "",
     });
   }, [data]);
-  const debounceUpdate = useDebouncedValue(settings, 500);
 
   if (isLoading) {
     return (
@@ -82,53 +89,62 @@ export function CatalogSettings() {
       </div>
     );
   }
-  if (!settings || !data) return <EmptyCatalog />;
+  if (!settings || !data) return <EmptyCatalog erro={isError} />;
 
   function onSubmit() {
-    if (!settings || !debounceUpdate) return;
+    if (!settings) return;
     useUpdateFieldsCatalogSettings.mutate({
       id: settings.id,
-      isActive: debounceUpdate.isActive,
-      showPrices: debounceUpdate.showPrices,
-      showStock: debounceUpdate.showStock,
-      allowOrders: debounceUpdate.allowOrders,
-      showProductWithoutStock: debounceUpdate.showProductWithoutStock,
-      sortOrder: debounceUpdate.sortOrder,
-      operationMode: debounceUpdate.operationMode,
-      whatsappNumber: normalizePhone(debounceUpdate.whatsappNumber) || "",
-      showWhatsapp: debounceUpdate.showWhatsapp,
-      contactEmail: debounceUpdate.contactEmail,
-      metaTitle: debounceUpdate.metaTitle,
-      metaDescription: debounceUpdate.metaDescription,
-      logo: debounceUpdate.logo,
-      bannerImages: debounceUpdate.bannerImages,
-      aboutText: debounceUpdate.aboutText,
-      theme: debounceUpdate.theme,
-      backgroundColor: debounceUpdate.backgroundColor,
-      astroEnabled: debounceUpdate.astroEnabled,
-      instagram: debounceUpdate.instagram,
-      facebook: debounceUpdate.facebook,
-      twitter: debounceUpdate.twitter,
-      tiktok: debounceUpdate.tiktok,
-      kwai: debounceUpdate.kwai,
-      youtube: debounceUpdate.youtube,
-      cep: debounceUpdate.cep,
-      address: debounceUpdate.address,
-      district: debounceUpdate.district,
-      number: debounceUpdate.number,
-      id_meta: debounceUpdate.id_meta,
-      pixel_meta: debounceUpdate.pixel_meta,
-      cnpj: debounceUpdate.cnpj,
-      paymentMethodSettings: debounceUpdate.paymentMethodSettings,
-      freightOptions: debounceUpdate.freightOptions,
-      freightChargeType: debounceUpdate.freightChargeType,
-      freightFixedValue: debounceUpdate.freightFixedValue,
-      freightValuePerKg: debounceUpdate.freightValuePerKg,
-      freeShippingMinValue: debounceUpdate.freeShippingMinValue,
-      freeShippingEnabled: debounceUpdate.freeShippingEnabled,
-      deliveryMethods: debounceUpdate.deliveryMethods,
-      deliverySpecialInfo: debounceUpdate.deliverySpecialInfo,
-      walletId: debounceUpdate.walletId,
+      isActive: settings.isActive,
+      showPrices: settings.showPrices,
+      showStock: settings.showStock,
+      allowOrders: settings.allowOrders,
+      showProductWithoutStock: settings.showProductWithoutStock,
+      sortOrder: settings.sortOrder,
+      operationMode: settings.operationMode,
+      whatsappNumber: normalizePhone(settings.whatsappNumber) || "",
+      showWhatsapp: settings.showWhatsapp,
+      contactEmail: settings.contactEmail,
+      metaTitle: settings.metaTitle,
+      metaDescription: settings.metaDescription,
+      logo: settings.logo,
+      bannerImages: settings.bannerImages,
+      aboutText: settings.aboutText,
+      theme: settings.theme,
+      backgroundColor: settings.backgroundColor,
+      headerColor: settings.headerColor,
+      brandColors: settings.brandColors,
+      astroEnabled: settings.astroEnabled,
+      categoryDisplay: settings.categoryDisplay,
+      showOffersButton: settings.showOffersButton,
+      categoryCardColor: settings.categoryCardColor,
+      categoryIconColor: settings.categoryIconColor,
+      categoryTextColor: settings.categoryTextColor,
+      hideProductsWithoutImage: settings.hideProductsWithoutImage,
+      offerCatalogIds: settings.offerCatalogIds,
+      instagram: settings.instagram,
+      facebook: settings.facebook,
+      twitter: settings.twitter,
+      tiktok: settings.tiktok,
+      kwai: settings.kwai,
+      youtube: settings.youtube,
+      cep: settings.cep,
+      address: settings.address,
+      district: settings.district,
+      number: settings.number,
+      id_meta: settings.id_meta,
+      pixel_meta: settings.pixel_meta,
+      cnpj: settings.cnpj,
+      paymentMethodSettings: settings.paymentMethodSettings,
+      freightOptions: settings.freightOptions,
+      freightChargeType: settings.freightChargeType,
+      freightFixedValue: settings.freightFixedValue,
+      freightValuePerKg: settings.freightValuePerKg,
+      freeShippingMinValue: settings.freeShippingMinValue,
+      freeShippingEnabled: settings.freeShippingEnabled,
+      deliveryMethods: settings.deliveryMethods,
+      deliverySpecialInfo: settings.deliverySpecialInfo,
+      walletId: settings.walletId,
     });
   }
 

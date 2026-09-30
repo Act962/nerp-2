@@ -14,14 +14,21 @@ export const createSettingsCatalog = base
   })
   .input(
     z.object({
-      name: z.string(),
+      name: z.string().optional(),
     }),
   )
-  .handler(async ({ input, context, errors }) => {
-    await prisma.catalogSettings.create({
-      data: {
+  .output(z.object({ id: z.string() }))
+  .handler(async ({ input, context }) => {
+    // Upsert e não create: `organizationId` é único, e um segundo clique (ou
+    // o `list`, que também cria) faria o create estourar a constraint.
+    const catalogSettings = await prisma.catalogSettings.upsert({
+      where: { organizationId: context.org.id },
+      create: {
         organizationId: context.org.id,
         metaTitle: input.name,
       },
+      update: {},
+      select: { id: true },
     });
+    return { id: catalogSettings.id };
   });

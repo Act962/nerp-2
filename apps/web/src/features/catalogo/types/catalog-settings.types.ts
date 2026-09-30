@@ -29,6 +29,10 @@ export type CatalogSettingsProps = Omit<
   | "aboutText"
   | "theme"
   | "backgroundColor"
+  | "headerColor"
+  | "categoryCardColor"
+  | "categoryIconColor"
+  | "categoryTextColor"
   | "instagram"
   | "facebook"
   | "twitter"
@@ -56,6 +60,10 @@ export type CatalogSettingsProps = Omit<
   aboutText: string;
   theme: string;
   backgroundColor: string;
+  headerColor: string;
+  categoryCardColor: string;
+  categoryIconColor: string;
+  categoryTextColor: string;
   instagram: string;
   facebook: string;
   twitter: string;

@@ -25,6 +25,8 @@ const ESCOPO_POR_PATH = new Map<string, string>([
   ["mapObject.listOpportunities", "pdv:read"],
   // Retorno do Órbita sobre pedido do Catálogo Online (modo ORBITA).
   ["catalogOrder.updateStatus", "sales:rw"],
+  // Valor combinado de um pedido de orçamento (catálogo sem preço).
+  ["catalogOrder.updateQuote", "sales:rw"],
 ]);
 
 /** Escopo exigido por uma procedure, ou `null` se ela não é da integração. */
