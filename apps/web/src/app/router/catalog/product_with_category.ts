@@ -1,6 +1,10 @@
 import { base } from "@/app/middlewares/base";
+import { conferirFotos, temFoto } from "@/features/storefront/server/tem-foto";
 import prisma from "@/lib/db";
-import { resolvePrice, resolveManyPrices } from "@/features/precos/server/resolve-price";
+import {
+  resolvePrice,
+  resolveManyPrices,
+} from "@/features/precos/server/resolve-price";
 import z, { string } from "zod";
 
 export const getProductAndProductsByCategory = base
@@ -61,8 +65,23 @@ export const getProductAndProductsByCategory = base
           isActive: true,
           showInCatalog: true,
         },
-        take: 4,
+        // Pega folga: se a loja esconde produto sem foto, alguns caem fora.
+        take: 12,
       });
+
+      const configuracoes = await prisma.catalogSettings.findUnique({
+        where: { organizationId: organization.id },
+        select: { hideProductsWithoutImage: true },
+      });
+      if (configuracoes?.hideProductsWithoutImage) {
+        await conferirFotos(productsWithCategory.map((p) => p.thumbnail));
+      }
+      const relacionados = productsWithCategory
+        .filter(
+          (p) =>
+            !configuracoes?.hideProductsWithoutImage || temFoto(p.thumbnail),
+        )
+        .slice(0, 4);
 
       // Resolve tabela do buyer (guest = default).
       let buyerPriceListId: string | null = null;
@@ -80,16 +99,21 @@ export const getProductAndProductsByCategory = base
         priceListId: buyerPriceListId,
         productSalePrice: Number(product.salePrice),
       });
-      const relatedResolved = productsWithCategory.length
+      const relatedResolved = relacionados.length
         ? await resolveManyPrices({
             organizationId: organization.id,
             priceListId: buyerPriceListId,
-            items: productsWithCategory.map((p) => ({ productId: p.id, quantity: 1 })),
+            items: relacionados.map((p) => ({
+              productId: p.id,
+              quantity: 1,
+            })),
           })
         : [];
-      const relatedById = new Map(relatedResolved.map((r) => [r.productId, r.unitPrice]));
+      const relatedById = new Map(
+        relatedResolved.map((r) => [r.productId, r.unitPrice]),
+      );
 
-      const productsList = productsWithCategory.map((product) => ({
+      const productsList = relacionados.map((product) => ({
         id: product.id,
         isActive: product.isActive,
         name: product.name,

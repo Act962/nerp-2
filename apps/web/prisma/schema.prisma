@@ -674,6 +674,12 @@ enum CatalogSortOrder {
 // Cenário de operação do catálogo:
 // - MARKETPLACE: pagamento confirmado gera apenas a venda (e-commerce de varejo)
 // - KITCHEN: pagamento confirmado também cria pedidos no KDS (restaurante/food)
+enum CatalogCategoryDisplay {
+  ICON
+  IMAGE
+  TEXT
+}
+
 enum CatalogOperationMode {
   MARKETPLACE
   KITCHEN
@@ -707,70 +713,86 @@ enum FreightChargeType {
 }
 
 model CatalogSettings {
-  id                      String               @id @default(cuid())
-  organizationId          String               @unique
+  id                       String                 @id @default(cuid())
+  organizationId           String                 @unique
   // Visibilidade
-  isActive                Boolean              @default(true)
-  showPrices              Boolean              @default(true)
-  showProductWithoutStock Boolean              @default(false)
-  showStock               Boolean              @default(false)
-  allowOrders             Boolean              @default(false)
-  sortOrder               CatalogSortOrder     @default(ASC)
+  isActive                 Boolean                @default(true)
+  showPrices               Boolean                @default(true)
+  showProductWithoutStock  Boolean                @default(false)
+  showStock                Boolean                @default(false)
+  allowOrders              Boolean                @default(false)
+  sortOrder                CatalogSortOrder       @default(ASC)
   // Modo de operação: MARKETPLACE (apenas venda) ou KITCHEN (envia pedidos pagos à cozinha)
-  operationMode           CatalogOperationMode @default(MARKETPLACE)
+  operationMode            CatalogOperationMode   @default(MARKETPLACE)
   // Contato
-  whatsappNumber          String?
-  showWhatsapp            Boolean              @default(true)
-  contactEmail            String?
+  whatsappNumber           String?
+  showWhatsapp             Boolean                @default(true)
+  contactEmail             String?
   //Adress
-  cep                     String?
-  address                 String?
-  district                String?
-  number                  String?
+  cep                      String?
+  address                  String?
+  district                 String?
+  number                   String?
   // SEO
-  metaTitle               String?
-  metaDescription         String?
-  cnpj                    String?
+  metaTitle                String?
+  metaDescription          String?
+  cnpj                     String?
   // Personalização
-  logo                    String?
-  bannerImages            String[]             @default([])
-  aboutText               String?              @db.Text
-  theme                   String?              @default("#00bcd4")
+  logo                     String?
+  bannerImages             String[]               @default([])
+  aboutText                String?                @db.Text
+  theme                    String?                @default("#00bcd4")
   /// Cor de fundo da vitrine. `null` = o fundo neutro do tema, que é o que
   /// todo catálogo tinha antes de a cor existir.
-  backgroundColor         String?
+  backgroundColor          String?
   /// O Astro atende na vitrine. Liga cobrança de ★ por conversa de visitante,
   /// então a loja precisa poder desligar sem falar com ninguém.
-  astroEnabled            Boolean              @default(true)
+  /// Fundo do cabeçalho da vitrine. Nulo = o neutro do tema; o texto se ajusta sozinho.
+  headerColor              String?
+  /// A paleta da marca: aparece como atalho em todos os seletores de cor.
+  brandColors              String[]               @default([])
+  astroEnabled             Boolean                @default(true)
+  /// Como as categorias aparecem na vitrine: ícone da galeria, imagem, ou só o nome.
+  categoryDisplay          CatalogCategoryDisplay @default(ICON)
+  /// Botão "Ofertas" na vitrine, levando aos catálogos promocionais escolhidos.
+  /// Cores do cartão de categoria na vitrine. Nulo = branco, ícone no tema, texto legível.
+  categoryCardColor        String?
+  categoryIconColor        String?
+  categoryTextColor        String?
+  /// Esconde da vitrine produto sem foto (vazia ou apontando para arquivo inexistente).
+  hideProductsWithoutImage Boolean                @default(false)
+  showOffersButton         Boolean                @default(false)
+  /// Ids de PromotionalCatalog. Só entram na vitrine os que têm link público.
+  offerCatalogIds          String[]               @default([])
   //Payment
-  paymentMethodSettings   PaymentMethod[]
+  paymentMethodSettings    PaymentMethod[]
   //Delivery
-  deliveryMethods         DeliveryMethod[]
-  deliverySpecialInfo     String?
+  deliveryMethods          DeliveryMethod[]
+  deliverySpecialInfo      String?
   //Settings Delivery
-  freightOptions          FreightOption        @default(NO_SHIPPING)
-  freightChargeType       FreightChargeType    @default(FIXED)
-  freightFixedValue       Decimal              @default(0) @db.Decimal(10, 2)
-  freightValuePerKg       Decimal              @default(0) @db.Decimal(10, 2)
-  freeShippingEnabled     Boolean              @default(false)
-  freeShippingMinValue    Decimal              @default(0) @db.Decimal(10, 2)
+  freightOptions           FreightOption          @default(NO_SHIPPING)
+  freightChargeType        FreightChargeType      @default(FIXED)
+  freightFixedValue        Decimal                @default(0) @db.Decimal(10, 2)
+  freightValuePerKg        Decimal                @default(0) @db.Decimal(10, 2)
+  freeShippingEnabled      Boolean                @default(false)
+  freeShippingMinValue     Decimal                @default(0) @db.Decimal(10, 2)
   //Integrations
-  id_meta                 String?
-  pixel_meta              String?
+  id_meta                  String?
+  pixel_meta               String?
   //Stripe
-  stripeKey               String?              @map("stripe_key")
+  stripeKey                String?                @map("stripe_key")
   //Asaas
-  walletId                String?              @map("wallet_id")
+  walletId                 String?                @map("wallet_id")
   // Redes Sociais
-  instagram               String?
-  facebook                String?
-  twitter                 String?
-  youtube                 String?
-  kwai                    String?
-  tiktok                  String?
-  createdAt               DateTime             @default(now())
-  updatedAt               DateTime             @updatedAt
-  organization            Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  instagram                String?
+  facebook                 String?
+  twitter                  String?
+  youtube                  String?
+  kwai                     String?
+  tiktok                   String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  organization             Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@map("catalog_settings")
 }
@@ -786,6 +808,8 @@ model Category {
   slug           String
   description    String?
   image          String?
+  /// Chave de um ícone da galeria da vitrine (ver `icones-de-categoria.ts`).
+  icon           String?
   order          Int                         @default(0)
   isActive       Boolean                     @default(true)
   // Hierarquia (categoria pai)
@@ -1474,6 +1498,10 @@ model Sale {
   orbitaPortalUrl   String?
   orbitaWhatsappUrl String?
   orbitaSyncedAt    DateTime?
+  /// Nasceu como pedido de orçamento (catálogo sem preço, modo Órbita): sem valor até o Órbita combinar.
+  quoteRequested    Boolean         @default(false)
+  /// Quando o valor combinado chegou do Órbita (`catalogOrder.updateQuote`).
+  quotedAt          DateTime?
   // Relações
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)

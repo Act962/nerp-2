@@ -2,6 +2,7 @@ import { orpc } from "@/lib/orpc";
 import {
   useMutation,
   usePrefetchQuery,
+  useQueryClient,
   useQuery,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -23,18 +24,35 @@ export function useCatalogSettings({ subdomain }: UseCatalogSettingsProps) {
 
   return {
     data: data?.catalogSettings,
+    ofertas: data?.ofertas ?? [],
     isLoading,
   };
 }
 export function useCatalogSettingsPrivate() {
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isError } = useQuery(
     orpc.catalogSettings.list.queryOptions(),
   );
 
   return {
     data: data?.catalogSettings,
     isLoading,
+    isError,
   };
+}
+
+export function useCriarCatalogo() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.catalogSettings.create.mutationOptions({
+      onSuccess: () => {
+        toast.success("Catálogo criado");
+        queryClient.invalidateQueries({
+          queryKey: orpc.catalogSettings.list.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
 }
 
 export const updateFieldCatalog = () => {

@@ -1,9 +1,9 @@
 "use client";
 
-import { AlertTriangle, Copy, Check } from "lucide-react";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 // Aviso mostrado na tela de configurações do catálogo enquanto o modo
@@ -15,11 +15,13 @@ export function SubdomainWarningBanner({
   subdomain: string | null;
 }) {
   const [copied, setCopied] = useState(false);
+  // A origem só existe no navegador: lida no render, o servidor escrevia
+  // "/catalogo/x" e o cliente "http://…/catalogo/x" — erro de hidratação.
+  const [origin, setOrigin] = useState("");
+  useEffect(() => setOrigin(window.location.origin), []);
 
   if (!subdomain) return null;
 
-  const origin =
-    typeof window !== "undefined" ? window.location.origin : "";
   const catalogUrl = origin
     ? `${origin}/catalogo/${subdomain}`
     : `/catalogo/${subdomain}`;
@@ -36,15 +38,11 @@ export function SubdomainWarningBanner({
   }
 
   return (
-    <Card className="mb-4 border-amber-500/40 bg-amber-500/5">
+    <Card className="mb-4 border-blue-500/40 bg-blue-500/10">
       <CardContent className="flex flex-col gap-2 p-4">
-        <div className="flex items-center gap-2">
-          <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
-          <h4 className="text-sm font-semibold">Subdomínio indisponível</h4>
-        </div>
         <p className="text-sm text-muted-foreground">
-          Enquanto habilitamos o subdomínio deste ambiente, seu catálogo
-          online já está no ar em:
+          Enquanto habilitamos o subdomínio deste ambiente, seu catálogo online
+          já está no ar em:
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="rounded bg-muted px-2 py-1 text-sm">
@@ -66,6 +64,11 @@ export function SubdomainWarningBanner({
                 <Copy className="size-3.5" /> Copiar link
               </>
             )}
+          </Button>
+          <Button asChild size="sm" variant="outline" className="gap-1.5">
+            <a href={catalogUrl} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="size-3.5" /> Abrir link em uma nova aba
+            </a>
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">

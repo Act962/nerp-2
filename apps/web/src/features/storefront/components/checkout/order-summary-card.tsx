@@ -25,6 +25,8 @@ interface OrderSummaryCardProps {
   onConfirm: () => void;
   isLoading: boolean;
   isDisabled: boolean;
+  /** Catálogo sem preço: pedido de orçamento, sem valores na tela. */
+  mostrarPreco?: boolean;
 }
 
 export function OrderSummaryCard({
@@ -38,6 +40,7 @@ export function OrderSummaryCard({
   onConfirm,
   isLoading,
   isDisabled,
+  mostrarPreco = true,
 }: OrderSummaryCardProps) {
   const remainingForFreeShipping =
     freeShippingEnabled &&
@@ -61,14 +64,21 @@ export function OrderSummaryCard({
               <span className="text-muted-foreground">
                 {item.quantity}x {item.name}
               </span>
-              <span className="font-medium">
-                R$ {currencyFormatter(item.salePrice * item.quantity)}
-              </span>
+              {mostrarPreco && (
+                <span className="font-medium">
+                  R$ {currencyFormatter(item.salePrice * item.quantity)}
+                </span>
+              )}
             </div>
           ))}
         </div>
 
-        <div className="border-t pt-4 space-y-2">
+        {!mostrarPreco && (
+          <p className="border-t pt-4 text-muted-foreground text-sm">
+            A loja confere os itens e combina o valor com você pelo WhatsApp.
+          </p>
+        )}
+        <div className={mostrarPreco ? "border-t pt-4 space-y-2" : "hidden"}>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium">
@@ -113,7 +123,7 @@ export function OrderSummaryCard({
           onClick={onConfirm}
           disabled={isDisabled || isLoading}
         >
-          Confirmar Pedido
+          {mostrarPreco ? "Confirmar Pedido" : "Pedir orçamento"}
         </Button>
         {checkoutStates.cancel && (
           <div className="flex items-center justify-center gap-2 bg-red-200 rounded-sm p-2 text-red-600">

@@ -7,6 +7,7 @@ import { VisibilityTab } from "@/features/catalogo/components/tab-visibility";
 import { OperationTab } from "@/features/catalogo/components/tab-operation";
 import { TabContact } from "@/features/catalogo/components/tab-contact";
 import { TabCustomization } from "@/features/catalogo/components/tab-customization";
+import { TabShowcase } from "@/features/catalogo/components/tab-showcase";
 import { TabDomain } from "@/features/catalogo/components/tab-domain";
 import { TabPayment } from "@/features/catalogo/components/tab-payment";
 import { TabDelivery } from "@/features/catalogo/components/tab-delivery";
@@ -49,6 +50,11 @@ export const tabs: TabEntry[] = [
     id: "customization",
     label: "Personalização",
     component: TabCustomization,
+  },
+  {
+    id: "showcase",
+    label: "Vitrine",
+    component: TabShowcase,
   },
   {
     id: "domain",

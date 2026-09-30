@@ -61,7 +61,13 @@ async function buildOrbitaOrderPayload(
   const productIds = sale.items.map((item) => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds }, organizationId: sale.organizationId },
-    select: { id: true, sku: true, thumbnail: true, images: true },
+    select: {
+      id: true,
+      sku: true,
+      thumbnail: true,
+      images: true,
+      salePrice: true,
+    },
   });
   const productById = new Map(products.map((product) => [product.id, product]));
 
@@ -76,6 +82,10 @@ async function buildOrbitaOrderPayload(
       unitPrice: Number(item.unitPrice),
       total: Number(item.total),
       imageUrl: emptyToNull(constructUrl(imageKey)),
+      referenceUnitPrice:
+        sale.quoteRequested && product && Number(product.salePrice) > 0
+          ? Number(product.salePrice)
+          : null,
     };
   });
 
@@ -102,6 +112,7 @@ async function buildOrbitaOrderPayload(
       discount: Number(sale.discount),
       total: Number(sale.total),
       catalogUrl: buildCatalogUrl(sale.organization.subdomain),
+      quote: sale.quoteRequested,
     },
   };
 }

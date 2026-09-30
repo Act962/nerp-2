@@ -1,157 +1,181 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
-import { useOrbitaOrderStatus } from "@/features/storefront/hooks/use-orbita-checkout";
-import { CheckCircle2, MessageCircle } from "lucide-react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import {
+  CheckCircle2,
+  CreditCard,
+  MessageCircle,
+  PackageSearch,
+} from "lucide-react";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Spinner } from "@/components/ui/spinner";
+import { useCatalogSettings } from "@/features/storefront/hooks/use-catalog-settings";
+import { useOrbitaOrderStatus } from "@/features/storefront/hooks/use-orbita-checkout";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 
-// O Órbita costuma responder em segundos; passado isso, a loja segue o
-// pedido pelo telefone e o cliente não fica olhando um carregamento eterno.
+// O Órbita costuma responder em segundos; passado isso, a espera some da tela
+// — o acompanhamento continua valendo, e o pagamento aparece lá quando vier.
 const ORBITA_WAIT_LIMIT_MS = 40_000;
 
+/**
+ * A tela depois de fechar o pedido — a mais importante da jornada: é aqui que
+ * o cliente decide se confia na loja. Por isso o botão de acompanhar vem
+ * sempre, grande e na cor da loja, em qualquer modo de operação. O link do
+ * Órbita (pagar) é um extra de quem tem a integração, não a condição.
+ *
+ * URL: `?pedido=<número>&venda=<id>`. Sem `venda` (link antigo), a tela ainda
+ * mostra o número, só sem o acompanhamento.
+ */
 export default function CheckoutSuccessPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const params = useParams<{ subdomain: string }>();
-  // No modo APPROVAL o server devolve `saleNumber` — a URL vira
-  // `/checkout/sucesso?pedido=42` e mostramos o número BEM grande pra o
-  // cliente apresentar no caixa quando chegar na loja. No modo ORBITA vem
-  // também `venda=<id>`, para acompanhar a resposta do Órbita.
+  const subdomain = params.subdomain ?? "";
   const pedido = searchParams.get("pedido");
   const venda = searchParams.get("venda");
 
-  if (venda) {
-    return (
-      <OrbitaSuccess
-        subdomain={params.subdomain ?? ""}
-        saleId={venda}
-        saleNumber={pedido}
-        onBack={() => router.push("/")}
-      />
-    );
-  }
+  const { data: loja } = useCatalogSettings({ subdomain });
+  const homeHref = useCatalogHref("/");
+  const acompanharHref = useCatalogHref(`/pedido/${venda ?? ""}`);
+
+  // A cor da loja já vem do servidor na `--primary` (layout da vitrine):
+  // usar a variável evita o botão piscar na cor padrão enquanto carrega.
+  const tema = "var(--primary)";
+  const corDoTema = {
+    backgroundColor: tema,
+    color: "var(--primary-foreground)",
+  };
+  const modoOrbita = loja?.operationMode === "ORBITA";
+  const modoBalcao = loja?.operationMode === "APPROVAL";
+  // Catálogo sem preço no Órbita: o cliente pediu orçamento, não comprou.
+  const orcamento = modoOrbita && loja?.showPrices === false;
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-2xl flex-col items-center justify-center px-5 py-10 text-center">
-      <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-green-100">
-        <CheckCircle2 className="size-12 text-green-600" />
+    <div className="mx-auto flex min-h-[70vh] w-full max-w-lg flex-col items-center justify-center gap-6 px-5 py-10 text-center">
+      <div className="flex size-20 items-center justify-center rounded-full bg-emerald-100">
+        <CheckCircle2 className="size-12 text-emerald-600" />
       </div>
 
-      <h1 className="mb-3 text-3xl font-bold">Pedido enviado! 🎉</h1>
+      <div className="flex flex-col gap-2">
+        <h1 className="font-bold text-3xl">
+          {orcamento ? "Orçamento pedido! 🎉" : "Pedido enviado! 🎉"}
+        </h1>
+        <p className="opacity-70">
+          {orcamento
+            ? "A loja vai conferir os itens e te mandar o valor pelo WhatsApp."
+            : modoBalcao
+              ? "Apresente o código no caixa quando chegar à loja."
+              : "A loja já recebeu seu pedido."}
+        </p>
+      </div>
 
-      {pedido ? (
-        <>
-          <p className="mb-4 text-lg text-muted-foreground">
-            Apresente o código do pedido no caixa quando chegar à loja:
-          </p>
-          <div className="mb-6 rounded-2xl border-2 border-dashed border-primary/60 bg-primary/5 px-8 py-6">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Código do pedido
-            </span>
-            <p className="text-5xl font-bold tracking-wider text-primary">
-              #{pedido}
-            </p>
-          </div>
-          <p className="mb-8 text-sm text-muted-foreground">
-            O operador vai localizar seu pedido pelo código ou pelo seu nome.
-            Obrigado pela preferência!
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="mb-2 text-lg text-muted-foreground">
-            Seu pedido foi confirmado e já foi enviado para a cozinha.
-          </p>
-          <p className="mb-8 text-muted-foreground">
-            Em breve ele estará pronto. Obrigado pela preferência!
-          </p>
-        </>
+      {pedido && (
+        <div
+          className="flex flex-col items-center rounded-2xl border-2 border-dashed bg-white px-10 py-5 text-neutral-900"
+          style={{ borderColor: tema }}
+        >
+          <span className="font-medium text-neutral-500 text-xs uppercase tracking-wider">
+            Número do pedido
+          </span>
+          <span
+            className="font-bold text-5xl tracking-wider"
+            style={{ color: tema }}
+          >
+            #{pedido}
+          </span>
+        </div>
       )}
 
-      <Button size="lg" onClick={() => router.push("/")}>
-        Voltar para o início
-      </Button>
+      <div className="flex w-full flex-col gap-3">
+        {venda && (
+          <Link
+            href={acompanharHref}
+            className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full font-bold text-lg shadow-md transition-transform hover:scale-[1.01] active:scale-[0.99]"
+            style={corDoTema}
+          >
+            <PackageSearch className="size-6" />
+            Acompanhar meu pedido
+          </Link>
+        )}
+
+        {venda && modoOrbita && !orcamento && (
+          <PagamentoOrbita subdomain={subdomain} saleId={venda} />
+        )}
+
+        <Link
+          href={homeHref}
+          className="flex h-12 w-full items-center justify-center rounded-full font-medium opacity-80 hover:opacity-100"
+        >
+          Voltar para a loja
+        </Link>
+      </div>
+
+      {venda && (
+        <p className="text-xs opacity-60">
+          Guarde o link do acompanhamento: ele mostra cada etapa do pedido.
+        </p>
+      )}
     </div>
   );
 }
 
-function OrbitaSuccess({
+/**
+ * O extra do modo Órbita: quando o Órbita responde, surgem o pagamento e a
+ * conversa no WhatsApp. Enquanto não responde, só um aviso discreto — o
+ * botão de acompanhar, acima, já dá ao cliente o que fazer.
+ */
+function PagamentoOrbita({
   subdomain,
   saleId,
-  saleNumber,
-  onBack,
 }: {
   subdomain: string;
   saleId: string;
-  saleNumber: string | null;
-  onBack: () => void;
 }) {
-  const [hasTimedOut, setHasTimedOut] = useState(false);
+  const [esgotou, setEsgotou] = useState(false);
 
   useEffect(() => {
-    const timer = window.setTimeout(
-      () => setHasTimedOut(true),
+    const relogio = window.setTimeout(
+      () => setEsgotou(true),
       ORBITA_WAIT_LIMIT_MS,
     );
-    return () => window.clearTimeout(timer);
+    return () => window.clearTimeout(relogio);
   }, []);
 
   const { data } = useOrbitaOrderStatus({
     subdomain,
     saleId,
-    enabled: !hasTimedOut,
+    enabled: !esgotou,
   });
-  const portalUrl = data?.portalUrl ?? null;
-  const whatsappUrl = data?.whatsappUrl ?? null;
+
+  if (data?.portalUrl) {
+    return (
+      <>
+        <a
+          href={data.portalUrl}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-current font-semibold"
+        >
+          <CreditCard className="size-5" /> Pagar meu pedido
+        </a>
+        {data.whatsappUrl && (
+          <a
+            href={data.whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-emerald-600 font-semibold text-emerald-700"
+          >
+            <MessageCircle className="size-5" /> Continuar no WhatsApp
+          </a>
+        )}
+      </>
+    );
+  }
+
+  if (esgotou) return null;
 
   return (
-    <div className="mx-auto flex min-h-[70vh] w-full max-w-2xl flex-col items-center justify-center px-5 py-10 text-center">
-      <div className="mb-6 flex size-20 items-center justify-center rounded-full bg-green-100">
-        <CheckCircle2 className="size-12 text-green-600" />
-      </div>
-
-      <h1 className="mb-3 text-3xl font-bold">Pedido enviado! 🎉</h1>
-      {saleNumber && (
-        <p className="mb-6 text-lg text-muted-foreground">
-          Pedido{" "}
-          <span className="font-semibold text-foreground">#{saleNumber}</span>
-        </p>
-      )}
-
-      {portalUrl ? (
-        <div className="mb-8 flex w-full max-w-sm flex-col gap-3">
-          <p className="mb-2 text-muted-foreground">
-            A loja recebeu seu pedido. Acompanhe e faça o pagamento por aqui:
-          </p>
-          <Button size="lg" asChild>
-            <a href={portalUrl}>Acompanhar e pagar meu pedido</a>
-          </Button>
-          {whatsappUrl && (
-            <Button size="lg" variant="outline" asChild>
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="size-4" />
-                Continuar no WhatsApp
-              </a>
-            </Button>
-          )}
-        </div>
-      ) : hasTimedOut ? (
-        <p className="mb-8 text-muted-foreground">
-          Seu pedido foi registrado. A loja vai entrar em contato pelo WhatsApp
-          informado para combinar o pagamento e a entrega.
-        </p>
-      ) : (
-        <div className="mb-8 flex items-center gap-3 text-muted-foreground">
-          <Spinner />
-          <span>Enviando seu pedido para a loja…</span>
-        </div>
-      )}
-
-      <Button size="lg" variant="ghost" onClick={onBack}>
-        Voltar para o início
-      </Button>
+    <div className="flex items-center justify-center gap-2 text-sm opacity-70">
+      <Spinner />
+      Preparando o pagamento…
     </div>
   );
 }

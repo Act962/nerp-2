@@ -2,6 +2,9 @@ import { createSettingsCatalog } from "./create";
 import { getUserCatalog } from "./get-user";
 import { listSettingsCatalog } from "./list";
 import { listProductsOfCart } from "./list-my-products";
+import { listOfferCatalogs } from "./offer-catalogs";
+import { listShowcaseCategories } from "./showcase-categories";
+import { updateCategoryAppearance } from "./update-category-appearance";
 import { listProducts } from "./list-products";
 import { loginCatalog } from "./login";
 import { orbitaConnectionCatalog } from "./orbita-connection";
@@ -23,5 +26,8 @@ export const catalogSettingsRouter = {
   getUser: getUserCatalog,
   updateCustomer: updateCustomer,
   listProductsOfCart: listProductsOfCart,
+  showcaseCategories: listShowcaseCategories,
+  updateCategoryAppearance,
+  offerCatalogs: listOfferCatalogs,
   orbitaConnection: orbitaConnectionCatalog,
 };

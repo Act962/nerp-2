@@ -60,6 +60,7 @@ export function RegisterFormCatalog({
   ...props
 }: React.ComponentProps<"div"> & RegisterFormProps) {
   const router = useRouter();
+  const homeHref = useCatalogHref("/");
   const { signIn } = useUserStore();
   const signInHref = useCatalogHref("/sign-in");
   const form = useForm<SignUpSchema>({
@@ -78,12 +79,12 @@ export function RegisterFormCatalog({
             type: "customer",
           },
         });
-        router.push("/");
+        router.push(homeHref);
       },
       onError: (error) => {
         toast.error(error.message || "Erro ao realizar login");
       },
-    })
+    }),
   );
 
   const onSignUp = async (data: SignUpSchema) => {

@@ -64,9 +64,11 @@ export function useCheckoutLogic(subdomain: string) {
 
   const kitchenPurchase = useMutation(
     orpc.checkout.kitchenCheckout.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (data) => {
         clearOrganizationCart();
-        router.push("/checkout/sucesso");
+        router.push(
+          `${catalogBase}/checkout/sucesso?pedido=${data.saleNumber}&venda=${data.saleId}`,
+        );
       },
       onError: (error) => {
         toast.error(error.message);
@@ -81,7 +83,9 @@ export function useCheckoutLogic(subdomain: string) {
     orpc.checkout.approvalCheckout.mutationOptions({
       onSuccess: (data) => {
         clearOrganizationCart();
-        router.push(`/checkout/sucesso?pedido=${data.saleNumber}`);
+        router.push(
+          `${catalogBase}/checkout/sucesso?pedido=${data.saleNumber}&venda=${data.saleId}`,
+        );
       },
       onError: (error) => {
         toast.error(error.message);
@@ -264,7 +268,7 @@ export function useCheckoutLogic(subdomain: string) {
     const whatsappURL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMessage}`;
     window.open(whatsappURL, "_blank");
     toast.success("Redirecionando para o WhatsApp...");
-    setTimeout(() => router.push("/"), 2000);
+    setTimeout(() => router.push(`${catalogBase}/`), 2000);
   };
 
   const isKitchenMode = catalogSettings?.operationMode === "KITCHEN";
@@ -293,7 +297,9 @@ export function useCheckoutLogic(subdomain: string) {
         ...(user?.id ? { customerId: user.id } : { guest: { name, phone } }),
         phone,
         delivery: {
-          method: deliveryMethod ? getDeliveryMethodLabel(deliveryMethod) : null,
+          method: deliveryMethod
+            ? getDeliveryMethodLabel(deliveryMethod)
+            : null,
           address:
             deliveryMethod === "DELIVERY_HOME" && trimmedAddress
               ? trimmedAddress

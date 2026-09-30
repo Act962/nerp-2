@@ -2,7 +2,12 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 
-@custom-variant dark (&:is(.dark *));
+/*
+  A vitrine é página de cliente e fica sempre clara: o modo escuro é
+  preferência de quem administra, e não pode vazar para a loja dele.
+  `vitrine-clara` fica no <html> enquanto a loja está aberta.
+*/
+@custom-variant dark (&:is(.dark:not(.vitrine-clara) *));
 
 @theme inline {
   --color-background: var(--background);
@@ -44,7 +49,8 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-:root {
+:root,
+html.vitrine-clara {
   --radius: 0.65rem;
   --background: oklch(1 0 0);
   --foreground: oklch(0.141 0.005 285.823);
@@ -416,21 +422,17 @@
   }
 }
 
-.jornada-convite {
-  position: fixed;
-  /* À esquerda do Astro, somando o disco dele: o canto já tem dono. */
-  right: calc(var(--o-astro-espaco, 5rem) + 0.75rem);
-  bottom: var(--o-astro-recuo, 1rem);
-  z-index: 40;
-  width: var(--o-astro-disco, 64px);
-  height: var(--o-astro-disco, 64px);
-  display: grid;
-  place-items: center;
-  padding: 4px;
-  border: 0;
-  border-radius: 999px;
-  cursor: pointer;
-  background: var(--primary);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.22);
-  animation: jornada-pulso 2.4s ease-out infinite;
+/*
+  Vitrine no celular: a barra de navegação fica fixa no rodapé, e o disco do
+  Astro, no canto de baixo, cairia em cima dela. Sobe o disco a altura da
+  barra — só na vitrine, o resto do app não tem barra nenhuma ali.
+*/
+@media (max-width: 639px) {
+  .vitrine-loja .o-astro-btn {
+    bottom: calc(var(--o-astro-recuo) + 4.5rem);
+  }
+}
+
+html.vitrine-clara {
+  color-scheme: light;
 }
