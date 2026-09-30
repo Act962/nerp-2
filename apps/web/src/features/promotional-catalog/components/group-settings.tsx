@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import type { ProductGroup } from "../types";
+import { ColorSwatch } from "./panel-ui";
 
 // Campos de edição de um GRUPO DE PRODUTOS — grade, tamanho e aparência.
 //
@@ -154,15 +155,13 @@ export function GroupSettingsFields({
         />
       </label>
       {(g.borderWidth ?? 0) > 0 && (
-        <label className="flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
           Cor do contorno
-          <input
-            type="color"
+          <ColorSwatch
             value={g.borderColor ?? "#000000"}
-            onChange={(e) => onChange({ borderColor: e.target.value })}
-            className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
+            onChange={(cor) => onChange({ borderColor: cor })}
           />
-        </label>
+        </div>
       )}
     </div>
   );

@@ -167,6 +167,37 @@ export function useCreateCatalog() {
   );
 }
 
+// "Criar por categorias": abre o catálogo pronto e, se o molde tinha texto
+// fixo (título escrito à mão), avisa que ele ficou só na primeira página.
+export function useCreateCatalogByCategories() {
+  const queryClient = useQueryClient();
+  const router = useRouter();
+
+  return useMutation(
+    orpc.promotionalCatalog.createByCategories.mutationOptions({
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.list.key(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.catalogThumbnails.key(),
+        });
+        toast.success(
+          `Catálogo criado: ${data.paginas} páginas, ${data.produtos} produtos`,
+          data.textosFixosDoMolde.length > 0
+            ? {
+                description: `Textos fixos do modelo ficaram só na primeira página: ${data.textosFixosDoMolde.join(", ")}. Use "Tornar dinâmico" neles para repetir em todas.`,
+                duration: 10000,
+              }
+            : undefined,
+        );
+        router.push(`/catalogo-promocional/${data.id}`);
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useUpdateCatalog() {
   const queryClient = useQueryClient();
 
@@ -515,4 +546,51 @@ export function useProductThumbnails(ids: string[]) {
     enabled: ids.length > 0,
     staleTime: 30_000,
   });
+}
+
+// ── Gerador de oferta com IA ──────────────────────────────────────────────
+export function useOfferAiEstimate(produtos: number, enabled: boolean) {
+  return useQuery(
+    orpc.promotionalCatalog.offerAiEstimate.queryOptions({
+      input: { produtos: Math.min(60, Math.max(1, produtos)) },
+      enabled,
+    }),
+  );
+}
+
+export function useOfferGenerate() {
+  return useMutation(
+    orpc.promotionalCatalog.offerGenerate.mutationOptions({
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
+// Polling da geração: para sozinho quando termina (DONE/FAILED).
+export function useOfferGeneration(id: string | null) {
+  return useQuery(
+    orpc.promotionalCatalog.offerGeneration.queryOptions({
+      input: { id: id ?? "" },
+      enabled: !!id,
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === "DONE" || status === "FAILED" ? false : 1500;
+      },
+    }),
+  );
+}
+
+export function useOfferLogoGenerate() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.promotionalCatalog.offerLogoGenerate.mutationOptions({
+      onSuccess: () => {
+        // O logo entra na biblioteca de etiquetas da organização.
+        queryClient.invalidateQueries({
+          queryKey: orpc.promotionalCatalog.listAssets.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
 }

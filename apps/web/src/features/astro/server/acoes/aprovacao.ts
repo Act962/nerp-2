@@ -13,6 +13,7 @@
 
 export const ACOES_QUE_PEDEM_APROVACAO = [
   "criarCatalogoPromocional",
+  "gerarPaginaDeOferta",
   "criarCampanhaWhatsapp",
   "enviarCampanhaWhatsapp",
   "criarEventoNoCalendario",
@@ -38,6 +39,20 @@ export const ROTULO_DA_ACAO: Record<
           ? ` de ${entrada.categorias.join(", ")}`
           : ""
       }.`,
+  },
+  gerarPaginaDeOferta: {
+    titulo: "Gerar uma página de oferta",
+    resumir: (entrada) => {
+      const formato =
+        { a4: "encarte A4", story: "story", feed: "post de feed" }[
+          texto(entrada.formato)
+        ] ?? "story";
+      const produtos = Array.isArray(entrada.produtos)
+        ? `${entrada.produtos.length} produto(s) citado(s)`
+        : "os produtos em promoção";
+      const logo = entrada.logo === "ia" ? ", com logo criado por IA" : "";
+      return `"${texto(entrada.nome) || "Sem nome"}" em ${formato}, com ${produtos}${logo}. Vira um catálogo novo, editável — a IA${entrada.logo === "ia" ? " e o logo custam" : " custa"} ★.`;
+    },
   },
   criarCampanhaWhatsapp: {
     titulo: "Montar uma campanha de WhatsApp",

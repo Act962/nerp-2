@@ -23,6 +23,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Table as TableIcon,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -50,6 +51,12 @@ import { SelectionLayer } from "./components/selection-layer";
 import { PageToolbar } from "./components/page-toolbar";
 import { PageSearch } from "./components/page-search";
 import { ShareDialog } from "./components/share-dialog";
+import { AssistenteOferta } from "./components/gerador-oferta/assistente-oferta";
+import {
+  acrescentarOferta,
+  comporOferta,
+  formatoDoCatalogo,
+} from "./lib/compor-oferta";
 import { CatalogListEditor } from "./components/catalog-list-editor";
 import {
   usePromotionalCatalog,
@@ -71,8 +78,13 @@ import {
 import { useSupplier } from "@/features/supplier/hooks/use-supplier";
 import { buildDynamicContext } from "./lib/resolve-entity";
 import { congelarDistribuicao, distributeProducts } from "./lib/page-chunks";
+import { proximoNomeLivre } from "./lib/page-names";
 import { nextCopyName, sliceProductsByGroup } from "./lib/group-slices";
-import { orphanedByPageDelete, productIdsOnPage } from "./lib/page-products";
+import {
+  orphanedByPageDelete,
+  productIdsOnPage,
+  removerDaPagina,
+} from "./lib/page-products";
 import { applyCategoryGroups, type CategoryGroup } from "./lib/apply-category";
 import {
   type ClipboardData,
@@ -366,6 +378,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     const excluded = new Set(config.excludedProductIds);
     const overrides = config.priceOverrides ?? {};
     const offers = config.offerOverrides ?? {};
+    const fotos = config.imageOverrides ?? {};
     // Produtos VIRTUAIS da aba "Lista": o preço vive no próprio item (fonte
     // única). Overrides NUNCA se aplicam a eles — senão um override defasado
     // sombrearia o preço da lista (De/Por da lista e da página divergiriam).
@@ -373,6 +386,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     const pool = [...rawProducts, ...virtualProductsFromList(config.list)];
     let list = pool
       .filter((p) => !excluded.has(p.id))
+      .map((p) => (fotos[p.id] ? { ...p, thumbnail: fotos[p.id] } : p))
       .map((p) => {
         // "De" (normal) e "Por" (oferta) sobrescritos SÓ neste catálogo —
         // recalcula desconto/economia. `basePrice` guarda o do cadastro.
@@ -454,6 +468,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     config.sortBy,
     config.priceOverrides,
     config.offerOverrides,
+    config.imageOverrides,
     config.productOrder,
   ]);
 
@@ -544,6 +559,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     pages.length > 0 && pages.every((p) => isOfferExpired(p));
 
   const [currentPage, setCurrentPage] = useState(0);
+  const [ofertaOpen, setOfertaOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   // Camada selecionada no canvas (Fundo/Grupo/Card/Elemento).
@@ -1504,6 +1520,40 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
     setSelection(null);
     setDeleteGroup(null);
   };
+  // Tira produtos só da página atual (o "X" do painel e excluir grupo). Congela
+  // a distribuição antes, senão a página sem `productIds` explícitos
+  // redistribuiria e o produto voltaria nela. Sai do catálogo só o que nenhuma
+  // outra página ainda mostra — e, sendo item da Lista, sai da Lista junto.
+  const removerProdutosDaPagina = (ids: string[], grupo?: string) => {
+    setConfig((prev) => {
+      const congeladas = congelarDistribuicao(ensurePages(prev), pageChunks);
+      const { pages: proximas, orfaos } = removerDaPagina(
+        congeladas,
+        safePage,
+        ids,
+        grupo,
+      );
+      const orfaoSet = new Set(orfaos);
+      return {
+        ...prev,
+        pages: proximas,
+        manuallyAddedIds: (prev.manuallyAddedIds ?? []).filter(
+          (id) => !orfaoSet.has(id),
+        ),
+        excludedProductIds: [
+          ...new Set([...(prev.excludedProductIds ?? []), ...orfaos]),
+        ],
+        ...(prev.list && orfaos.length > 0
+          ? {
+              list: {
+                ...prev.list,
+                items: prev.list.items.filter((it) => !orfaoSet.has(it.id)),
+              },
+            }
+          : {}),
+      };
+    });
+  };
   const updatePages = (updater: (pages: CatalogPage[]) => CatalogPage[]) => {
     setConfig((prev) => ({ ...prev, pages: updater(ensurePages(prev)) }));
   };
@@ -1663,7 +1713,10 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       const copy: CatalogPage = {
         ...src,
         id: `page-copy-${pgs.length}-${idx}`,
-        name: `${src.name} (cópia)`,
+        name: proximoNomeLivre(
+          pgs.map((pg) => pg.name),
+          src.name,
+        ),
         locked: false,
         overlays: mode === "full" ? src.overlays.map((o) => ({ ...o })) : [],
         texts: mode === "full" ? (src.texts ?? []).map((t) => ({ ...t })) : [],
@@ -1848,6 +1901,16 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
           variant="outline"
           size="sm"
           className="shrink-0 px-2 sm:px-3"
+          title="Gerar páginas de oferta neste catálogo"
+          onClick={() => setOfertaOpen(true)}
+        >
+          <Sparkles className="h-4 w-4 sm:mr-1" />
+          <span className="hidden sm:inline">Gerar oferta</span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0 px-2 sm:px-3"
           title="Visualizar em tela cheia"
           onClick={() => setPreviewOpen(true)}
         >
@@ -1979,6 +2042,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             products={products}
             pageProducts={pageProducts}
             onConfigChange={handleConfigChange}
+            onRemoveFromPage={removerProdutosDaPagina}
             captureThumbnail={captureThumbnail}
             activeTab={activeTab}
             onActiveTabChange={setActiveTab}
@@ -2043,6 +2107,7 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
             onApplyStyleToAllPages={applyStyleToAllPages}
             pageCount={totalPages}
             pageName={pages[safePage]?.name ?? ""}
+            onRenamePage={(nome) => renamePage(safePage, nome)}
             allPagesDynamic={allPagesDynamic}
             onAllPagesDynamic={setAllPagesDynamic}
             dynamicContext={dynamicContexts[safePage]}
@@ -2314,50 +2379,54 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
                               </span>
                             </div>
                           )}
-                          {prods.length === 0 && !pageExpired && (
-                            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 p-6 text-center">
-                              {/* Silhueta de um card de produto (placeholder cinza) */}
-                              <div className="flex h-40 w-32 flex-col gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-2">
-                                <div className="flex flex-1 items-center justify-center rounded bg-muted-foreground/10">
-                                  <ImageIcon className="h-7 w-7 text-muted-foreground/50" />
+                          {/* Página com blocos de produto (oferta com arte da IA)
+                              não está vazia, mesmo sem grade. */}
+                          {prods.length === 0 &&
+                            !(cfg.styleBlocks?.length ?? 0) &&
+                            !pageExpired && (
+                              <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 p-6 text-center">
+                                {/* Silhueta de um card de produto (placeholder cinza) */}
+                                <div className="flex h-40 w-32 flex-col gap-1.5 rounded-lg border-2 border-dashed border-muted-foreground/30 bg-muted/50 p-2">
+                                  <div className="flex flex-1 items-center justify-center rounded bg-muted-foreground/10">
+                                    <ImageIcon className="h-7 w-7 text-muted-foreground/50" />
+                                  </div>
+                                  <div className="h-2 w-4/5 rounded bg-muted-foreground/20" />
+                                  <div className="h-2 w-1/2 rounded bg-muted-foreground/20" />
                                 </div>
-                                <div className="h-2 w-4/5 rounded bg-muted-foreground/20" />
-                                <div className="h-2 w-1/2 rounded bg-muted-foreground/20" />
+                                <p className="text-sm font-medium text-foreground/80">
+                                  Página vazia — comece adicionando um produto
+                                </p>
+                                <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
+                                  <Button
+                                    size="sm"
+                                    onClick={() => {
+                                      setCurrentPage(i);
+                                      setActiveTab("produtos");
+                                      setPanelOpen(true);
+                                      // Abre o diálogo de busca de produtos direto.
+                                      setAddProductSignal((s) => s + 1);
+                                    }}
+                                  >
+                                    <Plus className="mr-1 h-4 w-4" />
+                                    Adicionar produto
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setCurrentPage(i);
+                                      // Abre a aba "Fundo" — abria "Layout", que
+                                      // não é onde se escolhe o fundo.
+                                      abrirAbaDeFundo();
+                                      setPanelOpen(true);
+                                    }}
+                                  >
+                                    <ImageIcon className="mr-1 h-4 w-4" />
+                                    Adicionar fundo
+                                  </Button>
+                                </div>
                               </div>
-                              <p className="text-sm font-medium text-foreground/80">
-                                Página vazia — comece adicionando um produto
-                              </p>
-                              <div className="pointer-events-auto flex flex-wrap items-center justify-center gap-2">
-                                <Button
-                                  size="sm"
-                                  onClick={() => {
-                                    setCurrentPage(i);
-                                    setActiveTab("produtos");
-                                    setPanelOpen(true);
-                                    // Abre o diálogo de busca de produtos direto.
-                                    setAddProductSignal((s) => s + 1);
-                                  }}
-                                >
-                                  <Plus className="mr-1 h-4 w-4" />
-                                  Adicionar produto
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    setCurrentPage(i);
-                                    // Abre a aba "Fundo" — abria "Layout", que
-                                    // não é onde se escolhe o fundo.
-                                    abrirAbaDeFundo();
-                                    setPanelOpen(true);
-                                  }}
-                                >
-                                  <ImageIcon className="mr-1 h-4 w-4" />
-                                  Adicionar fundo
-                                </Button>
-                              </div>
-                            </div>
-                          )}
+                            )}
                         </>
                       ) : (
                         <div
@@ -2395,6 +2464,42 @@ export function CatalogEditor({ catalogId }: CatalogEditorProps) {
       >
         <Plus className="h-7 w-7" />
       </button>
+
+      <AssistenteOferta
+        open={ofertaOpen}
+        onOpenChange={setOfertaOpen}
+        formatoFixo={formatoDoCatalogo(config)}
+        catalogId={catalogId}
+        proporcaoCard={
+          config.cardAspectRatio ??
+          ((config.cardLayout?.length ?? 0) > 0 ? 1 : 0.75)
+        }
+        onGerar={(entrada) => {
+          // A etiqueta e a proporção do card são as do catálogo: a oferta
+          // entra no estilo dele, só com cabeçalho, cores e preços próprios.
+          const oferta = comporOferta({
+            ...entrada,
+            proporcaoCard:
+              config.cardAspectRatio ??
+              ((config.cardLayout?.length ?? 0) > 0 ? 1 : 0.75),
+          });
+          const inicio = pages.length;
+          setConfig((prev) =>
+            acrescentarOferta(
+              prev,
+              // Congela o que está na tela: as páginas da oferta fixam
+              // `productIds`, e as antigas não podem redistribuir por isso.
+              congelarDistribuicao(ensurePages(prev), pageChunks),
+              oferta,
+            ),
+          );
+          setCurrentPage(inicio);
+          setOfertaOpen(false);
+          toast.success(`${oferta.pages.length} página(s) de oferta criadas`, {
+            action: { label: "Desfazer", onClick: () => undo() },
+          });
+        }}
+      />
 
       <ShareDialog
         open={shareOpen}

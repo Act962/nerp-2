@@ -329,6 +329,9 @@ model Organization {
   country                   String                        @default("BR")
   // Configurações visuais
   primaryColor              String                        @default("#3b82f6")
+  // Nível de IA padrão do gerador de ofertas do catálogo promocional. Só o
+  // valor inicial do assistente — cada geração grava o nível que usou.
+  aiOfferLevel              AiOfferLevel                  @default(EQUILIBRADO)
   // Vitrine pública PlanoGram: quando true, /planogram/<slug> fica acessível
   // sem login. Opt-in por org — nenhuma rede vira pública sem ligar isto.
   isPublicProfile           Boolean                       @default(false)
@@ -516,6 +519,7 @@ model Organization {
   astroAcoes        AstroAcao[]
   astroAvisos       AstroAviso[]
   astroMemorias     AstroMemoria[]
+  promotionalOfferGenerations PromotionalOfferGeneration[]
   jornadaProgressos JornadaProgresso[]
 
   @@index([slug])
@@ -2215,6 +2219,51 @@ model PromotionalCatalog {
 
   @@index([organizationId])
   @@map("promotional_catalogs")
+}
+
+enum AiOfferLevel {
+  ECONOMICO
+  EQUILIBRADO
+  PREMIUM
+}
+
+enum OfferGenerationStatus {
+  PENDING
+  GENERATING
+  DONE
+  FAILED
+}
+
+// Uma geração de oferta com IA (gerador do catálogo promocional). Registra o
+// pedido, o que a IA decidiu e quanto custou — é também o que o cliente
+// consulta enquanto a função do Inngest trabalha.
+//
+// `catalogId` nulo = a oferta vira um catálogo NOVO (criado pela função e
+// gravado em `resultado`). Preenchido = páginas para um catálogo aberto: a
+// função NÃO escreve nele (o editor tem autosave e sobrescreveria), só
+// devolve os parâmetros e o editor compõe.
+model PromotionalOfferGeneration {
+  id             String                @id @default(cuid())
+  organizationId String
+  userId         String
+  catalogId      String?
+  status         OfferGenerationStatus @default(PENDING)
+  nivel          AiOfferLevel
+  input          Json
+  modelo         String?
+  tokensIn       Int                   @default(0)
+  tokensOut      Int                   @default(0)
+  starsEstimadas Decimal               @default(0) @db.Decimal(12, 2)
+  starsCobradas  Decimal               @default(0) @db.Decimal(12, 2)
+  resultado      Json?
+  erro           String?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("promotional_offer_generations")
 }
 
 // Etiqueta: PNG (logo, figura, adesivo) da biblioteca da organização, para
