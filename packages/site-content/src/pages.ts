@@ -4,8 +4,8 @@ import { CATEGORIES, findCatalogTool, RAW_TOOLS, type Tool } from "./catalog";
 /**
  * A página interna de uma solução, montada a partir do catálogo.
  *
- * Existe para as 28 soluções nascerem com a mesma estrutura sem ninguém
- * escrever 28 páginas à mão — e para os dois apps concordarem sobre o que é
+ * Existe para as 31 soluções nascerem com a mesma estrutura sem ninguém
+ * escrever 31 páginas à mão — e para os dois apps concordarem sobre o que é
  * essa estrutura: o `apps/site` usa como conteúdo de reserva e o `apps/web`
  * usa para semear o banco, de onde o admin passa a editar.
  *
@@ -1253,7 +1253,7 @@ export function buildSolutionPage(
   };
 }
 
-/** As 28 páginas de solução, na ordem do catálogo. */
+/** As 31 páginas de solução, na ordem do catálogo. */
 export function buildAllSolutionPages(options: {
   whatsappHref: string;
 }): SitePageSeed[] {

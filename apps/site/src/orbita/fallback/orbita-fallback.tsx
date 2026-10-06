@@ -75,7 +75,7 @@ export function OrbitaFallback({
       */}
       <section className="of-section" id="solucoes">
         <span className="of-eyebrow">A suíte</span>
-        <h2>Vinte e oito ferramentas na mesma órbita.</h2>
+        <h2>Trinta e uma ferramentas na mesma órbita.</h2>
         <p className="of-lead">
           Uma suíte só faz sentido se as peças se conhecerem. Cada ferramenta
           abaixo escreve no mesmo cadastro, no mesmo funil e no mesmo histórico

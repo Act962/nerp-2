@@ -1285,6 +1285,16 @@ body {
    metade da faixa, com a outra metade vazia. */
 .sp-hero--secao {
   grid-template-columns: 1fr;
+}
+
+/*
+  A medida de leitura fica no TEXTO, não no herói.
+
+  O limite estava no `.sp-hero--secao`, do tempo em que quem pintava o azul era
+  a faixa. Desde que o degradê passou para o próprio herói, limitar a largura
+  dele cortava o azul no meio da tela e deixava a outra metade branca.
+*/
+.sp-hero--secao > div {
   max-width: 62rem;
 }
 
@@ -1297,7 +1307,8 @@ body {
 .sp-secao__grupo h2 {
   margin: 0 0 1.2rem;
   font-size: clamp(1.15rem, 2vw, 1.4rem);
-  text-align: center;
+  /* À esquerda, com a grade que ele nomeia. */
+  text-align: left;
 }
 
 /*
@@ -1347,6 +1358,10 @@ body {
    coluna de cinco cards ficava centralizada sob quatro, e a leitura quebrava. */
 .sp-secao .sp-cards {
   justify-content: flex-start;
+  /* Mesma margem do cabeçalho, da trilha e do texto do herói. Centrada em
+     1200px, a grade começava bem depois de tudo o que está acima dela. */
+  max-width: none;
+  margin: 0;
 }
 
 /*

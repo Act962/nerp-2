@@ -72,4 +72,7 @@ export const AREA_BY_TOOL: Record<string, string[]> = {
   astro: ["comercial", "operacional"],
   "space-station": ["rh", "administrativo"],
   route: ["rh", "marketing"],
+  insights: ["comercial", "administrativo", "marketing"],
+  gatilhos: ["comercial", "operacional", "administrativo"],
+  "star-friends": ["comercial", "marketing"],
 };

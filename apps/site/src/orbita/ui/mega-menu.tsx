@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MenuEntry } from "../data/content";
 import { findTool } from "../data/catalog";
 import { useSiteContent } from "../lib/content-context";
+import { CENA_PRONTA } from "../lib/cortina";
 import { goToTool } from "../lib/navigate";
 import { AboutIcon, SegmentIcon, ToolIcon } from "./icons";
 
@@ -23,12 +25,15 @@ function PanelLink({
   className,
   style,
   onNavigate,
+  onInternalClick,
   children,
 }: {
   href: string;
   className: string;
   style?: React.CSSProperties;
   onNavigate: () => void;
+  /** Roda no clique de um link interno, sem fechar o painel (ver abaixo). */
+  onInternalClick?: () => void;
   children: React.ReactNode;
 }) {
   if (isExternalHref(href)) {
@@ -55,11 +60,43 @@ function PanelLink({
     aparecer e sumir. Quem fecha o painel é a troca de rota, no `Nav`.
   */
   return (
-    <Link className={className} style={style} href={href}>
+    <Link
+      className={className}
+      style={style}
+      href={href}
+      onClick={onInternalClick}
+    >
       {children}
     </Link>
   );
 }
+
+/**
+ * A cortina: o painel de soluções recolhe para cima e revela `/solucoes`.
+ *
+ * "Ver todas as soluções" é o único link do painel cujo destino é a tela que
+ * está ATRÁS dele — a jornada dos planetas. Fechar com o esmaecer de sempre
+ * desperdiçava isso; subindo, o painel descobre a cena de baixo para cima.
+ *
+ * São dois casos, e é por isso que existe uma marca fora do componente:
+ *
+ * - já em `/solucoes`, a rota não muda. O `Nav` só fecha o painel na troca de
+ *   rota, então o clique não fazia nada. Aqui a cortina sobe na hora.
+ * - vindo de outra página, o cabeçalho é desmontado junto com ela. Quem sobe a
+ *   cortina é o painel da página NOVA, que nasce coberto e lê esta marca. Ele
+ *   espera a cena avisar que está pronta (`CENA_PRONTA`) e só então sobe; o
+ *   prazo existe para o aparelho que não desenha a cena e nunca vai avisar.
+ *
+ * A marca é um horário e vence sozinha: navegação que falha não pode deixar
+ * uma cortina armada para a próxima visita.
+ */
+const ROTA_DA_CORTINA = "/solucoes";
+const VALIDADE_DA_CORTINA = 8000;
+const ESPERA_PELA_CENA = 4000;
+let cortinaArmadaEm = 0;
+
+const semMovimento = () =>
+  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
  * Os painéis da barra.
@@ -107,10 +144,42 @@ export function MegaMenu({
   const content = useSiteContent();
   const whatsapp = content.whatsapp;
 
+  const pathname = usePathname();
+  const [cortina, setCortina] = useState<"espera" | "sobe" | null>(null);
+
+  // Antes da pintura: o painel da página nova tem de nascer já cobrindo a
+  // tela, senão a cena aparece por um quadro e é coberta de novo.
+  useLayoutEffect(() => {
+    if (kind !== "solucoes" || pathname !== ROTA_DA_CORTINA) return;
+    const armada = Date.now() - cortinaArmadaEm < VALIDADE_DA_CORTINA;
+    cortinaArmadaEm = 0;
+    if (armada && !semMovimento()) setCortina("espera");
+  }, [kind, pathname]);
+
+  useEffect(() => {
+    if (cortina !== "espera") return;
+    const subir = () => setCortina("sobe");
+    const prazo = window.setTimeout(subir, ESPERA_PELA_CENA);
+    window.addEventListener(CENA_PRONTA, subir, { once: true });
+    return () => {
+      window.clearTimeout(prazo);
+      window.removeEventListener(CENA_PRONTA, subir);
+    };
+  }, [cortina]);
+
+  const recolher = () => {
+    if (pathname !== ROTA_DA_CORTINA) {
+      cortinaArmadaEm = Date.now();
+      return;
+    }
+    if (semMovimento()) onClose();
+    else setCortina("sobe");
+  };
+
   /*
     A busca do painel de soluções.
 
-    Com 28 ferramentas, percorrer seis colunas com o olho deixou de ser o jeito
+    Com 31 ferramentas, percorrer seis colunas com o olho deixou de ser o jeito
     mais rápido de achar uma. O filtro casa com o nome E com a descrição — quem
     procura "whatsapp" não sabe que a ferramenta se chama Disparo, e é
     exatamente essa pessoa que a busca serve.
@@ -205,7 +274,14 @@ export function MegaMenu({
       id={id}
       data-open={open}
       data-kind={kind}
+      data-cortina={cortina ?? undefined}
       aria-hidden={!open}
+      onAnimationEnd={(e) => {
+        // Só a animação do próprio painel: as dos filhos também borbulham.
+        if (e.target !== e.currentTarget || cortina !== "sobe") return;
+        setCortina(null);
+        onClose();
+      }}
     >
       <div className="o-mega__inner">
         <h2 className="o-mega__sr">{TITLES[kind]} da ÓRBITA HUB</h2>
@@ -318,11 +394,16 @@ export function MegaMenu({
               O método não é mais uma ferramenta: é o que orquestra as outras.
               Por isso ele sai da grade e ocupa a largura toda, no fim — do
               mesmo jeito que Treinamentos fecha o painel "Sobre nós".
+
+              A faixa inteira leva à jornada dos planetas, e não mais à página
+              de texto do método: é lá que o método é MOSTRADO, etapa por
+              etapa. Sobe em cortina, como o "Ver todas as soluções".
             */}
             <PanelLink
               className="o-mega__method"
-              href="/solucoes/metodo-nasa"
+              href={ROTA_DA_CORTINA}
               onNavigate={onClose}
+              onInternalClick={recolher}
             >
               <span className="o-mega__method-ico">
                 <ToolIcon id="metodo" />
@@ -331,7 +412,7 @@ export function MegaMenu({
                 <span className="o-mega__method-name">Método N.A.S.A.</span>
                 <span className="o-mega__method-text">
                   O passo a passo que orquestra cada ferramenta — o que faz as
-                  28 virarem uma operação só.
+                  31 virarem uma operação só.
                 </span>
               </span>
               <em className="o-mega__method-action">Ver o método →</em>
@@ -339,7 +420,7 @@ export function MegaMenu({
 
             <div className="o-mega__foot">
               <p className="o-mega__note">
-                Vinte e oito ferramentas na mesma base: o que uma escreve, a
+                Trinta e uma ferramentas na mesma base: o que uma escreve, a
                 outra já enxerga.
               </p>
               {/*
@@ -353,8 +434,9 @@ export function MegaMenu({
               */}
               <PanelLink
                 className="o-mega__todas"
-                href="/solucoes"
+                href={ROTA_DA_CORTINA}
                 onNavigate={onClose}
+                onInternalClick={recolher}
               >
                 Ver todas as soluções →
               </PanelLink>
