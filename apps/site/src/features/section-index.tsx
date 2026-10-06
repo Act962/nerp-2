@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import Link from "next/link";
 import type { MenuEntry, SiteContent, SiteSection } from "@nerp/site-content";
 import { metadataDaPagina, SECTION_LABEL } from "@/lib/seo";
@@ -54,7 +55,7 @@ const ABERTURA: Record<SiteSection, { titulo: string; texto: string }> = {
 const TITULO_SEO: Record<SiteSection, string> = {
   // Dois-pontos e não travessão: `comMarca()` acrescenta " — ÓRBITA HUB" no
   // fim, e dois travessões no mesmo título deixam a frase sem eixo.
-  solucoes: "Soluções: as 28 ferramentas da suíte",
+  solucoes: "Soluções: as 31 ferramentas da suíte",
   segmentos: "Segmentos: para quem a suíte foi feita",
   sobre: "Sobre nós: a empresa, as parcerias e os treinamentos",
 };
@@ -143,6 +144,8 @@ export function SectionIndexPage({
   loginHref,
   signupHref,
   initialArea,
+  antesDaAbertura,
+  semGrade = false,
 }: {
   section: SiteSection;
   content: SiteContent;
@@ -150,6 +153,23 @@ export function SectionIndexPage({
   signupHref: string;
   /** Área pré-selecionada por deep-link (`/solucoes?area=comercial`). */
   initialArea?: string;
+  /**
+   * Conteúdo que entra ENTRE a trilha e a abertura do trecho.
+   *
+   * Existe porque o cabeçalho é renderizado aqui dentro: quem quisesse pôr
+   * algo "antes da página" acabaria empurrando o menu para baixo. Com o
+   * encaixe, a navegação continua no topo e o conteúdo entra onde deve.
+   */
+  antesDaAbertura?: ReactNode;
+  /**
+   * Esconde a abertura e a grade, deixando só o cromo e o `antesDaAbertura`.
+   *
+   * Usado em `/solucoes`, onde a jornada conta a história inteira: o
+   * cabeçalho azul repetia o que ela já diz, e a grade de cards logo abaixo
+   * dava ao visitante duas listas da mesma coisa. Cabeçalho, trilha e rodapé
+   * continuam — eles não são conteúdo da seção, são a casca do site.
+   */
+  semGrade?: boolean;
 }) {
   const abertura = ABERTURA[section];
   const grupos = gruposDaSecao(section, content);
@@ -168,42 +188,55 @@ export function SectionIndexPage({
         signupHref={signupHref}
       />
 
-      <Trilha
-        passos={[
-          { nome: "Início", href: "/" },
-          { nome: SECTION_LABEL[section] },
-        ]}
-      />
+      {/*
+        A trilha acompanha a grade: onde ela não existe, a faixa clara só
+        cortaria a cena em duas. O `BreadcrumbList` dos dados estruturados é
+        outro caminho e continua sendo emitido pela página.
+      */}
+      {!semGrade && (
+        <Trilha
+          passos={[
+            { nome: "Início", href: "/" },
+            { nome: SECTION_LABEL[section] },
+          ]}
+        />
+      )}
 
-      <div className="sp-band sp-band--base">
-        <section className="sp-hero sp-hero--secao">
-          <div>
-            <p className="sp-hero__eyebrow">{SECTION_LABEL[section]}</p>
-            <h1>{abertura.titulo}</h1>
-            <p>{abertura.texto}</p>
+      {antesDaAbertura}
+
+      {!semGrade && (
+        <>
+          <div className="sp-band sp-band--base">
+            <section className="sp-hero sp-hero--secao">
+              <div>
+                <p className="sp-hero__eyebrow">{SECTION_LABEL[section]}</p>
+                <h1>{abertura.titulo}</h1>
+                <p>{abertura.texto}</p>
+              </div>
+            </section>
           </div>
-        </section>
-      </div>
 
-      <div className="sp-band sp-band--claro">
-        <section className="sp-section sp-secao">
-          {section === "solucoes" ? (
-            <SolucoesFilter
-              solucoes={content.solucoes}
-              areas={content.solutionAreas}
-              initialArea={initialArea}
-            />
-          ) : (
-            grupos.map((grupo, index) => (
-              <Grupo
-                key={grupo.titulo ?? `grupo-${index}`}
-                titulo={grupo.titulo}
-                itens={grupo.itens}
-              />
-            ))
-          )}
-        </section>
-      </div>
+          <div className="sp-band sp-band--claro">
+            <section className="sp-section sp-secao">
+              {section === "solucoes" ? (
+                <SolucoesFilter
+                  solucoes={content.solucoes}
+                  areas={content.solutionAreas}
+                  initialArea={initialArea}
+                />
+              ) : (
+                grupos.map((grupo, index) => (
+                  <Grupo
+                    key={grupo.titulo ?? `grupo-${index}`}
+                    titulo={grupo.titulo}
+                    itens={grupo.itens}
+                  />
+                ))
+              )}
+            </section>
+          </div>
+        </>
+      )}
 
       <SiteFooter links={irmas} />
     </div>

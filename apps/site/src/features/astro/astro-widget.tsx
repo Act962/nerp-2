@@ -12,8 +12,9 @@ import type { PaginaDoAstro } from "./pagina";
  *
  * O widget em si é o `@nerp/astro-widget`, o mesmo que o nerp monta dentro
  * do sistema. O que é do site fica aqui: ligado/desligado e a tabela de
- * preços vindos do painel, o WhatsApp como saída humana, e de que produto a
- * página fala.
+ * preços vindos do painel, o atendimento humano (a equipe responde dentro do
+ * painel, e o WhatsApp fica como segunda saída), e de que produto a página
+ * fala.
  *
  * O POST vai para `/api/astro/chat` do próprio site, que repassa ao `apps/web`.
  * Mesma origem: sem CORS, sem preflight, e o segredo fica no servidor.
@@ -39,6 +40,9 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
   return (
     <Widget
       api="/api/astro/chat"
+      // "Falar com uma pessoa" chama a equipe aqui dentro, e as respostas
+      // voltam para a conversa. O WhatsApp continua como segunda saída.
+      apiAtendimento="/api/astro/atendimento"
       ativo={astro.ativo}
       pagina={pagina}
       produto={produto}

@@ -200,6 +200,21 @@ describe("com quem ele está falando", () => {
     expect(prompt).toMatch(/não está na base pública/i);
   });
 
+  it("só ensina a chamar a equipe quando há equipe para chamar", () => {
+    const sem = montarPrompt({ escopo: "site", agora: AGORA });
+    const com = montarPrompt({
+      escopo: "site",
+      agora: AGORA,
+      atendimentoHumano: true,
+    });
+
+    // Prompt que cita uma tool que não foi oferecida faz o modelo prometer o
+    // que não consegue cumprir.
+    expect(sem).not.toContain("chamarEquipe");
+    expect(com).toContain("chamarEquipe");
+    expect(com).toMatch(/quem pede gente quer conversa, não cadastro/i);
+  });
+
   it("oferece o formulário quando há interesse", () => {
     const prompt = montarPrompt({ escopo: "site", agora: AGORA });
     expect(prompt).toContain("oferecerFormulario");

@@ -8,6 +8,7 @@ export * from "./catalog";
 export * from "./consultor";
 export * from "./content";
 export * from "./conversao";
+export * from "./jornada";
 export * from "./marketing";
 export * from "./metodo";
 export * from "./pages";

@@ -484,6 +484,53 @@
     visibility 0s linear 0s;
 }
 
+/*
+  A cortina: o painel sobe e descobre a página que está atrás dele.
+
+  O `transform` leva o painel para cima e o `clip-path` corta, na mesma medida,
+  o trecho que passaria por cima da barra — as duas porcentagens são da própria
+  caixa, então andam juntas quadro a quadro. O resultado é uma persiana: a
+  borda de baixo sobe com os cantos arredondados, e o conteúdo vai junto.
+
+  A animação termina em `opacity: 0` de propósito. Quando ela sai, o painel
+  volta para a regra de fechado, que tem transição: se o último quadro fosse
+  opaco, ele reapareceria inteiro por um instante só para esmaecer.
+
+  `espera` é o painel parado cobrindo a tela, enquanto a cena de baixo termina
+  de montar; `sobe` é o movimento. Sem transição nos dois: quem manda aqui é a
+  animação, e a transição do painel fechado brigaria com ela.
+*/
+.o-mega[data-cortina] {
+  opacity: 1;
+  visibility: visible;
+  transform: translate3d(0, 0, 0);
+  transition: none;
+  pointer-events: none;
+}
+
+.o-mega[data-cortina="sobe"] {
+  animation: o-mega-cortina 0.68s cubic-bezier(0.65, 0, 0.35, 1) 0.1s both;
+}
+
+@keyframes o-mega-cortina {
+  from {
+    opacity: 1;
+    visibility: visible;
+    transform: translate3d(0, 0, 0);
+    clip-path: inset(0 0 0 0);
+  }
+  99% {
+    opacity: 1;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+    transform: translate3d(0, -100%, 0);
+    clip-path: inset(100% 0 0 0);
+  }
+}
+
 .o-mega__inner {
   padding: clamp(1.8rem, 3.4vw, 2.8rem) var(--o-gutter)
     clamp(1.2rem, 2.2vw, 1.8rem);
@@ -2797,6 +2844,19 @@ a.o-brand-frame:hover {
   */
   background: var(--o-void);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/*
+  Com um painel aberto, a barra standalone também assume a cor dele.
+
+  O fundo sólido acima vem depois de `.o-nav--mega` no arquivo e tem o mesmo
+  peso, então ganhava: a barra ficava escura enquanto os links já tinham
+  trocado para a tinta escura do painel — texto preto sobre fundo preto.
+  A regra junta as duas classes para valer sobre as duas.
+*/
+.o-nav--standalone.o-nav--mega {
+  background: var(--o-mega-bg);
+  border-bottom-color: transparent;
 }
 
 /*

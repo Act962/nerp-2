@@ -5685,6 +5685,14 @@ model SiteChatSession {
   /// campanha que o trouxe: o chat só vê a página atual, a visita sabe a UTM.
   visitId        String?
   consentAt      DateTime?
+  /// Atendimento humano. Quando o visitante pede uma pessoa, a conversa passa
+  /// a correr no Chat do Órbita (canal ASTRO CHAT), e este é o token do
+  /// visitante de lá: é o que faz as mensagens seguintes caírem na MESMA
+  /// conversa. Fica só no servidor — o navegador nunca o recebe.
+  handoffToken   String?
+  /// Desde quando a conversa é da equipe. Preenchido, o Astro não responde
+  /// mais nesta sessão: quem pediu gente não quer a IA de volta.
+  handoffAt      DateTime?
   expiresAt      DateTime
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
