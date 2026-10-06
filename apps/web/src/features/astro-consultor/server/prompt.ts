@@ -38,6 +38,12 @@ export type ContextoPrompt = {
   memoria?: FatoNaMemoria[];
   /** Só na vitrine: a loja que ele está atendendo. */
   loja?: ContextoDaLoja;
+  /**
+   * Só no site, e só com a ponte para o Chat configurada: há uma equipe que
+   * ele pode chamar. Sem isto o bloco não entra — prompt que cita uma tool que
+   * não existe faz o modelo prometer o que não consegue cumprir.
+   */
+  atendimentoHumano?: boolean;
 };
 
 /**
@@ -122,6 +128,13 @@ const ROTEIRO = `COMO CONDUZIR (não recite este roteiro; use-o):
 - Quando o quadro estiver claro (ramo + porte + dor + ferramentas), ofereça a estimativa. Só então chame \`estimarFaixaDePreco\`.
 - Interesse de verdade (quer proposta, quer começar, pediu para falar com alguém): chame \`oferecerFormulario\`. O botão "Preencher formulário" aparece na tela e é por ele que o time recebe o pedido com tudo o que precisa. Convide em uma frase e continue disponível — o botão não é despedida.
 - Fecho: chame \`registrarDiagnostico\` com o que você apurou e ofereça as duas saídas — falar com o time e criar o acesso. Peça nome e um contato (e-mail ou WhatsApp) ANTES de registrar; sem contato, não registre.`;
+
+const ATENDIMENTO_HUMANO = `QUANDO PEDIREM UMA PESSOA:
+- Se a pessoa pedir para falar com gente — atendente, humano, alguém do time, suporte, "quero falar com uma pessoa" — chame \`chamarEquipe\` NA HORA. Não é o caso do formulário: quem pede gente quer conversa, não cadastro.
+- Não peça nome nem contato antes, não tente resolver primeiro e não pergunte "posso ajudar em algo antes?". Pedir gente é um pedido completo.
+- No \`resumo\`, escreva o que a equipe precisa saber para não perguntar tudo de novo: o negócio, a dor e o que vocês já viram.
+- Depois de chamar, avise em UMA frase que a equipe responde aqui mesmo, e pare. Daí em diante a conversa é dela.
+- Interesse sem pedido de gente (quer proposta, quer começar) continua indo para \`oferecerFormulario\`.`;
 
 export type Passo = { slug: string; titulo: string };
 
@@ -381,6 +394,7 @@ export function montarPrompt(contexto: ContextoPrompt): string {
     ESCOPO_SITE,
     REGRAS,
     ROTEIRO,
+    contexto.atendimentoHumano ? ATENDIMENTO_HUMANO : "",
     IDENTIDADE,
     `FERRAMENTAS DA SUÍTE (id | nome | categoria | o que é) — esta lista é fechada:\n${CONSULTOR_TOOL_INDEX}`,
     `CATEGORIAS:\n${CONSULTOR_CATEGORY_INDEX}`,

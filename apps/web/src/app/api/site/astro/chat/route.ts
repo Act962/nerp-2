@@ -3,6 +3,10 @@ import type { UIMessage } from "ai";
 import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
+  atendimentoConfigurado,
+  enviarParaAEquipe,
+} from "@/features/astro-consultor/server/atendimento";
+import {
   LIMITE_TEXTO,
   textoDaMensagem,
 } from "@/features/astro-consultor/server/mensagens";
@@ -85,6 +89,34 @@ const corpoSchema = z.object({
     .optional(),
 });
 
+/**
+ * Uma resposta pronta, no formato de stream que o widget já sabe ler.
+ *
+ * Serve à sessão que já está com a equipe: nenhum modelo é chamado, mas quem
+ * espera do outro lado é o `useChat`, e ele só entende stream de mensagem.
+ */
+function respostaFixa(texto: string, sessaoId: string): Response {
+  const id = "atendimento";
+  const partes = [
+    { type: "start" },
+    { type: "text-start", id },
+    { type: "text-delta", id, delta: texto },
+    { type: "text-end", id },
+    { type: "finish" },
+  ];
+  const corpo = `${partes.map((p) => `data: ${JSON.stringify(p)}\n\n`).join("")}data: [DONE]\n\n`;
+
+  return new Response(corpo, {
+    headers: {
+      "content-type": "text/event-stream",
+      "cache-control": "no-cache",
+      "x-vercel-ai-ui-message-stream": "v1",
+      "x-astro-session": sessaoId,
+      "x-robots-tag": "noindex",
+    },
+  });
+}
+
 function indisponivel(motivo: string) {
   return NextResponse.json(
     { erro: "astro_indisponivel", motivo },
@@ -145,9 +177,37 @@ export async function POST(request: NextRequest) {
           channel: "SITE",
           expiresAt: { gt: agora },
         },
-        select: { id: true, messageCount: true, visitId: true },
+        select: {
+          id: true,
+          messageCount: true,
+          visitId: true,
+          handoffAt: true,
+        },
       })
     : null;
+
+  /*
+    A conversa já é da equipe.
+
+    O widget, quando entra em atendimento, para de postar aqui e passa a falar
+    com `/api/site/astro/atendimento`. Esta guarda é para o que escapar disso —
+    uma aba antiga, um cliente que não leu a troca de modo. Sem ela, a mensagem
+    de quem está esperando uma pessoa seria respondida pelo modelo, e a equipe
+    nunca a veria. Aqui ela segue para o Chat de qualquer jeito.
+  */
+  if (sessao?.handoffAt) {
+    const entregue = await enviarParaAEquipe({
+      sessaoId: sessao.id,
+      texto: textoDaMensagem(ultima),
+      ip: ipDaRequisicao(request.headers),
+    });
+    return respostaFixa(
+      entregue.ok
+        ? "Recado entregue à equipe. Eles respondem por aqui."
+        : "Não consegui entregar sua mensagem à equipe agora. Se puder, chame a gente no WhatsApp.",
+      sessao.id,
+    );
+  }
 
   const veredito = await verificarLimite({
     ipHash,
@@ -201,6 +261,17 @@ export async function POST(request: NextRequest) {
     mensagens,
     navegacao: { pagina: corpo.data.pagina, trilha: corpo.data.trilha },
     visitante: corpo.data.visitante,
+    // Sem a chave do Chat no ambiente não há equipe para chamar: a tool e o
+    // trecho do prompt ficam de fora, e o Astro segue com formulário e
+    // WhatsApp, como era.
+    ...(atendimentoConfigurado()
+      ? {
+          atendimento: {
+            pagina: corpo.data.landingPage,
+            ip: ipDaRequisicao(request.headers),
+          },
+        }
+      : {}),
     onFinish: async ({ tokensIn, tokensOut }) => {
       // O gasto é medido desde o primeiro dia: sem isto, o custo do consultor
       // só aparece na fatura.
