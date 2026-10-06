@@ -28,7 +28,12 @@ import {
  * no lugar (formulário, WhatsApp).
  */
 
-const BASE = (
+/**
+ * O endereço do Órbita. Vem do ambiente e de mais lugar nenhum. Exportado
+ * porque o ASTRO CHAT do site (`features/site/server/astro-chat.ts`) fala com
+ * o mesmo servidor.
+ */
+export const SERVIDOR_DO_CHAT = (
   process.env.ORBITA_ASTRO_CHAT_URL ??
   process.env.NEXT_PUBLIC_ORBITA_URL ??
   "https://orbita.nasaex.com"
@@ -37,9 +42,12 @@ const BASE = (
 /** A chave pública do site cadastrado no app ASTRO CHAT do Órbita. */
 const CHAVE = process.env.ORBITA_ASTRO_CHAT_KEY ?? "";
 
-/** O domínio cadastrado lá como permitido. Tem de bater, ou a rota recusa. */
-const ORIGEM =
-  process.env.ORBITA_ASTRO_CHAT_ORIGIN ?? "https://www.orbitatec.com.br";
+/**
+ * O domínio do site, como o Órbita o conhece. Tem de estar entre os
+ * permitidos do cadastro de lá, ou a rota recusa.
+ */
+export const DOMINIO_DO_SITE =
+  process.env.ORBITA_ASTRO_CHAT_ORIGIN ?? "https://orbitatec.com.br";
 
 const CABECALHO_DO_VISITANTE = "x-astro-visitor";
 
@@ -80,11 +88,11 @@ async function chamar(
   let resposta: Response;
   try {
     resposta = await fetch(
-      `${BASE}/api/astro-chat/${CHAVE}${chamada.caminho}`,
+      `${SERVIDOR_DO_CHAT}/api/astro-chat/${CHAVE}${chamada.caminho}`,
       {
         method: chamada.metodo,
         headers: {
-          origin: ORIGEM,
+          origin: DOMINIO_DO_SITE,
           ...(chamada.corpo ? { "content-type": "application/json" } : {}),
           ...(chamada.token ? { [CABECALHO_DO_VISITANTE]: chamada.token } : {}),
           ...(chamada.ip ? { "x-forwarded-for": chamada.ip } : {}),

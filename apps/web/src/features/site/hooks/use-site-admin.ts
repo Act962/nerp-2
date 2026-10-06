@@ -666,6 +666,34 @@ export function useSaveSiteJornada() {
 
 /* ── Melhorias pedidas de dentro do ERP ────────────────────────────────── */
 
+/* ------------------------------------------- o ASTRO CHAT do Órbita no site */
+
+export function useSiteAstroChat() {
+  const { data, isPending } = useQuery(
+    orpc.site.astroChat.get.queryOptions({ input: {} }),
+  );
+  return { astroChat: data, isLoading: isPending };
+}
+
+/**
+ * O toast daqui só cobre a falha. No sucesso quem fala é o cartão, com o
+ * resultado do teste contra o Órbita — "salvo" sozinho esconderia um domínio
+ * não liberado, que é justamente o que o admin precisa ver.
+ */
+export function useSaveSiteAstroChat() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.astroChat.save.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.astroChat.get.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useSiteMelhorias(input: {
   status?: SiteMelhoriaStatus;
   cursor?: string;

@@ -1,3 +1,4 @@
+import type { AstroChatDoSite } from "./astro-chat";
 import type { AstroPagina } from "./astro-pagina";
 import type { SiteConversao } from "./conversao";
 import type { SiteMarketing } from "./marketing";
@@ -88,6 +89,11 @@ export type AstroDisponibilidade = {
   ativo: boolean;
   /** Há faixa cadastrada, então dá para perguntar quanto custa. */
   precos: boolean;
+  /**
+   * Presente, quem atende no site é o ASTRO CHAT do Órbita, e o consultor
+   * daqui não é desenhado. Ausente numa resposta antiga ou sem código colado.
+   */
+  chat?: AstroChatDoSite | null;
 };
 
 /**

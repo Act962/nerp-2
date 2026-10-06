@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { pixelLead } from "@/features/metricas/pixels";
 import { findToolBySlug } from "@/orbita/data/catalog";
 import { useSiteContent } from "@/orbita/lib/content-context";
+import { AstroChatDoOrbita } from "./astro-chat-do-orbita";
 import type { PaginaDoAstro } from "./pagina";
 
 /**
@@ -36,6 +37,11 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
       funcionalidades: ferramenta.features.map((item) => item.title),
     };
   }, [pagina]);
+
+  // Código do ASTRO CHAT colado no admin: quem atende é o ASTRO do Órbita, e o
+  // consultor daqui não é desenhado. Dois mascotes no mesmo canto, cada um com
+  // a sua conversa, seria pior que qualquer um dos dois sozinho.
+  if (astro.chat) return <AstroChatDoOrbita chat={astro.chat} />;
 
   return (
     <Widget

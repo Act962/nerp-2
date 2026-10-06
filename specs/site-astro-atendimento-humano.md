@@ -5,7 +5,8 @@
 > Feature: `apps/web/src/features/astro-consultor/server/atendimento*.ts` +
 > `apps/web/src/app/api/site/astro/atendimento` + `packages/astro-widget`
 > Criado em: 2026-10-06 · Atualizado em: 2026-10-06
-> Status: 🟡 Em andamento — código pronto, falta configurar e testar ponta a ponta
+> Status: ⏸️ Mesclado na PR #123, mas sem uso se o ASTRO do Órbita assumir o site
+> (ver `site-astro-chat-do-orbita.md`): a ponte é do consultor, e ele sai da página.
 
 ---
 

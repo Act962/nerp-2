@@ -43,6 +43,7 @@ import {
 } from "./plataforma";
 import { deleteLead, getLead, listLeads, updateLead } from "./leads";
 import { getJornadas, saveJornada } from "./jornadas";
+import { getAstroChat, saveAstroChat } from "./astro-chat";
 import { deleteMelhoria, listMelhorias, updateMelhoria } from "./melhorias";
 import {
   getPricing,
@@ -154,6 +155,11 @@ export const siteRoutes = {
   jornadas: {
     list: getJornadas,
     save: saveJornada,
+  },
+  // O código do ASTRO CHAT: põe o ASTRO do Órbita no site.
+  astroChat: {
+    get: getAstroChat,
+    save: saveAstroChat,
   },
   // O que os clientes pedem de dentro do sistema.
   melhorias: {
