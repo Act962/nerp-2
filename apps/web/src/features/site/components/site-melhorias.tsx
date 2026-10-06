@@ -15,6 +15,7 @@ import {
   useSiteMelhorias,
   useUpdateSiteMelhoria,
 } from "../hooks/use-site-admin";
+import { SiteAstroChatCodigo } from "./site-astro-chat-codigo";
 import { SitePageHeader } from "./site-page-header";
 
 /**
@@ -63,6 +64,10 @@ export function SiteMelhorias() {
           ) : undefined
         }
       />
+
+      {/* Não é uma melhoria pedida por cliente: é o que põe o ASTRO do Órbita
+          no site. Está nesta tela a pedido do Weydson. */}
+      <SiteAstroChatCodigo />
 
       <div className="mb-4 flex flex-wrap gap-2">
         <Button
