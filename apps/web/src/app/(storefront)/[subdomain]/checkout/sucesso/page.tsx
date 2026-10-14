@@ -58,11 +58,11 @@ export default function CheckoutSuccessPage() {
 
       <div className="flex flex-col gap-2">
         <h1 className="font-bold text-3xl">
-          {orcamento ? "Orçamento pedido! 🎉" : "Pedido enviado! 🎉"}
+          {orcamento ? "Falta só um passo!" : "Pedido enviado! 🎉"}
         </h1>
         <p className="opacity-70">
           {orcamento
-            ? "Toque em Continuar no WhatsApp: a loja confere os itens e te manda o valor por lá."
+            ? "Envie o pedido pelo WhatsApp: a loja confere os itens e te manda o valor por lá."
             : modoBalcao
               ? "Apresente o código no caixa quando chegar à loja."
               : "A loja já recebeu seu pedido."}
@@ -87,22 +87,36 @@ export default function CheckoutSuccessPage() {
       )}
 
       <div className="flex w-full flex-col gap-3">
-        {venda && (
-          <Link
-            href={acompanharHref}
-            className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full font-bold text-lg shadow-md transition-transform hover:scale-[1.01] active:scale-[0.99]"
-            style={corDoTema}
-          >
-            <PackageSearch className="size-6" />
-            Acompanhar meu pedido
-          </Link>
+        {/* Orçamento: o atendimento só começa quando o cliente envia o pedido no WhatsApp. */}
+        {venda && orcamento && (
+          <PagamentoOrbita subdomain={subdomain} saleId={venda} orcamento />
         )}
 
-        {venda && modoOrbita && (
+        {venda &&
+          (orcamento ? (
+            <Link
+              href={acompanharHref}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-current font-semibold"
+            >
+              <PackageSearch className="size-5" />
+              Acompanhar meu pedido
+            </Link>
+          ) : (
+            <Link
+              href={acompanharHref}
+              className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full font-bold text-lg shadow-md transition-transform hover:scale-[1.01] active:scale-[0.99]"
+              style={corDoTema}
+            >
+              <PackageSearch className="size-6" />
+              Acompanhar meu pedido
+            </Link>
+          ))}
+
+        {venda && modoOrbita && !orcamento && (
           <PagamentoOrbita
             subdomain={subdomain}
             saleId={venda}
-            orcamento={orcamento}
+            orcamento={false}
           />
         )}
 
@@ -154,17 +168,29 @@ function PagamentoOrbita({
     enabled: !esgotou,
   });
 
+  if (data?.portalUrl && orcamento) {
+    if (!data.whatsappUrl) return null;
+    return (
+      <a
+        href={data.whatsappUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex h-14 w-full items-center justify-center gap-2.5 rounded-full bg-emerald-600 font-bold text-lg text-white shadow-md transition-transform hover:scale-[1.01] active:scale-[0.99]"
+      >
+        <MessageCircle className="size-6" /> Enviar pedido pelo WhatsApp
+      </a>
+    );
+  }
+
   if (data?.portalUrl) {
     return (
       <>
-        {!orcamento && (
-          <a
-            href={data.portalUrl}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-current font-semibold"
-          >
-            <CreditCard className="size-5" /> Pagar meu pedido
-          </a>
-        )}
+        <a
+          href={data.portalUrl}
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-current font-semibold"
+        >
+          <CreditCard className="size-5" /> Pagar meu pedido
+        </a>
         {data.whatsappUrl && (
           <a
             href={data.whatsappUrl}
