@@ -19,6 +19,7 @@ export const autoGeneratePreview = base
   .input(
     z.object({
       supplierId: z.string(),
+      photoSupplierId: z.string().optional(),
       periodMonth: z.number().int().min(1).max(12),
       periodYear: z.number().int().min(2000).max(2100),
     }),
@@ -69,7 +70,9 @@ export const autoGeneratePreview = base
     const photos = await prisma.pdvPhoto.findMany({
       where: {
         organizationId: context.org.id,
-        supplierId: input.supplierId,
+        // Só lê: um id de outra org não acha foto nenhuma, então não precisa
+        // validar aqui — o autoGenerate valida antes de gravar.
+        supplierId: input.photoSupplierId || input.supplierId,
         approvalStatus: "APPROVED",
         promoterName: { not: null },
         capturedAt: { gte: from, lt: to },

@@ -22,6 +22,8 @@ export const autoGenerateBook = base
     z.object({
       name: z.string().min(1, "Informe o nome do book"),
       supplierId: z.string(),
+      // Indústria em que as fotos foram lançadas, quando não é a do book.
+      photoSupplierId: z.string().optional(),
       periodMonth: z.number().int().min(1).max(12),
       periodYear: z.number().int().min(2000).max(2100),
       storeIds: z.array(z.string()).optional(),
@@ -45,12 +47,28 @@ export const autoGenerateBook = base
       throw errors.NOT_FOUND({ message: "Indústria não encontrada" });
     }
 
+    const photoSupplierId =
+      input.photoSupplierId && input.photoSupplierId !== input.supplierId
+        ? input.photoSupplierId
+        : null;
+    if (photoSupplierId) {
+      const photoSupplier = await prisma.supplier.findFirst({
+        where: { id: photoSupplierId, organizationId: context.org.id },
+        select: { id: true },
+      });
+      if (!photoSupplier) {
+        throw errors.NOT_FOUND({
+          message: "Indústria das fotos não encontrada",
+        });
+      }
+    }
+
     const { from, to } = monthRange(input.periodMonth, input.periodYear);
 
     const photos = await prisma.pdvPhoto.findMany({
       where: {
         organizationId: context.org.id,
-        supplierId: input.supplierId,
+        supplierId: photoSupplierId ?? input.supplierId,
         approvalStatus: "APPROVED",
         promoterName: { not: null },
         capturedAt: { gte: from, lt: to },
@@ -169,6 +187,7 @@ export const autoGenerateBook = base
           organizationId: context.org.id,
           name: input.name,
           supplierId: input.supplierId,
+          photoSupplierId,
           periodMonth: input.periodMonth,
           periodYear: input.periodYear,
           distributorLogo: input.distributorLogo,

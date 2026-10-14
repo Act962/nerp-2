@@ -78,20 +78,14 @@ export function AutoGenerateWizard({
   onOpenChange,
 }: AutoGenerateWizardProps) {
   const router = useRouter();
-  // Indústria via combobox com busca no servidor (a lista de suppliers pode ser
-  // grande; um Select simples truncava em 10 e escondia indústrias como a
-  // Pepsico). `pageSize` alto + `search` garantem que qualquer uma apareça.
-  const [supplierOpen, setSupplierOpen] = useState(false);
-  const [supplierSearch, setSupplierSearch] = useState("");
-  const [supplierLabel, setSupplierLabel] = useState("");
-  const { suppliers, isLoading: suppliersLoading } = useSupplier({
-    search: supplierSearch || undefined,
-    pageSize: 100,
-  });
   const now = new Date();
 
   const [step, setStep] = useState<Step>("select");
   const [supplierId, setSupplierId] = useState<string | null>(null);
+  // Promotor que lançou as fotos com a senha de outra indústria: o book sai
+  // com os padrões de `supplierId`, mas as fotos vêm desta.
+  const [otherPhotoSupplier, setOtherPhotoSupplier] = useState(false);
+  const [photoSupplierId, setPhotoSupplierId] = useState<string | null>(null);
   const [month, setMonth] = useState(String(now.getMonth() + 1));
   const [year, setYear] = useState(String(now.getFullYear()));
   const [name, setName] = useState("");
@@ -101,13 +95,18 @@ export function AutoGenerateWizard({
     if (!open) {
       setStep("select");
       setSupplierId(null);
+      setOtherPhotoSupplier(false);
+      setPhotoSupplierId(null);
       setExcludedStores(new Set());
       setName("");
     }
   }, [open]);
 
+  const effectivePhotoSupplierId = otherPhotoSupplier ? photoSupplierId : null;
+
   const { preview, isLoading } = useAutoGeneratePreview({
     supplierId: step === "preview" ? supplierId : null,
+    photoSupplierId: effectivePhotoSupplierId,
     periodMonth: Number(month),
     periodYear: Number(year),
   });
@@ -137,7 +136,12 @@ export function AutoGenerateWizard({
     return { photos, pages };
   }, [preview, selectedStores]);
 
-  const canAdvance = !!supplierId && !!month && !!year;
+  const canAdvance =
+    !!supplierId &&
+    !!month &&
+    !!year &&
+    (!otherPhotoSupplier ||
+      (!!photoSupplierId && photoSupplierId !== supplierId));
   const canConfirm =
     !!preview &&
     preview.isComplete &&
@@ -150,6 +154,7 @@ export function AutoGenerateWizard({
       {
         name: name.trim(),
         supplierId,
+        photoSupplierId: effectivePhotoSupplierId ?? undefined,
         periodMonth: Number(month),
         periodYear: Number(year),
         storeIds: selectedStores.map((s) => s.storeId),
@@ -179,66 +184,44 @@ export function AutoGenerateWizard({
           <div className="space-y-4">
             <Field>
               <FieldLabel>Indústria</FieldLabel>
-              <Popover open={supplierOpen} onOpenChange={setSupplierOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    // biome-ignore lint/a11y/useSemanticElements: combobox trigger
-                    role="combobox"
-                    aria-expanded={supplierOpen}
-                    className="w-full justify-between font-normal"
-                  >
-                    <span className={cn(!supplierLabel && "text-muted-foreground")}>
-                      {supplierLabel || "Selecione a indústria"}
-                    </span>
-                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-[--radix-popover-trigger-width] p-0"
-                  align="start"
-                >
-                  <Command shouldFilter={false}>
-                    <CommandInput
-                      placeholder="Buscar indústria..."
-                      value={supplierSearch}
-                      onValueChange={setSupplierSearch}
-                    />
-                    <CommandList>
-                      <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
-                        {suppliersLoading
-                          ? "Buscando..."
-                          : "Nenhuma indústria encontrada."}
-                      </CommandEmpty>
-                      <CommandGroup>
-                        {suppliers.map((s) => (
-                          <CommandItem
-                            key={s.id}
-                            value={s.id}
-                            onSelect={() => {
-                              setSupplierId(s.id);
-                              setSupplierLabel(s.name);
-                              setSupplierOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 size-4",
-                                supplierId === s.id
-                                  ? "opacity-100"
-                                  : "opacity-0",
-                              )}
-                            />
-                            {s.name}
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <SupplierCombobox value={supplierId} onChange={setSupplierId} />
             </Field>
+
+            <div className="flex flex-col gap-3 rounded-md border p-3">
+              <label
+                htmlFor="wizard-other-photo-supplier"
+                className="flex cursor-pointer items-start gap-2 text-sm"
+              >
+                <Checkbox
+                  id="wizard-other-photo-supplier"
+                  checked={otherPhotoSupplier}
+                  onCheckedChange={(v) => setOtherPhotoSupplier(v === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  As fotos foram lançadas em outra indústria
+                  <span className="block text-xs text-muted-foreground">
+                    Quando o promotor usou a senha errada. O book sai com os
+                    padrões da indústria acima e as fotos continuam onde foram
+                    lançadas.
+                  </span>
+                </span>
+              </label>
+              {otherPhotoSupplier && (
+                <Field>
+                  <FieldLabel>Fotos lançadas em</FieldLabel>
+                  <SupplierCombobox
+                    value={photoSupplierId}
+                    onChange={setPhotoSupplierId}
+                  />
+                  {!!photoSupplierId && photoSupplierId === supplierId && (
+                    <p className="text-xs text-destructive">
+                      Escolha uma indústria diferente da do book.
+                    </p>
+                  )}
+                </Field>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <Field>
@@ -299,9 +282,12 @@ export function AutoGenerateWizard({
                     <div>
                       <p className="font-medium">Nenhuma foto aprovada</p>
                       <p className="mt-1">
-                        Não há fotos aprovadas dessa indústria neste período.
-                        Aprove as fotos em "Fotos para aprovação" antes de
-                        gerar.
+                        Não há fotos aprovadas{" "}
+                        {effectivePhotoSupplierId
+                          ? "lançadas na indústria escolhida"
+                          : "dessa indústria"}{" "}
+                        neste período. Aprove as fotos em "Fotos para aprovação"
+                        antes de gerar.
                       </p>
                     </div>
                   </div>
@@ -442,5 +428,82 @@ export function AutoGenerateWizard({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Indústria via combobox com busca no servidor (a lista de suppliers pode ser
+// grande; um Select simples truncava em 10 e escondia indústrias como a
+// Pepsico). `pageSize` alto + `search` garantem que qualquer uma apareça.
+function SupplierCombobox({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [label, setLabel] = useState("");
+  const { suppliers, isLoading } = useSupplier({
+    search: search || undefined,
+    pageSize: 100,
+  });
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          // biome-ignore lint/a11y/useSemanticElements: combobox trigger
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
+          <span className={cn(!label && "text-muted-foreground")}>
+            {label || "Selecione a indústria"}
+          </span>
+          <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-[--radix-popover-trigger-width] p-0"
+        align="start"
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Buscar indústria..."
+            value={search}
+            onValueChange={setSearch}
+          />
+          <CommandList>
+            <CommandEmpty className="py-4 text-center text-sm text-muted-foreground">
+              {isLoading ? "Buscando..." : "Nenhuma indústria encontrada."}
+            </CommandEmpty>
+            <CommandGroup>
+              {suppliers.map((s) => (
+                <CommandItem
+                  key={s.id}
+                  value={s.id}
+                  onSelect={() => {
+                    onChange(s.id);
+                    setLabel(s.name);
+                    setOpen(false);
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 size-4",
+                      value === s.id ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  {s.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
