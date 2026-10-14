@@ -62,7 +62,7 @@ export default function CheckoutSuccessPage() {
         </h1>
         <p className="opacity-70">
           {orcamento
-            ? "A loja vai conferir os itens e te mandar o valor pelo WhatsApp."
+            ? "Toque em Continuar no WhatsApp: a loja confere os itens e te manda o valor por lá."
             : modoBalcao
               ? "Apresente o código no caixa quando chegar à loja."
               : "A loja já recebeu seu pedido."}
@@ -98,8 +98,12 @@ export default function CheckoutSuccessPage() {
           </Link>
         )}
 
-        {venda && modoOrbita && !orcamento && (
-          <PagamentoOrbita subdomain={subdomain} saleId={venda} />
+        {venda && modoOrbita && (
+          <PagamentoOrbita
+            subdomain={subdomain}
+            saleId={venda}
+            orcamento={orcamento}
+          />
         )}
 
         <Link
@@ -127,9 +131,12 @@ export default function CheckoutSuccessPage() {
 function PagamentoOrbita({
   subdomain,
   saleId,
+  orcamento,
 }: {
   subdomain: string;
   saleId: string;
+  /** Sem preço ainda: o cliente só segue para o WhatsApp, onde a loja manda o valor. */
+  orcamento: boolean;
 }) {
   const [esgotou, setEsgotou] = useState(false);
 
@@ -150,12 +157,14 @@ function PagamentoOrbita({
   if (data?.portalUrl) {
     return (
       <>
-        <a
-          href={data.portalUrl}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-current font-semibold"
-        >
-          <CreditCard className="size-5" /> Pagar meu pedido
-        </a>
+        {!orcamento && (
+          <a
+            href={data.portalUrl}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-full border-2 border-current font-semibold"
+          >
+            <CreditCard className="size-5" /> Pagar meu pedido
+          </a>
+        )}
         {data.whatsappUrl && (
           <a
             href={data.whatsappUrl}
@@ -175,7 +184,7 @@ function PagamentoOrbita({
   return (
     <div className="flex items-center justify-center gap-2 text-sm opacity-70">
       <Spinner />
-      Preparando o pagamento…
+      {orcamento ? "Preparando o WhatsApp da loja…" : "Preparando o pagamento…"}
     </div>
   );
 }
