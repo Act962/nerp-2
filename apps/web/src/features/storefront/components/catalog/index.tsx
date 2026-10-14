@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Loader2,
   Percent,
   SearchX,
 } from "lucide-react";
@@ -16,7 +17,11 @@ import { useQueryState } from "nuqs";
 import { useEffect, useRef, useState } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { CatalogCategoryDisplay } from "@/generated/prisma/enums";
-import { useQueryCatalogProducts } from "@/features/storefront/hooks/use-catalog-products";
+import {
+  useQueryCatalogCategories,
+  useQueryCatalogOffers,
+  useQueryCatalogProducts,
+} from "@/features/storefront/hooks/use-catalog-products";
 import { useCatalogSettings } from "@/features/storefront/hooks/use-catalog-settings";
 import {
   type CoresDoCartao,
@@ -28,14 +33,12 @@ import {
 import { iconeDaCategoria } from "@/features/storefront/lib/icones-de-categoria";
 import type { OfertaDaVitrine } from "@/features/storefront/server/ofertas";
 import { useConstructUrl } from "@/hooks/use-construct-url";
+import { useDebouncedValue } from "@/hooks/use-debounced-value";
+import { useInfiniteScrollSentinel } from "@/hooks/use-infinite-scroll-sentinel";
 import { cn } from "@/lib/utils";
 import { parseCurrencyInput } from "@/utils/currency-formatter";
 import { FiltersCatalog } from "./filters";
-import {
-  type FormatoDoCartao,
-  ProductCard,
-  precoEmOferta,
-} from "./product-card";
+import { type FormatoDoCartao, ProductCard } from "./product-card";
 
 interface CatalogProps {
   subdomain: string;
@@ -49,11 +52,6 @@ type Categoria = {
   icon: string | null;
 };
 
-/** Busca sem acento e sem caixa: "acucar" acha "Açúcar". */
-function normalizar(texto: string): string {
-  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-}
-
 export function Catalog({ subdomain }: CatalogProps) {
   const [categoriesSlugs, setCategoriesSlugs] = useQueryState("categories");
   const [busca, setBusca] = useQueryState("q");
@@ -66,18 +64,35 @@ export function Catalog({ subdomain }: CatalogProps) {
     isLoading,
   } = useCatalogSettings({ subdomain });
 
-  const { data, isLoadingProducts } = useQueryCatalogProducts({
+  // A busca vai ao servidor (sem acento e sem caixa: "acucar" acha
+  // "Açúcar"); o atraso evita uma consulta por tecla digitada no cabeçalho.
+  const termo = useDebouncedValue(busca?.trim() ?? "");
+
+  const { categories, isLoadingCategories } =
+    useQueryCatalogCategories(subdomain);
+  const { offers: emOferta } = useQueryCatalogOffers(subdomain);
+  const {
+    products: produtos,
+    total,
+    isLoadingProducts,
+    isFetchingFirstPage,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  } = useQueryCatalogProducts({
     subdomain,
     categories: categoriesSlugs?.trim().split(","),
     minValue: minValue ? parseCurrencyInput(minValue) : undefined,
     maxValue: maxValue ? parseCurrencyInput(maxValue) : undefined,
+    search: termo,
   });
-
-  if (isLoading || isLoadingProducts) return <EsqueletoDaVitrine />;
+  if (isLoading || isLoadingCategories || isLoadingProducts) {
+    return <EsqueletoDaVitrine />;
+  }
 
   if (
     catalogSettings === undefined ||
-    data === undefined ||
+    categories === undefined ||
     catalogSettings.isActive === false
   ) {
     return notFound();
@@ -96,10 +111,10 @@ export function Catalog({ subdomain }: CatalogProps) {
     tema,
   );
 
-  const categorias = data.categories
+  const categorias = categories
     .filter((c) => !c.parentId && c.isActive && c.productCount > 0)
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
-  const nomeDaCategoria = new Map(data.categories.map((c) => [c.id, c.name]));
+  const nomeDaCategoria = new Map(categories.map((c) => [c.id, c.name]));
 
   const ativas = categoriesSlugs
     ? categoriesSlugs.split(",").map((s) => s.trim().toLowerCase())
@@ -109,13 +124,6 @@ export function Catalog({ subdomain }: CatalogProps) {
       slug && !ativas.includes(slug.toLowerCase()) ? slug : null,
     );
 
-  const termo = normalizar(busca?.trim() ?? "");
-  const produtos = termo
-    ? data.products.filter((p) => normalizar(p.name).includes(termo))
-    : data.products;
-  const emOferta = data.products.filter((p) =>
-    precoEmOferta(p.salePrice, p.promotionalPrice),
-  );
   const filtrando = ativas.length > 0 || termo.length > 0;
 
   const cartao = (
@@ -253,13 +261,15 @@ export function Catalog({ subdomain }: CatalogProps) {
           </div>
           <div className="flex shrink-0 items-center justify-between gap-3">
             <span className="text-muted-foreground text-sm">
-              {produtos.length} produto(s)
+              {total} produto(s)
             </span>
-            <FiltersCatalog categories={data.categories} />
+            <FiltersCatalog categories={categories} />
           </div>
         </div>
 
-        {produtos.length === 0 ? (
+        {/* Página vazia com continuação não é "nada encontrado": o servidor
+            parou no teto de lotes descartando sem foto, e a sentinela segue. */}
+        {produtos.length === 0 && !hasNextPage ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card py-16 text-center text-card-foreground">
             <SearchX className="size-8 text-muted-foreground" />
             <p className="font-medium">Nenhum produto encontrado</p>
@@ -277,16 +287,61 @@ export function Catalog({ subdomain }: CatalogProps) {
             )}
           </div>
         ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
-            {produtos.map((produto) => (
-              <li key={produto.id} className="flex">
-                {cartao(produto, "w-full")}
-              </li>
-            ))}
-          </ul>
+          <>
+            <ul
+              className={cn(
+                "grid grid-cols-2 gap-3 transition-opacity sm:grid-cols-3 sm:gap-4 lg:grid-cols-5",
+                isFetchingFirstPage && "opacity-60",
+              )}
+            >
+              {produtos.map((produto) => (
+                <li key={produto.id} className="flex">
+                  {cartao(produto, "w-full")}
+                </li>
+              ))}
+            </ul>
+            <CarregarMais
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+            />
+          </>
         )}
       </section>
     </div>
+  );
+}
+
+/**
+ * A sentinela no fim da grade que pede a próxima página. Fica num componente
+ * próprio para o observador nascer junto com ela: a vitrine mostra o esqueleto
+ * enquanto as configurações da loja não chegam, e se os produtos chegassem
+ * antes, o observador seria montado sem sentinela e nunca mais reconectado.
+ */
+function CarregarMais({
+  hasNextPage,
+  isFetchingNextPage,
+  fetchNextPage,
+}: {
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  fetchNextPage: () => void;
+}) {
+  const sentinela = useInfiniteScrollSentinel({
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
+  });
+
+  return (
+    <>
+      <div ref={sentinela} aria-hidden className="h-px" />
+      {isFetchingNextPage && (
+        <div className="flex justify-center py-4 text-muted-foreground">
+          <Loader2 className="size-5 animate-spin" />
+        </div>
+      )}
+    </>
   );
 }
 

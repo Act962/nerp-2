@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
-import { useQueryCatalogProducts } from "@/features/storefront/hooks/use-catalog-products";
+import { useQueryCatalogCategories } from "@/features/storefront/hooks/use-catalog-products";
 import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 import {
   TEMA_PADRAO_CATALOGO,
@@ -104,10 +104,8 @@ export function Header({ settings }: HeaderProps) {
   const [busca, setBusca] = useQueryState("q", { defaultValue: "" });
   const [, setCategorias] = useQueryState("categories");
 
-  const { data: catalogo } = useQueryCatalogProducts({
-    subdomain: settings.subdomain,
-  });
-  const categorias = (catalogo?.categories ?? [])
+  const { categories } = useQueryCatalogCategories(settings.subdomain);
+  const categorias = (categories ?? [])
     .filter((c) => !c.parentId && c.isActive && c.productCount > 0)
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 
