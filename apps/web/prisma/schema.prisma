@@ -3692,6 +3692,13 @@ model Book {
   organizationId    String
   name              String
   supplierId        String? // Indústria (opcional): logo + marcas. Sem = book geral de ações
+  // Indústria em que as fotos foram LANÇADAS, quando difere da do book: o
+  // promotor usou a senha de outra indústria e as fotos ficaram marcadas nela.
+  // O book busca as fotos aqui e monta com os padrões de `supplierId`, sem
+  // remarcar as fotos nem mexer no book da indústria errada. null = as fotos
+  // são da própria `supplierId`. Sem relation para não ter de nomear as duas
+  // ligações Book→Supplier.
+  photoSupplierId   String?
   distributorLogo   String? // default = Organization.logo
   periodMonth       Int
   periodYear        Int
@@ -3736,6 +3743,7 @@ model Book {
 
   @@index([organizationId])
   @@index([supplierId])
+  @@index([photoSupplierId])
   @@map("books")
 }
 
