@@ -16,6 +16,19 @@ describe("s2sPodeAcessar", () => {
     expect(escopoS2SExigido(["constructor"])).toBeNull();
   });
 
+  it("a chave do Órbita alcança o que ele chama, cada um com o próprio escopo", () => {
+    expect(s2sPodeAcessar(["products", "list"], ["products:rw"])).toBe(true);
+    expect(
+      s2sPodeAcessar(["catalogSettings", "create"], ["catalog-settings:rw"]),
+    ).toBe(true);
+    expect(s2sPodeAcessar(["org", "get"], ["org:rw"])).toBe(true);
+    expect(s2sPodeAcessar(["products", "list"], ["sales:rw"])).toBe(false);
+    expect(s2sPodeAcessar(["org", "updateLogo"], ["org:rw"])).toBe(false);
+    expect(s2sPodeAcessar(["sales", "approvePending"], ["sales:rw"])).toBe(
+      false,
+    );
+  });
+
   it("o escopo total abre tudo", () => {
     expect(s2sPodeAcessar(["invitation", "create"], ["*"])).toBe(true);
   });

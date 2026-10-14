@@ -24,6 +24,9 @@ export type OrbitaOrderItem = {
    * orçamento, onde `unitPrice`/`total` chegam 0 — o valor é combinado lá.
    */
   referenceUnitPrice: number | null;
+  /** Preço da caixa (`packQty` unidades) pela tabela de preços, também só referência. */
+  referenceBoxPrice: number | null;
+  packQty: number | null;
 };
 
 export type OrbitaOrderPayload = {

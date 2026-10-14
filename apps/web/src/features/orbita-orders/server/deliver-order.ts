@@ -13,6 +13,7 @@ import {
 } from "../lib/payload";
 import { buildOrbitaOrderHeaders, ORBITA_ORDERS_PATH } from "../lib/sign";
 import { findOrbitaPushKey } from "./find-push-key";
+import { resolveManyPrices } from "@/features/precos/server/resolve-price";
 
 const TIMEOUT_MS = 15_000;
 
@@ -42,6 +43,52 @@ function buildCatalogUrl(subdomain: string | null): string | null {
   return `${baseOrigin}/catalogo/${subdomain}`;
 }
 
+type ReferencePrice = {
+  unitPrice: number | null;
+  boxPrice: number | null;
+  packQty: number | null;
+};
+
+// Orçamento nasce a R$ 0: o consultor no Órbita parte destes preços da tabela
+// do cliente — unidade e caixa (faixa de `minQuantity` igual ao `packQty`).
+async function resolveReferencePrices(
+  organizationId: string,
+  priceListId: string | null,
+  products: Array<{ id: string; packQty: number | null }>,
+): Promise<Map<string, ReferencePrice>> {
+  const lines = products.flatMap((product) => {
+    const unitLine = { productId: product.id, quantity: 1 };
+    return product.packQty && product.packQty > 1
+      ? [unitLine, { productId: product.id, quantity: product.packQty }]
+      : [unitLine];
+  });
+  const resolved = await resolveManyPrices({
+    organizationId,
+    priceListId,
+    items: lines,
+  });
+
+  const referenceByProductId = new Map<string, ReferencePrice>();
+  for (const line of resolved) {
+    const product = products.find(
+      (candidate) => candidate.id === line.productId,
+    );
+    const current = referenceByProductId.get(line.productId) ?? {
+      unitPrice: null,
+      boxPrice: null,
+      packQty: product?.packQty && product.packQty > 1 ? product.packQty : null,
+    };
+    if (line.unitPrice > 0) {
+      if (line.quantity === 1) current.unitPrice = line.unitPrice;
+      else
+        current.boxPrice =
+          Math.round(line.unitPrice * line.quantity * 100) / 100;
+    }
+    referenceByProductId.set(line.productId, current);
+  }
+  return referenceByProductId;
+}
+
 async function buildOrbitaOrderPayload(
   saleId: string,
   delivery: OrbitaOrderDelivery,
@@ -67,9 +114,17 @@ async function buildOrbitaOrderPayload(
       thumbnail: true,
       images: true,
       salePrice: true,
+      packQty: true,
     },
   });
   const productById = new Map(products.map((product) => [product.id, product]));
+  const referencePrices = sale.quoteRequested
+    ? await resolveReferencePrices(
+        sale.organizationId,
+        sale.priceListId,
+        products,
+      )
+    : new Map<string, ReferencePrice>();
 
   const items = sale.items.map((item) => {
     const product = productById.get(item.productId);
@@ -83,9 +138,9 @@ async function buildOrbitaOrderPayload(
       total: Number(item.total),
       imageUrl: emptyToNull(constructUrl(imageKey)),
       referenceUnitPrice:
-        sale.quoteRequested && product && Number(product.salePrice) > 0
-          ? Number(product.salePrice)
-          : null,
+        referencePrices.get(item.productId)?.unitPrice ?? null,
+      referenceBoxPrice: referencePrices.get(item.productId)?.boxPrice ?? null,
+      packQty: referencePrices.get(item.productId)?.packQty ?? null,
     };
   });
 
