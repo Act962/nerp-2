@@ -5,7 +5,7 @@ import {
   coletarPagina,
   ordemDaVitrine,
   precificar,
-  semOsSemFoto,
+  comFotoCadastrada,
 } from "@/features/storefront/server/vitrine";
 import prisma from "@/lib/db";
 import z from "zod";
@@ -56,7 +56,7 @@ export const listOffers = base
         (
           await precificar(
             vitrine,
-            await semOsSemFoto(lote),
+            comFotoCadastrada(lote),
             input.catalogUserId,
           )
         ).filter(

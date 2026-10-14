@@ -2,6 +2,7 @@
 
 import { Uploader } from "@/components/file-uploader/uploader";
 import { AvisoSemFoto } from "@/features/products/components/aviso-sem-foto";
+import { temFotoCadastrada } from "@/features/storefront/lib/foto-do-produto";
 import { PageHeader } from "@/components/page-header";
 import { RichTextEditor } from "@/components/rich-text/editor";
 import { Button } from "@/components/ui/button";
@@ -678,7 +679,12 @@ export function EditProductForm() {
                   render={({ field, fieldState }) => (
                     <Field className="text-center">
                       <Uploader value={field.value} onChange={field.onChange} />
-                      <AvisoSemFoto temFoto={Boolean(field.value)} />
+                      <AvisoSemFoto
+                        temFoto={temFotoCadastrada({
+                          thumbnail: field.value ?? "",
+                          images: product.images,
+                        })}
+                      />
                       <FieldDescription>
                         Formatos aceitos: JPG, PNG, GIF
                         <br />

@@ -2,7 +2,10 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import type { CatalogSortOrder } from "@/generated/prisma/enums";
 import { resolveManyPrices } from "@/features/precos/server/resolve-price";
-import { conferirFotos, temFoto } from "@/features/storefront/server/tem-foto";
+import {
+  fotoDoProduto,
+  temFotoCadastrada,
+} from "@/features/storefront/lib/foto-do-produto";
 import prisma from "@/lib/db";
 
 /** O que a vitrine pública precisa saber da loja antes de listar qualquer coisa. */
@@ -36,12 +39,13 @@ export async function carregarVitrine(
     sortOrder: settings?.sortOrder ?? "ASC",
     mostrarSemEstoque,
     // Catálogo público: só produtos ativos, marcados como visíveis e com
-    // foto. A caixa/PDV pode continuar usando produto ativo sem exibir.
+    // foto — miniatura ou galeria (ver `fotoDoProduto`). A caixa/PDV pode
+    // continuar usando produto ativo sem exibir.
     visiveis: {
       organizationId: organization.id,
       isActive: true,
       showInCatalog: true,
-      thumbnail: { not: "" },
+      OR: [{ thumbnail: { not: "" } }, { images: { isEmpty: false } }],
       ...(mostrarSemEstoque ? {} : { currentStock: { gte: 1 } }),
     },
   };
@@ -121,15 +125,18 @@ export async function buscarProdutosDaVitrine(args: {
 }
 
 /**
- * A vitrine só mostra produto com foto. O banco já tira quem não tem nenhuma
- * cadastrada (`visiveis`); aqui saem as que estão cadastradas mas não abrem —
- * arquivo apagado do storage, caminho do seed que não veio junto.
+ * O acabamento do filtro de `visiveis`: o query builder não sabe ignorar
+ * espaço em branco, então miniatura "  " ou galeria `[""]` passariam.
+ *
+ * A regra é "tem foto CADASTRADA" — a mesma do aviso no cadastro do
+ * produto. Conferir se o arquivo abre (HEAD no storage) ficou de fora de
+ * propósito: escondia em silêncio produto com foto cadastrada, sem nada no
+ * cadastro dizendo por quê; o cartão já cai na imagem padrão se a foto falha.
  */
-export async function semOsSemFoto<T extends { thumbnail: string }>(
-  produtos: T[],
-): Promise<T[]> {
-  await conferirFotos(produtos.map((produto) => produto.thumbnail));
-  return produtos.filter((produto) => temFoto(produto.thumbnail));
+export function comFotoCadastrada<
+  T extends { thumbnail: string; images?: string[] | null },
+>(produtos: T[]): T[] {
+  return produtos.filter(temFotoCadastrada);
 }
 
 /**
@@ -171,7 +178,7 @@ export async function precificar(
     minStock: Number(produto.minStock),
     categoryId: produto.categoryId,
     weight: Number(produto.weight),
-    thumbnail: produto.thumbnail,
+    thumbnail: fotoDoProduto(produto),
     currentStock: Number(produto.currentStock),
     salePrice: precoPorId.get(produto.id) ?? Number(produto.salePrice),
     promotionalPrice: Number(produto.promotionalPrice),
@@ -205,7 +212,10 @@ function ondeDaLista(vitrine: Vitrine, filtros: FiltrosDaLista): Prisma.Sql {
     Prisma.sql`p."organizationId" = ${vitrine.organizationId}`,
     Prisma.sql`p."isActive" = TRUE`,
     Prisma.sql`p."showInCatalog" = TRUE`,
-    Prisma.sql`p.thumbnail <> ''`,
+    Prisma.sql`(
+      btrim(p.thumbnail) <> ''
+      OR EXISTS (SELECT 1 FROM unnest(p.images) AS foto WHERE btrim(foto) <> '')
+    )`,
   ];
   if (!vitrine.mostrarSemEstoque) {
     condicoes.push(Prisma.sql`p."currentStock" >= 1`);
@@ -283,17 +293,16 @@ async function loteDaLista(
   return ids.flatMap((id) => porId.get(id) ?? []);
 }
 
-/** Quantos produtos a lista tem com estes filtros, já sem os sem foto. */
+/** Quantos produtos a lista tem com estes filtros. */
 export async function contarDaLista(
   vitrine: Vitrine,
   filtros: FiltrosDaLista,
 ): Promise<number> {
-  // Contar pelo banco incluiria as fotos cadastradas que não abrem, e o
-  // número no topo da lista não bateria com os cartões.
-  const fotos = await prisma.$queryRaw<{ thumbnail: string }[]>`
-    SELECT p.thumbnail FROM products p WHERE ${ondeDaLista(vitrine, filtros)}
+  const [{ total }] = await prisma.$queryRaw<{ total: number }[]>`
+    SELECT count(*)::int AS total FROM products p
+    WHERE ${ondeDaLista(vitrine, filtros)}
   `;
-  return (await semOsSemFoto(fotos)).length;
+  return total;
 }
 
 export function paginaDaLista(
@@ -307,7 +316,8 @@ export function paginaDaLista(
     cursor,
     buscarLote: (take, depoisDe) =>
       loteDaLista(vitrine, filtros, take, depoisDe),
-    filtrar: (lote) => semOsSemFoto(lote),
+    // O SQL já aplica a regra inteira da foto; não sobra nada para filtrar.
+    filtrar: async (lote) => lote,
   });
 }
 
