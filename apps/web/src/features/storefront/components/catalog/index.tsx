@@ -267,7 +267,9 @@ export function Catalog({ subdomain }: CatalogProps) {
           </div>
         </div>
 
-        {produtos.length === 0 ? (
+        {/* Página vazia com continuação não é "nada encontrado": o servidor
+            parou no teto de lotes descartando sem foto, e a sentinela segue. */}
+        {produtos.length === 0 && !hasNextPage ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed bg-card py-16 text-center text-card-foreground">
             <SearchX className="size-8 text-muted-foreground" />
             <p className="font-medium">Nenhum produto encontrado</p>

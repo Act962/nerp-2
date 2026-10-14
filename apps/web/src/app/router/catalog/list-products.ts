@@ -1,12 +1,10 @@
 import { base } from "@/app/middlewares/base";
-import type { Prisma } from "@/generated/prisma/client";
 import {
-  buscarProdutosDaVitrine,
+  type FiltrosDaLista,
   carregarVitrine,
-  idsDaBusca,
-  ordemDaVitrine,
+  contarDaLista,
+  paginaDaLista,
   precificar,
-  semOsSemFoto,
 } from "@/features/storefront/server/vitrine";
 import prisma from "@/lib/db";
 import z from "zod";
@@ -68,7 +66,11 @@ export const listProducts = base
     const vitrine = await carregarVitrine(input.subdomain);
     if (!vitrine) throw errors.NOT_FOUND();
 
-    const where: Prisma.ProductWhereInput = { ...vitrine.visiveis };
+    const filtros: FiltrosDaLista = {
+      minValue: input.minValue,
+      maxValue: input.maxValue,
+      search: input.search || undefined,
+    };
 
     if (input.categorySlugs && input.categorySlugs.length > 0) {
       /*
@@ -84,66 +86,25 @@ export const listProducts = base
       const escolhidas = categories
         .filter((category) => input.categorySlugs?.includes(category.slug))
         .map((category) => category.id);
-      where.categoryId = {
-        in: categories
-          .filter((category) =>
-            escolhidas.some(
-              (id) =>
-                category.id === id ||
-                (category.path ?? "").split("/").includes(id),
-            ),
-          )
-          .map((category) => category.id),
-      };
+      filtros.categoryIds = categories
+        .filter((category) =>
+          escolhidas.some(
+            (id) =>
+              category.id === id ||
+              (category.path ?? "").split("/").includes(id),
+          ),
+        )
+        .map((category) => category.id);
     }
 
-    if (input.minValue || input.maxValue) {
-      where.salePrice = {
-        ...(input.minValue && { gte: input.minValue }),
-        ...(input.maxValue && { lte: input.maxValue }),
-      };
-    }
-
-    if (input.search) {
-      where.id = {
-        in: await idsDaBusca(vitrine.organizationId, input.search),
-      };
-    }
-
-    // Um a mais que o pedido só para saber se existe próxima página.
-    const linhas = await buscarProdutosDaVitrine({
-      where,
-      orderBy: ordemDaVitrine(vitrine.sortOrder),
-      take: input.limit + 1,
-      cursor: input.cursor,
-    });
-    const temMais = linhas.length > input.limit;
-    const pagina = linhas.slice(0, input.limit);
-
-    // O cursor sai da página crua, antes do filtro de foto: se ele saísse do
-    // último produto com foto, a próxima página repetiria os sem foto do fim.
-    const nextCursor = temMais ? (pagina.at(-1)?.id ?? null) : null;
-
-    let total: number | null = null;
-    if (!input.cursor) {
-      total = vitrine.semFotoFora
-        ? (
-            await semOsSemFoto(
-              vitrine,
-              await prisma.product.findMany({
-                where,
-                select: { thumbnail: true },
-              }),
-            )
-          ).length
-        : await prisma.product.count({ where });
-    }
-
-    const products = await precificar(
+    const { itens, nextCursor } = await paginaDaLista(
       vitrine,
-      await semOsSemFoto(vitrine, pagina),
-      input.catalogUserId,
+      filtros,
+      input.limit,
+      input.cursor,
     );
+    const total = input.cursor ? null : await contarDaLista(vitrine, filtros);
+    const products = await precificar(vitrine, itens, input.catalogUserId);
 
     return { products, nextCursor, total };
   });

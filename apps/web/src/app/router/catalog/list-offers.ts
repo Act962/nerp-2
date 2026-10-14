@@ -2,6 +2,7 @@ import { base } from "@/app/middlewares/base";
 import {
   buscarProdutosDaVitrine,
   carregarVitrine,
+  coletarPagina,
   ordemDaVitrine,
   precificar,
   semOsSemFoto,
@@ -36,25 +37,34 @@ export const listOffers = base
     if (!vitrine) throw errors.NOT_FOUND();
 
     // O banco faz a peneira grossa (promoção abaixo do preço de tabela); a
-    // fina vem depois, contra o preço já resolvido para o comprador.
-    const candidatos = await buscarProdutosDaVitrine({
-      where: {
-        ...vitrine.visiveis,
-        promotionalPrice: { gt: 0, lt: prisma.product.fields.salePrice },
-      },
-      orderBy: ordemDaVitrine(vitrine.sortOrder),
-      take: MAX_OFERTAS,
+    // fina vem depois, contra o preço já resolvido para o comprador. O teto
+    // conta depois das duas peneiras e da foto — cortar antes devolveria
+    // menos ofertas (ou nenhuma) com outras válidas logo adiante.
+    const { itens } = await coletarPagina({
+      quantidade: MAX_OFERTAS,
+      buscarLote: (take, cursor) =>
+        buscarProdutosDaVitrine({
+          where: {
+            ...vitrine.visiveis,
+            promotionalPrice: { gt: 0, lt: prisma.product.fields.salePrice },
+          },
+          orderBy: ordemDaVitrine(vitrine.sortOrder),
+          take,
+          cursor,
+        }),
+      filtrar: async (lote) =>
+        (
+          await precificar(
+            vitrine,
+            await semOsSemFoto(vitrine, lote),
+            input.catalogUserId,
+          )
+        ).filter(
+          (produto) =>
+            produto.promotionalPrice !== null &&
+            produto.promotionalPrice > 0 &&
+            produto.promotionalPrice < produto.salePrice,
+        ),
     });
-
-    const produtos = await precificar(
-      vitrine,
-      await semOsSemFoto(vitrine, candidatos),
-      input.catalogUserId,
-    );
-    return produtos.filter(
-      (produto) =>
-        produto.promotionalPrice !== null &&
-        produto.promotionalPrice > 0 &&
-        produto.promotionalPrice < produto.salePrice,
-    );
+    return itens;
   });
