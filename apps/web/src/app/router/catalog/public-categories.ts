@@ -1,7 +1,7 @@
 import { base } from "@/app/middlewares/base";
 import {
   carregarVitrine,
-  semOsSemFoto,
+  comFotoCadastrada,
 } from "@/features/storefront/server/vitrine";
 import prisma from "@/lib/db";
 import z from "zod";
@@ -58,10 +58,10 @@ export const listPublicCategories = base
     // A contagem sai dos mesmos produtos que a vitrine mostra: contar pelo
     // banco incluiria os sem foto, e a categoria que só tem esses viraria
     // um cartão que abre uma lista vazia.
-    const paraContar = await semOsSemFoto(
+    const paraContar = comFotoCadastrada(
       await prisma.product.findMany({
         where: { ...vitrine.visiveis, categoryId: { not: null } },
-        select: { categoryId: true, thumbnail: true },
+        select: { categoryId: true, thumbnail: true, images: true },
       }),
     );
 
