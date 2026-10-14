@@ -9,7 +9,6 @@ import prisma from "@/lib/db";
 export type Vitrine = {
   organizationId: string;
   sortOrder: CatalogSortOrder;
-  semFotoFora: boolean;
   mostrarSemEstoque: boolean;
   visiveis: Prisma.ProductWhereInput;
 };
@@ -28,7 +27,6 @@ export async function carregarVitrine(
     select: {
       sortOrder: true,
       showProductWithoutStock: true,
-      hideProductsWithoutImage: true,
     },
   });
 
@@ -36,14 +34,14 @@ export async function carregarVitrine(
   return {
     organizationId: organization.id,
     sortOrder: settings?.sortOrder ?? "ASC",
-    semFotoFora: settings?.hideProductsWithoutImage === true,
     mostrarSemEstoque,
-    // Catálogo público: só produtos ativos E marcados como visíveis.
-    // A caixa/PDV pode continuar usando produto ativo sem exibir.
+    // Catálogo público: só produtos ativos, marcados como visíveis e com
+    // foto. A caixa/PDV pode continuar usando produto ativo sem exibir.
     visiveis: {
       organizationId: organization.id,
       isActive: true,
       showInCatalog: true,
+      thumbnail: { not: "" },
       ...(mostrarSemEstoque ? {} : { currentStock: { gte: 1 } }),
     },
   };
@@ -122,12 +120,14 @@ export async function buscarProdutosDaVitrine(args: {
   });
 }
 
-/** Tira os produtos sem foto quando a loja pediu, conferindo só os recebidos. */
+/**
+ * A vitrine só mostra produto com foto. O banco já tira quem não tem nenhuma
+ * cadastrada (`visiveis`); aqui saem as que estão cadastradas mas não abrem —
+ * arquivo apagado do storage, caminho do seed que não veio junto.
+ */
 export async function semOsSemFoto<T extends { thumbnail: string }>(
-  vitrine: Vitrine,
   produtos: T[],
 ): Promise<T[]> {
-  if (!vitrine.semFotoFora) return produtos;
   await conferirFotos(produtos.map((produto) => produto.thumbnail));
   return produtos.filter((produto) => temFoto(produto.thumbnail));
 }
@@ -205,6 +205,7 @@ function ondeDaLista(vitrine: Vitrine, filtros: FiltrosDaLista): Prisma.Sql {
     Prisma.sql`p."organizationId" = ${vitrine.organizationId}`,
     Prisma.sql`p."isActive" = TRUE`,
     Prisma.sql`p."showInCatalog" = TRUE`,
+    Prisma.sql`p.thumbnail <> ''`,
   ];
   if (!vitrine.mostrarSemEstoque) {
     condicoes.push(Prisma.sql`p."currentStock" >= 1`);
@@ -287,17 +288,12 @@ export async function contarDaLista(
   vitrine: Vitrine,
   filtros: FiltrosDaLista,
 ): Promise<number> {
-  const onde = ondeDaLista(vitrine, filtros);
-  if (vitrine.semFotoFora) {
-    const fotos = await prisma.$queryRaw<{ thumbnail: string }[]>`
-      SELECT p.thumbnail FROM products p WHERE ${onde}
-    `;
-    return (await semOsSemFoto(vitrine, fotos)).length;
-  }
-  const [{ total }] = await prisma.$queryRaw<{ total: number }[]>`
-    SELECT count(*)::int AS total FROM products p WHERE ${onde}
+  // Contar pelo banco incluiria as fotos cadastradas que não abrem, e o
+  // número no topo da lista não bateria com os cartões.
+  const fotos = await prisma.$queryRaw<{ thumbnail: string }[]>`
+    SELECT p.thumbnail FROM products p WHERE ${ondeDaLista(vitrine, filtros)}
   `;
-  return total;
+  return (await semOsSemFoto(fotos)).length;
 }
 
 export function paginaDaLista(
@@ -311,7 +307,7 @@ export function paginaDaLista(
     cursor,
     buscarLote: (take, depoisDe) =>
       loteDaLista(vitrine, filtros, take, depoisDe),
-    filtrar: (lote) => semOsSemFoto(vitrine, lote),
+    filtrar: (lote) => semOsSemFoto(lote),
   });
 }
 

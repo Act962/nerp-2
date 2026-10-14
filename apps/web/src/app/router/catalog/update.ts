@@ -56,7 +56,6 @@ export const updateSettingsCatalog = base
       categoryCardColor: z.string().optional(),
       categoryIconColor: z.string().optional(),
       categoryTextColor: z.string().optional(),
-      hideProductsWithoutImage: z.boolean().optional(),
       offerCatalogIds: z.string().array().optional(),
       instagram: z.string().optional(),
       facebook: z.string().optional(),

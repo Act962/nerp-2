@@ -64,23 +64,16 @@ export const getProductAndProductsByCategory = base
           categoryId: product.categoryId,
           isActive: true,
           showInCatalog: true,
+          // A vitrine só mostra produto com foto (ver `semOsSemFoto`).
+          thumbnail: { not: "" },
         },
-        // Pega folga: se a loja esconde produto sem foto, alguns caem fora.
+        // Pega folga: foto cadastrada que não abre também cai fora.
         take: 12,
       });
 
-      const configuracoes = await prisma.catalogSettings.findUnique({
-        where: { organizationId: organization.id },
-        select: { hideProductsWithoutImage: true },
-      });
-      if (configuracoes?.hideProductsWithoutImage) {
-        await conferirFotos(productsWithCategory.map((p) => p.thumbnail));
-      }
+      await conferirFotos(productsWithCategory.map((p) => p.thumbnail));
       const relacionados = productsWithCategory
-        .filter(
-          (p) =>
-            !configuracoes?.hideProductsWithoutImage || temFoto(p.thumbnail),
-        )
+        .filter((p) => temFoto(p.thumbnail))
         .slice(0, 4);
 
       // Resolve tabela do buyer (guest = default).

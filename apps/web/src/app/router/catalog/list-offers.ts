@@ -56,7 +56,7 @@ export const listOffers = base
         (
           await precificar(
             vitrine,
-            await semOsSemFoto(vitrine, lote),
+            await semOsSemFoto(lote),
             input.catalogUserId,
           )
         ).filter(
