@@ -59,7 +59,6 @@ export const listPublicCategories = base
     // banco incluiria os sem foto, e a categoria que só tem esses viraria
     // um cartão que abre uma lista vazia.
     const paraContar = await semOsSemFoto(
-      vitrine,
       await prisma.product.findMany({
         where: { ...vitrine.visiveis, categoryId: { not: null } },
         select: { categoryId: true, thumbnail: true },
