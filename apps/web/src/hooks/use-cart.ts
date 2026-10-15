@@ -23,6 +23,10 @@ export function useCart(organizationSubdomain: string) {
     return products.some((product) => product.productId === productId);
   };
 
+  const removeProduct = (productId: string) => {
+    removeFromCart(productId, organizationSubdomain);
+  };
+
   const clearOrganizationCart = () => {
     clearCart(organizationSubdomain);
   };
@@ -30,6 +34,7 @@ export function useCart(organizationSubdomain: string) {
   return {
     products,
     toggleProduct,
+    removeProduct,
     isProductInCart,
     clearOrganizationCart,
     updateQuantity,

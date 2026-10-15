@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useCarrinhoSemEsgotados } from "@/features/storefront/hooks/use-carrinho-sem-esgotados";
 import { useEscondeAoRolar } from "@/features/storefront/hooks/use-esconde-ao-rolar";
 import { useQueryState } from "nuqs";
 import { type FormEvent, useState } from "react";
@@ -70,6 +71,7 @@ interface HeaderProps {
  */
 export function Header({ settings }: HeaderProps) {
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
+  useCarrinhoSemEsgotados(settings.subdomain);
   const { products, updateQuantity, toggleProduct } = useCart(
     settings.subdomain,
   );
