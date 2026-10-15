@@ -28,6 +28,8 @@ export const updateSettingsCatalog = base
       isActive: z.boolean().optional(),
       showPrices: z.boolean().optional(),
       showStock: z.boolean().optional(),
+      showCategoryNav: z.boolean().optional(),
+      showProductCode: z.boolean().optional(),
       sortOrder: z.enum(CatalogSortOrder).optional(),
       operationMode: z.enum(CatalogOperationMode).optional(),
       allowOrders: z.boolean().optional(),

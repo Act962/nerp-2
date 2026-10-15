@@ -137,6 +137,8 @@ export function Catalog({ subdomain }: CatalogProps) {
       formato={formato}
       id={produto.id}
       name={produto.name}
+      codigo={catalogSettings?.showProductCode ? produto.sku : null}
+      unidadesPorCaixa={produto.packQty}
       slug={produto.slug}
       thumbnail={produto.thumbnail}
       salePrice={produto.salePrice}
@@ -160,7 +162,7 @@ export function Catalog({ subdomain }: CatalogProps) {
         tema={tema}
       />
 
-      {categorias.length > 0 && (
+      {categorias.length > 0 && catalogSettings?.showCategoryNav !== false && (
         <section id="categorias" className="scroll-mt-40 flex flex-col gap-4">
           <CabecalhoDaSecao titulo="Navegue por categoria">
             {ativas.length > 0 && (

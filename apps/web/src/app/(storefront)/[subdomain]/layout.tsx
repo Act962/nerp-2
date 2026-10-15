@@ -2,7 +2,7 @@ import prisma from "@/lib/db";
 import { Header } from "../../../features/storefront/components/header";
 import { notFound } from "next/navigation";
 import { Footer } from "../../../features/storefront/components/footer";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
 // `constructUrl` e não `useConstructUrl`: as duas são a MESMA função (o "hook"
 // só a repassa), mas aqui estamos em `generateMetadata`, que não é componente.
@@ -23,6 +23,7 @@ import {
 } from "@/features/storefront/lib/cores";
 import { AstroDaLoja } from "@/features/storefront/components/astro-da-loja";
 import { VitrineClara } from "@/features/storefront/components/vitrine-clara";
+import { InstalarApp } from "@/features/storefront/components/instalar-app";
 import { ofertasDaVitrine } from "@/features/storefront/server/ofertas";
 
 interface StoreFrontLayoutProps {
@@ -79,6 +80,8 @@ export async function generateMetadata({
   );
   const canonical = storeCanonical(subdomain, "/");
   const logo = constructUrl(catalogSettings?.logo ?? "");
+  // Mesmo prefixo dos links da vitrine: `/catalogo/<slug>` no modo caminho, vazio no subdomínio.
+  const catalogBase = (await headers()).get("x-catalog-base") ?? "";
 
   return {
     title: titulo,
@@ -106,7 +109,20 @@ export async function generateMetadata({
       ...(logo ? { images: [logo] } : {}),
     },
     icons: logo ? [{ url: logo, type: "image/png" }] : [],
+    // Instalável como app: abre em tela cheia, sem a barra do navegador.
+    manifest: `${catalogBase}/app-manifest`,
+    appleWebApp: { capable: true, title: titulo, statusBarStyle: "default" },
   };
+}
+
+/** Cor da barra do sistema no celular = cor da loja (no app instalado e no navegador). */
+export async function generateViewport({
+  params,
+}: StoreFrontLayoutProps): Promise<Viewport> {
+  const { subdomain } = await params;
+  const org = await getOrganization(subdomain);
+  const theme = org?.catalogSettings?.theme;
+  return { themeColor: isHexValido(theme) ? theme : TEMA_PADRAO_CATALOGO };
 }
 
 export default async function SubdomainLayout({
@@ -187,10 +203,16 @@ export default async function SubdomainLayout({
             allowOrders: settings.allowOrders,
             showPrices: settings.showPrices,
             ofertas,
+            showCategoryNav: settings.showCategoryNav,
           }}
         />
         {/* O `pb` no celular abre espaço para a barra inferior fixa. */}
         <main className="flex-1 pb-24 sm:pb-0">{children}</main>
+        <InstalarApp
+          subdomain={subdomain}
+          loja={settings.metaTitle || org.name}
+          logo={settings.logo ? constructUrl(settings.logo) : null}
+        />
         {settings.astroEnabled && (
           <AstroDaLoja
             subdomain={subdomain}

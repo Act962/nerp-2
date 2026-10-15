@@ -1,6 +1,13 @@
 "use client";
 
-import { AstroWidget, type FalhaDoAstro } from "@nerp/astro-widget";
+import {
+  type AcaoNoCliente,
+  AstroWidget,
+  type FalhaDoAstro,
+} from "@nerp/astro-widget";
+import { useRouter } from "next/navigation";
+import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
+import { useCart } from "@/hooks/use-cart";
 import { normalizePhone } from "@/utils/format-phone";
 
 interface AstroDaLojaProps {
@@ -21,6 +28,34 @@ interface AstroDaLojaProps {
  * WhatsApp") em vez do botão de recarga que aparece do lado de dentro.
  */
 export function AstroDaLoja({ subdomain, loja, whatsapp }: AstroDaLojaProps) {
+  const router = useRouter();
+  const { products, toggleProduct, updateQuantity } = useCart(subdomain);
+  const cartHref = useCatalogHref("/cart");
+  const checkoutHref = useCatalogHref("/checkout");
+
+  // O Astro escolhe com o cliente; o carrinho mora aqui no navegador.
+  const aoAcaoNoCliente = (acao: AcaoNoCliente) => {
+    if (acao.tipo === "adicionar_ao_carrinho") {
+      const productId = String(acao.productId ?? "");
+      const quantidade = Number(acao.quantidade ?? 0);
+      if (!productId || !Number.isFinite(quantidade) || quantidade <= 0) return;
+      const noCarrinho = products.find((item) => item.productId === productId);
+      if (noCarrinho) {
+        updateQuantity(
+          productId,
+          subdomain,
+          String(Number(noCarrinho.quantity) + quantidade),
+        );
+      } else {
+        // Fora do carrinho, `toggleProduct` adiciona.
+        toggleProduct(productId, String(quantidade));
+      }
+      return;
+    }
+    if (acao.tipo === "abrir_carrinho") router.push(cartHref);
+    if (acao.tipo === "finalizar_pedido") router.push(checkoutHref);
+  };
+
   const numero = whatsapp ? normalizePhone(whatsapp) : "";
   const whatsappHref = numero ? `https://wa.me/55${numero}` : undefined;
 
@@ -45,6 +80,7 @@ export function AstroDaLoja({ subdomain, loja, whatsapp }: AstroDaLojaProps) {
       whatsappHref={whatsappHref}
       nota="O Astro é uma inteligência artificial e pode errar. Confirme preço e disponibilidade com a loja."
       aoFalhar={aoFalhar}
+      aoAcaoNoCliente={aoAcaoNoCliente}
     />
   );
 }

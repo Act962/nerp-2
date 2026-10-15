@@ -30,6 +30,8 @@ export const publicSettingsCatalog = base
         isActive: z.boolean(),
         showPrices: z.boolean(),
         showStock: z.boolean(),
+        showCategoryNav: z.boolean(),
+        showProductCode: z.boolean(),
         sortOrder: z.enum(CatalogSortOrder),
         allowOrders: z.boolean(),
         whatsappNumber: z.string().nullable(),

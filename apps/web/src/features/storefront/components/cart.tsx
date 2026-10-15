@@ -14,6 +14,7 @@ import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCatalogSettings } from "@/features/storefront/hooks/use-catalog-settings";
 import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
+import { quantidadeEmCaixas } from "@/features/storefront/lib/caixa";
 
 interface CartProps {
   subdomain: string;
@@ -45,6 +46,7 @@ export function Cart({ subdomain }: CartProps) {
   const cartItems = productsOfCart?.map((item) => ({
     id: item.id,
     name: item.name,
+    packQty: item.packQty,
     salePrice: item.salePrice,
     thumbnail: item.thumbnail,
     quantity: findAndConvertQuantity(item.id),
@@ -183,6 +185,8 @@ export function Cart({ subdomain }: CartProps) {
                         </h3>
                         <p className="text-sm text-muted-foreground mt-1">
                           {item.quantity} Unidades
+                          {quantidadeEmCaixas(item.quantity, item.packQty) &&
+                            ` (= ${quantidadeEmCaixas(item.quantity, item.packQty)})`}
                         </p>
                       </div>
 
