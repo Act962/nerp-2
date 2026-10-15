@@ -4242,6 +4242,9 @@ model ErpConnection {
   productSyncAt     DateTime?
   productSyncDryRun Boolean?
   productSyncReport Json?
+  // Filial cujo estoque vai para `Product.currentStock` (tela de Produtos e
+  // vitrine do catálogo). Nula = o sync não mexe no estoque do produto.
+  stockBranchCode   String?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 

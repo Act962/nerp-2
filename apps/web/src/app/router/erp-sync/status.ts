@@ -24,6 +24,10 @@ const productSyncReportSchema = z.object({
   duplicatesInSource: z.number(),
   failed: z.number(),
   dryRun: z.boolean(),
+  stockBranchCode: z.string().nullable().optional(),
+  stockUpdated: z.number().optional(),
+  pricesFilled: z.number().optional(),
+  packQtyFilled: z.number().optional(),
 });
 
 function parseProductSyncReport(
@@ -62,6 +66,7 @@ export const getErpSyncStatus = base
         productSyncAt: true,
         productSyncDryRun: true,
         productSyncReport: true,
+        stockBranchCode: true,
       },
     });
 
@@ -69,7 +74,7 @@ export const getErpSyncStatus = base
       return { configured: false as const };
     }
 
-    const [sellers, facts, lastFact] = await Promise.all([
+    const [sellers, facts, lastFact, branchRows] = await Promise.all([
       prisma.externalSeller.count({
         where: { organizationId: context.org.id, isActive: true },
       }),
@@ -80,6 +85,13 @@ export const getErpSyncStatus = base
         where: { organizationId: context.org.id },
         orderBy: { date: "desc" },
         select: { date: true },
+      }),
+      // Filiais vistas no último espelho de estoque: são as opções do seletor.
+      prisma.productBranchStock.groupBy({
+        by: ["branchCode", "branchName"],
+        where: { organizationId: context.org.id },
+        _count: { _all: true },
+        orderBy: { branchCode: "asc" },
       }),
     ]);
 
@@ -99,6 +111,12 @@ export const getErpSyncStatus = base
       activeSellers: sellers,
       factRows: facts,
       lastFactDate: lastFact?.date.toISOString().slice(0, 10) ?? null,
+      stockBranchCode: connection.stockBranchCode,
+      stockBranches: branchRows.map((row) => ({
+        code: row.branchCode,
+        name: row.branchName,
+        productsWithStock: row._count._all,
+      })),
       productSync: parseProductSyncReport(
         connection.productSyncReport,
         connection.productSyncAt,
