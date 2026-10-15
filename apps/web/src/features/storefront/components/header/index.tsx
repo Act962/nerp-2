@@ -27,7 +27,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { useQueryCatalogCategories } from "@/features/storefront/hooks/use-catalog-products";
 import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
@@ -278,7 +277,8 @@ export function Header({ settings }: HeaderProps) {
                           · {itens.length} itens
                         </span>
                       </p>
-                      <ScrollArea className="max-h-72">
+                      {/* Rolagem própria com altura limitada: a lista não pode passar por cima do botão. */}
+                      <div className="-mx-1 max-h-[min(18rem,50vh)] overflow-y-auto overscroll-contain px-1">
                         {itens.map((item) => (
                           <ItemRequested
                             key={item.id}
@@ -303,7 +303,7 @@ export function Header({ settings }: HeaderProps) {
                             quantity={item.quantity}
                           />
                         ))}
-                      </ScrollArea>
+                      </div>
                       {settings.showPrices ? (
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Total</span>
