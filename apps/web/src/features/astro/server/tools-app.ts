@@ -11,6 +11,7 @@ import { construirToolsDeBuscaWeb } from "./tools/busca-web";
 import { construirToolsDeCalendario } from "./tools/calendario";
 import { construirToolsDeCatalogos } from "./tools/catalogos";
 import { construirToolsDeClientes } from "./tools/clientes";
+import { construirToolsDeErp } from "./tools/erp";
 import { construirToolsDeEstoque } from "./tools/estoque";
 import { construirToolsDeImagem } from "./tools/imagens";
 import { construirToolsDeMemoria } from "./tools/memoria";
@@ -53,6 +54,7 @@ export function construirToolsDoApp(contexto: ContextoToolsApp): ToolSet {
     ...construirToolsDePrevisao(contexto),
     ...construirToolsDeClientes(contexto),
     ...construirToolsDeEstoque(contexto),
+    ...construirToolsDeErp(contexto),
     ...construirToolsDeCalendario(contexto),
     ...construirToolsDeTrade(contexto),
     ...construirToolsDeCatalogos(contexto),

@@ -301,6 +301,44 @@ function linksDaMensagem(mensagem: {
   return links;
 }
 
+/**
+ * Uma pergunta que a tool mandou fazer, com as respostas como botão.
+ *
+ * Vem da saída da tool (`escolhas`), nunca do texto do modelo: as opções são
+ * as filiais lidas do ERP, e um botão com filial inventada levaria a resposta
+ * para o recorte errado.
+ */
+type Escolha = {
+  pergunta: string;
+  opcoes: { rotulo: string; envio: string }[];
+};
+
+function escolhasDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): Escolha[] {
+  const escolhas: Escolha[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const lista = (saida as { escolhas?: unknown }).escolhas;
+    if (!Array.isArray(lista)) continue;
+    for (const item of lista) {
+      if (typeof item !== "object" || item === null) continue;
+      const campos = item as Record<string, unknown>;
+      const opcoes = Array.isArray(campos.opcoes)
+        ? campos.opcoes.flatMap((opcao) => {
+            if (typeof opcao !== "object" || opcao === null) return [];
+            const rotulo = textoDe((opcao as Record<string, unknown>).rotulo);
+            const envio = textoDe((opcao as Record<string, unknown>).envio);
+            return rotulo && envio ? [{ rotulo, envio }] : [];
+          })
+        : [];
+      if (opcoes.length > 0) {
+        escolhas.push({ pergunta: textoDe(campos.pergunta), opcoes });
+      }
+    }
+  }
+  return escolhas;
+}
+
 /** Uma imagem que a tool devolveu — gerada pelo Astro, não escrita por ele. */
 type ImagemDaResposta = { url: string; descricao: string };
 
@@ -1922,7 +1960,7 @@ export function AstroWidget({
           </div>
         ) : (
           <>
-            {messages.map((mensagem) => {
+            {messages.map((mensagem, indice) => {
               const texto = mensagem.parts
                 .map((parte) => (parte.type === "text" ? parte.text : ""))
                 .join("");
@@ -1940,6 +1978,14 @@ export function AstroWidget({
                   : botoesDaMensagem(mensagem);
               const links =
                 mensagem.role === "user" ? [] : linksDaMensagem(mensagem);
+              // Só na última mensagem: botão de pergunta já respondida,
+              // tocado de novo, mandaria a resposta fora de hora.
+              const escolhas =
+                mensagem.role === "user" ||
+                indice !== messages.length - 1 ||
+                carregando
+                  ? []
+                  : escolhasDaMensagem(mensagem);
               const imagens =
                 mensagem.role === "user" ? [] : imagensDaMensagem(mensagem);
               const arquivos = anexosDaMensagem(mensagem);
@@ -1953,6 +1999,7 @@ export function AstroWidget({
                 !formulario &&
                 aprovacoes.length === 0 &&
                 links.length === 0 &&
+                escolhas.length === 0 &&
                 imagens.length === 0 &&
                 arquivos.length === 0 &&
                 botoesDeAcao.length === 0
@@ -2107,6 +2154,28 @@ export function AstroWidget({
                       ))}
                     </div>
                   )}
+
+                  {escolhas.map((escolha) => (
+                    <div className="o-astro-escolha" key={escolha.pergunta}>
+                      {escolha.pergunta && (
+                        <p className="o-astro-escolha__pergunta">
+                          {escolha.pergunta}
+                        </p>
+                      )}
+                      <div className="o-astro-escolha__opcoes">
+                        {escolha.opcoes.map((opcao) => (
+                          <button
+                            type="button"
+                            key={opcao.envio}
+                            className="o-astro-escolha__opcao"
+                            onClick={() => enviar(opcao.envio)}
+                          >
+                            {opcao.rotulo}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
 
                   {links.length > 0 && (
                     <div className="o-astro-links">
