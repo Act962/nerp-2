@@ -190,13 +190,19 @@ function isAcaoNoCliente(valor: unknown): valor is AcaoNoCliente {
   );
 }
 
-function botoesDaMensagem(mensagem: { parts: Array<{ type: string }> }): BotaoDeAcao[] {
+function botoesDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): BotaoDeAcao[] {
   const botoes: BotaoDeAcao[] = [];
   for (const saida of saidasDeTool(mensagem)) {
     const botao = (saida as { botao?: unknown }).botao as
       | { rotulo?: unknown; acao?: unknown }
       | undefined;
-    if (botao && typeof botao.rotulo === "string" && isAcaoNoCliente(botao.acao)) {
+    if (
+      botao &&
+      typeof botao.rotulo === "string" &&
+      isAcaoNoCliente(botao.acao)
+    ) {
       botoes.push({ rotulo: botao.rotulo, acao: botao.acao });
     }
   }
@@ -1226,10 +1232,16 @@ export function AstroWidget({
     for (const mensagem of messages) {
       for (const parte of mensagem.parts) {
         if (!parte.type.startsWith("tool-")) continue;
-        const chamada = parte as { toolCallId?: string; state?: string; output?: unknown };
-        if (chamada.state !== "output-available" || !chamada.toolCallId) continue;
+        const chamada = parte as {
+          toolCallId?: string;
+          state?: string;
+          output?: unknown;
+        };
+        if (chamada.state !== "output-available" || !chamada.toolCallId)
+          continue;
         if (executadas.has(chamada.toolCallId)) continue;
-        const acao = (chamada.output as { acaoNoCliente?: unknown } | null)?.acaoNoCliente;
+        const acao = (chamada.output as { acaoNoCliente?: unknown } | null)
+          ?.acaoNoCliente;
         if (!isAcaoNoCliente(acao)) continue;
         executadas.add(chamada.toolCallId);
         isNova = true;

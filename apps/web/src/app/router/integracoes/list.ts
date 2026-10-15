@@ -70,7 +70,7 @@ export const listIntegracoes = base
           // visível para a equipe, a credencial não.
           valores: podeGerenciar
             ? valoresVisiveis(i.providerId, i.credentialsCiphertext)
-            : {},
+            : ({} as Record<string, string>),
         })),
         ...conexoesProprias,
       ],
@@ -131,7 +131,7 @@ function conexaoSemCredencial(id: string, providerId: string) {
     environment: "producao",
     capabilities: [] as string[],
     certificateExpiresAt: null,
-    valores: {},
+    valores: {} as Record<string, string>,
   };
 }
 
