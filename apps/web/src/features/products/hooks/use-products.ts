@@ -107,7 +107,7 @@ export function useQueryProductsOfCart({
   subdomain,
   productIds,
 }: useQueryProductsOfCartProps) {
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isSuccess } = useQuery(
     orpc.catalogSettings.listProductsOfCart.queryOptions({
       input: {
         subdomain,
@@ -118,6 +118,8 @@ export function useQueryProductsOfCart({
   return {
     data: data?.products || [],
     isLoading,
+    /** A resposta é dos ids pedidos agora (não o vazio de antes de carregar). */
+    isSuccess,
   };
 }
 

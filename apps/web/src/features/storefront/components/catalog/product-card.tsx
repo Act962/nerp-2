@@ -42,10 +42,14 @@ interface ProductCardProps {
   className?: string;
 }
 
+/** Item já no pedido fica azul em qualquer tema. */
+const COR_NO_PEDIDO = { backgroundColor: "#2563eb", color: "#ffffff" };
+
 /**
  * Preço promocional só vale quando existe e é menor que o de venda: a API
  * devolve `Number(null)`, que é 0, para quem não tem promoção.
  */
+
 export function precoEmOferta(
   salePrice: number,
   promotionalPrice: number | null,
@@ -185,7 +189,10 @@ export function ProductCard({
           <span className="text-muted-foreground text-xs">Cód. {codigo}</span>
         )}
         {rotuloDaCaixa(unidadesPorCaixa) && (
-          <span className="font-medium text-xs" style={{ color: "var(--primary)" }}>
+          <span
+            className="font-medium text-xs"
+            style={{ color: "var(--primary)" }}
+          >
             {rotuloDaCaixa(unidadesPorCaixa)}
           </span>
         )}
@@ -243,8 +250,9 @@ export function ProductCard({
                 className={cn(
                   "flex shrink-0 items-center justify-center gap-2 rounded-full font-semibold shadow-sm transition-transform active:scale-95",
                   grande ? "h-12 px-6 text-base" : "ml-auto size-9",
+                  noCarrinho && "animate-item-no-pedido",
                 )}
-                style={corDoTema}
+                style={noCarrinho ? COR_NO_PEDIDO : corDoTema}
               >
                 {noCarrinho ? (
                   <Check className={grande ? "size-5" : "size-4"} />

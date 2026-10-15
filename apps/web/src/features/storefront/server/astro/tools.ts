@@ -34,6 +34,72 @@ const MAX_QUANTIDADE = 9999;
 
 /** Quantos produtos uma busca devolve. Mais que isto é lista, não resposta. */
 const MAX_RESULTADOS = 8;
+/** Candidatos lidos quando nenhum produto tem todas as palavras (depois ranqueados). */
+const MAX_CANDIDATOS = 40;
+
+/** Palavras que o cliente escreve e que não estão no nome de produto nenhum. */
+const PALAVRAS_VAZIAS = new Set([
+  "a",
+  "o",
+  "as",
+  "os",
+  "de",
+  "da",
+  "do",
+  "das",
+  "dos",
+  "em",
+  "no",
+  "na",
+  "um",
+  "uma",
+  "com",
+  "pra",
+  "para",
+  "por",
+  "e",
+  "quero",
+  "queria",
+  "tem",
+  "voce",
+  "voces",
+  "me",
+  "ve",
+  "manda",
+  "preciso",
+  "gostaria",
+  "unidade",
+  "unidades",
+  "un",
+]);
+
+function semAcento(texto: string): string {
+  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+/**
+ * "Quero 2 leite em pó Camponesa 1kg" → ["leite", "pó", "camponesa", "1kg"]. A
+ * frase inteira quase nunca aparece igual no nome ("LEITE EM PO CAMPONESA
+ * INSTANTANEO 1KG UN"); palavra a palavra, sim.
+ */
+export function palavrasDaBusca(termo: string): string[] {
+  const palavras = termo
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((palavra) => palavra.length >= 2 && !/^\d+$/.test(palavra))
+    .filter((palavra) => !PALAVRAS_VAZIAS.has(semAcento(palavra)));
+  return [...new Set(palavras)];
+}
+
+/** A palavra como o cliente escreveu ou sem acento ("pó" acha "PO"; "açúcar" acha "AÇÚCAR"). */
+function nomeContem(palavra: string) {
+  const variantes = [...new Set([palavra, semAcento(palavra)])];
+  return {
+    OR: variantes.map((variante) => ({
+      name: { contains: variante, mode: "insensitive" as const },
+    })),
+  };
+}
 
 export function construirToolsDaLoja(contexto: ContextoDaVitrine): ToolSet {
   const filtroPublico = {
@@ -63,7 +129,7 @@ export function construirToolsDaLoja(contexto: ContextoDaVitrine): ToolSet {
     return {
       colocarNoCarrinho: tool({
         description:
-          "Põe um produto no pedido do cliente, pelo `slug` que veio de `buscarProdutos`. Use quando ele disser que quer levar (\"quero 2\", \"pode colocar\"). Quantidade em unidades.",
+          'Põe um produto no pedido do cliente, pelo `slug` que veio de `buscarProdutos`. Use quando ele disser que quer levar ("quero 2", "pode colocar"). Quantidade em unidades.',
         inputSchema: z.object({
           slug: z.string().max(200),
           quantidade: z.number().int().min(1).max(MAX_QUANTIDADE),
@@ -83,18 +149,24 @@ export function construirToolsDaLoja(contexto: ContextoDaVitrine): ToolSet {
               productId: produto.id,
               quantidade,
             },
-            botao: { rotulo: "Ver meu pedido", acao: { tipo: "abrir_carrinho" } },
+            botao: {
+              rotulo: "Ver meu pedido",
+              acao: { tipo: "abrir_carrinho" },
+            },
           };
         },
       }),
 
       finalizarPedido: tool({
         description:
-          "Leva o cliente a finalizar o pedido quando ele terminar de escolher. Mostra o botão; no fim do pedido aparece \"Enviar pedido pelo WhatsApp\", que leva ao WhatsApp da loja.",
+          'Leva o cliente a finalizar o pedido quando ele terminar de escolher. Mostra o botão; no fim do pedido aparece "Enviar pedido pelo WhatsApp", que leva ao WhatsApp da loja.',
         inputSchema: z.object({}),
         execute: async () => ({
           ok: true,
-          botao: { rotulo: "Finalizar pedido", acao: { tipo: "finalizar_pedido" } },
+          botao: {
+            rotulo: "Finalizar pedido",
+            acao: { tipo: "finalizar_pedido" },
+          },
         }),
       }),
     };
@@ -116,30 +188,57 @@ export function construirToolsDaLoja(contexto: ContextoDaVitrine): ToolSet {
           .describe("Nome da categoria, quando ele restringiu a uma."),
       }),
       execute: async ({ termo, categoria }) => {
-        const encontrados = await prisma.product.findMany({
+        const palavras = palavrasDaBusca(termo);
+        const filtroDaCategoria = categoria
+          ? {
+              category: {
+                name: { contains: categoria, mode: "insensitive" as const },
+              },
+            }
+          : {};
+        const campos = {
+          id: true,
+          name: true,
+          slug: true,
+          currentStock: true,
+          category: { select: { name: true } },
+        } as const;
+
+        let encontrados = await prisma.product.findMany({
           where: {
             ...filtroPublico,
-            ...(termo
-              ? { name: { contains: termo, mode: "insensitive" } }
-              : {}),
-            ...(categoria
-              ? {
-                  category: {
-                    name: { contains: categoria, mode: "insensitive" },
-                  },
-                }
-              : {}),
+            ...filtroDaCategoria,
+            ...(palavras.length > 0 ? { AND: palavras.map(nomeContem) } : {}),
           },
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            currentStock: true,
-            category: { select: { name: true } },
-          },
+          select: campos,
           take: MAX_RESULTADOS,
           orderBy: { name: "asc" },
         });
+
+        // Nenhum com todas as palavras: os que têm mais delas ("camponesa 2kg" ainda acha a de 1kg).
+        if (encontrados.length === 0 && palavras.length > 1) {
+          const candidatos = await prisma.product.findMany({
+            where: {
+              ...filtroPublico,
+              ...filtroDaCategoria,
+              OR: palavras.map(nomeContem),
+            },
+            select: campos,
+            take: MAX_CANDIDATOS,
+            orderBy: { name: "asc" },
+          });
+          const acertos = (nome: string) => {
+            const nomeNormalizado = semAcento(nome.toLowerCase());
+            return palavras.filter((palavra) =>
+              nomeNormalizado.includes(semAcento(palavra)),
+            ).length;
+          };
+          encontrados = candidatos
+            .map((produto) => ({ produto, pontos: acertos(produto.name) }))
+            .sort((left, right) => right.pontos - left.pontos)
+            .slice(0, MAX_RESULTADOS)
+            .map(({ produto }) => produto);
+        }
 
         const tabela = await precos(encontrados.map((item) => item.id));
 

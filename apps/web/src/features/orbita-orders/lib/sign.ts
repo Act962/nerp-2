@@ -33,6 +33,13 @@ export type BuildOrbitaHeadersInput = {
 export function buildOrbitaOrderHeaders(
   input: BuildOrbitaHeadersInput,
 ): Record<string, string> {
+  return buildOrbitaHeaders({ ...input, path: ORBITA_ORDERS_PATH });
+}
+
+/** Mesmos headers para qualquer rota NERP → Órbita; o path entra na assinatura. */
+export function buildOrbitaHeaders(
+  input: BuildOrbitaHeadersInput & { path: string },
+): Record<string, string> {
   return {
     "Content-Type": "application/json",
     "X-Nerp-Api-Key": input.apiKey,
@@ -41,7 +48,7 @@ export function buildOrbitaOrderHeaders(
     "X-Nerp-Signature": signOrbitaRequest({
       secret: input.secret,
       method: "POST",
-      path: ORBITA_ORDERS_PATH,
+      path: input.path,
       body: input.body,
       timestamp: input.timestamp,
     }),

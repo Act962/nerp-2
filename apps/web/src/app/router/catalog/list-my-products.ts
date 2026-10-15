@@ -30,6 +30,8 @@ export const listProductsOfCart = base
           thumbnail: z.string(),
           currentStock: z.number(),
           salePrice: z.number(),
+          /** Mesma regra do checkout: ativo e com estoque (ou sem controle de estoque). */
+          disponivel: z.boolean(),
         }),
       ),
     }),
@@ -68,6 +70,9 @@ export const listProductsOfCart = base
         thumbnail: product.thumbnail,
         currentStock: Number(product.currentStock),
         salePrice: Number(product.salePrice),
+        disponivel:
+          product.isActive &&
+          (!product.trackStock || Number(product.currentStock) >= 1),
       }));
 
       return {

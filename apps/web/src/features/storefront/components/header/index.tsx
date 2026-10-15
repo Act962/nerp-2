@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useCarrinhoSemEsgotados } from "@/features/storefront/hooks/use-carrinho-sem-esgotados";
 import { useEscondeAoRolar } from "@/features/storefront/hooks/use-esconde-ao-rolar";
 import { useQueryState } from "nuqs";
 import { type FormEvent, useState } from "react";
@@ -27,7 +28,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { useQueryCatalogCategories } from "@/features/storefront/hooks/use-catalog-products";
 import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
@@ -71,6 +71,7 @@ interface HeaderProps {
  */
 export function Header({ settings }: HeaderProps) {
   const [carrinhoAberto, setCarrinhoAberto] = useState(false);
+  useCarrinhoSemEsgotados(settings.subdomain);
   const { products, updateQuantity, toggleProduct } = useCart(
     settings.subdomain,
   );
@@ -221,12 +222,26 @@ export function Header({ settings }: HeaderProps) {
                     className="flex items-center gap-2.5 rounded-full py-1 pr-1 pl-1 hover:bg-current/10 sm:pr-3"
                     aria-label="Abrir pedido"
                   >
-                    <span className="relative flex size-10 items-center justify-center">
-                      <Handbag className="size-5" />
+                    <span
+                      className={cn(
+                        "relative flex size-10 items-center justify-center rounded-full transition-colors",
+                        itens.length > 0 && "animate-carrinho-brilho bg-white",
+                      )}
+                      style={itens.length > 0 ? { color: tema } : undefined}
+                    >
+                      <Handbag
+                        className={cn(
+                          "size-5",
+                          itens.length > 0 && "animate-carrinho-respira",
+                        )}
+                      />
                       {itens.length > 0 && (
                         <span
-                          className="absolute top-0.5 right-0.5 flex size-4.5 items-center justify-center rounded-full font-semibold text-[10px]"
-                          style={{ backgroundColor: tema, color: tintaDoTema }}
+                          className="absolute -top-1 -right-1 flex size-5 items-center justify-center rounded-full font-semibold text-[10px] ring-2 ring-white"
+                          style={{
+                            backgroundColor: "#2563eb",
+                            color: "#ffffff",
+                          }}
                         >
                           {itens.length}
                         </span>
@@ -264,7 +279,8 @@ export function Header({ settings }: HeaderProps) {
                           · {itens.length} itens
                         </span>
                       </p>
-                      <ScrollArea className="max-h-72">
+                      {/* Rolagem própria com altura limitada: a lista não pode passar por cima do botão. */}
+                      <div className="-mx-1 max-h-[min(18rem,50vh)] overflow-y-auto overscroll-contain px-1">
                         {itens.map((item) => (
                           <ItemRequested
                             key={item.id}
@@ -289,7 +305,7 @@ export function Header({ settings }: HeaderProps) {
                             quantity={item.quantity}
                           />
                         ))}
-                      </ScrollArea>
+                      </div>
                       {settings.showPrices ? (
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">Total</span>
@@ -434,12 +450,24 @@ function BarraInferior({
     >
       {destaque ? (
         <span
-          className="-mt-6 relative flex size-13 items-center justify-center rounded-full shadow-lg ring-4 ring-card"
-          style={{ backgroundColor: tema, color: tintaDoTema }}
+          className={cn(
+            "-mt-6 relative flex size-13 items-center justify-center rounded-full shadow-lg ring-4 ring-card",
+            itensNoCarrinho > 0 && "animate-carrinho-brilho",
+          )}
+          style={{
+            backgroundColor: tema,
+            color: tintaDoTema,
+            ["--cor-brilho" as string]: tema,
+          }}
         >
-          <Icone className="size-5" />
+          <Icone
+            className={cn(
+              "size-5",
+              itensNoCarrinho > 0 && "animate-carrinho-respira",
+            )}
+          />
           {itensNoCarrinho > 0 && (
-            <span className="absolute top-0 right-0 flex size-5 items-center justify-center rounded-full bg-card font-bold text-[10px] text-card-foreground">
+            <span className="absolute top-0 right-0 flex size-5 items-center justify-center rounded-full bg-[#2563eb] font-bold text-[10px] text-white ring-2 ring-card">
               {itensNoCarrinho}
             </span>
           )}

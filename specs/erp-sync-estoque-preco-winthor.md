@@ -36,6 +36,8 @@ Arquivos principais:
 - [ ] **Quando roda** — no sync noturno (`erp-sync-deep-schedule`, 3h) e no botão "Atualizar agora" do painel (os dois já sincronizam produtos). O sync de 15 min continua só com vendas.
 - [ ] **Relatório** — `productSyncReport` ganha `stockUpdated` e `pricesFilled`; o painel mostra "estoque de N produtos (filial X) · N preços preenchidos".
 
+- [x] **Astro: inadimplência por produto** (`astro/server/erp-consulta/inadimplentes-por-produto.ts`, tool `inadimplentesDoProduto`) — clientes com parcela vencida e não paga (`PCPREST`) em vendas que tiveram o produto (`PCMOV`, `NUMTRANSVENDA`, últimos 24 meses), por filial e dias de atraso; produto achado pelo nome/código entre os vinculados ao ERP (ambíguo → pergunta qual). Só admin com Winthor ligado, como `consultarErp`. — ✅ 2026-10-15
+
 ### UX
 
 - [ ] **Painel do Winthor** — seletor "Filial do estoque" e a linha do relatório acima.
@@ -66,3 +68,8 @@ Arquivos principais:
 
 - [ ] Fonte de preço pela `PCTABPR` (região) e preço da caixa pela `PCEMBALAGEM`, quando a TI liberar leitura.
 - [ ] Estoque de mais de uma filial no catálogo (ex.: somar filiais escolhidas).
+
+## Carteira de clientes para o Órbita (spec 0106 do Órbita, fase 1) — 2026-10-15
+
+- `erpCarteira.listar` (S2S, escopo `customer:rw`; pela tela só admin): página de até 200 clientes que já compraram (`PCCLIENT.DTULTCOMP` preenchido, sem `DTEXCLUSAO`), com filial, consultor (`CODUSUR1`), dívida vencida (`PCPREST`), pedidos faturados (`PCPEDC`, 120 mais recentes) e departamentos/produtos dos últimos 12 meses (`PCMOV`). `desde` limita a quem comprou, pagou ou passou a dever desde a data.
+- No fim do `erp-sync-run` com produtos (o diário das 03h), `avisarOrbitaCarteiraAtualizada` chama `POST /api/integrations/nerp/erp-carteira` no Órbita (mesma assinatura dos pedidos). Falha no aviso não desfaz o sync.

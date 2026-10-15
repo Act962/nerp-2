@@ -50,6 +50,8 @@ const ESCOPO_POR_PATH = new Map<string, string>([
   ["customer.create", "customer:rw"],
   ["customer.update", "customer:rw"],
   ["customer.delete", "customer:rw"],
+  // Carteira do Winthor (clientes, dívida, pedidos) para virar leads no Órbita.
+  ["erpCarteira.listar", "customer:rw"],
   ["sales.list", "sales:rw"],
   ["sales.get", "sales:rw"],
   ["sales.create", "sales:rw"],
