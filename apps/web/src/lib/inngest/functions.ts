@@ -1,4 +1,5 @@
 import { carregarGrafo } from "@/features/automacoes/server/carregar";
+import { avisarOrbitaCarteiraAtualizada } from "@/features/erp-carteira/server/avisar-orbita";
 import { varrerLeadsOciosos } from "@/features/automacoes/server/varrer-ociosos";
 import { executarNo } from "@/features/automacoes/server/executar-no";
 import {
@@ -459,6 +460,15 @@ export const erpSyncRun = inngest.createFunction(
         createMissing: createProducts,
       }),
     );
+    if (!dryRunProducts) {
+      // Best-effort: o Órbita reimporta a carteira (clientes que mudaram). Falha
+      // aqui não pode desfazer nem repetir o sync que já terminou.
+      await step.run("avisar-orbita-carteira", () =>
+        avisarOrbitaCarteiraAtualizada(organizationId).catch(
+          (error: unknown) => `falhou: ${String(error)}`,
+        ),
+      );
+    }
     if (dryRunProducts) {
       // Quem normalmente apaga a marca de "sincronizando" é o `runErpSync`, e a
       // simulação não passa por ele. Sem isto a conexão ficaria travada em

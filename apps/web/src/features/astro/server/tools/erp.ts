@@ -13,6 +13,10 @@ import {
   runOracleQuery,
 } from "@/features/erp-sync/server/oracle-explorer/run-query";
 import { withOracleReadOnly } from "@/features/erp-sync/server/oracle-client";
+import {
+  buscarInadimplentesDoProduto,
+  resolverProdutoDoErp,
+} from "../erp-consulta/inadimplentes-por-produto";
 import type { WidgetValue } from "@/app/router/dashboard-widgets/_types";
 import prisma from "@/lib/db";
 import { isOrgAdmin } from "@/lib/org-access";
@@ -150,6 +154,66 @@ export function construirToolsDeErp(ctx: ContextoToolsApp): ToolSet {
   const { organizationId, userId } = ctx;
 
   return {
+    inadimplentesDoProduto: tool({
+      description: [
+        'Clientes em atraso no ERP Winthor que compraram um produto ("inadimplência por produto", "quem comprou X e não pagou").',
+        "`produto` é o nome, o código ou o código de barras que a pessoa disse. Se vierem `candidatos`, pergunte qual é, sem dar número.",
+        `\`filial\`: código ("1") ou "${TODAS_AS_FILIAIS}" (padrão). \`diasVencido\`: vencida há mais de N dias (0 = todas as vencidas, padrão).`,
+        "Responda com o total e a lista (cliente e valor em atraso), citando o campo `recorte` como veio.",
+      ].join(" "),
+      inputSchema: z.object({
+        produto: z.string().min(2).max(120),
+        filial: z.string().max(10).optional(),
+        diasVencido: z.number().int().min(0).max(3650).optional(),
+      }),
+      execute: async ({ produto, filial, diasVencido }) => {
+        if (!(await isOrgAdmin(organizationId, userId))) {
+          return {
+            erro: "Só administradores da empresa podem consultar o ERP.",
+          };
+        }
+        const encontrados = await resolverProdutoDoErp(organizationId, produto);
+        if (encontrados.length === 0) {
+          return {
+            erro: `Não achei "${produto}" entre os produtos vinculados ao ERP.`,
+          };
+        }
+        const exato = encontrados.find(
+          (candidato) =>
+            candidato.nome.toLowerCase() === produto.trim().toLowerCase() ||
+            candidato.codigoErp === produto.trim(),
+        );
+        const escolhido =
+          exato ?? (encontrados.length === 1 ? encontrados[0] : null);
+        if (!escolhido) {
+          return {
+            candidatos: encontrados.map((candidato) => candidato.nome),
+            instrucao:
+              "Mais de um produto com esse nome. Pergunte qual é, numa frase, e espere.",
+          };
+        }
+        const codigoFilial =
+          filial && filial !== TODAS_AS_FILIAIS ? filial : null;
+        const dias = diasVencido ?? 0;
+        try {
+          const resultado = await buscarInadimplentesDoProduto({
+            organizationId,
+            codigoErp: escolhido.codigoErp,
+            filial: codigoFilial,
+            diasVencido: dias,
+          });
+          return {
+            produto: escolhido.nome,
+            recorte: `Clientes com parcela vencida${dias > 0 ? ` há mais de ${dias} dias` : ""} e não paga, em vendas com ${escolhido.nome} nos últimos 24 meses${codigoFilial ? `, filial ${codigoFilial}` : ", todas as filiais"}.`,
+            ...resultado,
+          };
+        } catch (erro) {
+          console.error("[astro] inadimplentesDoProduto", erro);
+          return { erro: explicarFalha(erro) };
+        }
+      },
+    }),
+
     consultarErp: tool({
       description: [
         "Números do ERP Winthor (Oracle) da empresa: inadimplência, clientes sem compra e vendas, por filial e período.",

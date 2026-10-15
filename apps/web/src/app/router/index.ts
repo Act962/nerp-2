@@ -65,6 +65,7 @@ import { tradegramPublicRoutes } from "./tradegram-public";
 import { tradeDashboardRoutes } from "./trade-dashboard";
 import { tradeInterestRoutes } from "./trade-interest";
 import { erpSyncRoutes } from "./erp-sync";
+import { erpCarteiraRoutes } from "./erp-carteira";
 import { agendaRoutes } from "./agenda";
 import { automacoesRoutes } from "./automacoes";
 import { campanhasRoutes } from "./campanhas";
@@ -146,6 +147,7 @@ export const router = {
   storeInventory: storeInventoryRoutes,
   shopperInsights: shopperInsightsRoutes,
   erpSync: erpSyncRoutes,
+  erpCarteira: erpCarteiraRoutes,
   agenda: agendaRoutes,
   automacoes: automacoesRoutes,
   campanhas: campanhasRoutes,
