@@ -21,6 +21,9 @@ const MAX_PEDIDOS_POR_CLIENTE = 120;
 const MESES_DE_ITENS = 12;
 const MAX_INTERESSES = 3;
 const MAX_ULTIMOS_PRODUTOS = 5;
+/** Os mesmos cortes das tags "Inativo 90d"/"Inativo 180d" do Órbita (`customer-tags.ts`). */
+const DIAS_INATIVO_CURTO = 90;
+const DIAS_INATIVO_LONGO = 180;
 
 export type PedidoDoCliente = {
   numero: string;
@@ -129,11 +132,15 @@ async function lerClientes(
   params: { aposCodigo: number; limite: number; desde: Date | null },
 ): Promise<LinhaCliente[]> {
   const binds: OracleBinds = { apos: params.aposCodigo };
-  // Na atualização diária só entra quem comprou, pagou ou passou a dever desde a última vez.
+  // Na atualização diária só entra quem comprou, pagou ou passou a dever desde a última vez, e quem
+  // completou 90 ou 180 dias sem comprar nesse intervalo (senão a tag "Inativo" nunca chegaria nele).
   let filtroDesde = "";
   if (params.desde) {
     binds.desde = params.desde;
-    filtroDesde = `AND (c.dtultcomp >= :desde OR c.codcli IN (
+    filtroDesde = `AND (c.dtultcomp >= :desde
+        OR c.dtultcomp BETWEEN :desde - ${DIAS_INATIVO_CURTO} AND TRUNC(SYSDATE) - ${DIAS_INATIVO_CURTO}
+        OR c.dtultcomp BETWEEN :desde - ${DIAS_INATIVO_LONGO} AND TRUNC(SYSDATE) - ${DIAS_INATIVO_LONGO}
+        OR c.codcli IN (
         SELECT p.codcli FROM ${schema}.pcprest p
          WHERE p.dtpag >= :desde
             OR (p.dtpag IS NULL AND p.dtvenc >= :desde AND p.dtvenc < TRUNC(SYSDATE))))`;
