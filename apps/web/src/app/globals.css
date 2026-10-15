@@ -175,6 +175,66 @@ html.vitrine-clara {
   animation: pulso-azul 1s ease-in-out 3;
 }
 
+/* Carrinho da vitrine com itens: o ícone respira e o contorno brilha, para o
+   cliente não perder de vista onde está o pedido que ele montou. */
+@keyframes carrinho-respira {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.12);
+  }
+}
+
+/* A cor da luz vem de `--cor-brilho` (branca no cabeçalho colorido, a da loja na barra branca do celular). */
+@keyframes carrinho-brilho {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--cor-brilho, #fff) 55%, transparent),
+      0 0 6px 1px color-mix(in srgb, var(--cor-brilho, #fff) 35%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px color-mix(in srgb, var(--cor-brilho, #fff) 25%, transparent),
+      0 0 16px 5px color-mix(in srgb, var(--cor-brilho, #fff) 75%, transparent);
+  }
+}
+
+/* Item que acabou de entrar no pedido: o botão dá um pulo. */
+@keyframes item-no-pedido {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-carrinho-respira {
+  animation: carrinho-respira 1.6s ease-in-out infinite;
+}
+
+.animate-carrinho-brilho {
+  animation: carrinho-brilho 1.6s ease-in-out infinite;
+}
+
+.animate-item-no-pedido {
+  animation: item-no-pedido 0.35s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-carrinho-respira,
+  .animate-carrinho-brilho,
+  .animate-item-no-pedido {
+    animation: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Quem pediu menos movimento ainda precisa achar o botão: o anel fica,
      parado. Sumir com a dica seria trocar acessibilidade por confusão. */
