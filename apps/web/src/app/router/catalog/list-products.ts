@@ -14,6 +14,8 @@ export const produtoDaVitrineSchema = z.object({
   isActive: z.boolean(),
   organizationId: z.string(),
   name: z.string(),
+  sku: z.string(),
+  packQty: z.number().nullable(),
   description: z.string().nullable(),
   slug: z.string(),
   minStock: z.number(),

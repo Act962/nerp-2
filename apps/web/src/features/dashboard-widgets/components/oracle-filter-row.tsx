@@ -40,6 +40,9 @@ interface QuickFilterOption {
 /** Operadores que não pedem valor nenhum. */
 const NO_VALUE: OracleFilterOperator[] = ["isNull", "notNull"];
 
+const isListOperator = (operator: OracleFilterOperator) =>
+  operator === "in" || operator === "inOrNull";
+
 /**
  * Atalhos curados: "Filial = Matriz" em vez de "CODFILIAL eq 1". Todos caem em
  * colunas confirmadamente indexadas, então são também o caminho rápido.
@@ -196,7 +199,7 @@ export function OracleFilterRow({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {columns.slice(0, 100).map((item) => (
+                {columns.map((item) => (
                   <SelectItem key={item.name} value={item.name}>
                     <OracleTermOption
                       code={item.name}
@@ -237,7 +240,7 @@ export function OracleFilterRow({
               <Input
                 className="h-7 w-32 text-xs"
                 placeholder={
-                  filter.operator === "in"
+                  isListOperator(filter.operator)
                     ? "valores separados por vírgula"
                     : "valor"
                 }
@@ -245,7 +248,8 @@ export function OracleFilterRow({
                 onChange={(event) =>
                   update(index, {
                     values:
-                      filter.operator === "in" || filter.operator === "between"
+                      isListOperator(filter.operator) ||
+                      filter.operator === "between"
                         ? event.target.value
                             .split(",")
                             .map((part) => part.trim())

@@ -60,6 +60,8 @@ export type ContextoDaLoja = {
   produtos: number;
   mostraPrecos: boolean;
   aceitaPedidos: boolean;
+  /** Pedido termina no WhatsApp oficial da loja (modo Órbita): é lá que a equipe manda o valor. */
+  pedidoPeloWhatsapp?: boolean;
   pagamentos: string[];
   entregas: string[];
   infoDeEntrega: string;
@@ -325,7 +327,7 @@ const REGRAS_LOJA = `REGRAS QUE NÃO SE NEGOCIAM:
 7. Assunto que não é esta loja nem o que ela vende: recuse com educação em uma frase e volte ao catálogo.
 8. Você NÃO pede e NÃO aceita CPF, cartão, senha nem documento. Se vierem, ignore o número e siga.
 9. Você não escreve endereço de página nem URL. Diga o NOME do produto — a pessoa acha na vitrine — e, para fechar, mande falar pelo canal da loja.
-10. Você não fecha pedido, não reserva, não dá desconto e não promete prazo de entrega. Quem faz isso é a loja.`;
+10. Você não cobra, não reserva, não dá desconto e não promete prazo de entrega. Quem faz isso é a loja. Pôr no pedido e levar a finalizar, quando a vitrine aceita pedido, você pode.`;
 
 /**
  * A loja no prompt.
@@ -352,9 +354,14 @@ function blocoDaLoja(loja: ContextoDaLoja): string {
   }
   linhas.push(
     loja.aceitaPedidos
-      ? "A vitrine aceita pedido: a pessoa monta o carrinho e finaliza por lá. Você ajuda a escolher, mas quem fecha é ela, no carrinho."
+      ? "A vitrine aceita pedido. Quando a pessoa decidir levar um produto, ponha no pedido dela com `colocarNoCarrinho` (nunca sem ela pedir). Quando ela disser que terminou, chame `finalizarPedido`: aparece o botão para fechar."
       : "A vitrine é só catálogo, sem carrinho. O pedido é feito pelo canal de contato da loja.",
   );
+  if (loja.aceitaPedidos && loja.pedidoPeloWhatsapp) {
+    linhas.push(
+      "Depois de finalizar, o último passo é o botão \"Enviar pedido pelo WhatsApp\": ele leva ao WhatsApp oficial da loja, onde a equipe confere os itens e manda o valor. Diga isso quando a pessoa perguntar preço ou como pagar.",
+    );
+  }
   if (loja.pagamentos.length > 0) {
     linhas.push(`Formas de pagamento: ${loja.pagamentos.join(", ")}.`);
   }
@@ -379,7 +386,8 @@ const ROTEIRO_LOJA = `COMO ATENDER (use, não recite):
 - Nada encontrado: diga que não achou, ofereça \`listarCategorias\` para mostrar o que a loja tem, e não sugira produto de fora.
 - Achou: no máximo três produtos, um por linha, com o nome e o preço que a tool devolveu. Nome exato, para ela encontrar na vitrine.
 - Detalhe pedido (o que é, do que é feito, se tem disponível): \`detalharProduto\` pelo slug que a busca trouxe.
-- Terminou de ajudar: ofereça o próximo passo da loja — o carrinho, quando há, ou o contato dela.`;
+- Decidiu levar: \`colocarNoCarrinho\` com a quantidade que ela disse e confirme numa frase ("Coloquei 2 no seu pedido. Quer mais alguma coisa?").
+- Terminou de escolher: \`finalizarPedido\` e diga que é só tocar no botão. Sem carrinho na vitrine: ofereça o contato da loja.`;
 
 /**
  * Monta o prompt. Determinístico salvo pela data — é o que permite testar o

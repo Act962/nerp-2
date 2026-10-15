@@ -75,6 +75,8 @@ const camposDoCartao = {
   isActive: true,
   organizationId: true,
   name: true,
+  sku: true,
+  packQty: true,
   description: true,
   slug: true,
   minStock: true,
@@ -96,6 +98,8 @@ export type ProdutoDaVitrine = {
   isActive: boolean;
   organizationId: string;
   name: string;
+  sku: string;
+  packQty: number | null;
   description: string | null;
   slug: string;
   minStock: number;
@@ -173,6 +177,8 @@ export async function precificar(
     isActive: produto.isActive,
     organizationId: produto.organizationId,
     name: produto.name,
+    sku: produto.sku ?? "",
+    packQty: produto.packQty ?? null,
     description: produto.description,
     slug: produto.slug,
     minStock: Number(produto.minStock),

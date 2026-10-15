@@ -11,6 +11,7 @@ import { useCart } from "@/hooks/use-cart";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { cn } from "@/lib/utils";
 import { currencyFormatter } from "@/utils/currency-formatter";
+import { rotuloDaCaixa } from "@/features/storefront/lib/caixa";
 
 /**
  * - `grade`: o cartão em pé da lista de produtos.
@@ -22,6 +23,10 @@ export type FormatoDoCartao = "grade" | "horizontal" | "destaque";
 interface ProductCardProps {
   id: string;
   name: string;
+  /** Código do produto; só aparece com "Mostrar código do produto" ligado. */
+  codigo?: string | null;
+  /** Unidades por caixa: vira "Caixa com 12 un." no card. */
+  unidadesPorCaixa?: number | null;
   slug: string;
   thumbnail: string;
   salePrice: number;
@@ -55,6 +60,8 @@ export function precoEmOferta(
 export function ProductCard({
   id,
   name,
+  codigo,
+  unidadesPorCaixa,
   slug,
   thumbnail,
   salePrice,
@@ -174,6 +181,14 @@ export function ProductCard({
         >
           {name}
         </Link>
+        {codigo && (
+          <span className="text-muted-foreground text-xs">Cód. {codigo}</span>
+        )}
+        {rotuloDaCaixa(unidadesPorCaixa) && (
+          <span className="font-medium text-xs" style={{ color: "var(--primary)" }}>
+            {rotuloDaCaixa(unidadesPorCaixa)}
+          </span>
+        )}
 
         <div
           className={cn(

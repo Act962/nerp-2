@@ -1,5 +1,6 @@
 import "server-only";
 import {
+  MAX_ROW_LIMIT,
   type OracleQueryConfig,
   type OracleQueryFilter,
   resolveDatePreset,
@@ -140,12 +141,17 @@ function filterSql(
       return `${column} IS NULL`;
     case "notNull":
       return `${column} IS NOT NULL`;
-    case "in": {
+    case "in":
+    case "inOrNull": {
       const names = filter.values.map((value, position) => {
         binds[bindName(position)] = value;
         return `:${bindName(position)}`;
       });
-      return `${column} IN (${names.join(", ")})`;
+      const inList = `${column} IN (${names.join(", ")})`;
+      // Parênteses obrigatórios: a condição entra num WHERE de ANDs.
+      return filter.operator === "inOrNull"
+        ? `(${inList} OR ${column} IS NULL)`
+        : inList;
     }
     case "between": {
       binds[bindName(0)] = filter.values[0];
@@ -318,9 +324,9 @@ export function buildOracleQuery(
     // Guarda de payload/renderização (NÃO de carga no ERP — a agregação varre
     // o conjunto filtrado de qualquer jeito). Interpolado porque FETCH FIRST
     // com bind não é confiável entre versões; o valor é inteiro clampado pelo
-    // schema Zod (1..200).
+    // schema Zod (1..MAX_ROW_LIMIT).
     groupExpression
-      ? `FETCH FIRST ${Math.min(200, Math.max(1, Math.trunc(config.limit)))} ROWS ONLY`
+      ? `FETCH FIRST ${Math.min(MAX_ROW_LIMIT, Math.max(1, Math.trunc(config.limit)))} ROWS ONLY`
       : "",
   ]
     .filter(Boolean)

@@ -720,6 +720,11 @@ model CatalogSettings {
   showPrices               Boolean                @default(true)
   showProductWithoutStock  Boolean                @default(false)
   showStock                Boolean                @default(false)
+  // Seção "Navegue por categoria" no topo da vitrine. Ligada por padrão para
+  // nenhuma loja mudar sem querer.
+  showCategoryNav          Boolean                @default(true)
+  // Código (SKU) do produto nos cards e na página do produto. Desligado por padrão.
+  showProductCode          Boolean                @default(false)
   allowOrders              Boolean                @default(false)
   sortOrder                CatalogSortOrder       @default(ASC)
   // Modo de operação: MARKETPLACE (apenas venda) ou KITCHEN (envia pedidos pagos à cozinha)
@@ -4242,6 +4247,9 @@ model ErpConnection {
   productSyncAt     DateTime?
   productSyncDryRun Boolean?
   productSyncReport Json?
+  // Filial cujo estoque vai para `Product.currentStock` (tela de Produtos e
+  // vitrine do catálogo). Nula = o sync não mexe no estoque do produto.
+  stockBranchCode   String?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 

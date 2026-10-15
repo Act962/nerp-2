@@ -80,6 +80,21 @@ export function usePauseErpConnection() {
   );
 }
 
+export function useSetErpStockBranch() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.erpSync.setStockBranch.mutationOptions({
+      onSuccess: () => {
+        toast.success(
+          "Filial salva. Clique em Atualizar agora para aplicar já.",
+        );
+        queryClient.invalidateQueries({ queryKey: orpc.erpSync.key() });
+      },
+      onError: (error) => toast.error(error.message),
+    }),
+  );
+}
+
 export function useRemoveErpConnection() {
   const queryClient = useQueryClient();
   return useMutation(

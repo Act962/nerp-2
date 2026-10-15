@@ -16,6 +16,7 @@ import placeholder from "@/assets/background-default-image.svg";
 import { SafeContent } from "@/components/rich-text/safe-content";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCatalogSettings } from "@/features/storefront/hooks/use-catalog-settings";
+import { quantidadeEmCaixas, rotuloDaCaixa } from "@/features/storefront/lib/caixa";
 import { useProductDetails } from "@/features/storefront/hooks/use-product-details";
 import { useCatalogHref } from "@/features/storefront/lib/catalog-base";
 import {
@@ -219,7 +220,7 @@ export function DetailsPoduct({ subdomain, slug }: DetailsPoductProps) {
             <h1 className="font-bold text-2xl leading-tight sm:text-3xl">
               {product.name}
             </h1>
-            {product.sku && (
+            {catalogSettings?.showProductCode && product.sku && (
               <span className="text-neutral-500 text-xs">
                 Código: {product.sku}
               </span>
@@ -309,6 +310,13 @@ export function DetailsPoduct({ subdomain, slug }: DetailsPoductProps) {
                   <Plus className="size-4" />
                 </button>
               </div>
+              {rotuloDaCaixa(product.packQty) && (
+                <span className="text-sm" style={{ color: tema }}>
+                  {rotuloDaCaixa(product.packQty)}
+                  {quantidadeEmCaixas(quantity, product.packQty) &&
+                    ` · ${quantity} un = ${quantidadeEmCaixas(quantity, product.packQty)}`}
+                </span>
+              )}
             </div>
           )}
 

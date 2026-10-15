@@ -25,7 +25,12 @@ export type ContextoDaVitrine = {
   organizationId: string;
   mostraPrecos: boolean;
   mostraProdutoSemEstoque: boolean;
+  /** Vitrine com carrinho: o Astro pode pôr produto no pedido e levar a finalizar. */
+  aceitaPedidos: boolean;
 };
+
+/** Teto por item: pedido de atacado cabe; número absurdo vindo do modelo, não. */
+const MAX_QUANTIDADE = 9999;
 
 /** Quantos produtos uma busca devolve. Mais que isto é lista, não resposta. */
 const MAX_RESULTADOS = 8;
@@ -47,6 +52,52 @@ export function construirToolsDaLoja(contexto: ContextoDaVitrine): ToolSet {
       items: ids.map((productId) => ({ productId, quantity: 1 })),
     });
     return new Map(resolvidos.map((item) => [item.productId, item.unitPrice]));
+  }
+
+  /**
+   * Pôr no pedido e levar a finalizar. O carrinho mora no navegador do cliente:
+   * a tool só confere o produto (o mesmo filtro público da vitrine) e devolve a
+   * ação para a vitrine executar — o servidor não grava nada.
+   */
+  function ferramentasDoPedido(): ToolSet {
+    return {
+      colocarNoCarrinho: tool({
+        description:
+          "Põe um produto no pedido do cliente, pelo `slug` que veio de `buscarProdutos`. Use quando ele disser que quer levar (\"quero 2\", \"pode colocar\"). Quantidade em unidades.",
+        inputSchema: z.object({
+          slug: z.string().max(200),
+          quantidade: z.number().int().min(1).max(MAX_QUANTIDADE),
+        }),
+        execute: async ({ slug, quantidade }) => {
+          const produto = await prisma.product.findFirst({
+            where: { ...filtroPublico, slug },
+            select: { id: true, name: true },
+          });
+          if (!produto) return { erro: "Produto não encontrado nesta loja." };
+          return {
+            ok: true,
+            nome: produto.name,
+            quantidade,
+            acaoNoCliente: {
+              tipo: "adicionar_ao_carrinho",
+              productId: produto.id,
+              quantidade,
+            },
+            botao: { rotulo: "Ver meu pedido", acao: { tipo: "abrir_carrinho" } },
+          };
+        },
+      }),
+
+      finalizarPedido: tool({
+        description:
+          "Leva o cliente a finalizar o pedido quando ele terminar de escolher. Mostra o botão; no fim do pedido aparece \"Enviar pedido pelo WhatsApp\", que leva ao WhatsApp da loja.",
+        inputSchema: z.object({}),
+        execute: async () => ({
+          ok: true,
+          botao: { rotulo: "Finalizar pedido", acao: { tipo: "finalizar_pedido" } },
+        }),
+      }),
+    };
   }
 
   return {
@@ -104,6 +155,8 @@ export function construirToolsDaLoja(contexto: ContextoDaVitrine): ToolSet {
         };
       },
     }),
+
+    ...(contexto.aceitaPedidos ? ferramentasDoPedido() : {}),
 
     detalharProduto: tool({
       description:

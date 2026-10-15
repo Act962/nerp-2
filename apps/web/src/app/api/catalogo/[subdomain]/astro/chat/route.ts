@@ -190,6 +190,7 @@ export async function POST(
       organizationId: org.id,
       mostraPrecos: settings.showPrices,
       mostraProdutoSemEstoque: settings.showProductWithoutStock,
+      aceitaPedidos: settings.allowOrders,
     }),
     onFinish: async ({ tokensIn, tokensOut }) => {
       // Duas contas, e as duas importam: a sessão guarda o gasto bruto desta

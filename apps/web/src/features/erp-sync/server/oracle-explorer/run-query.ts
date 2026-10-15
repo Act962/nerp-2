@@ -1,7 +1,10 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import type { WidgetValue } from "@/app/router/dashboard-widgets/_types";
-import type { OracleQueryConfig } from "@/features/dashboard-widgets/lib/oracle-query-config";
+import {
+  MAX_ROW_LIMIT,
+  type OracleQueryConfig,
+} from "@/features/dashboard-widgets/lib/oracle-query-config";
 import { loadOracleConfig } from "../connectors";
 import { withOracleReadOnly } from "../oracle-client";
 import { buildOracleQuery } from "./build-query";
@@ -14,7 +17,7 @@ import { preflightOracleQuery } from "./preflight";
 const QUERY_TIMEOUT_MS = 20_000;
 
 /** Teto de linhas trazidas do cursor — guarda de payload, não de varredura. */
-const MAX_ROWS = 500;
+const MAX_ROWS = MAX_ROW_LIMIT;
 
 export type OracleDisplayType = "STAT" | "CHART" | "LIST" | "TABLE";
 

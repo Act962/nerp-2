@@ -18,6 +18,7 @@ export type ContextoDaLoja = {
   produtos: number;
   mostraPrecos: boolean;
   aceitaPedidos: boolean;
+  pedidoPeloWhatsapp: boolean;
   pagamentos: string[];
   entregas: string[];
   infoDeEntrega: string;
@@ -111,6 +112,7 @@ export async function montarContextoDaLoja(entrada: {
     produtos,
     mostraPrecos: settings.showPrices,
     aceitaPedidos: settings.allowOrders,
+    pedidoPeloWhatsapp: settings.operationMode === "ORBITA",
     pagamentos: rotular(settings.paymentMethodSettings, ROTULO_PAGAMENTO),
     entregas: rotular(settings.deliveryMethods, ROTULO_ENTREGA),
     infoDeEntrega: (settings.deliverySpecialInfo ?? "").slice(0, 400),

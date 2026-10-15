@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEscondeAoRolar } from "@/features/storefront/hooks/use-esconde-ao-rolar";
 import { useQueryState } from "nuqs";
 import { type FormEvent, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,6 +56,8 @@ interface Settings {
   /** Catálogo sem preço: o pedido vira orçamento e o total some. */
   showPrices: boolean;
   ofertas: OfertaDaVitrine[];
+  /** "Navegue por categoria" ligado: sem a seção, o atalho Categorias não tem para onde ir. */
+  showCategoryNav: boolean;
 }
 
 interface HeaderProps {
@@ -382,6 +385,7 @@ export function Header({ settings }: HeaderProps) {
         allowOrders={settings.allowOrders}
         itensNoCarrinho={itens.length}
         ofertas={settings.ofertas}
+        mostrarCategorias={settings.showCategoryNav}
       />
     </>
   );
@@ -398,7 +402,9 @@ function BarraInferior({
   allowOrders,
   itensNoCarrinho,
   ofertas,
+  mostrarCategorias,
 }: {
+  mostrarCategorias: boolean;
   tema: string;
   tintaDoTema: string;
   homeHref: string;
@@ -410,6 +416,7 @@ function BarraInferior({
   itensNoCarrinho: number;
   ofertas: OfertaDaVitrine[];
 }) {
+  const isEscondida = useEscondeAoRolar();
   const ativo = (href: string) =>
     pathname === href || (href === homeHref && pathname === `${homeHref}/`);
   const categoriasHref = `${homeHref}#categorias`;
@@ -450,9 +457,11 @@ function BarraInferior({
   );
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 flex items-end border-t bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.25rem)] text-card-foreground shadow-[0_-4px_16px_rgb(0_0_0/0.06)] sm:hidden">
+    <nav
+      className={`fixed inset-x-0 bottom-0 z-50 flex items-end border-t bg-card px-2 pb-[max(env(safe-area-inset-bottom),0.25rem)] text-card-foreground shadow-[0_-4px_16px_rgb(0_0_0/0.06)] transition-transform duration-200 sm:hidden ${isEscondida ? "translate-y-full" : ""}`}
+    >
       {item(homeHref, "Início", House)}
-      {item(categoriasHref, "Categorias", LayoutGrid)}
+      {mostrarCategorias && item(categoriasHref, "Categorias", LayoutGrid)}
       {allowOrders
         ? item(cartHref, "Pedido", Handbag, true)
         : item(aboutHref, "Sobre", Store)}

@@ -172,6 +172,67 @@ function solucoesDaMensagem(mensagem: {
  */
 type ConviteDeFormulario = { url: string; rotulo: string; motivo: string };
 
+/**
+ * Uma ação que só o navegador consegue fazer (pôr no carrinho, abrir uma
+ * página do app). Vem da saída de uma tool como `acaoNoCliente`; o pacote não
+ * sabe o que cada `tipo` significa — repassa para quem montou o widget.
+ */
+export type AcaoNoCliente = { tipo: string } & Record<string, unknown>;
+
+/** Um botão que a tool pediu para mostrar; o clique dispara a ação. */
+type BotaoDeAcao = { rotulo: string; acao: AcaoNoCliente };
+
+function isAcaoNoCliente(valor: unknown): valor is AcaoNoCliente {
+  return (
+    typeof valor === "object" &&
+    valor !== null &&
+    typeof (valor as { tipo?: unknown }).tipo === "string"
+  );
+}
+
+function botoesDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): BotaoDeAcao[] {
+  const botoes: BotaoDeAcao[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const botao = (saida as { botao?: unknown }).botao as
+      | { rotulo?: unknown; acao?: unknown }
+      | undefined;
+    if (
+      botao &&
+      typeof botao.rotulo === "string" &&
+      isAcaoNoCliente(botao.acao)
+    ) {
+      botoes.push({ rotulo: botao.rotulo, acao: botao.acao });
+    }
+  }
+  return botoes;
+}
+
+/** Ids das chamadas já executadas: a conversa restaurada não repete a ação. */
+const CHAVE_ACOES_EXECUTADAS = "astro:acoes-executadas";
+const MAX_ACOES_LEMBRADAS = 200;
+
+function acoesExecutadas(): Set<string> {
+  try {
+    const salvo = localStorage.getItem(CHAVE_ACOES_EXECUTADAS);
+    return new Set(salvo ? (JSON.parse(salvo) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function lembrarAcoes(ids: Set<string>) {
+  try {
+    localStorage.setItem(
+      CHAVE_ACOES_EXECUTADAS,
+      JSON.stringify([...ids].slice(-MAX_ACOES_LEMBRADAS)),
+    );
+  } catch {
+    // Sem armazenamento: no pior caso a ação se repete numa conversa restaurada.
+  }
+}
+
 /** Quem está do outro lado, na medida em que ele foi descobrindo. */
 type Visitante = { nome?: string; empresa?: string; cnpj?: string };
 
@@ -244,6 +305,44 @@ function linksDaMensagem(mensagem: {
     links.push({ href, rotulo: textoDe(campos.rotulo) || "Abrir" });
   }
   return links;
+}
+
+/**
+ * Uma pergunta que a tool mandou fazer, com as respostas como botão.
+ *
+ * Vem da saída da tool (`escolhas`), nunca do texto do modelo: as opções são
+ * as filiais lidas do ERP, e um botão com filial inventada levaria a resposta
+ * para o recorte errado.
+ */
+type Escolha = {
+  pergunta: string;
+  opcoes: { rotulo: string; envio: string }[];
+};
+
+function escolhasDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): Escolha[] {
+  const escolhas: Escolha[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const lista = (saida as { escolhas?: unknown }).escolhas;
+    if (!Array.isArray(lista)) continue;
+    for (const item of lista) {
+      if (typeof item !== "object" || item === null) continue;
+      const campos = item as Record<string, unknown>;
+      const opcoes = Array.isArray(campos.opcoes)
+        ? campos.opcoes.flatMap((opcao) => {
+            if (typeof opcao !== "object" || opcao === null) return [];
+            const rotulo = textoDe((opcao as Record<string, unknown>).rotulo);
+            const envio = textoDe((opcao as Record<string, unknown>).envio);
+            return rotulo && envio ? [{ rotulo, envio }] : [];
+          })
+        : [];
+      if (opcoes.length > 0) {
+        escolhas.push({ pergunta: textoDe(campos.pergunta), opcoes });
+      }
+    }
+  }
+  return escolhas;
 }
 
 /** Uma imagem que a tool devolveu — gerada pelo Astro, não escrita por ele. */
@@ -749,6 +848,12 @@ export type AstroWidgetProps = {
    * ocupa a tela inteira.
    */
   ferramentas?: (painel: { fechar: () => void }) => ReactNode;
+  /**
+   * Executa uma ação que a tool devolveu em `acaoNoCliente` (uma vez por
+   * chamada) ou que a pessoa disparou por um botão da tool. Sem a prop, essas
+   * saídas são ignoradas — o site e o app seguem como eram.
+   */
+  aoAcaoNoCliente?: (acao: AcaoNoCliente) => void;
 };
 
 /**
@@ -820,6 +925,7 @@ export function AstroWidget({
   aoFalarAviso,
   aoLerAviso,
   ferramentas,
+  aoAcaoNoCliente,
 }: AstroWidgetProps) {
   const [aberto, setAberto] = useState(false);
   const [falha, setFalha] = useState<FalhaDoAstro | null>(null);
@@ -1113,6 +1219,37 @@ export function AstroWidget({
     onFinish: () => onResposta?.(),
   });
   const carregando = status === "submitted" || status === "streaming";
+
+  /*
+    Ações no navegador (carrinho, página), uma vez por chamada da tool. A lista
+    fica guardada: a conversa restaurada depois de recarregar a página não pode
+    pôr o mesmo produto no carrinho de novo.
+  */
+  useEffect(() => {
+    if (!aoAcaoNoCliente) return;
+    const executadas = acoesExecutadas();
+    let isNova = false;
+    for (const mensagem of messages) {
+      for (const parte of mensagem.parts) {
+        if (!parte.type.startsWith("tool-")) continue;
+        const chamada = parte as {
+          toolCallId?: string;
+          state?: string;
+          output?: unknown;
+        };
+        if (chamada.state !== "output-available" || !chamada.toolCallId)
+          continue;
+        if (executadas.has(chamada.toolCallId)) continue;
+        const acao = (chamada.output as { acaoNoCliente?: unknown } | null)
+          ?.acaoNoCliente;
+        if (!isAcaoNoCliente(acao)) continue;
+        executadas.add(chamada.toolCallId);
+        isNova = true;
+        aoAcaoNoCliente(acao);
+      }
+    }
+    if (isNova) lembrarAcoes(executadas);
+  }, [messages, aoAcaoNoCliente]);
 
   /*
     O lead registrado, uma vez por chamada da tool. Olha as partes e não o
@@ -1835,7 +1972,7 @@ export function AstroWidget({
           </div>
         ) : (
           <>
-            {messages.map((mensagem) => {
+            {messages.map((mensagem, indice) => {
               const texto = mensagem.parts
                 .map((parte) => (parte.type === "text" ? parte.text : ""))
                 .join("");
@@ -1847,8 +1984,20 @@ export function AstroWidget({
                   : formularioDaMensagem(mensagem);
               const aprovacoes =
                 mensagem.role === "user" ? [] : pedidosDeAprovacao(mensagem);
+              const botoesDeAcao =
+                mensagem.role === "user" || !aoAcaoNoCliente
+                  ? []
+                  : botoesDaMensagem(mensagem);
               const links =
                 mensagem.role === "user" ? [] : linksDaMensagem(mensagem);
+              // Só na última mensagem: botão de pergunta já respondida,
+              // tocado de novo, mandaria a resposta fora de hora.
+              const escolhas =
+                mensagem.role === "user" ||
+                indice !== messages.length - 1 ||
+                carregando
+                  ? []
+                  : escolhasDaMensagem(mensagem);
               const imagens =
                 mensagem.role === "user" ? [] : imagensDaMensagem(mensagem);
               const arquivos = anexosDaMensagem(mensagem);
@@ -1862,8 +2011,10 @@ export function AstroWidget({
                 !formulario &&
                 aprovacoes.length === 0 &&
                 links.length === 0 &&
+                escolhas.length === 0 &&
                 imagens.length === 0 &&
-                arquivos.length === 0
+                arquivos.length === 0 &&
+                botoesDeAcao.length === 0
               ) {
                 return null;
               }
@@ -2016,6 +2167,28 @@ export function AstroWidget({
                     </div>
                   )}
 
+                  {escolhas.map((escolha) => (
+                    <div className="o-astro-escolha" key={escolha.pergunta}>
+                      {escolha.pergunta && (
+                        <p className="o-astro-escolha__pergunta">
+                          {escolha.pergunta}
+                        </p>
+                      )}
+                      <div className="o-astro-escolha__opcoes">
+                        {escolha.opcoes.map((opcao) => (
+                          <button
+                            type="button"
+                            key={opcao.envio}
+                            className="o-astro-escolha__opcao"
+                            onClick={() => enviar(opcao.envio)}
+                          >
+                            {opcao.rotulo}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
                   {links.length > 0 && (
                     <div className="o-astro-links">
                       {links.map((link) => (
@@ -2058,6 +2231,20 @@ export function AstroWidget({
                       >
                         {formulario.rotulo}
                       </a>
+                    </div>
+                  )}
+                  {botoesDeAcao.length > 0 && (
+                    <div className="o-astro-cta">
+                      {botoesDeAcao.map((botao) => (
+                        <button
+                          key={`${botao.rotulo}-${botao.acao.tipo}`}
+                          type="button"
+                          className="o-astro-cta__btn"
+                          onClick={() => aoAcaoNoCliente?.(botao.acao)}
+                        >
+                          {botao.rotulo}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </Fragment>
