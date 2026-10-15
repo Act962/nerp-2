@@ -48,29 +48,92 @@ export const listIntegracoes = base
       orderBy: { createdAt: "asc" },
     });
 
+    const conexoesProprias = await carregarConexoesProprias(context.org.id);
+
     return {
       podeGerenciar,
       podeEditarLogo: isSuperAdmin(context.user.email),
       logos: Object.fromEntries(logos.map((l) => [l.providerId, l.logoKey])),
-      instalacoes: instalacoes.map((i) => ({
-        id: i.id,
-        providerId: i.providerId,
-        externalRef: i.externalRef,
-        status: i.status,
-        displayName: i.displayName,
-        environment: i.environment,
-        capabilities: i.capabilities,
-        certificateExpiresAt: i.certificateExpiresAt?.toISOString() ?? null,
-        lastSyncAt: i.lastSyncAt?.toISOString() ?? null,
-        lastSyncError: i.lastSyncError,
-        // Quem não gerencia não recebe nem o campo mascarado: o catálogo é
-        // visível para a equipe, a credencial não.
-        valores: podeGerenciar
-          ? valoresVisiveis(i.providerId, i.credentialsCiphertext)
-          : {},
-      })),
+      instalacoes: [
+        ...instalacoes.map((i) => ({
+          id: i.id,
+          providerId: i.providerId,
+          externalRef: i.externalRef,
+          status: i.status,
+          displayName: i.displayName,
+          environment: i.environment,
+          capabilities: i.capabilities,
+          certificateExpiresAt: i.certificateExpiresAt?.toISOString() ?? null,
+          lastSyncAt: i.lastSyncAt?.toISOString() ?? null,
+          lastSyncError: i.lastSyncError,
+          // Quem não gerencia não recebe nem o campo mascarado: o catálogo é
+          // visível para a equipe, a credencial não.
+          valores: podeGerenciar
+            ? valoresVisiveis(i.providerId, i.credentialsCiphertext)
+            : {},
+        })),
+        ...conexoesProprias,
+      ],
     };
   });
+
+/**
+ * Órbita CRM e Winthor têm painel próprio e não moram em `FinancialIntegration`:
+ * a conexão do Órbita é a chave que ele usa para chamar o nerp
+ * (`NasaIntegrationKey`) e a do Winthor é a `ErpConnection`. Sem entrar aqui, o
+ * card mostrava "Conectar" com a integração funcionando.
+ */
+async function carregarConexoesProprias(organizationId: string) {
+  const [chaveOrbita, conexaoErp] = await Promise.all([
+    prisma.nasaIntegrationKey.findFirst({
+      where: { organizationId, revokedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { id: true, lastUsedAt: true },
+    }),
+    prisma.erpConnection.findUnique({
+      where: { organizationId },
+      select: {
+        id: true,
+        kind: true,
+        status: true,
+        lastSyncAt: true,
+        lastSyncError: true,
+      },
+    }),
+  ]);
+
+  const conexoes = [];
+  if (chaveOrbita) {
+    conexoes.push({
+      ...conexaoSemCredencial(chaveOrbita.id, "orbita-crm"),
+      status: "ACTIVE" as const,
+      lastSyncAt: chaveOrbita.lastUsedAt?.toISOString() ?? null,
+      lastSyncError: null,
+    });
+  }
+  if (conexaoErp?.kind === "WINTHOR_ORACLE") {
+    conexoes.push({
+      ...conexaoSemCredencial(conexaoErp.id, "winthor"),
+      status: conexaoErp.status,
+      lastSyncAt: conexaoErp.lastSyncAt?.toISOString() ?? null,
+      lastSyncError: conexaoErp.lastSyncError,
+    });
+  }
+  return conexoes;
+}
+
+function conexaoSemCredencial(id: string, providerId: string) {
+  return {
+    id,
+    providerId,
+    externalRef: "",
+    displayName: null,
+    environment: "producao",
+    capabilities: [] as string[],
+    certificateExpiresAt: null,
+    valores: {},
+  };
+}
 
 /**
  * Campos de texto voltam preenchidos (para editar sem redigitar); segredo volta

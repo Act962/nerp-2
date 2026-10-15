@@ -21,7 +21,15 @@ import {
   usePauseErpConnection,
   useRemoveErpConnection,
   useRunErpSync,
+  useSetErpStockBranch,
 } from "../hooks/use-erp-sync";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WinthorConnectionForm } from "./winthor-connection-form";
 
 function StatusBadge({
@@ -64,6 +72,65 @@ interface ProductSyncReportView {
   skippedInvalidBarcode: number;
   duplicatesInSource: number;
   failed: number;
+  stockBranchCode?: string | null;
+  stockUpdated?: number;
+  pricesFilled?: number;
+  packQtyFilled?: number;
+}
+
+const NO_BRANCH = "none";
+
+/**
+ * Filial cujo estoque (e último preço vendido, para quem está sem preço) vai
+ * para o produto: é o que a tela de Produtos e a vitrine do catálogo mostram.
+ */
+function StockBranchSection({
+  branches,
+  selected,
+  disabled,
+}: {
+  branches: { code: string; name: string | null; productsWithStock: number }[];
+  selected: string | null;
+  disabled: boolean;
+}) {
+  const setBranch = useSetErpStockBranch();
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h3 className="font-medium text-sm">Filial do estoque</h3>
+        <p className="text-muted-foreground text-sm">
+          O estoque desta filial aparece em Produtos e no catálogo online.
+          Produto sem preço recebe o último preço vendido nela (90 dias). Preço
+          já preenchido não muda.
+        </p>
+      </div>
+      {branches.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          Nenhuma filial com estoque ainda. Clique em Atualizar agora.
+        </p>
+      ) : (
+        <Select
+          value={selected ?? NO_BRANCH}
+          disabled={disabled || setBranch.isPending}
+          onValueChange={(value) =>
+            setBranch.mutate({ branchCode: value === NO_BRANCH ? null : value })
+          }
+        >
+          <SelectTrigger className="w-full sm:w-80">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_BRANCH}>Não usar estoque do ERP</SelectItem>
+            {branches.map((branch) => (
+              <SelectItem key={branch.code} value={branch.code}>
+                {`Filial ${branch.code}${branch.name ? ` · ${branch.name}` : ""} (${nf.format(branch.productsWithStock)} com estoque)`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -120,6 +187,22 @@ function ProductSyncSection({
       });
     if (report.failed > 0)
       stats.push({ label: "Falhas", value: report.failed });
+    if (report.stockBranchCode && report.stockUpdated !== undefined)
+      stats.push({
+        label: `Estoque atualizado (filial ${report.stockBranchCode})`,
+        value: report.stockUpdated,
+      });
+    if (report.packQtyFilled !== undefined && report.packQtyFilled > 0)
+      stats.push({
+        label: "Unidades por caixa preenchidas",
+        value: report.packQtyFilled,
+      });
+    if (report.pricesFilled !== undefined)
+      stats.push({
+        label: "Preços preenchidos",
+        value: report.pricesFilled,
+        hint: "estavam sem preço; vieram do último preço vendido",
+      });
   }
 
   return (
@@ -301,6 +384,17 @@ export function WinthorPanel() {
               Remover
             </Button>
           </div>
+
+          <Separator />
+
+          <StockBranchSection
+            branches={status?.configured ? status.stockBranches : []}
+            selected={status?.configured ? status.stockBranchCode : null}
+            disabled={
+              runSync.isPending ||
+              Boolean(status?.configured && status.isSyncing)
+            }
+          />
 
           <Separator />
 
