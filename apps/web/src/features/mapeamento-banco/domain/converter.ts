@@ -32,7 +32,7 @@ function paraTexto(valor: ValorCru): string | null {
 }
 
 function paraNumero(valor: ValorCru): number | null | "invalido" {
-  if (vazio(valor)) return null;
+  if (valor === null || vazio(valor)) return null;
   if (typeof valor === "number")
     return Number.isFinite(valor) ? valor : "invalido";
   if (typeof valor === "boolean") return "invalido";

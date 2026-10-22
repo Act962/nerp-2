@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ValorCru } from "../domain/converter";
 import { coluna, PCPRODUT, resumo, tabela } from "../domain/fixtures";
-import type { ProdutoLocal, RegistroDeEstoque } from "../domain/importacao";
+import type {
+  AcaoDeCliente,
+  AcaoDeProduto,
+  ProdutoLocal,
+  RegistroDeEstoque,
+} from "../domain/importacao";
 import {
   type ConfigDoTipo,
   type Mapeamento,
@@ -128,12 +133,12 @@ function montar(
   }
   const destino: DestinoNoNerpPort = {
     produtosLocais: vi.fn(async () => opcoes.produtos ?? []),
-    aplicarProdutos: vi.fn(async (acoes) => ({
+    aplicarProdutos: vi.fn(async (acoes: AcaoDeProduto[]) => ({
       gravados: acoes.filter((acao) => acao.acao !== "ignorar").length,
       falhas: [],
     })),
     clientesLocais: vi.fn(async () => []),
-    aplicarClientes: vi.fn(async (acoes) => ({
+    aplicarClientes: vi.fn(async (acoes: AcaoDeCliente[]) => ({
       gravados: acoes.length,
       falhas: [],
     })),
