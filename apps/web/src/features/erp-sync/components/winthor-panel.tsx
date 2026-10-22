@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
+  Database,
   FileText,
   PackagePlus,
   Pause,
@@ -13,7 +14,9 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { useEhDaEquipeDoMapeamento } from "@/features/mapeamento-banco/hooks/use-equipe-do-mapeamento";
 import { cn } from "@/lib/utils";
 import {
   useErpConnection,
@@ -288,6 +291,9 @@ export function WinthorPanel() {
   const runSync = useRunErpSync();
   const pause = usePauseErpConnection();
   const remove = useRemoveErpConnection();
+  // Só esconde o botão: quem barra de verdade é a página e as procedures
+  // (`podeMapearBanco`), enquanto o mapeamento é ferramenta interna.
+  const podeMapearBanco = useEhDaEquipeDoMapeamento();
 
   const connection = connectionQuery.data;
   const status = statusQuery.data;
@@ -421,6 +427,27 @@ export function WinthorPanel() {
               }
             }}
           />
+
+          {podeMapearBanco && (
+            <>
+              <Separator />
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p className="font-medium text-sm">Mapeamento do banco</p>
+                  <p className="text-muted-foreground text-xs">
+                    Ferramenta interna: ver as tabelas deste ERP e dizer de onde
+                    vem produto, estoque, categoria, preço e promoção.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="w-fit" asChild>
+                  <Link href="/integracoes/banco-de-dados">
+                    <Database className="size-4" />
+                    Mapear banco de dados
+                  </Link>
+                </Button>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

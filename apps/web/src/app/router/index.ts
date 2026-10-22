@@ -79,6 +79,8 @@ import { integracoesRoutes } from "./integracoes";
 import { fiscalConfigRoutes } from "./fiscal-config";
 import { googleDriveRoutes } from "./google-drive";
 import { oracleExplorerRoutes } from "./oracle-explorer";
+import { mapeamentoBancoRoutes } from "./mapeamento-banco";
+import { mcpRoutes } from "./mcp";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
 import { orgDashboardRoutes } from "./org-dashboard";
 import { precosRoutes } from "./precos";
@@ -164,6 +166,8 @@ export const router = {
   fiscalConfig: fiscalConfigRoutes,
   googleDrive: googleDriveRoutes,
   oracleExplorer: oracleExplorerRoutes,
+  mapeamentoBanco: mapeamentoBancoRoutes,
+  mcp: mcpRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
   orgDashboard: orgDashboardRoutes,
   precos: precosRoutes,

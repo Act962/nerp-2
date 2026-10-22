@@ -43,7 +43,7 @@ Auxiliares: `(auth)` = login/cadastro, `(home)` = landing, `(org)` = criar organ
 | **Catalogo Promocional** | `/catalogo-promocional` (+`/[catalogId]`) | `promotional-catalog` | `promotional-catalog` | `docs/catalogo-promocional/00-06` |
 | **Colaboradores** | `/colaboradores` | `collaborators` | `collaborators` | — |
 | **Ranking** | `/ranking` | `ranking` | `ranking` | — |
-| **Integracoes** | `/integracoes` | `erp-sync` | `erp-sync` | — |
+| **Integracoes** | `/integracoes` (+`/banco-de-dados`, interno; `/api/mcp` para agente de IA) | `erp-sync`, `mapeamento-banco`, `mcp` | `erp-sync`, `mapeamento-banco`, `mcp` | `specs/mapeamento-banco.md` |
 | **Configuracoes** | `/configuracoes` | `configuracoes` | `org`, `members`, `invitation`, `billing` | — |
 | **Lojas** | `/lojas` (+`/[storeId]`,`/[storeId]/mapa`,`/[storeId]/reposicao`,`/importar`) | `stores`, `store-map` | `store`, `floor-plan`, `map-object`, `map-layer`, `map-annotation` | `docs/TRADE_MARKETING.md` |
 | **Books** | `/books` (+`/[bookId]`) | `books` | `book` | `docs/TRADE_MARKETING.md` (sec 1,3) |

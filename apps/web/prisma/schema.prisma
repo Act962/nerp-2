@@ -1307,6 +1307,13 @@ model Customer {
   isActive        Boolean      @default(true)
   //Assas
   asaasCustomerId String?      @map("asaas_customer_id")
+  // Espelho do cliente no ERP, gravado pela importação do mapeamento do banco
+  // (spec mapeamento-banco). `erpCode` é o código do cliente lá e o vínculo
+  // estável — o CPF/CNPJ só serve para casar na primeira vez, porque uma rede
+  // de lojas repete o CNPJ em vários códigos. `erpBlocked` é o bloqueio de
+  // crédito lá (fato do ERP, não decisão do NERP); null = nunca importado.
+  erpCode         String?
+  erpBlocked      Boolean?
   // Timestamps
   /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
   isDemo          Boolean      @default(false)
@@ -1326,6 +1333,7 @@ model Customer {
 
   @@unique([organizationId, email])
   @@index([organizationId])
+  @@index([organizationId, erpCode])
   @@index([document])
   @@index([email])
   @@index([priceListId])
@@ -4250,6 +4258,11 @@ model ErpConnection {
   // Filial cujo estoque vai para `Product.currentStock` (tela de Produtos e
   // vitrine do catálogo). Nula = o sync não mexe no estoque do produto.
   stockBranchCode   String?
+  // De onde vem cada tipo do NERP (produto, estoque, categoria, preço,
+  // promoção) no banco deste cliente — JSON versionado validado por zod em
+  // `features/mapeamento-banco/domain/mapeamento.ts`. Coluna e não tabela: há
+  // uma conexão por org e um mapeamento por conexão (spec mapeamento-banco).
+  dataMapping       Json?
   createdAt         DateTime            @default(now())
   updatedAt         DateTime            @updatedAt
 
