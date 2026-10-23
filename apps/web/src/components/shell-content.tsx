@@ -5,7 +5,10 @@ import { cn } from "@/lib/utils";
 
 // Rotas de editor em tela cheia: o respiro padrão (p-4/md:p-6) e o breadcrumb só
 // roubam altura útil. Nelas o conteúdo ocupa toda a área do <main>.
-const FULLSCREEN_PREFIXES = ["/catalogo-promocional/"];
+const FULLSCREEN_PREFIXES = [
+  "/catalogo-promocional/",
+  "/integracoes/banco-de-dados",
+];
 
 export function isFullscreenRoute(pathname: string) {
   return FULLSCREEN_PREFIXES.some((prefix) => pathname.startsWith(prefix));
