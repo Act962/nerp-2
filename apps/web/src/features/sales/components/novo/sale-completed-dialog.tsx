@@ -21,8 +21,11 @@ import {
   ReceiptPrintArea,
   triggerReceiptPrint,
 } from "@/features/receipt-designer/components/receipt-print";
-import { useEffect, useRef } from "react";
-import { CheckCircle, Printer, FileText, Receipt, Copy } from "lucide-react";
+import Link from "next/link";
+import { StatusNfce } from "@/features/fiscal/components/status-nfce";
+import { useNfceDaVenda } from "@/features/fiscal/hooks/use-nfce";
+import { useEffect, useMemo, useRef } from "react";
+import { CheckCircle, Printer, Receipt, Copy } from "lucide-react";
 
 interface SaleCompletedDialogProps {
   open: boolean;
@@ -33,19 +36,23 @@ interface SaleCompletedDialogProps {
     paymentMethod: string;
     change: number;
     customerName: string | null;
-    invoiceGenerated: boolean;
+    saleId?: string | null;
+    // A venda pediu NFC-e: a tela acompanha a autorização e o cupom vira DANFCe.
+    nfceSolicitada?: boolean;
+    // A emissão foi recusada antes de criar o documento.
+    nfceErro?: string | null;
   } | null;
   receiptData?: ReceiptSaleData | null;
   // Espelha o checkbox "Imprimir Cupom" do pagamento: dispara a impressão
   // sozinho ao abrir, sem o operador ter que clicar de novo.
   autoPrint?: boolean;
   onNewSale: () => void;
-  onPrintInvoice: () => void;
 }
 
 // Fallback quando a org ainda não tem template padrão de cupom.
 const FALLBACK_BLOCKS: ReceiptBlock[] = presetBlocks("NAO_FISCAL");
 const FALLBACK_PAPER: ReceiptPaper = "MM80";
+const FISCAL_BLOCKS: ReceiptBlock[] = presetBlocks("FISCAL");
 
 export function SaleCompletedDialog({
   open,
@@ -54,17 +61,63 @@ export function SaleCompletedDialog({
   receiptData,
   autoPrint = false,
   onNewSale,
-  onPrintInvoice,
 }: SaleCompletedDialogProps) {
   const { data: defaultTemplate, isPending: templatePending } =
     useReceiptDefaultTemplate();
 
+  const nfceSolicitada = !!sale?.nfceSolicitada && !!sale.saleId;
+  const nfceQuery = useNfceDaVenda(
+    nfceSolicitada ? (sale?.saleId ?? null) : null,
+  );
+  const documento = nfceQuery.data;
+  const autorizada =
+    documento?.status === "AUTHORIZED" && documento.chave && documento.qrCodeUrl
+      ? documento
+      : null;
+  // Sem nota válida (rejeitada, denegada, cancelada no balcão) não imprime
+  // sozinho: o cupom sem nota precisa ser uma decisão do caixa, não um efeito
+  // colateral.
+  const nfceFalhou =
+    documento?.status === "REJECTED" ||
+    documento?.status === "DENIED" ||
+    documento?.status === "CANCELLED" ||
+    documento?.status === "VOIDED";
+  const aguardandoNfce = nfceSolicitada && !autorizada && !nfceFalhou;
+
   const template = defaultTemplate?.template ?? null;
-  const printBlocks = template?.blocks ?? FALLBACK_BLOCKS;
+  // DANFCe sai no layout fiscal mesmo que o padrão da loja seja o recibo.
+  const printBlocks =
+    autorizada && template?.type !== "FISCAL"
+      ? FISCAL_BLOCKS
+      : (template?.blocks ?? FALLBACK_BLOCKS);
   const printPaper = template?.paper ?? FALLBACK_PAPER;
 
+  // Memorizado: um objeto novo a cada render reiniciaria o efeito de
+  // impressão automática e cancelaria o timer antes de imprimir.
+  const dadosCupom = useMemo<ReceiptSaleData | null | undefined>(
+    () =>
+      receiptData && autorizada?.chave && autorizada.qrCodeUrl
+        ? {
+            ...receiptData,
+            nfceUrl: autorizada.qrCodeUrl,
+            nfce: {
+              chave: autorizada.chave,
+              protocolo: autorizada.protocolo ?? "",
+              numero: autorizada.numero,
+              serie: autorizada.serie,
+              autorizadoEm: autorizada.autorizadoEm ?? new Date().toISOString(),
+              homologacao: autorizada.ambiente === "HOMOLOGACAO",
+              qrCodeUrl: autorizada.qrCodeUrl,
+              consultaUrl: autorizada.consultaUrl,
+              consumidor: autorizada.destinatario,
+            },
+          }
+        : receiptData,
+    [receiptData, autorizada],
+  );
+
   const handlePrintReceipt = () => {
-    if (!receiptData) return;
+    if (!dadosCupom) return;
     triggerReceiptPrint(printPaper);
   };
 
@@ -75,12 +128,24 @@ export function SaleCompletedDialog({
   const printedSaleRef = useRef<number | null>(null);
   const saleNumber = sale?.saleNumber ?? null;
   useEffect(() => {
-    if (!open || !autoPrint || !receiptData || templatePending) return;
+    if (!open || !autoPrint || !dadosCupom || templatePending) return;
+    // Com NFC-e pedida, só imprime o DANFCe — depois de autorizado.
+    if (aguardandoNfce || (nfceSolicitada && nfceFalhou)) return;
     if (saleNumber === null || printedSaleRef.current === saleNumber) return;
     printedSaleRef.current = saleNumber;
     const timer = setTimeout(() => triggerReceiptPrint(printPaper), 250);
     return () => clearTimeout(timer);
-  }, [open, autoPrint, receiptData, templatePending, saleNumber, printPaper]);
+  }, [
+    open,
+    autoPrint,
+    dadosCupom,
+    templatePending,
+    aguardandoNfce,
+    nfceSolicitada,
+    nfceFalhou,
+    saleNumber,
+    printPaper,
+  ]);
 
   if (!sale) return null;
 
@@ -163,31 +228,40 @@ export function SaleCompletedDialog({
             </div>
           </div>
 
+          {sale.nfceErro && (
+            <div
+              role="alert"
+              className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
+            >
+              <span>A NFC-e não foi emitida. {sale.nfceErro}</span>
+              <Button size="sm" variant="outline" asChild>
+                <Link href="/produtos/fiscal">Corrigir cadastro fiscal</Link>
+              </Button>
+            </div>
+          )}
+
+          {nfceSolicitada && (
+            <StatusNfce
+              documento={documento}
+              carregando={nfceQuery.isPending}
+            />
+          )}
+
           <div className="flex gap-2">
             <Button
               variant="outline"
               className="flex-1 bg-transparent"
               onClick={handlePrintReceipt}
-              disabled={!receiptData}
+              disabled={!dadosCupom || aguardandoNfce}
             >
               <Receipt className="h-4 w-4 mr-2" />
-              Cupom
+              {autorizada ? "DANFCe" : "Cupom"}
             </Button>
-            {sale.invoiceGenerated && (
-              <Button
-                variant="outline"
-                className="flex-1 bg-transparent"
-                onClick={onPrintInvoice}
-              >
-                <FileText className="h-4 w-4 mr-2" />
-                NF-e
-              </Button>
-            )}
             <Button
               variant="outline"
               className="flex-1 bg-transparent"
               onClick={handlePrintReceipt}
-              disabled={!receiptData}
+              disabled={!dadosCupom || aguardandoNfce}
             >
               <Printer className="h-4 w-4 mr-2" />
               Imprimir
@@ -195,10 +269,10 @@ export function SaleCompletedDialog({
           </div>
         </div>
 
-        {receiptData && (
+        {dadosCupom && (
           <ReceiptPrintArea
             blocks={printBlocks}
-            data={receiptData}
+            data={dadosCupom}
             paper={printPaper}
           />
         )}

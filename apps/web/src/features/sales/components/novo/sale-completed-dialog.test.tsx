@@ -21,6 +21,18 @@ vi.mock("@/features/receipt-designer/components/receipt-print", () => ({
   ReceiptPrintArea: () => null,
 }));
 
+// O documento fiscal da venda também vem do servidor (polling).
+const nfceQuery: { data: unknown; isPending: boolean } = {
+  data: undefined,
+  isPending: false,
+};
+vi.mock("@/features/fiscal/hooks/use-nfce", () => ({
+  useNfceDaVenda: () => nfceQuery,
+  useTentarNfceNovamente: () => ({ mutate: vi.fn(), isPending: false }),
+  useReenviarNfce: () => ({ mutate: vi.fn(), isPending: false }),
+  useCancelarNfce: () => ({ mutate: vi.fn(), isPending: false }),
+}));
+
 import { SaleCompletedDialog } from "./sale-completed-dialog";
 
 const SALE = {
@@ -29,7 +41,6 @@ const SALE = {
   paymentMethod: "DINHEIRO",
   change: 0,
   customerName: null,
-  invoiceGenerated: false,
 };
 
 const RECEIPT: ReceiptSaleData = {
@@ -42,16 +53,36 @@ const RECEIPT: ReceiptSaleData = {
   payments: [{ method: "DINHEIRO", amount: 50 }],
 };
 
-function renderDialog(props: { autoPrint?: boolean } = {}) {
+const NFCE_AUTORIZADA = {
+  id: "doc-1",
+  saleId: "venda-1",
+  status: "AUTHORIZED",
+  ambiente: "HOMOLOGACAO",
+  serie: 1,
+  numero: 7,
+  chave: "22261111222333000181650010000000071123456785",
+  protocolo: "222260000000001",
+  autorizadoEm: "2026-11-03T13:00:01.000Z",
+  qrCodeUrl: "https://simulado.nerp.invalid/nfce?p=x|3|2",
+  consultaUrl: "https://simulado.nerp.invalid/nfce/consulta",
+  rejeicao: null,
+  destinatario: null,
+  tentativas: 1,
+  canceladoEm: null,
+};
+
+function renderDialog(
+  props: { autoPrint?: boolean; nfceSolicitada?: boolean } = {},
+) {
+  const { nfceSolicitada, ...resto } = props;
   return render(
     <SaleCompletedDialog
       open
       onOpenChange={() => {}}
-      sale={SALE}
+      sale={{ ...SALE, saleId: "venda-1", nfceSolicitada }}
       receiptData={RECEIPT}
       onNewSale={() => {}}
-      onPrintInvoice={() => {}}
-      {...props}
+      {...resto}
     />,
   );
 }
@@ -64,6 +95,8 @@ describe("SaleCompletedDialog", () => {
     printSpy.mockClear();
     templateQuery.data = undefined;
     templateQuery.isPending = false;
+    nfceQuery.data = undefined;
+    nfceQuery.isPending = false;
   });
 
   it("imprime sozinho quando autoPrint vem marcado", async () => {
@@ -86,6 +119,42 @@ describe("SaleCompletedDialog", () => {
 
     await new Promise((resolve) => setTimeout(resolve, 400));
     expect(printSpy).not.toHaveBeenCalled();
+  });
+
+  it("com NFC-e pedida, não imprime enquanto a SEFAZ não autoriza", async () => {
+    nfceQuery.data = { ...NFCE_AUTORIZADA, status: "PROCESSING", chave: null };
+    renderDialog({ autoPrint: true, nfceSolicitada: true });
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(printSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent("Aguardando a SEFAZ");
+  });
+
+  it("com NFC-e autorizada, imprime o DANFCe sozinho", async () => {
+    nfceQuery.data = NFCE_AUTORIZADA;
+    renderDialog({ autoPrint: true, nfceSolicitada: true });
+
+    await waitFor(() => expect(printSpy).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "NFC-e nº 7 autorizada (homologação",
+    );
+    expect(screen.getByRole("button", { name: /DANFCe/ })).toBeEnabled();
+  });
+
+  it("NFC-e rejeitada não imprime sozinho e mostra o motivo", async () => {
+    nfceQuery.data = {
+      ...NFCE_AUTORIZADA,
+      status: "REJECTED",
+      chave: null,
+      rejeicao: { codigo: "778", motivo: "Informado NCM inexistente" },
+    };
+    renderDialog({ autoPrint: true, nfceSolicitada: true });
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(printSpy).not.toHaveBeenCalled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "NFC-e rejeitada (778): Informado NCM inexistente",
+    );
   });
 
   it("mantém a impressão manual pelo botão Imprimir", async () => {

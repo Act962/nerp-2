@@ -117,6 +117,7 @@ export function CreateProductForm() {
         aliqPis: data.aliqPis,
         aliqCofins: data.aliqCofins,
         cClassTrib: data.cClassTrib || undefined,
+        cstIbsCbs: data.cstIbsCbs || undefined,
       },
       {
         onSuccess: () => {

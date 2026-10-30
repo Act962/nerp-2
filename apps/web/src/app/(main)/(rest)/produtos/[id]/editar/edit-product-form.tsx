@@ -113,6 +113,7 @@ const productSchema = z
       .optional()
       .or(z.literal(NaN).transform(() => undefined)),
     cClassTrib: z.string().optional(),
+    cstIbsCbs: z.string().optional(),
   })
   // Promoção sem prazo vira preço permanente por esquecimento — a validade
   // existe justamente para isso.
@@ -192,6 +193,7 @@ export function EditProductForm() {
       aliqPis: product.aliqPis ?? undefined,
       aliqCofins: product.aliqCofins ?? undefined,
       cClassTrib: product.cClassTrib ?? "",
+      cstIbsCbs: product.cstIbsCbs ?? "",
     },
   });
 

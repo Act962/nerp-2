@@ -60,6 +60,7 @@ import {
   Store,
   Tag,
   Tags,
+  FileCheck2,
   Ticket,
   TrendingUp,
   Trophy,
@@ -146,6 +147,7 @@ const navigation: NavItem[] = [
     children: [
       { name: "PDV", href: "/vendas/novo", icon: ScanBarcode },
       { name: "Vendas", href: "/vendas", icon: ShoppingCart },
+      { name: "Notas fiscais", href: "/vendas/notas-fiscais", icon: FileText },
       {
         name: "Caixa",
         href: "/vendas/caixa",
@@ -182,6 +184,11 @@ const navigation: NavItem[] = [
             href: "/produtos/categorias",
             icon: Tag,
             jornada: "sidebar-categorias",
+          },
+          {
+            name: "Cadastro fiscal",
+            href: "/produtos/fiscal",
+            icon: FileCheck2,
           },
           {
             name: "Tabelas de preço",

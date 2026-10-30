@@ -36,6 +36,7 @@ import { phoneMask } from "@/utils/format-phone";
 import { formatCPForCNPJ } from "@/utils/format-cnpj";
 import { cepMask } from "@/utils/format-cep";
 import { getAddressByCep } from "@/utils/get-address-by-cep";
+import { ClienteFiscalFields } from "./cliente-fiscal-fields";
 import { Spinner } from "@/components/ui/spinner";
 import { orpc } from "@/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -55,6 +56,10 @@ const createCustomerSchema = z.object({
   address: z.string().optional(),
   description: z.string().optional(),
   priceListId: z.string().optional(),
+  // Preenchido pelo CEP (ViaCEP devolve o código IBGE do município).
+  cityCode: z.string().optional(),
+  stateRegistration: z.string().optional(),
+  ieIndicator: z.string().optional(),
 });
 
 export const AddCustomerModal = ({
@@ -80,6 +85,9 @@ export const AddCustomerModal = ({
       address: "",
       description: "",
       priceListId: NO_PRICE_LIST,
+      cityCode: "",
+      stateRegistration: "",
+      ieIndicator: "",
     },
   });
   const createCustomer = useCreateCustomer();
@@ -109,6 +117,7 @@ export const AddCustomerModal = ({
       if (addressData) {
         form.setValue("city", addressData.localidade);
         form.setValue("state", addressData.uf);
+        form.setValue("cityCode", addressData.ibge);
         form.setValue(
           "address",
           `${addressData.logradouro}${
@@ -300,6 +309,10 @@ export const AddCustomerModal = ({
                 )}
               />
             </div>
+            <ClienteFiscalFields
+              control={form.control}
+              disabled={isCreateCustomerLoading}
+            />
             <Controller
               name="address"
               control={form.control}

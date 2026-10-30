@@ -33,6 +33,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect } from "react";
 import { getAddressByCep } from "@/utils/get-address-by-cep";
+import { ClienteFiscalFields } from "./cliente-fiscal-fields";
 import { Textarea } from "@/components/ui/textarea";
 import { orpc } from "@/lib/orpc";
 import { useQuery } from "@tanstack/react-query";
@@ -58,11 +59,17 @@ const editCustomerSchema = z.object({
   address: z.string().optional(),
   description: z.string().optional(),
   priceListId: z.string().optional(),
+  // Preenchido pelo CEP (ViaCEP devolve o código IBGE do município).
+  cityCode: z.string().optional(),
+  stateRegistration: z.string().optional(),
+  ieIndicator: z.string().optional(),
 });
 
 export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
   const { customer, isLoading } = useQueryCustomer(id);
-  const { data: priceLists = [] } = useQuery(orpc.precos.list.queryOptions({ input: {} }));
+  const { data: priceLists = [] } = useQuery(
+    orpc.precos.list.queryOptions({ input: {} }),
+  );
   const form = useForm<z.infer<typeof editCustomerSchema>>({
     resolver: zodResolver(editCustomerSchema),
     defaultValues: {
@@ -77,8 +84,8 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
       address: customer?.address ?? "",
       description: customer?.notes ?? "",
       priceListId:
-        (customer as { priceListId?: string | null } | undefined)?.priceListId ??
-        NO_PRICE_LIST,
+        (customer as { priceListId?: string | null } | undefined)
+          ?.priceListId ?? NO_PRICE_LIST,
     },
   });
   const updateCustomer = useUpdateCustomer();
@@ -90,11 +97,12 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
       if (addressData) {
         form.setValue("city", addressData.localidade);
         form.setValue("state", addressData.uf);
+        form.setValue("cityCode", addressData.ibge);
         form.setValue(
           "address",
           `${addressData.logradouro}${
             addressData.bairro ? `, ${addressData.bairro}` : ""
-          }`
+          }`,
         );
       }
     }
@@ -112,6 +120,9 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
         city: data.city,
         state: data.state,
         zipCode: data.cep,
+        cityCode: data.cityCode,
+        stateRegistration: data.stateRegistration,
+        ieIndicator: data.ieIndicator,
         address: data.address,
         notes: data.description,
         // "__default__" = usa a tabela default da org (guardamos como null).
@@ -124,7 +135,7 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
         onSuccess: () => {
           onOpenChange(false);
         },
-      }
+      },
     );
   };
 
@@ -144,6 +155,9 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
         priceListId:
           (customer as { priceListId?: string | null }).priceListId ??
           NO_PRICE_LIST,
+        cityCode: customer.cityCode ?? "",
+        stateRegistration: customer.stateRegistration ?? "",
+        ieIndicator: customer.ieIndicator ?? "",
       });
     }
   }, [open, customer, form]);
@@ -323,6 +337,10 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
                 )}
               />
             </div>
+            <ClienteFiscalFields
+              control={form.control}
+              disabled={isEditCustomerLoading}
+            />
             <Controller
               name="address"
               control={form.control}
@@ -345,9 +363,7 @@ export const EditCustomer = ({ id, open, onOpenChange }: ViewCustomerProps) => {
               control={form.control}
               render={({ field }) => (
                 <Field>
-                  <FieldLabel htmlFor={field.name}>
-                    Tabela de preço
-                  </FieldLabel>
+                  <FieldLabel htmlFor={field.name}>Tabela de preço</FieldLabel>
                   <Select
                     name={field.name}
                     value={field.value ?? NO_PRICE_LIST}

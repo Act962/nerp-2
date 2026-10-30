@@ -25,9 +25,7 @@ import Link from "next/link";
 export function PendingOrdersDialog() {
   const open = usePdvUiStore((state) => state.pendingOrdersOpen);
   const setOpen = usePdvUiStore((state) => state.setPendingOrdersOpen);
-  const setHydratePayload = usePdvUiStore(
-    (state) => state.setHydratePayload,
-  );
+  const setHydratePayload = usePdvUiStore((state) => state.setHydratePayload);
 
   const { data, isLoading } = usePendingCatalogOrders();
   const approve = useApprovePending();

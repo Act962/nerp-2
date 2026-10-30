@@ -90,4 +90,19 @@ export interface ReceiptSaleData {
   // valor livre para o QR do tipo "pix" (copia-e-cola) ou "nfce" (URL de consulta)
   pixCode?: string | null;
   nfceUrl?: string | null;
+  // Presente quando a venda saiu com NFC-e autorizada: o cupom vira DANFCe e
+  // ganha o bloco obrigatório (chave, protocolo, consumidor, QR Code).
+  nfce?: DadosNfceCupom | null;
+}
+
+export interface DadosNfceCupom {
+  chave: string;
+  protocolo: string;
+  numero: number;
+  serie: number;
+  autorizadoEm: string; // ISO
+  homologacao: boolean;
+  qrCodeUrl: string;
+  consultaUrl: string | null;
+  consumidor: string | null; // CPF/CNPJ só dígitos
 }

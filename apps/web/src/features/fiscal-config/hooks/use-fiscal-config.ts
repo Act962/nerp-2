@@ -15,8 +15,11 @@ export function useSaveFiscalConfig() {
     orpc.fiscalConfig.upsert.mutationOptions({
       onSuccess: () => {
         toast.success("Configuração fiscal salva");
+        // Regime e padrões mudam o que o cadastro de produto aceita e o que a
+        // tela de prontidão considera pronto.
+        queryClient.invalidateQueries({ queryKey: orpc.fiscalConfig.key() });
         queryClient.invalidateQueries({
-          queryKey: orpc.fiscalConfig.get.key(),
+          queryKey: orpc.products.fiscalReadiness.key(),
         });
       },
       onError: (error) => toast.error(error.message),

@@ -248,11 +248,63 @@ export function ReceiptRender({
         lineHeight: 1.35,
       }}
     >
-      {blocks.map((block) => (
-        <div key={block.id} className="mb-0.5">
-          <BlockView block={block} data={data} vars={vars} />
+      {data.nfce && <CabecalhoNfce homologacao={data.nfce.homologacao} />}
+      {blocks
+        // No DANFCe o QR sai no bloco legal abaixo, junto da chave — um QR
+        // de NFC-e vindo do template duplicaria.
+        .filter(
+          (block) =>
+            !(data.nfce && block.kind === "qr" && block.source === "nfce"),
+        )
+        .map((block) => (
+          <div key={block.id} className="mb-0.5">
+            <BlockView block={block} data={data} vars={vars} />
+          </div>
+        ))}
+      {data.nfce && <BlocoNfce nfce={data.nfce} />}
+    </div>
+  );
+}
+
+function CabecalhoNfce({ homologacao }: { homologacao: boolean }) {
+  return (
+    <div className="mb-1 text-center" style={{ fontSize: 11 }}>
+      <div style={{ fontWeight: 700 }}>
+        DANFE NFC-e - Documento Auxiliar da Nota Fiscal de Consumidor Eletrônica
+      </div>
+      {homologacao && (
+        <div style={{ fontWeight: 700 }}>
+          EMITIDA EM AMBIENTE DE HOMOLOGAÇÃO - SEM VALOR FISCAL
         </div>
-      ))}
+      )}
+    </div>
+  );
+}
+
+// Conteúdo mínimo do DANFCe (Manual de Padrões da NFC-e): consulta pela chave,
+// consumidor, número/série/emissão, protocolo e QR Code.
+function BlocoNfce({ nfce }: { nfce: NonNullable<ReceiptSaleData["nfce"]> }) {
+  const chave = nfce.chave.replace(/(\d{4})(?=\d)/g, "$1 ");
+  const consumidor = nfce.consumidor
+    ? `CONSUMIDOR ${nfce.consumidor.length === 11 ? "CPF" : "CNPJ"}: ${nfce.consumidor}`
+    : "CONSUMIDOR NÃO IDENTIFICADO";
+  return (
+    <div className="mt-1 text-center" style={{ fontSize: 10 }}>
+      <div style={{ borderTop: "1px dashed #000", margin: "4px 0" }} />
+      <div style={{ fontWeight: 700 }}>Consulte pela Chave de Acesso em</div>
+      {nfce.consultaUrl && (
+        <div style={{ wordBreak: "break-all" }}>{nfce.consultaUrl}</div>
+      )}
+      <div style={{ fontFamily: "inherit", letterSpacing: 0.3 }}>{chave}</div>
+      <div style={{ marginTop: 4 }}>{consumidor}</div>
+      <div style={{ marginTop: 4 }}>
+        NFC-e nº {nfce.numero} Série {nfce.serie}{" "}
+        {new Date(nfce.autorizadoEm).toLocaleString("pt-BR")}
+      </div>
+      <div>Protocolo de autorização: {nfce.protocolo}</div>
+      <div style={{ display: "flex", justifyContent: "center", margin: 6 }}>
+        <QRCodeSVG value={nfce.qrCodeUrl} size={120} level="M" />
+      </div>
     </div>
   );
 }

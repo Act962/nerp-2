@@ -36,6 +36,7 @@ import { type SaleFormData, saleSchema } from "./schema";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutationCreateSale } from "@/features/sales/hooks/use-sales";
+import { useEmitirNfce } from "@/features/fiscal/hooks/use-nfce";
 import { useCaixaCurrent } from "@/features/caixa/hooks/use-caixa";
 // CaixaInfoBar (nome/caixa/relógio) foi movida pro app-header — libera
 // altura vertical na tela de venda. Ver PdvHeaderInfo/PdvHeaderClock.
@@ -161,7 +162,9 @@ export default function CreateSalePage({
     paymentMethod: string;
     change: number;
     customerName: string | null;
-    invoiceGenerated: boolean;
+    saleId: string;
+    nfceSolicitada: boolean;
+    nfceErro?: string | null;
   } | null>(null);
   const [completedReceipt, setCompletedReceipt] =
     useState<ReceiptSaleData | null>(null);
@@ -218,6 +221,7 @@ export default function CreateSalePage({
   });
 
   const mutation = useMutationCreateSale();
+  const emitirNfce = useEmitirNfce();
 
   // Última leitura ACEITA — base do descarte de bipe duplicado.
   const ultimaLeituraRef = useRef<UltimaLeitura>(NENHUMA_LEITURA);
@@ -726,8 +730,8 @@ export default function CreateSalePage({
     paymentMethod: string;
     amountPaid: number;
     change: number;
-    generateInvoice: boolean;
     printReceipt: boolean;
+    nfce: { emitir: boolean; cpfCnpj: string };
   }) => {
     const { cartItems, customer, discount } = form.getValues();
 
@@ -768,8 +772,32 @@ export default function CreateSalePage({
               data.payments.length > 1 ? "Misto" : data.paymentMethod,
             change: data.change,
             customerName: customer?.name || null,
-            invoiceGenerated: data.generateInvoice,
+            saleId: sale.id,
+            nfceSolicitada: data.nfce.emitir,
           });
+          // A venda já está gravada; a nota é um passo seguinte. Se falhar, a
+          // tela de venda concluída mostra o motivo e oferece reenviar.
+          if (data.nfce.emitir)
+            emitirNfce.mutate(
+              {
+                saleId: sale.id,
+                cpfCnpj: data.nfce.cpfCnpj || undefined,
+              },
+              {
+                // Recusada antes de existir documento (ex.: produto sem NCM):
+                // a tela para de esperar e mostra o motivo.
+                onError: (erro) =>
+                  setCompletedSale((atual) =>
+                    atual && atual.saleId === sale.id
+                      ? {
+                          ...atual,
+                          nfceSolicitada: false,
+                          nfceErro: erro.message,
+                        }
+                      : atual,
+                  ),
+              },
+            );
           setCompletedReceipt({
             org: receiptOrg ?? toReceiptOrg({ name: orgName, logo: orgLogo }),
             sale: {
@@ -941,7 +969,6 @@ export default function CreateSalePage({
         receiptData={completedReceipt}
         autoPrint={autoPrintReceipt}
         onNewSale={() => {}}
-        onPrintInvoice={() => {}}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
       <WeighedConfigDialog open={weighedOpen} onOpenChange={setWeighedOpen} />

@@ -30,6 +30,8 @@ import {
   UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useSituacaoFiscal } from "@/features/fiscal/hooks/use-nfce";
+import { documentoValido, somenteDigitos } from "@nerp/fiscal";
 import type { PaymentMethod } from "@/generated/prisma/enums";
 
 export type SalePaymentInput = { method: PaymentMethod; amount: number };
@@ -50,8 +52,9 @@ interface PaymentDialogProps {
     paymentMethod: PaymentMethod;
     amountPaid: number;
     change: number;
-    generateInvoice: boolean;
     printReceipt: boolean;
+    // Só vem `emitir: true` quando a empresa pode emitir (fiscal.situacao).
+    nfce: { emitir: boolean; cpfCnpj: string };
   }) => void;
 }
 
@@ -88,8 +91,18 @@ export function PaymentDialog({
 }: PaymentDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [amountPaid, setAmountPaid] = useState("");
-  const [generateInvoice, setGenerateInvoice] = useState(false);
   const [printReceipt, setPrintReceipt] = useState(true);
+  const { data: situacaoFiscal } = useSituacaoFiscal();
+  const podeEmitir = !!situacaoFiscal?.podeEmitir;
+  const [emitirNfce, setEmitirNfce] = useState(true);
+  const [cpfNaNota, setCpfNaNota] = useState("");
+  const cpfDigitado = somenteDigitos(cpfNaNota);
+  const cpfInvalido =
+    podeEmitir &&
+    emitirNfce &&
+    cpfDigitado !== "" &&
+    !documentoValido(cpfDigitado);
+  const nfce = { emitir: podeEmitir && emitirNfce, cpfCnpj: cpfDigitado };
   // Modo misto: distribui o total entre várias formas (ex.: 200 no cartão + 300
   // no PIX). Guarda o valor digitado por forma.
   const [mixed, setMixed] = useState(false);
@@ -107,11 +120,13 @@ export function PaymentDialog({
   const mixedPaid = mixedPayments.reduce((sum, p) => sum + p.amount, 0);
   const remaining = total - mixedPaid;
 
-  const canFinish = mixed
-    ? Math.abs(remaining) < 0.01
-    : paymentMethod === "DINHEIRO"
-      ? paid >= total
-      : true;
+  const canFinish =
+    !cpfInvalido &&
+    (mixed
+      ? Math.abs(remaining) < 0.01
+      : paymentMethod === "DINHEIRO"
+        ? paid >= total
+        : true);
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -148,8 +163,9 @@ export function PaymentDialog({
 
   const reset = () => {
     setAmountPaid("");
-    setGenerateInvoice(false);
     setPrintReceipt(true);
+    setEmitirNfce(true);
+    setCpfNaNota("");
     setMixed(false);
     setAmounts({});
   };
@@ -169,8 +185,8 @@ export function PaymentDialog({
         paymentMethod: dominant?.method ?? paymentMethod,
         amountPaid: mixedPaid,
         change: 0,
-        generateInvoice,
         printReceipt,
+        nfce,
       });
     } else {
       onConfirm({
@@ -178,8 +194,8 @@ export function PaymentDialog({
         paymentMethod,
         amountPaid: paymentMethod === "DINHEIRO" ? paid : total,
         change,
-        generateInvoice,
         printReceipt,
+        nfce,
       });
     }
 
@@ -422,22 +438,48 @@ export function PaymentDialog({
 
             <Separator />
 
-            {/* Options lado a lado — economiza altura. */}
-            <div className="grid grid-cols-2 gap-2">
-              <label
-                htmlFor="generateInvoice"
-                className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm hover:bg-accent"
-              >
-                <Checkbox
-                  id="generateInvoice"
-                  checked={generateInvoice}
-                  onCheckedChange={(checked) =>
-                    setGenerateInvoice(checked as boolean)
-                  }
-                />
-                <FileText className="h-4 w-4" />
-                Gerar Nota Fiscal (NF-e)
-              </label>
+            {/* Só aparece quando a empresa consegue emitir de verdade
+                (`fiscal.situacao`) — nada de opção que não faz nada. */}
+            {podeEmitir && (
+              <div className="flex flex-col gap-2 rounded-lg border p-2">
+                <label
+                  htmlFor="emitirNfce"
+                  className="flex cursor-pointer items-center gap-2 text-sm"
+                >
+                  <Checkbox
+                    id="emitirNfce"
+                    checked={emitirNfce}
+                    onCheckedChange={(checked) =>
+                      setEmitirNfce(checked as boolean)
+                    }
+                  />
+                  <FileText className="h-4 w-4" />
+                  Emitir NFC-e
+                  {situacaoFiscal?.ambiente === "HOMOLOGACAO" && (
+                    <span className="text-xs text-muted-foreground">
+                      (homologação)
+                    </span>
+                  )}
+                </label>
+                {emitirNfce && (
+                  <div className="flex flex-col gap-1">
+                    <Input
+                      value={cpfNaNota}
+                      onChange={(e) => setCpfNaNota(e.target.value)}
+                      placeholder="CPF/CNPJ na nota (opcional)"
+                      inputMode="numeric"
+                      aria-invalid={cpfInvalido}
+                    />
+                    {cpfInvalido && (
+                      <span className="text-xs text-destructive">
+                        CPF/CNPJ inválido
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            <div>
               <label
                 htmlFor="printReceipt"
                 className="flex cursor-pointer items-center gap-2 rounded-lg border p-2 text-sm hover:bg-accent"

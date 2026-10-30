@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { AlertasFiscais } from "@/features/fiscal/components/alertas-fiscais";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -30,6 +31,7 @@ import {
   useTestSefaz,
 } from "../hooks/use-fiscal-config";
 import { CertificateUploader } from "./certificate-uploader";
+import { PadroesTributacao } from "./padroes-tributacao";
 
 // Sentinela que o server aceita para "não mexer neste segredo". Enquanto o
 // usuário não digitar nada no campo, mandamos essa string em vez do valor
@@ -84,6 +86,10 @@ export function FiscalConfigPanel() {
       | "CONTINGENCIA_SVCAN"
       | "CONTINGENCIA_OFFLINE",
     autoPrintOnEmission: true,
+    defaultCfop: null as string | null,
+    defaultCstIcms: null as string | null,
+    defaultCstPis: null as string | null,
+    defaultCstCofins: null as string | null,
   });
 
   useEffect(() => {
@@ -115,6 +121,10 @@ export function FiscalConfigPanel() {
       cscId: config.cscId ?? "",
       emissionType: config.emissionType,
       autoPrintOnEmission: config.autoPrintOnEmission,
+      defaultCfop: config.defaultCfop,
+      defaultCstIcms: config.defaultCstIcms,
+      defaultCstPis: config.defaultCstPis,
+      defaultCstCofins: config.defaultCstCofins,
     }));
   }, [config]);
 
@@ -160,6 +170,7 @@ export function FiscalConfigPanel() {
 
   return (
     <div className="flex flex-col gap-4">
+      <AlertasFiscais />
       {/* Ambiente + testes rápidos */}
       <Card>
         <CardHeader className="pb-3">
@@ -363,6 +374,25 @@ export function FiscalConfigPanel() {
           </Field>
         </CardContent>
       </Card>
+
+      <PadroesTributacao
+        regime={form.taxRegime}
+        valores={{
+          cfop: form.defaultCfop,
+          cstIcms: form.defaultCstIcms,
+          cstPis: form.defaultCstPis,
+          cstCofins: form.defaultCstCofins,
+        }}
+        onChange={(campo, valor) => {
+          const chave = {
+            cfop: "defaultCfop",
+            cstIcms: "defaultCstIcms",
+            cstPis: "defaultCstPis",
+            cstCofins: "defaultCstCofins",
+          } as const;
+          set(chave[campo], valor);
+        }}
+      />
 
       {/* Certificado */}
       <Card>
