@@ -58,10 +58,13 @@ export const getSale = base
       pdfUrl: z.string().optional(),
     }),
   )
-  .handler(async ({ input, context }) => {
-    const sale = await prisma.sale.findUnique({
+  .handler(async ({ input, context, errors }) => {
+    // Filtrar pela organização é o que impede abrir a venda de outra empresa
+    // pelo id — antes a busca era só por id.
+    const sale = await prisma.sale.findFirst({
       where: {
         id: input.saleId,
+        organizationId: context.org.id,
       },
       include: {
         items: {
@@ -76,9 +79,7 @@ export const getSale = base
         customer: true,
       },
     });
-    if (!sale) {
-      throw new Error("Venda não encontrada");
-    }
+    if (!sale) throw errors.NOT_FOUND({ message: "Venda não encontrada" });
     const saleFormat = {
       id: sale.id,
       saleNumber: sale.saleNumber,
@@ -99,8 +100,8 @@ export const getSale = base
       icms: undefined,
       issuedAt: undefined,
       authorizedAt: undefined,
-      cancelledAt: undefined,
-      cancellationReason: undefined,
+      cancelledAt: sale.cancelledAt ?? undefined,
+      cancellationReason: sale.cancelReason ?? undefined,
       xmlUrl: undefined,
       createdAt: sale.createdAt,
       pdfUrl: undefined,
