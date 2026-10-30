@@ -1501,6 +1501,9 @@ model Sale {
   updatedAt         DateTime         @updatedAt
   completedAt       DateTime?
   cancelledAt       DateTime?
+  // Cancelamento de venda concluída (specs/vendas-cancelamento.md).
+  cancelReason      String?          @db.Text
+  cancelledById     String?
   createdById       String?
   // Pedido do Catálogo no modo ORBITA: o que o Órbita devolveu ao receber o
   // pedido. `orbitaSyncedAt` preenchido = já entregue (a entrega é idempotente).
@@ -1587,6 +1590,7 @@ enum CashMovementType {
   SANGRIA
   VENDA
   FECHAMENTO
+  ESTORNO // venda cancelada: subtrai do total da sessão (e da gaveta, se em dinheiro)
 }
 
 model CashSession {

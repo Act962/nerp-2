@@ -76,6 +76,7 @@ feature depois de trabalhar em outra coisa.
 - [`pagamentos-gateway.md`](./pagamentos-gateway.md) — **(2)** Gateway PIX/boleto/cartão (Asaas/Stripe, port `nasaex-wey`) · `feat/pagamentos-gateway` · 📋 esboço
 - [`financeiro-contas.md`](./financeiro-contas.md) — **(3)** Contas a pagar/receber + régua de cobrança (port `nasaex-wey`) · `feat/financeiro-contas` · 📋 esboço
 - [`fiscal-nfce.md`](./fiscal-nfce.md) — **(4+5)** Spec mestre fiscal: NFC-e em Teresina via Focus NFe (híbrido), fases 0→6 até a contingência offline no desktop · `feat/fiscal-fase-N` · 🟡 Fases 0–3
+- [`vendas-cancelamento.md`](./vendas-cancelamento.md) — Cancelamento de venda concluída: estorno de estoque/caixa/financeiro + NFC-e · 🟡 implementado
 - [`fiscal-tributacao.md`](./fiscal-tributacao.md) — **(4)** Cadastro tributário + reforma IBS/CBS · absorvida por `fiscal-nfce.md` (Fase 1) · histórico
 - [`fiscal-emissao.md`](./fiscal-emissao.md) — **(5)** Emissão NFe/NFCe via provedor · absorvida por `fiscal-nfce.md` (Fases 2–3) · histórico
 - [`impressao-cupom.md`](./impressao-cupom.md) — **(6)** ESC-POS/PDF/DANFE + editor de cupom · `feat/impressao-cupom` · 📋 esboço · depende de (1)/(5)

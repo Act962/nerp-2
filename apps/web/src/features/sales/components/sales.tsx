@@ -47,6 +47,7 @@ import { statusConfig } from "@/utils/status-sales-config";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { SaleDetailsDialog } from "./sale-details";
 import { CustomerHistoryDialog } from "./customer-history-dialog";
+import { CancelSaleDialog, type VendaParaCancelar } from "./cancel-sale-dialog";
 
 const paymentMethodLabels: Record<string, string> = {
   PIX: "PIX",
@@ -70,6 +71,7 @@ export function SalesPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [cancelando, setCancelando] = useState<VendaParaCancelar | null>(null);
 
   const { data, isLoadingSales } = useQuerySales({
     period: periodo,
@@ -260,7 +262,16 @@ export function SalesPage() {
                                   Imprimir nota
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-destructive">
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  disabled={sale.status === "CANCELLED"}
+                                  onClick={() =>
+                                    setCancelando({
+                                      id: sale.id,
+                                      saleNumber: sale.saleNumber,
+                                    })
+                                  }
+                                >
                                   <XCircle className="h-4 w-4 mr-2" />
                                   Cancelar venda
                                 </DropdownMenuItem>
@@ -297,6 +308,12 @@ export function SalesPage() {
       {saleId && (
         <SaleDetailsDialog open={open} onOpenChange={setOpen} saleId={saleId} />
       )}
+      <CancelSaleDialog
+        venda={cancelando}
+        onOpenChange={(aberto) => {
+          if (!aberto) setCancelando(null);
+        }}
+      />
       <CustomerHistoryDialog
         open={!!historyCustomer}
         onOpenChange={(next) => {

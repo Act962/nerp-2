@@ -21,6 +21,7 @@ export const listCaixaMovements = base
             "SANGRIA",
             "VENDA",
             "FECHAMENTO",
+            "ESTORNO",
           ]),
           amount: z.number(),
           paymentMethod: z.string().nullable(),

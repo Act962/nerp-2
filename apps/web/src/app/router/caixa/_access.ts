@@ -16,14 +16,21 @@ export async function getCaixaMember(
 }
 
 export type CaixaMovementLite = {
-  type: "ABERTURA" | "SUPRIMENTO" | "SANGRIA" | "VENDA" | "FECHAMENTO";
+  type:
+    | "ABERTURA"
+    | "SUPRIMENTO"
+    | "SANGRIA"
+    | "VENDA"
+    | "FECHAMENTO"
+    | "ESTORNO";
   amount: number;
   paymentMethod: string | null;
 };
 
 // Resumo financeiro de uma sessão. O esperado em dinheiro é o que deveria estar
 // na gaveta: abertura + suprimentos + vendas em dinheiro − sangrias. Vendas em
-// cartão/PIX entram no total, mas não na gaveta física.
+// cartão/PIX entram no total, mas não na gaveta física. Estorno (venda
+// cancelada) é a venda ao contrário: sai do total e, em dinheiro, da gaveta.
 export function summarizeSession(
   openingBalance: number,
   movements: CaixaMovementLite[],
@@ -38,6 +45,9 @@ export function summarizeSession(
     else if (movement.type === "VENDA") {
       salesTotal += movement.amount;
       if (movement.paymentMethod === "DINHEIRO") salesCash += movement.amount;
+    } else if (movement.type === "ESTORNO") {
+      salesTotal -= movement.amount;
+      if (movement.paymentMethod === "DINHEIRO") salesCash -= movement.amount;
     }
   }
   const expectedCash = openingBalance + suprimentos + salesCash - sangrias;

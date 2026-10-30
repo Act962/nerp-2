@@ -3,6 +3,7 @@ import {
   type QueryClient,
   useMutation,
   usePrefetchQuery,
+  useQueryClient,
   useQuery,
   useSuspenseQuery,
 } from "@tanstack/react-query";
@@ -152,3 +153,33 @@ export const PrefetchSale = ({ saleId, queryClient }: PrefetchSaleProps) => {
     }),
   );
 };
+
+/**
+ * Cancela a venda concluída. O que voltar do servidor diz ao operador o que
+ * aconteceu fora da tela: nota cancelada na SEFAZ, e dinheiro a devolver à mão
+ * quando não havia caixa aberto para registrar a saída.
+ */
+export function useCancelarVenda() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.sales.cancel.mutationOptions({
+      onSuccess: (r) => {
+        const nota = r.notaCancelada
+          ? ` NFC-e nº ${r.notaCancelada.numero} cancelada na SEFAZ.`
+          : "";
+        toast.success(`Venda #${r.saleNumber} cancelada.${nota}`, {
+          duration: 8_000,
+        });
+        if (r.devolverDinheiroManualmente)
+          toast.warning(
+            "Nenhum caixa aberto: registre a devolução do dinheiro ao cliente com uma sangria.",
+            { duration: 12_000 },
+          );
+        queryClient.invalidateQueries({ queryKey: orpc.sales.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.fiscal.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.caixa.key() });
+      },
+      onError: (erro) => toast.error(erro.message, { duration: 10_000 }),
+    }),
+  );
+}

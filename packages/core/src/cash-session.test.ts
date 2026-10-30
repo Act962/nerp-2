@@ -48,6 +48,18 @@ describe("summarizeCash", () => {
     expect(s.sangrias).toBe(20);
   });
 
+  it("estorno é a venda ao contrário: sai do total e, em dinheiro, da gaveta", () => {
+    const s = summarizeCash(100, [
+      mov("VENDA", 40, "DINHEIRO"),
+      mov("VENDA", 60, "PIX"),
+      mov("ESTORNO", 40, "DINHEIRO"),
+      mov("ESTORNO", 60, "PIX"),
+    ]);
+    expect(s.salesTotal).toBe(0);
+    expect(s.salesCash).toBe(0);
+    expect(s.expectedCash).toBe(100);
+  });
+
   it("ABERTURA/FECHAMENTO não entram no cálculo (abertura vem do saldo)", () => {
     const s = summarizeCash(100, [
       mov("ABERTURA", 100),

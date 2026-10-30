@@ -1,4 +1,5 @@
 import { approvePending } from "./approve-pending";
+import { cancelSale } from "./cancel";
 import { createSale } from "./create";
 import { createSaleFromDevice } from "./create-from-device";
 import { getSale } from "./get";
@@ -14,4 +15,5 @@ export const SalesRoutes = {
   listByCustomer: listSalesByCustomer,
   listPendingApproval,
   approvePending,
+  cancel: cancelSale,
 };

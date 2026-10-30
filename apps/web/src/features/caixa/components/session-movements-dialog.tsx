@@ -27,6 +27,7 @@ type MovementKind =
   | "SANGRIA"
   | "VENDA"
   | "FECHAMENTO"
+  | "ESTORNO"
   | "CANCELAMENTO";
 
 type TimelineItem = {
@@ -51,6 +52,11 @@ const KIND_META: Record<
   VENDA: { label: "Venda", sign: "+", amountClass: "text-emerald-600" },
   SANGRIA: { label: "Sangria", sign: "−", amountClass: "text-destructive" },
   FECHAMENTO: { label: "Fechamento", sign: null, amountClass: "" },
+  ESTORNO: {
+    label: "Estorno de venda",
+    sign: "−",
+    amountClass: "text-destructive",
+  },
   CANCELAMENTO: {
     label: "Cancelamento",
     sign: null,
@@ -111,8 +117,9 @@ export function SessionMovementsDialog({
       amount: movement.amount,
       createdAt: movement.createdAt,
       detail:
-        movement.type === "VENDA" && movement.paymentMethod
-          ? movement.paymentMethod
+        (movement.type === "VENDA" || movement.type === "ESTORNO") &&
+        movement.paymentMethod
+          ? `${movement.description ? `${movement.description} · ` : ""}${movement.paymentMethod}`
           : movement.description,
     })),
     ...(data?.cancellations ?? []).map((cancellation) => ({

@@ -34,7 +34,8 @@ export type CashMovementKind =
   | "SUPRIMENTO"
   | "SANGRIA"
   | "VENDA"
-  | "FECHAMENTO";
+  | "FECHAMENTO"
+  | "ESTORNO";
 
 export type LocalCashMovement = {
   kind: CashMovementKind;
@@ -95,6 +96,10 @@ export function summarizeCash(
     else if (movement.kind === "VENDA") {
       salesTotal += movement.amount;
       if (movement.paymentMethod === "DINHEIRO") salesCash += movement.amount;
+    } else if (movement.kind === "ESTORNO") {
+      // Venda cancelada: a venda ao contrário (só o servidor gera hoje).
+      salesTotal -= movement.amount;
+      if (movement.paymentMethod === "DINHEIRO") salesCash -= movement.amount;
     }
   }
   const expectedCash = openingBalance + suprimentos + salesCash - sangrias;
