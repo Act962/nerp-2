@@ -464,6 +464,8 @@ model Organization {
   receiptTemplates          ReceiptTemplate[]
   fiscalConfig              FiscalConfig?
   fiscalDocuments           FiscalDocument[]
+  fiscalSeries              FiscalSeries[]
+  fiscalInutilizacoes       FiscalInutilizacao[]
   googleDriveConnections    GoogleDriveConnection[]
   // Tabelas de preço (Varejo/Atacado/Revendedor + customizadas)
   priceLists                PriceList[]
@@ -920,6 +922,8 @@ model Product {
   // Reforma tributária (NT 2025.002 IBS/CBS). Campos livres agora — quando a
   // reforma entrar (2026+), Focus/provedor manda o cClassTrib atualizado.
   cClassTrib          String?
+  // CST do IBS/CBS (3 dígitos). Entra com o cClassTrib no grupo da reforma.
+  cstIbsCbs           String?
   // Controle
   isActive            Boolean              @default(true)
   isFeatured          Boolean              @default(false)
@@ -1281,43 +1285,49 @@ enum PersonType {
 }
 
 model Customer {
-  id              String       @id @default(cuid())
-  organizationId  String
+  id                String       @id @default(cuid())
+  organizationId    String
   // Identificação
-  name            String
-  personType      PersonType   @default(FISICA)
-  document        String? // CPF ou CNPJ
-  email           String? // opcional; quando presente, é único por organização
-  phone           String?
+  name              String
+  personType        PersonType   @default(FISICA)
+  document          String? // CPF ou CNPJ
+  email             String? // opcional; quando presente, é único por organização
+  phone             String?
   // Endereço
-  address         String?
-  addressNumber   String?
-  complement      String?
-  neighborhood    String?
-  city            String?
-  state           String?
-  zipCode         String?
+  address           String?
+  addressNumber     String?
+  complement        String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  zipCode           String?
+  // Código IBGE do município (7 dígitos), preenchido pelo CEP. A NF-e exige
+  // o código, não o nome da cidade.
+  cityCode          String?
+  // Dados do destinatário na NF-e (modelo 55). A NFC-e só usa o documento.
+  stateRegistration String? // Inscrição Estadual
+  ieIndicator       String? // indIEDest: 1 contribuinte, 2 isento, 9 não contribuinte
   // Informações adicionais
-  notes           String?      @db.Text
-  isActive        Boolean      @default(true)
+  notes             String?      @db.Text
+  isActive          Boolean      @default(true)
   //Assas
-  asaasCustomerId String?      @map("asaas_customer_id")
+  asaasCustomerId   String?      @map("asaas_customer_id")
   // Timestamps
   /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
-  isDemo          Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  isDemo            Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
   // Tabela de preço vinculada — quem não tem cai na PriceList `isDefault` da org.
-  priceListId     String?
+  priceListId       String?
   // Relações
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sales           Sale[]
-  suppliers       Supplier[]
-  userCatalog     CatalogUser? @relation(fields: [clientId], references: [id])
-  clientId        String?      @unique
-  priceList       PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sales             Sale[]
+  suppliers         Supplier[]
+  userCatalog       CatalogUser? @relation(fields: [clientId], references: [id])
+  clientId          String?      @unique
+  priceList         PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   // Leads do CRM ligados a este cliente (um por funil, no máximo).
-  crmLeads        CrmLead[]
+  crmLeads          CrmLead[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -1457,7 +1467,7 @@ enum PaymentMethod {
 }
 
 model Sale {
-  id                String          @id @default(cuid())
+  id                String           @id @default(cuid())
   organizationId    String
   customerId        String?
   // Numeração
@@ -1465,7 +1475,7 @@ model Sale {
   saleNumber        Int // Número sequencial da venda
   // Idempotência do replay offline (uuid v7 gerado no device). Único: reenviar
   // a mesma venda não duplica — o handler devolve a venda já criada.
-  clientOperationId String?         @unique
+  clientOperationId String?          @unique
   // Sessão de caixa em que a venda foi registrada (opcional: preserva vendas
   // históricas e vendas não-PDV).
   cashSessionId     String?
@@ -1473,22 +1483,22 @@ model Sale {
   // Pode ser null pra vendas antigas antes desta feature.
   priceListId       String?
   // Status
-  status            SaleStatus      @default(DRAFT)
-  origin            SaleOrigin      @default(PDV)
+  status            SaleStatus       @default(DRAFT)
+  origin            SaleOrigin       @default(PDV)
   // Valores
-  subtotal          Decimal         @db.Decimal(10, 2)
-  discount          Decimal         @default(0) @db.Decimal(10, 2)
-  shipping          Decimal         @default(0) @db.Decimal(10, 2)
-  total             Decimal         @db.Decimal(10, 2)
+  subtotal          Decimal          @db.Decimal(10, 2)
+  discount          Decimal          @default(0) @db.Decimal(10, 2)
+  shipping          Decimal          @default(0) @db.Decimal(10, 2)
+  total             Decimal          @db.Decimal(10, 2)
   // Pagamento
   paymentMethod     PaymentMethod?
   paidAt            DateTime?
   // Observações
-  notes             String?         @db.Text
+  notes             String?          @db.Text
   // Timestamps
-  createdAt         DateTime        @default(now())
-  isDemo            Boolean         @default(false)
-  updatedAt         DateTime        @updatedAt
+  createdAt         DateTime         @default(now())
+  isDemo            Boolean          @default(false)
+  updatedAt         DateTime         @updatedAt
   completedAt       DateTime?
   cancelledAt       DateTime?
   createdById       String?
@@ -1499,21 +1509,21 @@ model Sale {
   orbitaWhatsappUrl String?
   orbitaSyncedAt    DateTime?
   /// Nasceu como pedido de orçamento (catálogo sem preço, modo Órbita): sem valor até o Órbita combinar.
-  quoteRequested    Boolean         @default(false)
+  quoteRequested    Boolean          @default(false)
   /// Quando o valor combinado chegou do Órbita (`catalogOrder.updateQuote`).
   quotedAt          DateTime?
   // Relações
-  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  createdBy         User?           @relation("CreatedSales", fields: [createdById], references: [id])
-  cashSession       CashSession?    @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
-  priceList         PriceList?      @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer          Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy         User?            @relation("CreatedSales", fields: [createdById], references: [id])
+  cashSession       CashSession?     @relation(fields: [cashSessionId], references: [id], onDelete: SetNull)
+  priceList         PriceList?       @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   items             SaleItem[]
   payments          SalePayment[]
   stockMovements    StockMovement[]
   transactions      Transaction[]
   cashMovements     CashMovement[]
-  fiscalDocument    FiscalDocument?
+  fiscalDocuments   FiscalDocument[]
   kitchenOrders     KitchenOrder[]
 
   financeEntries PaymentEntry[] @relation("SaleFinanceEntries")
@@ -5257,6 +5267,13 @@ model FiscalConfig {
   cscId          String?            @map("csc_id")
   emissionType   FiscalEmissionType @default(NORMAL) @map("emission_type")
 
+  // Padrões de tributação da empresa: produto sem o campo próprio usa estes.
+  // Num varejo do Simples cobre quase tudo; o contador mexe só nas exceções.
+  defaultCfop      String? @map("default_cfop")
+  defaultCstIcms   String? @map("default_cst_icms") // CSOSN ou CST, conforme o regime
+  defaultCstPis    String? @map("default_cst_pis")
+  defaultCstCofins String? @map("default_cst_cofins")
+
   // Impressão
   autoPrintOnEmission      Boolean @default(true) @map("auto_print_on_emission")
   defaultReceiptTemplateId String? @map("default_receipt_template_id")
@@ -5288,15 +5305,19 @@ enum FiscalDocumentStatus {
   PROCESSING // enviada ao provedor; aguardando SEFAZ
   AUTHORIZED // AUTORIZADA pela SEFAZ (chave + protocolo válidos)
   REJECTED // rejeitada (SEFAZ ou provedor) — motivo em rejectionReason
-  CANCELLED // cancelada dentro do prazo legal (24h NFCe / 168h NFe)
+  CANCELLED // cancelada dentro do prazo legal (NFC-e: 30 min na Focus; NF-e: 24h)
   DENIED // denegada pela SEFAZ (irregularidade fiscal) — irreversível
   CONTINGENCY // emitida em contingência offline; aguarda sync com SEFAZ
+  VOIDED // rejeitada que não vai mais sair: o número foi inutilizado na SEFAZ
 }
 
 model FiscalDocument {
   id             String               @id @default(cuid())
   organizationId String
-  saleId         String               @unique
+  // 1:N com a venda: rejeitada e reemitida, cancelada e reemitida, devolução.
+  // "No máximo um documento VIGENTE por venda e modelo" é um índice parcial
+  // escrito à mão na migration `fiscal_fase_2_emissao` (o Prisma não expressa).
+  saleId         String
   type           FiscalDocumentType   @default(NFCE)
   status         FiscalDocumentStatus @default(PENDING)
   // Ambiente em que foi emitida — vem do FiscalConfig (adicionado pela PR #18).
@@ -5307,6 +5328,17 @@ model FiscalDocument {
   // Numeração (fixada pelo provedor no momento da autorização).
   serie       Int?
   numero      Int?
+  // Tipo de emissão (1 normal, 9 contingência offline da NFC-e).
+  tpEmis      Int     @default(1)
+  // CNPJ do emitente no momento da emissão — sobrevive a uma troca de CNPJ na
+  // config e à futura emissão por estabelecimento.
+  emitterCnpj String?
+  // O conteúdo enviado (NotaFiscal de @nerp/fiscal). Reenvio e auditoria usam
+  // este, não o cadastro do produto de hoje.
+  nota        Json?
+  // QR Code e URL de consulta impressos no DANFCe.
+  qrCodeUrl   String?
+  consultaUrl String?
   // Chave de 44 dígitos da NFCe/NFe.
   chave       String?
   // Protocolo de autorização SEFAZ.
@@ -5326,6 +5358,10 @@ model FiscalDocument {
   cancelledAt     DateTime?
   cancelReason    String?
   cancelProtocol  String?
+  // XML do evento de cancelamento (key do bucket privado) — vai para o contador.
+  cancelXmlKey    String?
+  // Inutilização que encerrou esta nota rejeitada (status VOIDED).
+  inutilizacaoId  String?
 
   // Tentativas — pra o job de sync/retry saber quantas vezes tentou.
   attemptCount  Int       @default(0)
@@ -5338,10 +5374,55 @@ model FiscalDocument {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   sale         Sale         @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
+  @@unique([organizationId, type, serie, numero])
   @@index([organizationId])
+  @@index([saleId])
   @@index([status])
   @@index([chave])
   @@map("fiscal_documents")
+}
+
+// Faixa de números inutilizada na SEFAZ — número reservado que nunca virou
+// nota. Registro definitivo: a SEFAZ não desfaz inutilização.
+model FiscalInutilizacao {
+  id             String             @id @default(cuid())
+  organizationId String
+  type           FiscalDocumentType
+  environment    String
+  serie          Int
+  numeroInicial  Int
+  numeroFinal    Int
+  justificativa  String
+  protocolo      String
+  inutilizadaEm  DateTime
+  xmlKey         String?
+  createdById    String?
+  createdAt      DateTime           @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, type, serie])
+  @@map("fiscal_inutilizacoes")
+}
+
+// Numeração por série, atômica. O NERP é dono da sequência (não o provedor):
+// é o que deixa a série de contingência de cada caixa offline conviver com a
+// série online sem colidir. Ver specs/fiscal-nfce.md.
+model FiscalSeries {
+  id             String             @id @default(cuid())
+  organizationId String
+  type           FiscalDocumentType
+  serie          Int
+  // Próximo número a usar. Nasce de `FiscalConfig.nfceNextNumber` para quem já
+  // emitia nesta série por outro sistema e não pode repetir número.
+  nextNumber     Int
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, type, serie])
+  @@map("fiscal_series")
 }
 
 // ============================================
