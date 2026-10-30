@@ -7,7 +7,11 @@ const nextConfig: NextConfig = {
   /* config options here */
   // `@nerp/site-content` (contrato do site institucional) é TypeScript cru,
   // sem build próprio — o Next precisa compilá-lo junto.
-  transpilePackages: ["@nerp/site-content", "@nerp/astro-widget"],
+  transpilePackages: [
+    "@nerp/site-content",
+    "@nerp/astro-widget",
+    "@nerp/fiscal",
+  ],
   // pdfjs-dist é carregado só no servidor (parse do texto de encartes PDF na
   // aba Lista). Mantido fora do bundle p/ evitar o resolver do worker e o peso.
   serverExternalPackages: ["pdfjs-dist"],

@@ -34,6 +34,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@nerp/api": "workspace:*",
     "@nerp/astro-widget": "workspace:*",
+    "@nerp/fiscal": "workspace:*",
     "@nerp/site-content": "workspace:*",
     "@nerp/types": "workspace:*",
     "@orpc/client": "^1.13.2",
