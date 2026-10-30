@@ -22,7 +22,21 @@ import {
   deleteFiscalObject,
   putFiscalObject,
 } from "@/lib/fiscal/storage";
+import {
+  carregarPerfilTributario,
+  mensagemDasPendencias,
+} from "@/features/fiscal/server/cadastro-fiscal";
+import {
+  type PadroesFiscais,
+  normalizarCodigoFiscal,
+  padroesSugeridos,
+  validarCamposFiscais,
+} from "@nerp/fiscal";
 import { z } from "zod";
+
+// `undefined` = não mexer; vazio = limpar; resto, só dígitos.
+const normalizarOpcional = (v: string | null | undefined) =>
+  v === undefined ? undefined : normalizarCodigoFiscal(v);
 
 const p = base.use(requireAuthMiddleware).use(requireOrgMiddleware);
 
@@ -104,6 +118,10 @@ const configOutput = z.object({
   ]),
   autoPrintOnEmission: z.boolean(),
   defaultReceiptTemplateId: z.string().nullable(),
+  defaultCfop: z.string().nullable(),
+  defaultCstIcms: z.string().nullable(),
+  defaultCstPis: z.string().nullable(),
+  defaultCstCofins: z.string().nullable(),
   // Info fixa da SEFAZ PI — o client mostra os links.
   sefazPi: z.object({
     uf: z.string(),
@@ -175,6 +193,10 @@ const get = p
       emissionType: row?.emissionType ?? "NORMAL",
       autoPrintOnEmission: row?.autoPrintOnEmission ?? true,
       defaultReceiptTemplateId: row?.defaultReceiptTemplateId ?? null,
+      defaultCfop: row?.defaultCfop ?? null,
+      defaultCstIcms: row?.defaultCstIcms ?? null,
+      defaultCstPis: row?.defaultCstPis ?? null,
+      defaultCstCofins: row?.defaultCstCofins ?? null,
       sefazPi: {
         uf: SEFAZ_PI.uf,
         cityCode: SEFAZ_PI.cityCode,
@@ -232,6 +254,12 @@ const upsertInput = z.object({
 
   autoPrintOnEmission: z.boolean().optional(),
   defaultReceiptTemplateId: z.string().nullable().optional(),
+
+  // Padrões de tributação: produto sem o campo próprio usa estes.
+  defaultCfop: z.string().nullable().optional(),
+  defaultCstIcms: z.string().nullable().optional(),
+  defaultCstPis: z.string().nullable().optional(),
+  defaultCstCofins: z.string().nullable().optional(),
 });
 
 const upsert = p
@@ -239,6 +267,24 @@ const upsert = p
   .output(z.object({ ok: z.boolean() }))
   .handler(async ({ input, context, errors }) => {
     await requireManage(context.org.id, context.user.id, errors);
+
+    // Padrão inválido contaminaria todos os produtos que dependem dele — a
+    // validação usa o regime que vai ficar gravado (o novo, se veio).
+    const padroes = {
+      cfop: normalizarOpcional(input.defaultCfop),
+      cstIcms: normalizarOpcional(input.defaultCstIcms),
+      cstPis: normalizarOpcional(input.defaultCstPis),
+      cstCofins: normalizarOpcional(input.defaultCstCofins),
+    };
+    const regime =
+      input.taxRegime !== undefined
+        ? input.taxRegime
+        : (await carregarPerfilTributario(context.org.id)).regime;
+    const pendencias = validarCamposFiscais(padroes, regime);
+    if (pendencias.length > 0)
+      throw errors.BAD_REQUEST({
+        message: `Padrões de tributação: ${mensagemDasPendencias(pendencias)}`,
+      });
 
     // Segredos: aplica a lógica "keep/set/clear".
     const secretPatch: Record<string, string | null | undefined> = {};
@@ -273,6 +319,10 @@ const upsert = p
       emissionType: input.emissionType,
       autoPrintOnEmission: input.autoPrintOnEmission,
       defaultReceiptTemplateId: input.defaultReceiptTemplateId,
+      defaultCfop: padroes.cfop,
+      defaultCstIcms: padroes.cstIcms,
+      defaultCstPis: padroes.cstPis,
+      defaultCstCofins: padroes.cstCofins,
       ...secretPatch,
     };
 
@@ -456,7 +506,60 @@ const testProvider = p
     };
   });
 
+const padroesSchema = z.object({
+  cfop: z.string().nullable(),
+  cstIcms: z.string().nullable(),
+  cstPis: z.string().nullable(),
+  cstCofins: z.string().nullable(),
+});
+
+const comNulls = (p: PadroesFiscais | null) =>
+  p && {
+    cfop: p.cfop ?? null,
+    cstIcms: p.cstIcms ?? null,
+    cstPis: p.cstPis ?? null,
+    cstCofins: p.cstCofins ?? null,
+  };
+
+/**
+ * Regime e padrões de tributação, sem nenhum segredo. É o que o cadastro de
+ * produto precisa para mostrar CSOSN ou CST e o "vazio = padrão 5102" — por
+ * isso não exige owner/admin como o `get`.
+ */
+const taxProfile = p
+  .input(z.object({}).optional())
+  .output(
+    z.object({
+      regime: z
+        .enum([
+          "SIMPLES_NACIONAL",
+          "SIMPLES_MEI",
+          "LUCRO_PRESUMIDO",
+          "LUCRO_REAL",
+        ])
+        .nullable(),
+      padroes: padroesSchema,
+      sugestao: padroesSchema.nullable(),
+    }),
+  )
+  .handler(async ({ context }) => {
+    const perfil = await carregarPerfilTributario(context.org.id);
+    return {
+      regime: perfil.regime,
+      padroes: comNulls(perfil.padroes) ?? {
+        cfop: null,
+        cstIcms: null,
+        cstPis: null,
+        cstCofins: null,
+      },
+      sugestao: comNulls(
+        perfil.regime ? padroesSugeridos(perfil.regime) : null,
+      ),
+    };
+  });
+
 export const fiscalConfigRoutes = {
+  taxProfile,
   get,
   upsert,
   uploadCertificate,

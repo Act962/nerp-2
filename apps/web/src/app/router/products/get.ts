@@ -59,6 +59,7 @@ const productOutputSchema = z.object({
   aliqPis: z.number().nullable(),
   aliqCofins: z.number().nullable(),
   cClassTrib: z.string().nullable(),
+  cstIbsCbs: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

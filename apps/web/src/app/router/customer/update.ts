@@ -5,15 +5,17 @@ import type { Customer } from "@/generated/prisma/client";
 import type { CustomerUpdateInput } from "@/generated/prisma/models";
 import prisma from "@/lib/db";
 import { z } from "zod";
+import { type CamposFiscaisCliente, prepararFiscalCliente } from "./_fiscal";
 
 // `priceListId` é campo escalar novo — o `CustomerUpdateInput` gerado o
 // expõe como relação (`priceList: {connect: ...}`), o que é chato pro client.
 // Aceitamos os dois: se o cliente enviar `priceListId` (string|null), o
 // handler mapeia pra relação Prisma.
-type UpdateCustomerInput = CustomerUpdateInput & {
-  id: string;
-  priceListId?: string | null;
-};
+type UpdateCustomerInput = CustomerUpdateInput &
+  CamposFiscaisCliente & {
+    id: string;
+    priceListId?: string | null;
+  };
 
 export const updateCustomer = base
   .use(requireAuthMiddleware)
@@ -55,6 +57,9 @@ export const updateCustomer = base
         });
       }
     }
+    const fiscal = prepararFiscalCliente(input);
+    if (!fiscal.ok) throw errors.BAD_REQUEST({ message: fiscal.mensagem });
+
     const updatedCustomer = await prisma.customer.update({
       where: {
         id: customer.id,
@@ -71,7 +76,7 @@ export const updateCustomer = base
             : input.email,
         personType: input.personType,
         city: input.city,
-        state: input.state,
+        ...fiscal.dados,
         zipCode: input.zipCode,
         address: input.address,
         notes: input.notes,

@@ -56,6 +56,7 @@ export const ProductSchema = z.object({
   aliqPis: z.number().optional(),
   aliqCofins: z.number().optional(),
   cClassTrib: z.string().optional(),
+  cstIbsCbs: z.string().optional(),
 });
 
 export type ProductType = z.infer<typeof ProductSchema>;

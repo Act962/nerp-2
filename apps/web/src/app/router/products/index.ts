@@ -1,4 +1,6 @@
 import { bulkUpdateProducts } from "./bulk-update";
+import { bulkUpdateProductsFiscal } from "./bulk-update-fiscal";
+import { productFiscalReadiness } from "./fiscal-readiness";
 import { createProduct } from "./create";
 import { deleteProduct } from "./delete";
 import { duplicateProduct } from "./duplicate";
@@ -38,6 +40,8 @@ export const productsRoutes = {
   searchImages: searchProductImages,
   removeBackground: removeProductBackground,
   bulkUpdate: bulkUpdateProducts,
+  bulkUpdateFiscal: bulkUpdateProductsFiscal,
+  fiscalReadiness: productFiscalReadiness,
   import: {
     create: createImport,
     get: getImport,

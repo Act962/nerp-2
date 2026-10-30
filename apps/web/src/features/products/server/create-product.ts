@@ -44,6 +44,7 @@ export interface CreateProductInput {
   aliqPis?: number | null;
   aliqCofins?: number | null;
   cClassTrib?: string | null;
+  cstIbsCbs?: string | null;
 }
 
 /**
@@ -138,6 +139,7 @@ export async function createProductForOrg(
       aliqPis: input.aliqPis ?? undefined,
       aliqCofins: input.aliqCofins ?? undefined,
       cClassTrib: input.cClassTrib ?? undefined,
+      cstIbsCbs: input.cstIbsCbs ?? undefined,
     },
   });
 

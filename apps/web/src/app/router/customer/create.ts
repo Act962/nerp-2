@@ -4,6 +4,7 @@ import { requireOrgMiddleware } from "@/app/middlewares/org";
 import prisma from "@/lib/db";
 import { assertDentroDoLimite } from "@/features/billing/server/limites";
 import { z } from "zod";
+import { prepararFiscalCliente } from "./_fiscal";
 
 export const createCustomer = base
   .use(requireAuthMiddleware)
@@ -21,6 +22,9 @@ export const createCustomer = base
       address: z.string().optional(),
       description: z.string().optional(),
       priceListId: z.string().nullable().optional(),
+      cityCode: z.string().nullable().optional(),
+      stateRegistration: z.string().nullable().optional(),
+      ieIndicator: z.string().nullable().optional(),
     }),
   )
   .output(
@@ -52,6 +56,9 @@ export const createCustomer = base
       }
     }
 
+    const fiscal = prepararFiscalCliente(input);
+    if (!fiscal.ok) throw errors.BAD_REQUEST({ message: fiscal.mensagem });
+
     await assertDentroDoLimite(context.org.id, "clientes");
 
     const customer = await prisma.customer.create({
@@ -64,7 +71,7 @@ export const createCustomer = base
         zipCode: input.cep,
         notes: input.description,
         city: input.city,
-        state: input.state,
+        ...fiscal.dados,
         address: input.address,
         organizationId: context.org.id,
         priceListId: input.priceListId,

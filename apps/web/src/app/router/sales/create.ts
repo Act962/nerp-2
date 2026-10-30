@@ -56,6 +56,8 @@ export const createSale = base
   )
   .output(
     z.object({
+      // `id` é o que a emissão da NFC-e recebe logo depois da venda.
+      id: z.string(),
       saleNumber: z.number(),
     }),
   )
@@ -199,7 +201,7 @@ export const createSale = base
     */
     await sincronizarContadorDeVendas(orgId);
 
-    const saleNumber = await prisma.$transaction(async (tx) => {
+    const venda = await prisma.$transaction(async (tx) => {
       // Numeração atômica por org (substitui o `count()` sujeito a corrida).
       const org = await tx.organization.update({
         where: { id: orgId },
@@ -296,10 +298,10 @@ export const createSale = base
         });
       }
 
-      return sale.saleNumber;
+      return { id: sale.id, saleNumber: sale.saleNumber };
     });
 
-    return { saleNumber };
+    return venda;
   });
 
 /**

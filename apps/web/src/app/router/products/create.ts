@@ -7,6 +7,10 @@ import {
   createProductForOrg,
   ProductCreationError,
 } from "@/features/products/server/create-product";
+import {
+  mensagemDasPendencias,
+  prepararCamposFiscais,
+} from "@/features/fiscal/server/cadastro-fiscal";
 
 export const createProduct = base
   .use(requireAuthMiddleware)
@@ -72,6 +76,7 @@ export const createProduct = base
       aliqPis: z.number().nullable().optional(),
       aliqCofins: z.number().nullable().optional(),
       cClassTrib: z.string().nullable().optional(),
+      cstIbsCbs: z.string().nullable().optional(),
     }),
   )
   // .output(
@@ -82,10 +87,17 @@ export const createProduct = base
   //   })
   // )
   .handler(async ({ input, context, errors }) => {
+    const fiscal = await prepararCamposFiscais(context.org.id, input);
+    if (fiscal.pendencias.length > 0)
+      throw errors.BAD_REQUEST({
+        message: mensagemDasPendencias(fiscal.pendencias),
+      });
+
     try {
       const product = await createProductForOrg(
         {
           ...input,
+          ...fiscal.dados,
           categoryId: input.categoryId === "" ? null : input.categoryId,
         },
         { orgId: context.org.id, userId: context.user.id },

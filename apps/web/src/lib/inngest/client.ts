@@ -256,6 +256,23 @@ export type OrbitaOrderRequestedData = {
   };
 };
 
+/**
+ * Emissão de documento fiscal (NFC-e) em segundo plano.
+ *
+ * Disparado por `fiscal.emitirNfce` depois de gravar o documento `PENDING`. O
+ * corpo é o caso de uso `ProcessarEmissao` (`@nerp/fiscal`): reenviar é seguro
+ * porque o provedor reconhece a `ref` (= id do documento) e não emite duas
+ * vezes. Ver specs/fiscal-nfce.md.
+ */
+export type FiscalEmissaoSolicitadaData = {
+  organizationId: string;
+  documentoId: string;
+};
+
+export const fiscalEmissaoSolicitada = eventType("fiscal/emissao.solicitada", {
+  schema: staticSchema<FiscalEmissaoSolicitadaData>(),
+});
+
 export const orbitaOrderRequested = eventType(
   "catalog/orbita-order.requested",
   {

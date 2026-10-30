@@ -5,6 +5,10 @@ import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { ProductUnit } from "@/generated/prisma/enums";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
 import { inngest, shopperPriceChanged } from "@/lib/inngest/client";
+import {
+  mensagemDasPendencias,
+  prepararCamposFiscais,
+} from "@/features/fiscal/server/cadastro-fiscal";
 
 // `undefined` mantém o valor gravado; `null` limpa. Sem a distinção, salvar o
 // produto sem mexer no desconto apagaria a promoção.
@@ -82,6 +86,7 @@ export const updateProduct = base
         aliqPis: z.number().nullable().optional(),
         aliqCofins: z.number().nullable().optional(),
         cClassTrib: z.string().nullable().optional(),
+        cstIbsCbs: z.string().nullable().optional(),
       })
       // Promoção sem fim vira preço permanente por esquecimento — foi o que a
       // validade veio evitar.
@@ -129,7 +134,12 @@ export const updateProduct = base
       });
     }
 
-    // Criar o produto
+    const fiscal = await prepararCamposFiscais(context.org.id, input);
+    if (fiscal.pendencias.length > 0)
+      throw errors.BAD_REQUEST({
+        message: mensagemDasPendencias(fiscal.pendencias),
+      });
+
     const product = await prisma.product.update({
       where: {
         id: input.id,
@@ -160,17 +170,10 @@ export const updateProduct = base
         trackStock: input.trackStock,
         prepTimeMinutes: input.prepTimeMinutes,
         supplierId: input.supplierId === "" ? null : input.supplierId,
-        ncm: input.ncm ?? undefined,
-        cest: input.cest ?? undefined,
-        cfop: input.cfop ?? undefined,
-        origem: input.origem ?? undefined,
-        cstIcms: input.cstIcms ?? undefined,
-        cstPis: input.cstPis ?? undefined,
-        cstCofins: input.cstCofins ?? undefined,
+        ...fiscal.dados,
         aliqIcms: input.aliqIcms ?? undefined,
         aliqPis: input.aliqPis ?? undefined,
         aliqCofins: input.aliqCofins ?? undefined,
-        cClassTrib: input.cClassTrib ?? undefined,
       },
     });
 

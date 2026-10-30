@@ -38,12 +38,14 @@ import { generateTradeCatalogPdf } from "@/features/pdv-catalog/server/generate-
 import { runShopperPriceAlert } from "@/features/shopper/server/price-alert";
 import { checkWidgetAlerts } from "@/features/dashboard-widgets/server/check-widget-alerts";
 import { deliverOrbitaOrder } from "@/features/orbita-orders/server/deliver-order";
+import { processarEmissaoNoJob } from "@/features/fiscal/server/emissao";
 import {
   automacaoDisparada,
   bookGenerateRequested,
   campanhaDisparoSolicitado,
   customerImportRequested,
   erpSyncRequested,
+  fiscalEmissaoSolicitada,
   inngest,
   orbitaOrderRequested,
   productImportRequested,
@@ -860,7 +862,42 @@ export const orbitaOrderDelivery = inngest.createFunction(
   },
 );
 
+/**
+ * Emissão de NFC-e. Uma rodada = `ProcessarEmissao`: envia (se PENDING) ou
+ * consulta (se PROCESSING). Enquanto a SEFAZ não decide, dorme e consulta de
+ * novo — nunca reenvia, que é o caminho clássico da nota duplicada.
+ *
+ * Rede/provedor fora do ar sobe para o retry do Inngest; erro de configuração
+ * (token, cadastro) vira `NonRetriableError` em `processarEmissaoNoJob`.
+ */
+export const fiscalEmit = inngest.createFunction(
+  {
+    id: "fiscal-emit",
+    triggers: [fiscalEmissaoSolicitada],
+    retries: 5,
+    concurrency: { key: "event.data.documentoId", limit: 1 },
+    onFailure: async ({ event, error }) => {
+      console.error(
+        `[fiscal-emit] falha no documento ${event.data.event.data.documentoId}:`,
+        error,
+      );
+    },
+  },
+  async ({ event, step }) => {
+    const { organizationId, documentoId } = event.data;
+    for (let rodada = 0; rodada < 6; rodada++) {
+      const resultado = await step.run(`processar-${rodada}`, () =>
+        processarEmissaoNoJob(organizationId, documentoId),
+      );
+      if (!resultado.consultarNovamente) return resultado;
+      await step.sleep(`aguardar-sefaz-${rodada}`, "10s");
+    }
+    return { status: "PROCESSING", consultarNovamente: true };
+  },
+);
+
 export const functions = [
+  fiscalEmit,
   orbitaOrderDelivery,
   astroAvaliarAvisos,
   automacaoExecutar,

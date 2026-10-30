@@ -76,6 +76,7 @@ import { starsRoutes } from "./stars";
 import { whatsappRoutes } from "./whatsapp";
 import { integracoesRoutes } from "./integracoes";
 import { fiscalConfigRoutes } from "./fiscal-config";
+import { fiscalRoutes } from "./fiscal";
 import { googleDriveRoutes } from "./google-drive";
 import { oracleExplorerRoutes } from "./oracle-explorer";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
@@ -160,6 +161,7 @@ export const router = {
   whatsapp: whatsappRoutes,
   integracoes: integracoesRoutes,
   fiscalConfig: fiscalConfigRoutes,
+  fiscal: fiscalRoutes,
   googleDrive: googleDriveRoutes,
   oracleExplorer: oracleExplorerRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
