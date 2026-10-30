@@ -23,6 +23,7 @@ const config: ConfigEmitente = {
   zipCode: "64001-020",
   fiscalPhone: null,
   nfceSerie: 3,
+  percentualTributos: null,
   padroes: { cfop: "5102", cstIcms: "102", cstPis: "49", cstCofins: "49" },
 };
 
@@ -211,5 +212,23 @@ describe("montarNotaDaVenda", () => {
     expect(r.ok && r.nota.pagamentos).toEqual([
       { forma: "DEBITO", valor: 3000 },
     ]);
+  });
+
+  it("tributos aproximados: percentual sobre o valor líquido de cada item", () => {
+    // Itens brutos R$ 20 + R$ 10, venda por R$ 27: R$ 3 de desconto rateado.
+    const r = montarNotaDaVenda(
+      venda({ total: 27, pagamentos: [{ method: "PIX", amount: 27 }] }),
+      { ...config, percentualTributos: 4.5 },
+      undefined,
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.nota.itens.map((i) => i.tributosAproximados)).toEqual([81, 41]);
+    expect(calcularTotais(r.nota).tributosAproximados).toBe(122);
+  });
+
+  it("sem percentual informado, a nota não traz tributos aproximados", () => {
+    const r = montarNotaDaVenda(venda(), config, undefined);
+    expect(r.ok && calcularTotais(r.nota).tributosAproximados).toBeNull();
   });
 });

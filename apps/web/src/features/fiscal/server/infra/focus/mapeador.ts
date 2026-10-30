@@ -16,8 +16,9 @@ import {
  * cabeçalho, `items` (ncm, cfop, quantidades, valores, unidades, icms_origem,
  * icms_situacao_tributaria) e `formas_pagamento`. `pis_situacao_tributaria` e
  * `cofins_situacao_tributaria` vêm da referência da NF-e. `cest`,
- * `codigo_barras_*` e `valor_troco` não aparecem nas páginas públicas — o teste
- * de contrato contra a homologação é quem confirma.
+ * `codigo_barras_*`, `valor_troco` e `valor_total_tributos` (o `vTotTrib` do
+ * item) não aparecem nas páginas públicas — o teste de contrato contra a
+ * homologação é quem confirma.
  */
 
 /** Exigência da SEFAZ para NFC-e de teste (sem isto: rejeição 373). */
@@ -47,6 +48,7 @@ export type ItemFocus = {
   icms_situacao_tributaria: string;
   pis_situacao_tributaria: string;
   cofins_situacao_tributaria: string;
+  valor_total_tributos?: number;
 };
 
 export type PagamentoFocus = {
@@ -130,6 +132,9 @@ export function paraPedidoFocus(s: SolicitacaoEmissao): PedidoNfceFocus {
         icms_situacao_tributaria: icms,
         pis_situacao_tributaria: item.tributacao.pis.cst,
         cofins_situacao_tributaria: item.tributacao.cofins.cst,
+        ...(item.tributosAproximados != null && {
+          valor_total_tributos: reais(item.tributosAproximados),
+        }),
       };
     }),
     formas_pagamento: nota.pagamentos.map((p) => ({

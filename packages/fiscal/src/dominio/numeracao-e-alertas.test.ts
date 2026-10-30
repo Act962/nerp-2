@@ -68,6 +68,7 @@ describe("alertasFiscais", () => {
     rejeicoesRecentes: [],
     paradas: 0,
     pulados: 0,
+    tributosAproximadosConfigurados: true,
   };
   const vence = (dias: number) => new Date(AGORA.getTime() + dias * DIA);
 
@@ -119,6 +120,16 @@ describe("alertasFiscais", () => {
       "CERTIFICADO",
       "NOTAS_PARADAS",
       "NUMEROS_PULADOS",
+    ]);
+  });
+
+  it("avisa quando falta o percentual de tributos aproximados", () => {
+    const alertas = alertasFiscais({
+      ...vazio,
+      tributosAproximadosConfigurados: false,
+    });
+    expect(alertas.map((a) => [a.tipo, a.nivel])).toEqual([
+      ["TRIBUTOS_APROXIMADOS", "aviso"],
     ]);
   });
 });

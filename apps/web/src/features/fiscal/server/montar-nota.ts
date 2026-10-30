@@ -16,6 +16,7 @@ import {
   ratearDesconto,
   resolverTributacao,
   somenteDigitos,
+  tributosPeloPercentual,
   usaCsosn,
 } from "@nerp/fiscal";
 
@@ -49,6 +50,8 @@ export type ConfigEmitente = {
   fiscalPhone: string | null;
   nfceSerie: number | null;
   padroes: PadroesFiscais;
+  /** Lei 12.741/2012; `null` = não informado, o item sai sem `vTotTrib`. */
+  percentualTributos: number | null;
 };
 
 export type VendaParaMontar = {
@@ -153,6 +156,13 @@ export function montarNotaDaVenda(
       valorUnitario: paraCentavos(item.unitPrice),
       desconto: descontos[i],
       tributacao: r.valor.tributacao,
+      tributosAproximados:
+        config.percentualTributos != null
+          ? tributosPeloPercentual(
+              brutos[i] - descontos[i],
+              config.percentualTributos,
+            )
+          : null,
     });
   });
   if (pendencias.length > 0) return { ok: false, pendencias };

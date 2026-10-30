@@ -90,6 +90,7 @@ export function FiscalConfigPanel() {
     defaultCstIcms: null as string | null,
     defaultCstPis: null as string | null,
     defaultCstCofins: null as string | null,
+    approxTaxPercent: null as number | null,
   });
 
   useEffect(() => {
@@ -125,6 +126,7 @@ export function FiscalConfigPanel() {
       defaultCstIcms: config.defaultCstIcms,
       defaultCstPis: config.defaultCstPis,
       defaultCstCofins: config.defaultCstCofins,
+      approxTaxPercent: config.approxTaxPercent,
     }));
   }, [config]);
 
@@ -392,6 +394,8 @@ export function FiscalConfigPanel() {
           } as const;
           set(chave[campo], valor);
         }}
+        percentualTributos={form.approxTaxPercent}
+        onPercentualTributosChange={(v) => set("approxTaxPercent", v)}
       />
 
       {/* Certificado */}

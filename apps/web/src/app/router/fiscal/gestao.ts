@@ -192,6 +192,7 @@ const alertas = fiscalProcedure
           "REJEICAO_RECORRENTE",
           "NOTAS_PARADAS",
           "NUMEROS_PULADOS",
+          "TRIBUTOS_APROXIMADOS",
         ]),
         nivel: z.enum(["critico", "aviso", "info"]),
         mensagem: z.string(),

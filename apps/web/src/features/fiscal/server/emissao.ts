@@ -3,11 +3,14 @@ import "server-only";
 import {
   type Destinatario,
   type DocumentoFiscal,
+  type Emitente,
   ErroFiscal,
   ProvedorIndisponivelError,
+  calcularTotais,
 } from "@nerp/fiscal";
 import { NonRetriableError } from "inngest";
 import { fiscalEmissaoSolicitada, inngest } from "@/lib/inngest/client";
+import { formatCNPJ } from "@/utils/format-cnpj";
 import { fiscal } from "./container";
 
 /**
@@ -23,6 +26,7 @@ export type ResumoDocumentoFiscal = ReturnType<typeof resumoDoDocumento>;
 
 export function resumoDoDocumento(d: DocumentoFiscal) {
   const dados = d.paraDados();
+  const tributos = calcularTotais(dados.nota).tributosAproximados;
   return {
     id: dados.id,
     saleId: dados.saleId,
@@ -42,6 +46,26 @@ export function resumoDoDocumento(d: DocumentoFiscal) {
     cancelavelAte: d.cancelavelAte?.toISOString() ?? null,
     temXml: Boolean(dados.xmlKey),
     temXmlCancelamento: Boolean(dados.xmlCancelamentoKey),
+    // O DANFE imprime o emitente e os tributos da nota como foram emitidos,
+    // não da configuração atual — trocar o endereço depois não muda cupom velho.
+    emitente: emitenteDoDanfe(dados.nota.emitente),
+    tributosAproximados: tributos != null ? tributos / 100 : null,
+  };
+}
+
+function emitenteDoDanfe(e: Emitente) {
+  const { endereco: end } = e;
+  const partes = [
+    end.logradouro,
+    end.numero,
+    end.complemento,
+    end.bairro,
+  ].filter(Boolean);
+  return {
+    razaoSocial: e.razaoSocial,
+    cnpj: formatCNPJ(e.cnpj),
+    inscricaoEstadual: e.inscricaoEstadual,
+    endereco: `${partes.join(", ")} – ${end.municipio}/${end.uf}`,
   };
 }
 

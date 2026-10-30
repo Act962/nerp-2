@@ -95,4 +95,11 @@ export const resumoSchema = z.object({
   cancelavelAte: z.string().nullable(),
   temXml: z.boolean(),
   temXmlCancelamento: z.boolean(),
+  emitente: z.object({
+    razaoSocial: z.string(),
+    cnpj: z.string(),
+    inscricaoEstadual: z.string(),
+    endereco: z.string(),
+  }),
+  tributosAproximados: z.number().nullable(),
 });

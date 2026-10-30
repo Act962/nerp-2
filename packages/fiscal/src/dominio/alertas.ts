@@ -5,7 +5,8 @@ export type AlertaFiscal = {
     | "CERTIFICADO"
     | "REJEICAO_RECORRENTE"
     | "NOTAS_PARADAS"
-    | "NUMEROS_PULADOS";
+    | "NUMEROS_PULADOS"
+    | "TRIBUTOS_APROXIMADOS";
   nivel: NivelAlerta;
   mensagem: string;
 };
@@ -38,6 +39,8 @@ export function alertasFiscais(input: {
   paradas: number;
   /** Quantidade de números pulados aguardando inutilização. */
   pulados: number;
+  /** A empresa informou o percentual de tributos aproximados (Lei 12.741). */
+  tributosAproximadosConfigurados: boolean;
 }): AlertaFiscal[] {
   const alertas: AlertaFiscal[] = [];
 
@@ -88,6 +91,16 @@ export function alertasFiscais(input: {
       tipo: "NUMEROS_PULADOS",
       nivel: "info",
       mensagem: `${input.pulados} ${input.pulados === 1 ? "número pulado aguarda" : "números pulados aguardam"} inutilização na SEFAZ.`,
+    });
+
+  // Não barra a emissão (a SEFAZ não exige o valor), mas o cupom sem ele
+  // descumpre a lei do consumidor — é multa de Procon, não rejeição.
+  if (!input.tributosAproximadosConfigurados)
+    alertas.push({
+      tipo: "TRIBUTOS_APROXIMADOS",
+      nivel: "aviso",
+      mensagem:
+        "Informe o percentual aproximado de tributos em Padrões de tributação. Sem ele, o cupom sai sem o valor dos tributos exigido pela Lei 12.741/2012.",
     });
 
   return alertas.sort((a, b) => ORDEM[a.nivel] - ORDEM[b.nivel]);

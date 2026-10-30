@@ -143,7 +143,7 @@ export async function alertasDaOrganizacao(organizationId: string) {
   const [config, rejeicoes, paradas, numeracao] = await Promise.all([
     prisma.fiscalConfig.findUnique({
       where: { organizationId },
-      select: { certificateExpiresAt: true },
+      select: { certificateExpiresAt: true, approxTaxPercent: true },
     }),
     prisma.fiscalDocument.findMany({
       where: {
@@ -172,5 +172,7 @@ export async function alertasDaOrganizacao(organizationId: string) {
     })),
     paradas,
     pulados: numeracao.totalPulados,
+    // Empresa sem configuração fiscal nem emite: o aviso seria ruído.
+    tributosAproximadosConfigurados: !config || config.approxTaxPercent != null,
   });
 }

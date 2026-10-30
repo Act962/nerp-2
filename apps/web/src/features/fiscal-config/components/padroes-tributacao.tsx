@@ -12,6 +12,7 @@ import {
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CodigoFiscalSelect } from "@/features/fiscal/components/codigo-fiscal-select";
 import { ListChecks, Sparkles } from "lucide-react";
@@ -22,6 +23,8 @@ interface PadroesTributacaoProps {
   regime: RegimeTributario;
   valores: Record<CampoPadrao, string | null>;
   onChange: (campo: CampoPadrao, valor: string | null) => void;
+  percentualTributos: number | null;
+  onPercentualTributosChange: (valor: number | null) => void;
 }
 
 // Os padrões só são gravados ao salvar o painel — a sugestão preenche o form,
@@ -30,6 +33,8 @@ export function PadroesTributacao({
   regime,
   valores,
   onChange,
+  percentualTributos,
+  onPercentualTributosChange,
 }: PadroesTributacaoProps) {
   const simples = usaCsosn(regime);
   const sugestao = padroesSugeridos(regime);
@@ -83,6 +88,32 @@ export function PadroesTributacao({
               value={valores.cstCofins}
               onChange={(v) => onChange("cstCofins", v)}
             />
+          </div>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Label htmlFor="padrao-tributos">
+              Tributos aproximados no cupom (%)
+            </Label>
+            <Input
+              id="padrao-tributos"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={100}
+              step={0.01}
+              placeholder="Ex.: 4,00"
+              className="sm:max-w-40"
+              value={percentualTributos ?? ""}
+              onChange={(e) =>
+                onPercentualTributosChange(
+                  e.target.value === "" ? null : Number(e.target.value),
+                )
+              }
+            />
+            <p className="text-xs text-muted-foreground">
+              A Lei 12.741/2012 exige no cupom o valor aproximado dos tributos.
+              Use a tabela IBPT ou, no Simples, a alíquota efetiva da empresa —
+              peça o número ao contador.
+            </p>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -6,6 +6,7 @@ import {
   formatarDhEmi,
   paraCentavos,
   ratearDesconto,
+  tributosPeloPercentual,
   usaCsosn,
   valorBrutoItem,
 } from "./nota-fiscal";
@@ -21,7 +22,21 @@ describe("nota fiscal", () => {
       total: 4188,
       pago: 5000,
       troco: 812,
+      tributosAproximados: null,
     });
+  });
+
+  it("soma os tributos aproximados só dos itens que trazem o valor", () => {
+    const base = notaDeExemplo();
+    const nota = {
+      ...base,
+      itens: base.itens.map((item, i) => ({
+        ...item,
+        tributosAproximados: i === 0 ? 150 : null,
+      })),
+    };
+    expect(calcularTotais(nota).tributosAproximados).toBe(150);
+    expect(tributosPeloPercentual(4188, 4)).toBe(168);
   });
 
   it("arredonda o valor de produto pesado (quantidade fracionada)", () => {

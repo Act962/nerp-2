@@ -105,4 +105,13 @@ export interface DadosNfceCupom {
   qrCodeUrl: string;
   consultaUrl: string | null;
   consumidor: string | null; // CPF/CNPJ só dígitos
+  // Divisão I do DANFE: o emitente da NOTA (configuração fiscal), que pode
+  // não ser o nome/CNPJ que a loja usa no cabeçalho do recibo.
+  emitente: {
+    razaoSocial: string;
+    cnpj: string;
+    inscricaoEstadual: string;
+    endereco: string;
+  };
+  tributosAproximados: number | null; // reais, Lei 12.741/2012
 }

@@ -122,6 +122,7 @@ const configOutput = z.object({
   defaultCstIcms: z.string().nullable(),
   defaultCstPis: z.string().nullable(),
   defaultCstCofins: z.string().nullable(),
+  approxTaxPercent: z.number().nullable(),
   // Info fixa da SEFAZ PI — o client mostra os links.
   sefazPi: z.object({
     uf: z.string(),
@@ -197,6 +198,8 @@ const get = p
       defaultCstIcms: row?.defaultCstIcms ?? null,
       defaultCstPis: row?.defaultCstPis ?? null,
       defaultCstCofins: row?.defaultCstCofins ?? null,
+      approxTaxPercent:
+        row?.approxTaxPercent != null ? Number(row.approxTaxPercent) : null,
       sefazPi: {
         uf: SEFAZ_PI.uf,
         cityCode: SEFAZ_PI.cityCode,
@@ -260,6 +263,12 @@ const upsertInput = z.object({
   defaultCstIcms: z.string().nullable().optional(),
   defaultCstPis: z.string().nullable().optional(),
   defaultCstCofins: z.string().nullable().optional(),
+  approxTaxPercent: z
+    .number()
+    .min(0, "O percentual de tributos não pode ser negativo")
+    .max(100, "O percentual de tributos vai até 100%")
+    .nullable()
+    .optional(),
 });
 
 const upsert = p
@@ -323,6 +332,7 @@ const upsert = p
       defaultCstIcms: padroes.cstIcms,
       defaultCstPis: padroes.cstPis,
       defaultCstCofins: padroes.cstCofins,
+      approxTaxPercent: input.approxTaxPercent,
       ...secretPatch,
     };
 

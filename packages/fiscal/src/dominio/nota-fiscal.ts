@@ -94,6 +94,11 @@ export type ItemNota = {
   valorUnitario: Centavos;
   desconto: Centavos;
   tributacao: TributacaoItem;
+  /**
+   * Valor aproximado dos tributos do item (`vTotTrib`, Lei 12.741/2012). Vai
+   * somado no DANFE; `null` quando a empresa não informou o percentual.
+   */
+  tributosAproximados?: Centavos | null;
 };
 
 /** Formas da venda do NERP. Espelha o enum `PaymentMethod` do banco. */
@@ -135,6 +140,8 @@ export type TotaisNota = {
   total: Centavos;
   pago: Centavos;
   troco: Centavos;
+  /** `null` quando nenhum item traz o valor — o DANFE não inventa um. */
+  tributosAproximados: Centavos | null;
 };
 
 /** Valor bruto do item (`vProd`): quantidade × unitário, arredondado. */
@@ -147,7 +154,29 @@ export function calcularTotais(nota: NotaFiscal): TotaisNota {
   const descontos = nota.itens.reduce((s, i) => s + i.desconto, 0);
   const total = produtos - descontos;
   const pago = nota.pagamentos.reduce((s, p) => s + p.valor, 0);
-  return { produtos, descontos, total, pago, troco: Math.max(0, pago - total) };
+  const comTributos = nota.itens.filter((i) => i.tributosAproximados != null);
+  return {
+    produtos,
+    descontos,
+    total,
+    pago,
+    troco: Math.max(0, pago - total),
+    tributosAproximados:
+      comTributos.length > 0
+        ? comTributos.reduce((s, i) => s + (i.tributosAproximados ?? 0), 0)
+        : null,
+  };
+}
+
+/**
+ * Tributos aproximados de um valor líquido pelo percentual da empresa (tabela
+ * IBPT ou, no Simples, a alíquota efetiva — o contador é quem define).
+ */
+export function tributosPeloPercentual(
+  valor: Centavos,
+  percentual: number,
+): Centavos {
+  return Math.round((valor * percentual) / 100);
 }
 
 /**

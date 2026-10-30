@@ -110,6 +110,8 @@ export function SaleCompletedDialog({
               qrCodeUrl: autorizada.qrCodeUrl,
               consultaUrl: autorizada.consultaUrl,
               consumidor: autorizada.destinatario,
+              emitente: autorizada.emitente,
+              tributosAproximados: autorizada.tributosAproximados,
             },
           }
         : receiptData,

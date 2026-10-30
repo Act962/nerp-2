@@ -110,6 +110,20 @@ describe("mapeador Focus", () => {
     ).toMatchObject({ cnpj_destinatario: "11222333000181" });
   });
 
+  it("tributos aproximados vão por item, e só quando informados", () => {
+    const base = notaDeExemplo();
+    const nota = {
+      ...base,
+      itens: base.itens.map((item, i) => ({
+        ...item,
+        tributosAproximados: i === 0 ? 168 : null,
+      })),
+    };
+    const [primeiro, segundo] = paraPedidoFocus(solicitacao(nota)).items;
+    expect(primeiro.valor_total_tributos).toBe(1.68);
+    expect(segundo).not.toHaveProperty("valor_total_tributos");
+  });
+
   it("lê protocolo e data do XML autorizado", () => {
     expect(
       lerProtocoloDoXml(

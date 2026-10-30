@@ -5277,6 +5277,9 @@ model FiscalConfig {
   defaultCstIcms   String? @map("default_cst_icms") // CSOSN ou CST, conforme o regime
   defaultCstPis    String? @map("default_cst_pis")
   defaultCstCofins String? @map("default_cst_cofins")
+  // Percentual aproximado de tributos (Lei 12.741/2012) que vai no cupom:
+  // tabela IBPT ou, no Simples, a alíquota efetiva — quem define é o contador.
+  approxTaxPercent Decimal? @map("tributos_aproximados_pct") @db.Decimal(5, 2)
 
   // Impressão
   autoPrintOnEmission      Boolean @default(true) @map("auto_print_on_emission")

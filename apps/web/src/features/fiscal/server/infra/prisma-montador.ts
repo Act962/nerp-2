@@ -103,6 +103,10 @@ export class MontadorDeNotaPrisma implements MontadorDeNota {
         zipCode: config.zipCode,
         fiscalPhone: config.fiscalPhone,
         nfceSerie: config.nfceSerie,
+        percentualTributos:
+          config.approxTaxPercent != null
+            ? Number(config.approxTaxPercent)
+            : null,
         padroes: {
           cfop: config.defaultCfop,
           cstIcms: config.defaultCstIcms,
