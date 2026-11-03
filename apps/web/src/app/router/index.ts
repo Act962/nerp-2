@@ -1,4 +1,6 @@
 import { categoryRoutes } from "./category";
+import { forcaVendasRoutes } from "./forca-vendas";
+import { forcaVendasGestaoRoutes } from "./forca-vendas-gestao";
 import { jornadasRoutes } from "./jornadas";
 import { melhoriasRoutes } from "./melhorias";
 import { onboardingRoutes } from "./onboarding";
@@ -148,6 +150,8 @@ export const router = {
   shopperInsights: shopperInsightsRoutes,
   erpSync: erpSyncRoutes,
   erpCarteira: erpCarteiraRoutes,
+  forcaVendas: forcaVendasRoutes,
+  forcaVendasGestao: forcaVendasGestaoRoutes,
   agenda: agendaRoutes,
   automacoes: automacoesRoutes,
   campanhas: campanhasRoutes,

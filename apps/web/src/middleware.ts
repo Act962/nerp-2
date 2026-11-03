@@ -98,6 +98,8 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/colaboradores") ||
     pathname.startsWith("/padroes") ||
     pathname.startsWith("/aplicativos") ||
+    // Módulo de campo da Força de Vendas, aberto no celular do vendedor.
+    pathname.startsWith("/forca-de-vendas") ||
     // Página de autorização de cancelamento aberta no celular do supervisor.
     pathname.startsWith("/autorizar")
   ) {

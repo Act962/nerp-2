@@ -15,6 +15,7 @@ O NERP tem **8 apps** independentes (cada route group e um "app" com layout prop
 | **ERP Admin** | `(main)/(rest)/` | 17 areas + `/trade/*` (15 sub) | Painel administrativo do ERP. Sidebar, auth obrigatorio |
 | **App Promotor** | `(promotor)/promotor` | `/promotor`, `/promotor/rota/mapa` | App mobile-first para promotor em campo: capturar fotos, rota, minhas fotos |
 | **App Vendedor** | `(promotor)/vendedor` | `/vendedor` | Mesmo motor do Promotor (`PromotorApp mode='vendedor'`) + aba "Estou aqui" |
+| **App Força de Vendas** (planejado) | `(forca-vendas)/forca-de-vendas` | `/forca-de-vendas/*` + gestor em `/vendas/forca-de-vendas/*` | Módulo do consultor externo: carteira, produto 360º, pedido, rota, chat, avisos — ver [`forca-vendas-orbita.md`](./forca-vendas-orbita.md) |
 | **App PDV (Mapa)** | `(pdv)/mapa/[storeId]` | 1 pagina | Visualizacao do mapa da loja para campo (viewer, nao editor) |
 | **Storefront** | `(storefront)/[subdomain]` | 9 paginas | Loja online publica por tenant: catalogo, carrinho, checkout, conta |
 | **App Garcom** | `(waiter)` | `/registrar-pedido/[orgSlug]`, `/pedido-cliente/[orderId]` | Registro de pedidos (restaurante/food) |
