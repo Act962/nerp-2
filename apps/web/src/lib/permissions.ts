@@ -122,6 +122,16 @@ export const PAGE_PERMISSIONS = [
     href: "/vendedor",
   },
   {
+    key: "forca-vendas",
+    label: "App Força de Vendas (campo)",
+    href: "/forca-de-vendas",
+  },
+  {
+    key: "forca-vendas-gestao",
+    label: "Força de Vendas — gestão (pedidos, carteiras, vendedores, avisos)",
+    href: "/vendas/forca-de-vendas",
+  },
+  {
     key: "planograma",
     label: "Planograma",
     href: "/trade/planograma",
@@ -253,6 +263,12 @@ export const ACTION_PERMISSIONS = [
     key: "estoque-entrada-processar",
     label: "Processar entrada de nota (mexe em estoque, custo e financeiro)",
   },
+  {
+    // Sem esta ação, quem tem a gestão da Força de Vendas acompanha os pedidos
+    // mas não aprova desconto, crédito nem bonificação.
+    key: "forca-vendas-aprovar",
+    label: "Aprovar e faturar pedidos da Força de Vendas",
+  },
 ] as const;
 
 export type ActionPermissionKey = (typeof ACTION_PERMISSIONS)[number]["key"];
@@ -290,6 +306,10 @@ export const PERMISSION_GROUPS: { module: string; keys: string[] }[] = [
     ],
   },
   { module: "Pedidos", keys: ["pedidos"] },
+  {
+    module: "Força de Vendas",
+    keys: ["forca-vendas", "forca-vendas-gestao", "forca-vendas-aprovar"],
+  },
   { module: "Estoque", keys: ["estoque", "estoque-entrada-processar"] },
   { module: "Clientes", keys: ["clientes"] },
   { module: "Fornecedores", keys: ["fornecedores"] },
@@ -524,14 +544,15 @@ interface CalendarManagerLike extends MemberLike {
   tradeRole?: string | null;
 }
 
-// Cargos de LIDERANÇA de campo — de propósito sem PROMOTOR aqui: ele é cargo
-// de campo, não de liderança, e `isFieldLeadership` decide se libera gestão
-// de calendário e visão do trajeto de todo mundo. Deixar `Boolean(tradeRole)`
-// bastar entregaria as duas coisas de graça pra quem só tem PROMOTOR.
+// Cargos de LIDERANÇA de campo — de propósito sem PROMOTOR nem VENDEDOR aqui:
+// os dois são cargos de campo, não de liderança, e `isFieldLeadership` decide
+// se libera gestão de calendário e visão do trajeto de todo mundo. Com
+// VENDEDOR na lista, um vendedor via a localização da equipe inteira; quem
+// precisar disso recebe `mapa-ver-todos`/`trade-calendario` explicitamente
+// (`scripts/vendedores-sem-lideranca.ts` lista quem perdeu o acesso).
 const FIELD_LEADERSHIP_TRADE_ROLES = new Set<string>([
   "COORDENADOR_TRADE",
   "SUPERVISOR",
-  "VENDEDOR",
 ]);
 
 /**

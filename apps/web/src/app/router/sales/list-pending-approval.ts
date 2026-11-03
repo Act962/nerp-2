@@ -32,7 +32,12 @@ export const listPendingApproval = base
       where: {
         organizationId: context.org.id,
         status: SaleStatus.PENDING_APPROVAL,
-        origin: { not: SaleOrigin.CATALOGO_ORBITA },
+        // Orbita tem dono próprio (o Órbita negocia e confirma) e o pedido da
+        // Força de Vendas tem o receptor em /vendas/forca-de-vendas: nenhum
+        // dos dois entra na fila de aprovação do PDV.
+        origin: {
+          notIn: [SaleOrigin.CATALOGO_ORBITA, SaleOrigin.FORCA_VENDAS],
+        },
       },
       include: {
         customer: { select: { name: true } },
