@@ -42,6 +42,7 @@ feature depois de trabalhar em outra coisa.
 - [`catalogo-link-publico.md`](./catalogo-link-publico.md) — Compartilhar: escolher página + link público do catálogo + WhatsApp com link · `feat/catalogo-paginas-canva` · 🟢 entregue (token no config, sem migration)
 - [`catalogo-lista.md`](./catalogo-lista.md) — Aba "Lista": planilha/PDF/imagem (IA Gemini) → catálogo com 1 página por cliente, preços por linha, imagens casadas por nome · `feat/catalogo-lista` · 🟢 MVP entregue (Fases 1-4, sem migration)
 
+- [`mapeamento-banco.md`](./mapeamento-banco.md) — Página interna `/integracoes/banco-de-dados` (estilo Supabase) para explorar o banco do ERP do cliente e mapear de onde vem Produto, Estoque, Categoria, Preço e Promoção, com Ports & Adapters · `feat/mapeamento-banco` · ✅ MVP pronto para revisão (inclui o MCP do NERP: mapear + importar)
 - [`integracoes-catalogo-financeiro.md`](./integracoes-catalogo-financeiro.md) — Catálogo de conectores em `/integracoes`: cards por categoria (bancos, adquirentes, gateways), conector direto com API própria do provedor, credencial cifrada · `feat/integracoes-catalogo-financeiro` · 🟡 Fase 1 implementada
 
 - [`astro-stars-planos.md`](./astro-stars-planos.md) — Astro dentro do ERP (assistente da operação, cobrado em ★ por token) + plano Grátis com 50 ★ e limites de cadastro + catálogo de planos hard-coded no formato do `@better-auth/stripe` + painel de Stars na sidebar + dados de exemplo na org nova · `feat/astro-stars-planos` · 🟡 código pronto, aguardando teste do dev
