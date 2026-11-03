@@ -154,9 +154,12 @@ async function upsertOrg(p: SyncOrgPayload) {
     metadata: p.metadata,
     createdAt: new Date(p.createdAt),
   };
+  // Empresa criada no ÓRBITA tem dono identificado: nasce verificada, senão
+  // vira sandbox — bloqueada para integrações e apagada após 30 dias sem acesso.
+  const agora = new Date();
   await prisma.organization.upsert({
     where: { id: p.id },
-    create: { id: p.id, ...data },
+    create: { id: p.id, ...data, verifiedAt: agora, lastAccessAt: agora },
     update: data,
   });
   return NextResponse.json({ ok: true });
