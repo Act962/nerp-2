@@ -162,6 +162,20 @@ export const useBulkUpdateProducts = () => {
   );
 };
 
+// Reajuste de preço de venda em massa (percentual sobre a venda ou margem
+// sobre o custo). Toast e fechamento da janela ficam no componente.
+export const useBulkAdjustProductPrice = () => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.products.bulkAdjustPrice.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
+      },
+    }),
+  );
+};
+
 export function useSetProductThumbnail() {
   const queryClient = useQueryClient();
   return useMutation(
