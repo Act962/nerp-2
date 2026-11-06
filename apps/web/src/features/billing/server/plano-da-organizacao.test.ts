@@ -38,6 +38,35 @@ describe("resolverPlano", () => {
     expect(plano.id).toBe("earth");
   });
 
+  it("plano definido pelo admin vale para organização nova", () => {
+    const { plano, origem } = resolverPlano({
+      createdAt: depois,
+      assinatura: null,
+      planoDefinidoPeloAdmin: "explore",
+    });
+    expect(origem).toBe("admin");
+    expect(plano.limites.produtos).toBeNull();
+  });
+
+  it("assinatura passa na frente do plano definido pelo admin", () => {
+    const { plano, origem } = resolverPlano({
+      createdAt: depois,
+      assinatura: "constellation",
+      planoDefinidoPeloAdmin: "earth",
+    });
+    expect(origem).toBe("assinatura");
+    expect(plano.id).toBe("constellation");
+  });
+
+  it("plano do admin desconhecido cai na regra automática", () => {
+    const { origem } = resolverPlano({
+      createdAt: depois,
+      assinatura: null,
+      planoDefinidoPeloAdmin: "nao-existe",
+    });
+    expect(origem).toBe("gratis");
+  });
+
   it("assinatura de plano desconhecido é ignorada", () => {
     const { origem } = resolverPlano({
       createdAt: depois,

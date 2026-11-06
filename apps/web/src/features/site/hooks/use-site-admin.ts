@@ -555,6 +555,20 @@ export function useCreditarStars() {
   );
 }
 
+/** Plano escolhido pelo admin. Recarrega a tabela para a coluna "Plano" mudar. */
+export function useDefinirPlanoDaEmpresa() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.site.plataforma.definirPlano.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          queryKey: orpc.site.plataforma.empresas.key(),
+        });
+      },
+    }),
+  );
+}
+
 /**
  * Por que o Astro não responde numa empresa. Só consulta quando há empresa
  * escolhida — o diagnóstico chama as travas de verdade (saldo, teto) e não é

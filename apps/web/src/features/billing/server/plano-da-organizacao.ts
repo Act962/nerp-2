@@ -23,7 +23,7 @@ export const LIMITES_A_PARTIR_DE = new Date("2026-09-10T00:00:00Z");
  * COMO o plano foi decidido, e não qual plano é. `"gratis"` significa "sem
  * assinatura e sem legado" — o plano de entrada, que hoje se chama Suit.
  */
-export type OrigemDoPlano = "assinatura" | "legado" | "gratis";
+export type OrigemDoPlano = "assinatura" | "admin" | "legado" | "gratis";
 
 export interface PlanoDaOrganizacao {
   plano: PlanoDef;
@@ -33,7 +33,8 @@ export interface PlanoDaOrganizacao {
 /**
  * Qual plano vale para a organização agora.
  *
- * Ordem: assinatura → legado → grátis. A assinatura ainda não existe — vai
+ * Ordem: assinatura → admin → legado → grátis. "admin" é o plano escolhido
+ * no painel de Empresas (`planoDefinidoPeloAdmin`). A assinatura ainda não existe — vai
  * ser a tabela `subscription` do `@better-auth/stripe`, com
  * `referenceId = organizationId` e `status` em `active`/`trialing`. Quando o
  * plugin entrar, é AQUI que ela é lida: `planoPorId(subscription.plan)`,
@@ -45,11 +46,15 @@ export async function planoDaOrganizacao(
 ): Promise<PlanoDaOrganizacao> {
   const org = await prisma.organization.findUnique({
     where: { id: organizationId },
-    select: { createdAt: true },
+    select: { createdAt: true, planoDefinidoPeloAdmin: true },
   });
   if (!org) return { plano: PLANO_GRATIS, origem: "gratis" };
 
-  return resolverPlano({ createdAt: org.createdAt, assinatura: null });
+  return resolverPlano({
+    createdAt: org.createdAt,
+    assinatura: null,
+    planoDefinidoPeloAdmin: org.planoDefinidoPeloAdmin,
+  });
 }
 
 /**
@@ -59,12 +64,17 @@ export async function planoDaOrganizacao(
 export function resolverPlano(entrada: {
   createdAt: Date;
   assinatura: string | null;
+  planoDefinidoPeloAdmin?: string | null;
 }): PlanoDaOrganizacao {
   if (entrada.assinatura) {
     const assinado = planoPorId(entrada.assinatura);
     if (assinado && !assinado.gratuito) {
       return { plano: assinado, origem: "assinatura" };
     }
+  }
+  if (entrada.planoDefinidoPeloAdmin) {
+    const escolhido = planoPorId(entrada.planoDefinidoPeloAdmin);
+    if (escolhido) return { plano: escolhido, origem: "admin" };
   }
   if (entrada.createdAt < LIMITES_A_PARTIR_DE) {
     return { plano: PLANO_LEGADO, origem: "legado" };
