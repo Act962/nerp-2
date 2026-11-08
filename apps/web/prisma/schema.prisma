@@ -522,6 +522,20 @@ model Organization {
   astroMemorias     AstroMemoria[]
   jornadaProgressos JornadaProgresso[]
 
+  // Força de Vendas (specs/forca-vendas-orbita.md)
+  configuracaoForcaVendas ConfiguracaoForcaVendas?
+  vendedoresPerfil        VendedorPerfil[]
+  lancamentosFlex         LancamentoFlex[]
+  carteirasClientes       CarteiraCliente[]
+  condicoesPagamento      CondicaoPagamento[]
+  pedidosForcaVendas      PedidoForcaVendas[]
+  roteirosVisita          RoteiroVisita[]
+  jornadasVendedor        JornadaVendedor[]
+  localizacoesVendedor    LocalizacaoVendedor[]
+  visitasClientes         VisitaCliente[]
+  avisosGestor            AvisoGestor[]
+  avisosGestorLeituras    AvisoGestorLeitura[]
+
   @@index([slug])
   @@index([subdomain])
   @@index([customDomain])
@@ -587,6 +601,18 @@ model Member {
   calendarAssignments     CalendarEventAssignee[]        @relation("CalendarEventAssignee")
   promoterRoute           PromoterRoute?
   cashSessions            CashSession[]
+
+  // Força de Vendas
+  vendedorPerfil       VendedorPerfil?
+  carteiraClientes     CarteiraCliente[]
+  pedidosForcaVendas   PedidoForcaVendas[]
+  vendasComoVendedor   Sale[]                @relation("SaleSellerMember")
+  roteirosVisita       RoteiroVisita[]
+  jornadasVendedor     JornadaVendedor[]
+  localizacoesVendedor LocalizacaoVendedor[]
+  visitasClientes      VisitaCliente[]
+  avisosGestorAutor    AvisoGestor[]         @relation("AvisoGestorAutor")
+  avisosGestorLeituras AvisoGestorLeitura[]
 
   @@unique([organizationId, userId])
   @@index([organizationId])
@@ -1290,56 +1316,72 @@ enum PersonType {
 }
 
 model Customer {
-  id              String       @id @default(cuid())
-  organizationId  String
+  id                String       @id @default(cuid())
+  organizationId    String
   // Identificação
-  name            String
-  personType      PersonType   @default(FISICA)
-  document        String? // CPF ou CNPJ
-  email           String? // opcional; quando presente, é único por organização
-  phone           String?
+  name              String
+  personType        PersonType   @default(FISICA)
+  document          String? // CPF ou CNPJ
+  email             String? // opcional; quando presente, é único por organização
+  phone             String?
   // Endereço
-  address         String?
-  addressNumber   String?
-  complement      String?
-  neighborhood    String?
-  city            String?
-  state           String?
-  zipCode         String?
+  address           String?
+  addressNumber     String?
+  complement        String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  zipCode           String?
   // Informações adicionais
-  notes           String?      @db.Text
-  isActive        Boolean      @default(true)
+  notes             String?      @db.Text
+  isActive          Boolean      @default(true)
   //Assas
-  asaasCustomerId String?      @map("asaas_customer_id")
+  asaasCustomerId   String?      @map("asaas_customer_id")
   // Espelho do cliente no ERP, gravado pela importação do mapeamento do banco
   // (spec mapeamento-banco). `erpCode` é o código do cliente lá e o vínculo
   // estável — o CPF/CNPJ só serve para casar na primeira vez, porque uma rede
   // de lojas repete o CNPJ em vários códigos. `erpBlocked` é o bloqueio de
   // crédito lá (fato do ERP, não decisão do NERP); null = nunca importado.
-  erpCode         String?
-  erpBlocked      Boolean?
+  erpCode           String?
+  erpBlocked        Boolean?
   // Timestamps
   /// Dado de exemplo semeado na criação da organização: não conta no limite do plano e some com "Remover dados de exemplo".
-  isDemo          Boolean      @default(false)
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  isDemo            Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
   // Tabela de preço vinculada — quem não tem cai na PriceList `isDefault` da org.
-  priceListId     String?
+  priceListId       String?
+  // Força de Vendas: o que o consultor precisa ver antes de vender.
+  tradeName         String? // nome fantasia
+  birthDate         DateTime?    @db.Date
+  // Limite de crédito em reais. Nulo = a empresa não controla limite deste cliente.
+  creditLimit       Decimal?     @db.Decimal(12, 2)
+  latitude          Float?
+  longitude         Float?
+  segment           String?
+  stateRegistration String? // inscrição estadual
+  // Bloqueado manda todo pedido do cliente para aprovação.
+  isBlocked         Boolean      @default(false)
+  blockedReason     String?
   // Relações
-  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  sales           Sale[]
-  suppliers       Supplier[]
-  userCatalog     CatalogUser? @relation(fields: [clientId], references: [id])
-  clientId        String?      @unique
-  priceList       PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sales             Sale[]
+  suppliers         Supplier[]
+  userCatalog       CatalogUser? @relation(fields: [clientId], references: [id])
+  clientId          String?      @unique
+  priceList         PriceList?   @relation(fields: [priceListId], references: [id], onDelete: SetNull)
   // Leads do CRM ligados a este cliente (um por funil, no máximo).
-  crmLeads        CrmLead[]
+  crmLeads          CrmLead[]
+
+  carteiras      CarteiraCliente[]
+  roteirosVisita RoteiroVisita[]
+  visitas        VisitaCliente[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
-  @@index([organizationId, erpCode])
   @@index([document])
   @@index([email])
+  @@index([organizationId, erpCode])
   @@index([priceListId])
   @@map("customers")
 }
@@ -1461,6 +1503,9 @@ enum SaleOrigin {
   CATALOGO_ORBITA // Modo ORBITA: o Órbita negocia, cobra e confirma
   CATALOGO_COZINHA // Modo KITCHEN: vai direto para o quadro da cozinha
   CATALOGO_MARKETPLACE // Modo MARKETPLACE: pago online (Asaas/Stripe)
+  // Pedido do consultor externo (Força de Vendas): tem receptor próprio em
+  // /vendas/forca-de-vendas e não passa pela fila de aprovação do PDV.
+  FORCA_VENDAS
 }
 
 enum PaymentMethod {
@@ -1519,6 +1564,9 @@ model Sale {
   quoteRequested    Boolean         @default(false)
   /// Quando o valor combinado chegou do Órbita (`catalogOrder.updateQuote`).
   quotedAt          DateTime?
+  // Vendedor a quem a venda é creditada (ranking, comissão, carteira). Separado
+  // de `createdById` porque o escritório também digita pedido em nome dele.
+  sellerMemberId    String?
   // Relações
   organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   customer          Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
@@ -1533,7 +1581,10 @@ model Sale {
   fiscalDocument    FiscalDocument?
   kitchenOrders     KitchenOrder[]
 
-  financeEntries PaymentEntry[] @relation("SaleFinanceEntries")
+  sellerMember      Member?            @relation("SaleSellerMember", fields: [sellerMemberId], references: [id], onDelete: SetNull)
+  pedidoForcaVendas PedidoForcaVendas?
+  lancamentosFlex   LancamentoFlex[]
+  financeEntries    PaymentEntry[]     @relation("SaleFinanceEntries")
 
   @@unique([organizationId, saleNumber])
   @@index([organizationId])
@@ -1541,23 +1592,28 @@ model Sale {
   @@index([status])
   @@index([createdAt])
   @@index([priceListId])
+  @@index([organizationId, sellerMemberId])
   @@index([organizationId, origin, status])
   @@map("sales")
 }
 
 model SaleItem {
-  id          String  @id @default(cuid())
-  saleId      String
-  productId   String
+  id                String   @id @default(cuid())
+  saleId            String
+  productId         String
   // Dados do produto no momento da venda
-  productName String
-  quantity    Decimal @db.Decimal(10, 3)
-  unitPrice   Decimal @db.Decimal(10, 2)
-  discount    Decimal @default(0) @db.Decimal(10, 2)
-  total       Decimal @db.Decimal(10, 2)
+  productName       String
+  quantity          Decimal  @db.Decimal(10, 3)
+  unitPrice         Decimal  @db.Decimal(10, 2)
+  discount          Decimal  @default(0) @db.Decimal(10, 2)
+  total             Decimal  @db.Decimal(10, 2)
+  // Força de Vendas: preço de tabela no momento do pedido (base do desconto e
+  // do flex) e a quantidade pedida antes de um corte no faturamento.
+  tableUnitPrice    Decimal? @db.Decimal(10, 2)
+  requestedQuantity Decimal? @db.Decimal(10, 3)
   // Relações
-  sale        Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
-  product     Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  sale              Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product           Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([saleId])
   @@index([productId])
@@ -7330,4 +7386,361 @@ model CrmWorkflowNodeRun {
   @@index([runId])
   @@index([nodeId])
   @@map("crm_workflow_node_runs")
+}
+
+// ============================================
+// FORÇA DE VENDAS — módulo de campo do consultor externo
+// (specs/forca-vendas-orbita.md). O pedido é uma `Sale` com origem
+// FORCA_VENDAS; aqui ficam carteira, política comercial, flex, rota, visita
+// e os avisos do gestor.
+// ============================================
+
+enum CarteiraOrigem {
+  MANUAL
+  IMPORTACAO
+  ERP
+}
+
+enum TipoPedidoFv {
+  VENDA
+  ORCAMENTO
+  BONIFICACAO
+  TROCA
+}
+
+enum MotivoAprovacaoPedido {
+  DESCONTO
+  LIMITE_CREDITO
+  INADIMPLENTE
+  CLIENTE_BLOQUEADO
+  BONIFICACAO
+  FLEX_NEGATIVO
+}
+
+// Para onde o pedido confirmado vai. NATIVO = o próprio NERP é o receptor.
+enum DestinoPedido {
+  NATIVO
+  WINTHOR
+}
+
+enum StatusEnvioDestino {
+  PENDENTE
+  ACEITO
+  RECUSADO
+  ERRO
+}
+
+enum TipoLancamentoFlex {
+  PEDIDO
+  ESTORNO
+  AJUSTE
+}
+
+enum ResultadoVisita {
+  PEDIDO
+  SEM_PEDIDO
+  FECHADO
+  AUSENTE
+}
+
+enum PrioridadeAviso {
+  NORMAL
+  IMPORTANTE
+  URGENTE
+}
+
+enum PublicoAviso {
+  TODOS
+  MEMBROS
+}
+
+// Política comercial da organização. Uma linha por org, criada na primeira
+// leitura com os padrões abaixo.
+model ConfiguracaoForcaVendas {
+  id                      String        @id @default(cuid())
+  organizationId          String        @unique @map("organization_id")
+  /// Desconto (% sobre a tabela) que o vendedor dá sem mexer no flex.
+  descontoLivrePercent    Decimal       @default(0) @map("desconto_livre_percent") @db.Decimal(5, 2)
+  /// Acima disso o pedido vai para aprovação.
+  descontoMaximoPercent   Decimal       @default(10) @map("desconto_maximo_percent") @db.Decimal(5, 2)
+  /// Parte do sobrepreço (vender acima da tabela) que vira saldo flex.
+  flexCreditoPercent      Decimal       @default(50) @map("flex_credito_percent") @db.Decimal(5, 2)
+  /// Quanto o saldo pode ficar negativo antes de o pedido ir para aprovação.
+  flexLimiteNegativo      Decimal       @default(0) @map("flex_limite_negativo") @db.Decimal(12, 2)
+  /// Pedido sem pendência entra confirmado; desligado, todo pedido passa pelo supervisor.
+  autoAprovar             Boolean       @default(true) @map("auto_aprovar")
+  /// Cliente com título vencido manda o pedido para aprovação.
+  bloquearInadimplente    Boolean       @default(true) @map("bloquear_inadimplente")
+  raioCheckinMetros       Int           @default(300) @map("raio_checkin_metros")
+  retencaoLocalizacaoDias Int           @default(90) @map("retencao_localizacao_dias")
+  destinoPedido           DestinoPedido @default(NATIVO) @map("destino_pedido")
+  createdAt               DateTime      @default(now()) @map("created_at")
+  updatedAt               DateTime      @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("configuracoes_forca_vendas")
+}
+
+// Perfil do vendedor no módulo: licença, limites próprios, saldo flex e a
+// última posição (desnormalizada para o mapa ao vivo ler numa consulta só).
+model VendedorPerfil {
+  id                    String    @id @default(cuid())
+  organizationId        String    @map("organization_id")
+  memberId              String    @unique @map("member_id")
+  ativo                 Boolean   @default(true)
+  /// Código do vendedor no ERP externo (CODUSUR no Winthor).
+  codigo                String?
+  /// Nulo = vale a política da organização.
+  descontoMaximoPercent Decimal?  @map("desconto_maximo_percent") @db.Decimal(5, 2)
+  /// Nulo = vale a política da organização.
+  flexLimiteNegativo    Decimal?  @map("flex_limite_negativo") @db.Decimal(12, 2)
+  saldoFlex             Decimal   @default(0) @map("saldo_flex") @db.Decimal(12, 2)
+  ultimaLatitude        Float?    @map("ultima_latitude")
+  ultimaLongitude       Float?    @map("ultima_longitude")
+  ultimaPrecisaoM       Float?    @map("ultima_precisao_m")
+  ultimaBateria         Int?      @map("ultima_bateria")
+  ultimaPosicaoEm       DateTime? @map("ultima_posicao_em")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member          Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  lancamentosFlex LancamentoFlex[]
+
+  @@index([organizationId])
+  @@map("vendedores_perfil")
+}
+
+// Extrato do saldo flex. Nada é apagado: cancelar um pedido gera um ESTORNO.
+// O único (saleId, tipo) impede lançar o mesmo pedido duas vezes.
+model LancamentoFlex {
+  id             String             @id @default(cuid())
+  organizationId String             @map("organization_id")
+  perfilId       String             @map("perfil_id")
+  tipo           TipoLancamentoFlex
+  valor          Decimal            @db.Decimal(12, 2)
+  saldoApos      Decimal            @map("saldo_apos") @db.Decimal(12, 2)
+  saleId         String?            @map("sale_id")
+  descricao      String
+  criadoPorId    String?            @map("criado_por_id")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  perfil       VendedorPerfil @relation(fields: [perfilId], references: [id], onDelete: Cascade)
+  sale         Sale?          @relation(fields: [saleId], references: [id], onDelete: SetNull)
+
+  @@unique([saleId, tipo])
+  @@index([organizationId, perfilId, createdAt])
+  @@map("lancamentos_flex")
+}
+
+// Carteira: cliente ↔ vendedor. Tabela de ligação e não um campo no cliente
+// porque o ERP costuma ter até três vendedores por cliente.
+model CarteiraCliente {
+  id             String         @id @default(cuid())
+  organizationId String         @map("organization_id")
+  customerId     String         @map("customer_id")
+  memberId       String         @map("member_id")
+  principal      Boolean        @default(true)
+  origem         CarteiraOrigem @default(MANUAL)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([customerId, memberId])
+  @@index([organizationId, memberId])
+  @@map("carteiras_clientes")
+}
+
+model CondicaoPagamento {
+  id             String        @id @default(cuid())
+  organizationId String        @map("organization_id")
+  nome           String
+  /// Prazo de cada parcela, em dias a partir do faturamento: [0] à vista, [28, 35, 42] três parcelas.
+  prazosDias     Int[]         @map("prazos_dias")
+  formaPagamento PaymentMethod @default(BOLETO) @map("forma_pagamento")
+  ativo          Boolean       @default(true)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  pedidos      PedidoForcaVendas[]
+
+  @@index([organizationId])
+  @@map("condicoes_pagamento")
+}
+
+// Extensão 1:1 da `Sale` para o pedido de campo: tipo, condição, motivos de
+// aprovação, flex previsto e o envio ao destino (NATIVO ou ERP externo).
+model PedidoForcaVendas {
+  id                  String                  @id @default(cuid())
+  organizationId      String                  @map("organization_id")
+  saleId              String                  @unique @map("sale_id")
+  memberId            String?                 @map("member_id")
+  tipo                TipoPedidoFv            @default(VENDA)
+  condicaoPagamentoId String?                 @map("condicao_pagamento_id")
+  visitaId            String?                 @map("visita_id")
+  motivosAprovacao    MotivoAprovacaoPedido[] @map("motivos_aprovacao")
+  decididoPorId       String?                 @map("decidido_por_id")
+  decididoEm          DateTime?               @map("decidido_em")
+  motivoRecusa        String?                 @map("motivo_recusa")
+  flexPrevisto        Decimal                 @default(0) @map("flex_previsto") @db.Decimal(12, 2)
+  capturadoEm         DateTime                @default(now()) @map("capturado_em")
+  latitude            Float?
+  longitude           Float?
+  destino             DestinoPedido           @default(NATIVO)
+  statusDestino       StatusEnvioDestino      @default(PENDENTE) @map("status_destino")
+  referenciaDestino   String?                 @map("referencia_destino")
+  erroDestino         String?                 @map("erro_destino")
+  createdAt           DateTime                @default(now()) @map("created_at")
+  updatedAt           DateTime                @updatedAt @map("updated_at")
+
+  organization      Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sale              Sale               @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  member            Member?            @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  condicaoPagamento CondicaoPagamento? @relation(fields: [condicaoPagamentoId], references: [id], onDelete: SetNull)
+  visita            VisitaCliente?     @relation(fields: [visitaId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, memberId])
+  @@map("pedidos_forca_vendas")
+}
+
+// Roteiro fixo por dia da semana. A agenda do dia é derivada daqui.
+model RoteiroVisita {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  memberId       String   @map("member_id")
+  customerId     String   @map("customer_id")
+  /// 0 = domingo … 6 = sábado, como Date.getDay().
+  diaSemana      Int      @map("dia_semana")
+  ordem          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, customerId, diaSemana])
+  @@index([organizationId, memberId, diaSemana])
+  @@map("roteiros_visita")
+}
+
+// Jornada de trabalho: a localização só é registrada entre o início e o fim.
+model JornadaVendedor {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  memberId       String    @map("member_id")
+  iniciadaEm     DateTime  @default(now()) @map("iniciada_em")
+  encerradaEm    DateTime? @map("encerrada_em")
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member                @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  localizacoes LocalizacaoVendedor[]
+
+  @@index([organizationId, memberId, iniciadaEm])
+  @@map("jornadas_vendedor")
+}
+
+model LocalizacaoVendedor {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  memberId       String   @map("member_id")
+  jornadaId      String?  @map("jornada_id")
+  capturadoEm    DateTime @map("capturado_em")
+  latitude       Float
+  longitude      Float
+  precisaoM      Float?   @map("precisao_m")
+  bateria        Int?
+  /// PING (jornada), CHECKIN, CHECKOUT ou PEDIDO.
+  origem         String   @default("PING")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  jornada      JornadaVendedor? @relation(fields: [jornadaId], references: [id], onDelete: SetNull)
+
+  @@unique([memberId, capturadoEm])
+  @@index([organizationId, memberId, capturadoEm])
+  @@map("localizacoes_vendedor")
+}
+
+model VisitaCliente {
+  id                String           @id @default(cuid())
+  organizationId    String           @map("organization_id")
+  memberId          String           @map("member_id")
+  customerId        String           @map("customer_id")
+  /// Idempotência do check-in feito sem sinal e reenviado.
+  clientOperationId String?          @unique @map("client_operation_id")
+  checkinEm         DateTime         @map("checkin_em")
+  checkinLatitude   Float?           @map("checkin_latitude")
+  checkinLongitude  Float?           @map("checkin_longitude")
+  checkinPrecisaoM  Float?           @map("checkin_precisao_m")
+  distanciaClienteM Int?             @map("distancia_cliente_m")
+  foraDoRaio        Boolean          @default(false) @map("fora_do_raio")
+  justificativa     String?
+  checkoutEm        DateTime?        @map("checkout_em")
+  checkoutLatitude  Float?           @map("checkout_latitude")
+  checkoutLongitude Float?           @map("checkout_longitude")
+  resultado         ResultadoVisita?
+  motivoSemPedido   String?          @map("motivo_sem_pedido")
+  observacao        String?
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  member       Member              @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  customer     Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pedidos      PedidoForcaVendas[]
+
+  @@index([organizationId, memberId, checkinEm])
+  @@index([customerId])
+  @@map("visitas_clientes")
+}
+
+// Recado do gestor que abre na home do vendedor. URGENTE trava a home até a
+// confirmação. As leituras são criadas na publicação (congelam o público) e,
+// para TODOS, também quando alguém que chegou depois abre o aviso.
+model AvisoGestor {
+  id               String          @id @default(cuid())
+  organizationId   String          @map("organization_id")
+  autorId          String?         @map("autor_id")
+  titulo           String
+  corpo            String          @db.Text
+  link             String?
+  prioridade       PrioridadeAviso @default(NORMAL)
+  exigeConfirmacao Boolean         @default(false) @map("exige_confirmacao")
+  publico          PublicoAviso    @default(TODOS)
+  inicioEm         DateTime        @default(now()) @map("inicio_em")
+  fimEm            DateTime?       @map("fim_em")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  autor        Member?              @relation("AvisoGestorAutor", fields: [autorId], references: [id], onDelete: SetNull)
+  leituras     AvisoGestorLeitura[]
+
+  @@index([organizationId, inicioEm])
+  @@map("avisos_gestor")
+}
+
+model AvisoGestorLeitura {
+  id             String    @id @default(cuid())
+  organizationId String    @map("organization_id")
+  avisoId        String    @map("aviso_id")
+  memberId       String    @map("member_id")
+  visualizadoEm  DateTime? @map("visualizado_em")
+  confirmadoEm   DateTime? @map("confirmado_em")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  aviso        AvisoGestor  @relation(fields: [avisoId], references: [id], onDelete: Cascade)
+  member       Member       @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([avisoId, memberId])
+  @@index([organizationId, memberId])
+  @@map("avisos_gestor_leituras")
 }

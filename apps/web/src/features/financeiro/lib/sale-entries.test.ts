@@ -145,3 +145,31 @@ describe("buildSaleEntries", () => {
     expect(entry.paidAt).toBeNull();
   });
 });
+
+describe("parcelas com vencimento próprio (Força de Vendas)", () => {
+  it("cada parcela nasce pendente no vencimento dela, numerada", () => {
+    const primeira = new Date("2026-09-25T00:00:00.000Z");
+    const segunda = new Date("2026-10-02T00:00:00.000Z");
+    const entries = build({
+      payments: [
+        {
+          method: "BOLETO",
+          amount: 50,
+          dueDate: primeira,
+          parcela: { atual: 1, total: 2 },
+        },
+        {
+          method: "DINHEIRO",
+          amount: 50,
+          dueDate: segunda,
+          parcela: { atual: 2, total: 2 },
+        },
+      ],
+    }).filter((entry) => entry.type === "RECEIVABLE");
+
+    expect(entries.map((entry) => entry.dueDate)).toEqual([primeira, segunda]);
+    // Com vencimento informado nem dinheiro nasce pago: é venda a prazo.
+    expect(entries.every((entry) => entry.status === "PENDING")).toBe(true);
+    expect(entries[0].description).toBe("Venda #42 — BOLETO 1/2");
+  });
+});
