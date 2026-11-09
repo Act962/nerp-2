@@ -509,7 +509,7 @@ const testProvider = p
         message: `Token do Focus NFe (${env.toLowerCase()}) ainda não configurado`,
       };
     const token = safeDecrypt(tokenEnc);
-    const result = await pingFocus(env, token, row.focusEmpresaId);
+    const result = await pingFocus(env, token);
     return {
       ok: result.ok,
       status: result.status,

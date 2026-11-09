@@ -96,9 +96,7 @@ export function useTestProvider() {
     orpc.fiscalConfig.testProvider.mutationOptions({
       onSuccess: (data) => {
         if (data.ok)
-          toast.success(
-            `Focus NFe respondeu (${data.status}, ${data.latencyMs}ms)`,
-          );
+          toast.success(`Token da Focus NFe válido (${data.latencyMs}ms)`);
         else toast.error(data.message ?? "Falha ao chamar o provedor");
       },
       onError: (error) => toast.error(error.message),

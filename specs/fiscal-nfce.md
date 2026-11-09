@@ -228,6 +228,10 @@ Testes: `montar-nota.test.ts` (9), `focus/mapeador.test.ts` (7), `focus/provedor
 
 1. ~~Dev: `pnpm db:deploy` + `pnpm db:generate`, `FISCAL_PROVEDOR_SIMULADO=1` no `apps/web/.env` e testar o PDV e a tela de notas com o provedor simulado (Fases 1 a 3).~~ ✅ 2026-10-30
 2. Dev: conta de revenda na Focus → `FOCUS_TOKEN_CONTA` no `apps/web/.env` → empresa de teste credenciada na SEFAZ-PI (certificado A1 + CSC de homologação) → "Cadastrar na Focus" no painel → tirar `FISCAL_PROVEDOR_SIMULADO` e rodar `provedor.homologacao.test.ts` e uma venda no PDV.
+   - **2026-11-09 — primeira ida real à SEFAZ.** Empresa piloto (cliente do Simples em Teresina, que já emite NFC-e em produção) cadastrada à mão no painel da Focus, token de homologação colado no NERP. Venda no PDV → Focus → SEFAZ respondeu **781 "Emissor não habilitado para emissão da NF-e/NFC-e"**: o credenciamento de produção não vale para homologação na SEFAZ-PI; o contador precisa habilitar a IE no ambiente de homologação. Depois, "Reenviar" na nota rejeitada.
+   - O caminho NERP → Focus → SEFAZ → rejeição gravada e exibida no PDV funcionou de ponta a ponta.
+   - "Testar provedor" dava 404 falso: consultava `/v2/empresas`, que é da conta de revenda. Agora consulta uma NFC-e inexistente (`404 nao_encontrado` = token bom, `401` = token ruim) — `src/lib/fiscal/focus-nfe.ts`.
+   - Certificado no NERP precisa do bucket privado `FISCAL_S3_BUCKET_NAME` (e das credenciais S3/R2), ausente no `.env` local. A emissão pela Focus não depende dele (o certificado fica na Focus); o "Cadastrar na Focus" e o aviso de vencimento dependem.
 3. Fase 4 — produção com o piloto.
 
 ---

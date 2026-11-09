@@ -1,8 +1,7 @@
 import "server-only";
 
-// Cliente do provedor Focus NFe (https://focusnfe.com.br). Nesta Fase A só
-// implementa `ping()` — valida o token chamando um endpoint leve. Emissão de
-// NFCe entra na Fase B (POST /v2/nfce, polling do status, XML/PDF de retorno).
+// Ping do provedor Focus NFe (https://focusnfe.com.br), usado pelo "Testar
+// provedor" do painel. A emissão mora em `features/fiscal/server/infra/focus`.
 
 const BASE_URLS = {
   HOMOLOGACAO: "https://homologacao.focusnfe.com.br",
@@ -20,12 +19,22 @@ function authHeader(token: string): string {
   return `Basic ${Buffer.from(`${token}:`).toString("base64")}`;
 }
 
-// Valida a credencial pedindo os dados da empresa do usuário. Se o token não
-// serve, a API retorna 401/403. Não é intrusivo (só GET).
+// Referência que nunca existe: consultá-la é um GET sem efeito em que só a
+// autenticação muda a resposta.
+const REF_PING = "nerp-ping-token";
+
+/**
+ * Valida o token da EMPRESA (o que emite) consultando uma NFC-e inexistente.
+ *
+ * Não usa `/v2/empresas`: esse endpoint é da conta de revenda e responde 404
+ * para o token de uma empresa mesmo quando ele está certo — era um falso
+ * negativo. Na consulta de nota, token bom devolve 404 `nao_encontrado` e
+ * token ruim devolve 401 `permissao_negada`.
+ */
 export async function pingFocus(
   environment: FocusEnvironment,
   token: string,
-  empresaId?: string | null,
+  opcoes: { fetch?: typeof fetch } = {},
 ): Promise<{
   ok: boolean;
   status: number;
@@ -40,17 +49,13 @@ export async function pingFocus(
       message: "Token não configurado para este ambiente",
     };
 
-  // Endpoint padrão de leitura: /v2/empresas (lista as empresas do usuário).
-  // Se `empresaId` foi informado, especifica pra retornar menos dados.
-  const url = empresaId
-    ? `${focusBaseUrl(environment)}/v2/empresas/${encodeURIComponent(empresaId)}`
-    : `${focusBaseUrl(environment)}/v2/empresas`;
-
+  const doFetch = opcoes.fetch ?? fetch;
+  const url = `${focusBaseUrl(environment)}/v2/nfce/${REF_PING}`;
   const started = Date.now();
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, {
+    const res = await doFetch(url, {
       method: "GET",
       headers: {
         Authorization: authHeader(token),
@@ -61,19 +66,22 @@ export async function pingFocus(
     });
     clearTimeout(timeout);
     const latencyMs = Date.now() - started;
-    if (res.ok) return { ok: true, status: res.status, latencyMs };
-    // 401 = token inválido; 403 = token não tem acesso à empresa;
-    // 404 = empresaId errado; 5xx = provedor com problema.
+
+    if (res.status === 404) {
+      const corpo = (await res.json().catch(() => null)) as {
+        codigo?: string;
+      } | null;
+      if (corpo?.codigo === "nao_encontrado")
+        return { ok: true, status: res.status, latencyMs };
+    }
     return {
       ok: false,
       status: res.status,
       latencyMs,
       message:
         res.status === 401 || res.status === 403
-          ? "Token inválido ou sem permissão"
-          : res.status === 404
-            ? "Empresa não encontrada no provedor (verifique o ID)"
-            : `Provedor respondeu ${res.status}`,
+          ? "Token inválido para este ambiente (confira se é o de homologação ou o de produção)"
+          : `Provedor respondeu ${res.status}`,
     };
   } catch {
     return {
