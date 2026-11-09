@@ -26,6 +26,8 @@ import {
   carregarPerfilTributario,
   mensagemDasPendencias,
 } from "@/features/fiscal/server/cadastro-fiscal";
+import { cadastrarEmpresaNaFocus } from "@/features/fiscal/server/empresa-focus";
+import { traduzirErroFiscal } from "@/app/router/fiscal/_shared";
 import {
   type PadroesFiscais,
   normalizarCodigoFiscal,
@@ -516,6 +518,28 @@ const testProvider = p
     };
   });
 
+/**
+ * Cadastra (ou atualiza) o emitente na Focus pela conta de revenda e grava os
+ * tokens que ela devolve — substitui o copiar-e-colar do painel da Focus.
+ */
+const syncFocus = p
+  .output(
+    z.object({
+      empresaId: z.string(),
+      criada: z.boolean(),
+      recebeuTokenHomologacao: z.boolean(),
+      recebeuTokenProducao: z.boolean(),
+    }),
+  )
+  .handler(async ({ context, errors }) => {
+    await requireManage(context.org.id, context.user.id, errors);
+    try {
+      return await cadastrarEmpresaNaFocus(context.org.id);
+    } catch (erro) {
+      traduzirErroFiscal(erro, errors);
+    }
+  });
+
 const padroesSchema = z.object({
   cfop: z.string().nullable(),
   cstIcms: z.string().nullable(),
@@ -575,6 +599,7 @@ export const fiscalConfigRoutes = {
   uploadCertificate,
   testSefaz,
   testProvider,
+  syncFocus,
 };
 
 // ── helpers locais ──────────────────────────────────────────────────────────

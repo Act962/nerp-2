@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
+  CloudUpload,
   ExternalLink,
   Landmark,
   Loader2,
@@ -27,6 +28,7 @@ import {
 import {
   useFiscalConfig,
   useSaveFiscalConfig,
+  useSyncFocus,
   useTestProvider,
   useTestSefaz,
 } from "../hooks/use-fiscal-config";
@@ -45,6 +47,7 @@ export function FiscalConfigPanel() {
   const save = useSaveFiscalConfig();
   const testSefaz = useTestSefaz();
   const testProvider = useTestProvider();
+  const syncFocus = useSyncFocus();
 
   // Form controlado, com o estado inicial semeado a partir do server.
   const [form, setForm] = useState({
@@ -427,10 +430,33 @@ export function FiscalConfigPanel() {
       {/* Provedor */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <PlugZap className="size-4" />
-            Provedor de emissão — Focus NFe
-          </CardTitle>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <PlugZap className="size-4" />
+              Provedor de emissão — Focus NFe
+            </CardTitle>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => syncFocus.mutate({})}
+              disabled={syncFocus.isPending || !config.hasCertificate}
+            >
+              {syncFocus.isPending ? (
+                <Loader2 className="mr-1 size-4 animate-spin" />
+              ) : (
+                <CloudUpload className="mr-1 size-4" />
+              )}
+              {config.focusEmpresaId
+                ? "Atualizar na Focus"
+                : "Cadastrar na Focus"}
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-xs">
+            Envia os dados salvos da empresa, o certificado e o CSC para a Focus
+            e grava os tokens que ela devolve. Salve as alterações antes; rode
+            de novo depois de trocar o certificado ou o CSC.
+          </p>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field label="ID da empresa no provedor (opcional)">

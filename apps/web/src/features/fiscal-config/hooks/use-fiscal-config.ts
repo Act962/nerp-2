@@ -70,6 +70,27 @@ export function useTestSefaz() {
   );
 }
 
+export function useSyncFocus() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.fiscalConfig.syncFocus.mutationOptions({
+      onSuccess: (data) => {
+        const tokens = data.recebeuTokenHomologacao
+          ? "tokens gravados"
+          : "a Focus não devolveu o token de homologação — cole-o abaixo";
+        toast.success(
+          `Empresa ${data.criada ? "cadastrada" : "atualizada"} na Focus (ID ${data.empresaId}); ${tokens}`,
+          { duration: 8000 },
+        );
+        queryClient.invalidateQueries({
+          queryKey: orpc.fiscalConfig.get.key(),
+        });
+      },
+      onError: (error) => toast.error(error.message, { duration: 10000 }),
+    }),
+  );
+}
+
 export function useTestProvider() {
   return useMutation(
     orpc.fiscalConfig.testProvider.mutationOptions({

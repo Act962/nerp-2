@@ -162,9 +162,10 @@ Testes: `cadastro-produto.test.ts` (14, domínio), `customer/_fiscal.test.ts` (4
 - [x] **Emissão** — `fiscal.emitirNfce` tenta transmitir na hora (NFC-e na Focus é síncrona) e, se o provedor cair ou a SEFAZ demorar, enfileira o job Inngest `fiscal-emit` (consulta a cada 10 s, nunca reenvia; erro de configuração é `NonRetriableError`). — ✅ 2026-10-28
 - [x] **Procedures** `fiscal.situacao`, `emitirNfce`, `daVenda`, `tentarNovamente`, `reenviar`, `cancelar` (owner/admin). — ✅ 2026-10-28
 - [x] **PDV** — "Emitir NFC-e" só aparece quando `fiscal.situacao` diz que dá; CPF/CNPJ na nota opcional e validado; tela de venda concluída acompanha a nota (emitindo / aguardando SEFAZ / autorizada / rejeitada com motivo e "Reenviar" / sem resposta com "Tentar agora"); impressão automática espera a autorização; o cupom vira DANFCe (cabeçalho, aviso de homologação, chave em blocos, consumidor, protocolo, QR Code). `sales.create` passou a devolver o `id`. — ✅ 2026-10-28
-- [ ] **Cadastro da empresa na Focus por API** (conta de revenda) — hoje a empresa é cadastrada no painel da Focus e o token vai em Integrações → Focus NFe.
-- [ ] **Rodar o contrato contra a homologação da Focus** — confirma `cest`, `codigo_barras_*` e `valor_troco`, que não aparecem nas páginas públicas da documentação.
-- [ ] **IBS/CBS no pedido da Focus** — o mapeador ainda não envia o grupo da reforma.
+- [x] **Cadastro da empresa na Focus por API** — botão "Cadastrar/Atualizar na Focus" em Integrações → Focus NFe (`fiscalConfig.syncFocus` → `server/empresa-focus.ts` → `infra/focus/empresas.ts`). Com o token da CONTA de revenda em `FOCUS_TOKEN_CONTA` (variável do servidor, nunca do banco), manda dados, certificado A1, CSC e série; acha a empresa pelo ID gravado ou pelo CNPJ (cadastro feito antes à mão) e grava ID e tokens devolvidos, cifrados. Sem a variável, o caminho manual (colar o token) continua valendo. — ✅ 2026-11-02, falta rodar com a conta de verdade.
+- [ ] **Rodar o contrato contra a homologação da Focus** — pronto em `infra/focus/provedor.homologacao.test.ts`, desligado sem `FOCUS_HOMOLOG_TOKEN`/`FOCUS_HOMOLOG_CNPJ`/`FOCUS_HOMOLOG_IE` (instruções no arquivo). Série 99 e números do relógio, para não colidir com o PDV. A documentação já confirma `serie`/`numero` no corpo, `cest`, `codigo_barras_comercial`/`_tributavel` e `valor_total_tributos` por item; `valor_troco` e o protocolo no GET (`protocolo` × `numero_protocolo`) ainda dependem do teste.
+- [ ] **IBS/CBS no pedido da Focus** — o mapeador ainda não envia o grupo da reforma. Campos por item na Focus: `ibs_cbs_situacao_tributaria`, `ibs_cbs_classificacao_tributaria` (+ base, alíquotas e valores). A documentação não diz o que é obrigatório para o Simples em 2026 — perguntar à Focus.
+- [ ] **Webhook da Focus** (`POST /v2/hooks`, evento `nfce`) — hoje a NFC-e é síncrona e o job do Inngest consulta; o gatilho só compensa para a contingência da Focus (`nfce_contingencia`). Avaliar na Fase 6.
 
 Testes: `montar-nota.test.ts` (9), `focus/mapeador.test.ts` (7), `focus/provedor.test.ts` (contrato + 4), `sale-completed-dialog.test.tsx` (+3), `tests/integration/fiscal-emissao.test.ts` (8 — situação, emissão autorizada, idempotência, numeração e número inicial, cadastro incompleto sem gastar número, CPF na nota, isolamento entre empresas, cancelar e reemitir).
 
@@ -179,7 +180,7 @@ Testes: `montar-nota.test.ts` (9), `focus/mapeador.test.ts` (7), `focus/provedor
 - [x] Inutilização (aba Numeração): o NERP calcula os números pulados da série (reservados que não viraram nota; rejeitada só conta depois de 24 h, para dar tempo de reenviar), inutiliza na SEFAZ e guarda o XML. Rejeitadas dentro da faixa viram `VOIDED`, e a venda pode emitir outra nota. Só owner/admin, só faixa já reservada, nunca número com nota que exista na SEFAZ.
 - [x] Alertas na tela de notas e na configuração fiscal: certificado vencendo (30 = info, 15 = aviso, 7 ou vencido = crítico), mesma rejeição 3 vezes em 24 h, nota parada há mais de 15 min, números pulados. Função pura `alertasFiscais()` em `@nerp/fiscal`.
 - [x] Pacote mensal para o contador (`/api/fiscal/xml-mensal?mes=AAAA-MM`, owner/admin): zip com `autorizadas/`, `canceladas/` (nota + evento), `inutilizadas/` e `resumo.csv` (abre no Excel). Conta a data da autorização.
-- [x] DANFE completo (achado no teste manual de 2026-10-30): cabeçalho com razão social, CNPJ, IE e endereço do emitente **da nota** (não o nome da loja do recibo), quantidade de itens, valor a pagar e "Tributos totais incidentes (Lei 12.741/2012)". O valor dos tributos sai de um percentual da empresa (`approxTaxPercent`, em Padrões de tributação: tabela IBPT ou alíquota efetiva do Simples, definido pelo contador), vai por item como `vTotTrib` (`valor_total_tributos` na Focus — a confirmar no contrato) e não barra a emissão; sem percentual, a nota sai sem a linha e um alerta avisa. Migration `20261030140000_fiscal_tributos_aproximados` + `SCHEMA_VERSION` v113.
+- [x] DANFE completo (achado no teste manual de 2026-10-30): cabeçalho com razão social, CNPJ, IE e endereço do emitente **da nota** (não o nome da loja do recibo), quantidade de itens, valor a pagar e "Tributos totais incidentes (Lei 12.741/2012)". O valor dos tributos sai de um percentual da empresa (`approxTaxPercent`, em Padrões de tributação: tabela IBPT ou alíquota efetiva do Simples, definido pelo contador), vai por item como `vTotTrib` (`valor_total_tributos` na Focus, confirmado na documentação; o cadastro da empresa vai com `discrimina_impostos: false` para a Focus não recalcular) e não barra a emissão; sem percentual, a nota sai sem a linha e um alerta avisa. Migration `20261030140000_fiscal_tributos_aproximados` + `SCHEMA_VERSION` v113.
 
 **Limites conhecidos desta fase:** alertas aparecem na tela, não chegam por e-mail/WhatsApp (falta um canal de notificação no app); o zip é montado em memória — folgado para o volume de um varejo, revisar se um cliente passar de dezenas de milhares de notas por mês; no modo simulado, os XMLs ficam na memória do servidor e somem quando ele reinicia.
 
@@ -215,7 +216,7 @@ Testes: `montar-nota.test.ts` (9), `focus/mapeador.test.ts` (7), `focus/provedor
 
 ## Perguntas abertas
 
-- [ ] **Focus**: plano de parceiro/revenda (cadastro de empresas por API, preço por CNPJ) e se a NFC-e aceita `serie`/`numero` enviados por nós.
+- [ ] **Focus**: plano de parceiro/revenda (preço por CNPJ) e se o `/v2/empresas` devolve `token_homologacao` logo no cadastro. ~~Aceita `serie`/`numero` nossos?~~ Sim — campos `serie` e `numero` no corpo (doc.focusnfe.com.br/reference/emitir_nfce).
 - [x] ~~Prazo de cancelamento~~ — a Focus documenta 30 minutos para NFC-e.
 - [ ] **SEFAZ-PI**: versão do QR Code exigida hoje (v2 com CSC ou v3) — a Focus monta o QR; importa para a contingência offline (Fase 6).
 - [ ] **Contingência pela Focus**: a Focus tem modo `forma_emissao=offline` e um "Comunicador Offline" local. Avaliar antes da Fase 6 se ele substitui a emissão própria no desktop.
@@ -225,8 +226,8 @@ Testes: `montar-nota.test.ts` (9), `focus/mapeador.test.ts` (7), `focus/provedor
 
 ## Proximos passos
 
-1. Dev: `pnpm db:deploy` + `pnpm db:generate`, `FISCAL_PROVEDOR_SIMULADO=1` no `apps/web/.env` e testar o PDV e a tela de notas com o provedor simulado (Fases 1 a 3).
-2. Dev: conta na Focus + token de homologação + cliente piloto → trocar o simulado pela Focus e rodar o contrato contra a homologação.
+1. ~~Dev: `pnpm db:deploy` + `pnpm db:generate`, `FISCAL_PROVEDOR_SIMULADO=1` no `apps/web/.env` e testar o PDV e a tela de notas com o provedor simulado (Fases 1 a 3).~~ ✅ 2026-10-30
+2. Dev: conta de revenda na Focus → `FOCUS_TOKEN_CONTA` no `apps/web/.env` → empresa de teste credenciada na SEFAZ-PI (certificado A1 + CSC de homologação) → "Cadastrar na Focus" no painel → tirar `FISCAL_PROVEDOR_SIMULADO` e rodar `provedor.homologacao.test.ts` e uma venda no PDV.
 3. Fase 4 — produção com o piloto.
 
 ---
