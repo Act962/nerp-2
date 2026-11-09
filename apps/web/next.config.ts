@@ -25,6 +25,15 @@ const nextConfig: NextConfig = {
     cpus: Number(process.env.NEXT_BUILD_CPUS) || 2,
     webpackMemoryOptimizations: true,
   },
+  // A checagem de tipos dentro do `next build` foi o passo seguinte a morrer
+  // por SIGKILL no Coolify, mesmo com os workers limitados: é um `tsc` do
+  // projeto inteiro, num worker próprio, com o client do Prisma de 23 MB.
+  // Os tipos já são checados no CI (`check-types`, job "typecheck + test"),
+  // então o build de deploy não repete o trabalho. Para checar localmente:
+  // `pnpm check-types`.
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   // O konva puxa um build Node (`index-node.js`) que faz `require('canvas')`
   // (canvas nativo, só usado em render server-side, que não fazemos — o editor
   // é `ssr: false`). Sem o pacote instalado, o build de produção falha ao
