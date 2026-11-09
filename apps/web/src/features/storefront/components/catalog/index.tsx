@@ -67,6 +67,9 @@ export function Catalog({ subdomain }: CatalogProps) {
   // A busca vai ao servidor (sem acento e sem caixa: "acucar" acha
   // "Açúcar"); o atraso evita uma consulta por tecla digitada no cabeçalho.
   const termo = useDebouncedValue(busca?.trim() ?? "");
+  // Quem busca procura no catálogo inteiro: a categoria escolhida antes fica
+  // guardada na URL e volta a valer quando a busca é apagada.
+  const buscando = termo.length > 0;
 
   const { categories, isLoadingCategories } =
     useQueryCatalogCategories(subdomain);
@@ -81,7 +84,7 @@ export function Catalog({ subdomain }: CatalogProps) {
     fetchNextPage,
   } = useQueryCatalogProducts({
     subdomain,
-    categories: categoriesSlugs?.trim().split(","),
+    categories: buscando ? undefined : categoriesSlugs?.trim().split(","),
     minValue: minValue ? parseCurrencyInput(minValue) : undefined,
     maxValue: maxValue ? parseCurrencyInput(maxValue) : undefined,
     search: termo,
@@ -116,13 +119,16 @@ export function Catalog({ subdomain }: CatalogProps) {
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   const nomeDaCategoria = new Map(categories.map((c) => [c.id, c.name]));
 
-  const ativas = categoriesSlugs
-    ? categoriesSlugs.split(",").map((s) => s.trim().toLowerCase())
-    : [];
-  const escolherCategoria = (slug: string | null) =>
+  const ativas =
+    categoriesSlugs && !buscando
+      ? categoriesSlugs.split(",").map((slug) => slug.trim().toLowerCase())
+      : [];
+  const escolherCategoria = (slug: string | null) => {
+    if (buscando) setBusca(null);
     setCategoriesSlugs(
       slug && !ativas.includes(slug.toLowerCase()) ? slug : null,
     );
+  };
 
   const filtrando = ativas.length > 0 || termo.length > 0;
 
@@ -177,10 +183,10 @@ export function Catalog({ subdomain }: CatalogProps) {
           </CabecalhoDaSecao>
           <ul
             className={cn(
-              "grid grid-cols-[repeat(var(--colunas-celular),minmax(0,1fr))] gap-3 sm:gap-4",
+              "gap-3 sm:gap-4",
               categorias.length <= MAX_CATEGORIAS_NA_LINHA
-                ? "sm:grid-cols-[repeat(var(--colunas),minmax(0,1fr))]"
-                : "sm:flex sm:overflow-x-auto sm:pb-2",
+                ? "grid grid-cols-[repeat(var(--colunas-celular),minmax(0,1fr))] sm:grid-cols-[repeat(var(--colunas),minmax(0,1fr))]"
+                : "flex overflow-x-auto pb-2",
             )}
             style={
               {
@@ -194,7 +200,7 @@ export function Catalog({ subdomain }: CatalogProps) {
                 key={categoria.id}
                 className={cn(
                   categorias.length > MAX_CATEGORIAS_NA_LINHA &&
-                    "sm:w-32 sm:shrink-0",
+                    "w-28 shrink-0 sm:w-32",
                 )}
               >
                 <CartaoDaCategoria
