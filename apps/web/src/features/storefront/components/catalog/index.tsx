@@ -67,6 +67,9 @@ export function Catalog({ subdomain }: CatalogProps) {
   // A busca vai ao servidor (sem acento e sem caixa: "acucar" acha
   // "Açúcar"); o atraso evita uma consulta por tecla digitada no cabeçalho.
   const termo = useDebouncedValue(busca?.trim() ?? "");
+  // Quem busca procura no catálogo inteiro: a categoria escolhida antes fica
+  // guardada na URL e volta a valer quando a busca é apagada.
+  const buscando = termo.length > 0;
 
   const { categories, isLoadingCategories } =
     useQueryCatalogCategories(subdomain);
@@ -81,7 +84,7 @@ export function Catalog({ subdomain }: CatalogProps) {
     fetchNextPage,
   } = useQueryCatalogProducts({
     subdomain,
-    categories: categoriesSlugs?.trim().split(","),
+    categories: buscando ? undefined : categoriesSlugs?.trim().split(","),
     minValue: minValue ? parseCurrencyInput(minValue) : undefined,
     maxValue: maxValue ? parseCurrencyInput(maxValue) : undefined,
     search: termo,
@@ -116,13 +119,16 @@ export function Catalog({ subdomain }: CatalogProps) {
     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
   const nomeDaCategoria = new Map(categories.map((c) => [c.id, c.name]));
 
-  const ativas = categoriesSlugs
-    ? categoriesSlugs.split(",").map((s) => s.trim().toLowerCase())
-    : [];
-  const escolherCategoria = (slug: string | null) =>
+  const ativas =
+    categoriesSlugs && !buscando
+      ? categoriesSlugs.split(",").map((slug) => slug.trim().toLowerCase())
+      : [];
+  const escolherCategoria = (slug: string | null) => {
+    if (buscando) setBusca(null);
     setCategoriesSlugs(
       slug && !ativas.includes(slug.toLowerCase()) ? slug : null,
     );
+  };
 
   const filtrando = ativas.length > 0 || termo.length > 0;
 
@@ -156,11 +162,7 @@ export function Catalog({ subdomain }: CatalogProps) {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-4 py-5 sm:py-7">
-      <Destaque
-        banners={catalogSettings.bannerImages ?? []}
-        ofertas={ofertas}
-        tema={tema}
-      />
+      <Destaque banners={catalogSettings.bannerImages ?? []} tema={tema} />
 
       {categorias.length > 0 && catalogSettings?.showCategoryNav !== false && (
         <section id="categorias" className="scroll-mt-40 flex flex-col gap-4">
@@ -177,10 +179,10 @@ export function Catalog({ subdomain }: CatalogProps) {
           </CabecalhoDaSecao>
           <ul
             className={cn(
-              "grid grid-cols-[repeat(var(--colunas-celular),minmax(0,1fr))] gap-3 sm:gap-4",
+              "gap-3 sm:gap-4",
               categorias.length <= MAX_CATEGORIAS_NA_LINHA
-                ? "sm:grid-cols-[repeat(var(--colunas),minmax(0,1fr))]"
-                : "sm:flex sm:overflow-x-auto sm:pb-2",
+                ? "grid grid-cols-[repeat(var(--colunas-celular),minmax(0,1fr))] sm:grid-cols-[repeat(var(--colunas),minmax(0,1fr))]"
+                : "flex overflow-x-auto pb-2",
             )}
             style={
               {
@@ -194,7 +196,7 @@ export function Catalog({ subdomain }: CatalogProps) {
                 key={categoria.id}
                 className={cn(
                   categorias.length > MAX_CATEGORIAS_NA_LINHA &&
-                    "sm:w-32 sm:shrink-0",
+                    "w-28 shrink-0 sm:w-32",
                 )}
               >
                 <CartaoDaCategoria
@@ -214,6 +216,10 @@ export function Catalog({ subdomain }: CatalogProps) {
             ))}
           </ul>
         </section>
+      )}
+
+      {!filtrando && ofertas.length > 0 && (
+        <CartoesDeOfertas ofertas={ofertas} subdomain={subdomain} tema={tema} />
       )}
 
       {/* Sem preço não existe oferta: a faixa sai junto com os valores. */}
@@ -590,103 +596,143 @@ function SetaDaFaixa({
 }
 
 /**
- * O topo da vitrine: carrossel com os banners e, ao lado, o cartão das
- * ofertas. Sem ofertas o carrossel ocupa a largura toda; sem banner, o cartão
- * de ofertas sobra sozinho — e sem nenhum dos dois o topo simplesmente some.
+ * O topo da vitrine: carrossel com os banners, trocando sozinho. Sem banner
+ * o topo simplesmente some.
  */
-function Destaque({
-  banners,
-  ofertas,
-  tema,
-}: {
-  banners: string[];
-  ofertas: OfertaDaVitrine[];
-  tema: string;
-}) {
+function Destaque({ banners, tema }: { banners: string[]; tema: string }) {
   const opcoes: EmblaOptionsType = { loop: true };
   const [emblaRef, emblaApi] = useEmblaCarousel(opcoes, [
     Autoplay({ playOnInit: true, delay: 5000 }),
   ]);
 
-  if (banners.length === 0 && ofertas.length === 0) return null;
+  if (banners.length === 0) return null;
 
   return (
-    <section
-      className={cn(
-        "grid gap-4",
-        banners.length > 0 && ofertas.length > 0 && "lg:grid-cols-3",
-      )}
-    >
-      {banners.length > 0 && (
-        <div className="relative lg:col-span-2">
-          <div className="overflow-hidden rounded-2xl" ref={emblaRef}>
-            <div className="flex">
-              {banners.map((banner, indice) => (
-                <BannerDoCarrossel
-                  key={banner}
-                  chave={banner}
-                  indice={indice}
-                />
-              ))}
-            </div>
-          </div>
-          {banners.length > 1 && (
-            <div className="absolute right-3 bottom-3 flex gap-1.5">
-              <button
-                type="button"
-                aria-label="Banner anterior"
-                onClick={() => emblaApi?.scrollPrev()}
-                className="flex size-8 items-center justify-center rounded-full bg-white/90 text-neutral-900 shadow"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              <button
-                type="button"
-                aria-label="Próximo banner"
-                onClick={() => emblaApi?.scrollNext()}
-                className="flex size-8 items-center justify-center rounded-full shadow"
-                style={{ backgroundColor: tema, color: tintaSobre(tema) }}
-              >
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
-          )}
+    <section className="relative">
+      <div className="overflow-hidden rounded-2xl" ref={emblaRef}>
+        <div className="flex">
+          {banners.map((banner, indice) => (
+            <BannerDoCarrossel key={banner} chave={banner} indice={indice} />
+          ))}
         </div>
-      )}
-
-      {ofertas.length > 0 && (
-        <div
-          className="flex min-h-44 flex-col justify-between gap-4 rounded-2xl p-6 sm:p-8"
-          style={{ backgroundColor: tema, color: tintaSobre(tema) }}
-        >
-          <div className="flex flex-col gap-2">
-            <Percent className="size-8 opacity-80" />
-            <p className="font-bold text-2xl leading-tight sm:text-3xl">
-              Confira nossas ofertas
-            </p>
-            <p className="text-sm opacity-85">
-              {ofertas.length === 1
-                ? ofertas[0].nome
-                : `${ofertas.length} catálogos com preços especiais`}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {ofertas.map((oferta) => (
-              <a
-                key={oferta.shareToken}
-                href={`/promocao/${oferta.shareToken}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 rounded-md bg-white px-4 py-2 font-semibold text-neutral-900 text-sm shadow-sm transition-transform hover:scale-[1.02]"
-              >
-                {ofertas.length === 1 ? "Ver ofertas" : oferta.nome}
-                <ExternalLink className="size-3.5" />
-              </a>
-            ))}
-          </div>
+      </div>
+      {banners.length > 1 && (
+        <div className="absolute right-3 bottom-3 flex gap-1.5">
+          <button
+            type="button"
+            aria-label="Banner anterior"
+            onClick={() => emblaApi?.scrollPrev()}
+            className="flex size-8 items-center justify-center rounded-full bg-white/90 text-neutral-900 shadow"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <button
+            type="button"
+            aria-label="Próximo banner"
+            onClick={() => emblaApi?.scrollNext()}
+            className="flex size-8 items-center justify-center rounded-full shadow"
+            style={{ backgroundColor: tema, color: tintaSobre(tema) }}
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Os catálogos promocionais escolhidos pela loja, como cartões com a capa do
+ * próprio catálogo: um ocupa a largura toda, dois ou mais dividem a linha.
+ */
+function CartoesDeOfertas({
+  ofertas,
+  subdomain,
+  tema,
+}: {
+  ofertas: OfertaDaVitrine[];
+  subdomain: string;
+  tema: string;
+}) {
+  return (
+    <section className="flex flex-col gap-4">
+      <CabecalhoDaSecao titulo="Ofertas" />
+      <ul
+        className={cn(
+          "grid gap-3 sm:gap-4",
+          ofertas.length > 1 && "grid-cols-2",
+        )}
+      >
+        {ofertas.map((oferta) => (
+          <li key={oferta.shareToken}>
+            <CartaoDeOferta
+              oferta={oferta}
+              subdomain={subdomain}
+              tema={tema}
+              compacto={ofertas.length > 1}
+            />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function CartaoDeOferta({
+  oferta,
+  subdomain,
+  tema,
+  compacto,
+}: {
+  oferta: OfertaDaVitrine;
+  subdomain: string;
+  tema: string;
+  compacto: boolean;
+}) {
+  // Catálogo salvo antes da miniatura existir não tem capa: o cartão fica só
+  // com o nome, na cor da loja.
+  const [temCapa, setTemCapa] = useState(true);
+  const tinta = tintaSobre(tema);
+
+  return (
+    <a
+      href={`/promocao/${oferta.shareToken}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "flex h-full overflow-hidden rounded-2xl shadow-sm transition-transform hover:scale-[1.01]",
+        compacto ? "min-h-36 flex-col sm:min-h-44 sm:flex-row" : "min-h-44",
+      )}
+      style={{ backgroundColor: tema, color: tinta }}
+    >
+      <div className="flex flex-1 flex-col justify-between gap-3 p-4 sm:p-6">
+        <p
+          className={cn(
+            "font-bold leading-tight",
+            compacto ? "line-clamp-3 text-base sm:text-2xl" : "text-2xl sm:text-3xl",
+          )}
+        >
+          {oferta.nome}
+        </p>
+        <span className="flex w-fit items-center gap-1.5 rounded-full bg-white px-3 py-1.5 font-semibold text-neutral-900 text-xs sm:px-4 sm:py-2 sm:text-sm">
+          Ver ofertas
+          <ExternalLink className="size-3.5" />
+        </span>
+      </div>
+      {temCapa && (
+        // biome-ignore lint/performance/noImgElement: imagem gerada pela rota da vitrine, sem domínio fixo para o next/image.
+        <img
+          src={`/api/catalogo/${subdomain}/ofertas/${oferta.shareToken}/miniatura`}
+          alt=""
+          loading="lazy"
+          onError={() => setTemCapa(false)}
+          className={cn(
+            "object-cover object-top",
+            compacto ? "h-28 w-full sm:h-auto sm:w-2/5" : "w-2/5",
+          )}
+        />
+      )}
+    </a>
   );
 }
 
