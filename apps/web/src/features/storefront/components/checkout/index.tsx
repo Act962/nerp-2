@@ -51,13 +51,15 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
     setGuestName,
     guestPhone,
     setGuestPhone,
+    isQuoteByWhatsapp,
   } = useCheckoutLogic(subdomain);
   const homeHref = useCatalogHref("/");
   const cartHref = useCatalogHref("/cart");
 
   // Modos APPROVAL e ORBITA dispensam login (o pedido é identificado por nome
-  // e telefone). Nos demais modos, redireciona pra cadastro quando anônimo.
-  if (!user && userHasHydrated && !isApprovalMode && !isOrbitaMode) {
+  // e telefone), e o orçamento pelo WhatsApp também (o cliente se identifica na conversa).
+  // Nos demais modos, redireciona pra cadastro quando anônimo.
+  if (!user && userHasHydrated && !isApprovalMode && !isOrbitaMode && !isQuoteByWhatsapp) {
     redirect("/sign-up");
   }
 
@@ -88,7 +90,7 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
         <ArrowLeft className="size-4" /> Voltar ao carrinho
       </Button>
 
-      <h1 className="text-3xl font-bold mb-8">Finalizar Pedido</h1>
+      <h1 className="text-3xl font-bold mb-8">{isQuoteByWhatsapp ? "Pedir orçamento" : "Finalizar Pedido"}</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
@@ -165,6 +167,7 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
               </CardContent>
             </Card>
           )}
+          {(!isQuoteByWhatsapp || (availableDeliveryMethods?.length ?? 0) > 0) && (
           <DeliveryMethodCard
             availableDeliveryMethods={availableDeliveryMethods}
             deliveryMethod={deliveryMethod}
@@ -173,12 +176,15 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
             onAddressChange={setAddress}
             deliverySpecialInfo={catalogSettings?.deliverySpecialInfo}
           />
+          )}
 
+          {(!isQuoteByWhatsapp || (availablePaymentMethods?.length ?? 0) > 0) && (
           <PaymentMethodCard
             availablePaymentMethods={availablePaymentMethods}
             paymentMethod={paymentMethod}
             onPaymentMethodChange={setPaymentMethod}
           />
+          )}
 
           <ObservationsCard
             observations={observations}
@@ -199,8 +205,9 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
             onConfirm={onCheckout}
             isLoading={isCheckoutPending}
             isDisabled={
-              availablePaymentMethods?.length === 0 ||
-              availableDeliveryMethods?.length === 0
+              !isQuoteByWhatsapp &&
+              (availablePaymentMethods?.length === 0 ||
+                availableDeliveryMethods?.length === 0)
             }
           />
         </div>
