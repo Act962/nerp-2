@@ -6,6 +6,13 @@ import { AlertTriangle, Building2, FileImage, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
@@ -15,9 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "sonner";
+import { PLANOS } from "@/features/billing/lib/planos";
 import { formatarEstrelas } from "@/features/stars/lib/decimal";
 import { formatBRL } from "@/utils/currency-formatter";
 import {
+  useDefinirPlanoDaEmpresa,
   usePlataformaEmpresas,
   usePlataformaResumo,
 } from "../hooks/use-site-admin";
@@ -190,6 +200,7 @@ export function SiteEmpresas() {
                           : "nunca"}
                       </Dado>
                     </dl>
+                    <SeletorDePlano empresa={empresa} />
                   </div>
                 ))}
               </div>
@@ -204,6 +215,7 @@ export function SiteEmpresas() {
                       <TableHead className="text-right">★ no período</TableHead>
                       <TableHead className="text-right">Saldo ★</TableHead>
                       <TableHead>Último acesso</TableHead>
+                      <TableHead>Plano</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -244,6 +256,9 @@ export function SiteEmpresas() {
                           {empresa.ultimoAcesso
                             ? desde(empresa.ultimoAcesso)
                             : "nunca"}
+                        </TableCell>
+                        <TableCell>
+                          <SeletorDePlano empresa={empresa} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -292,6 +307,65 @@ function Indicador({
         )}
       </CardContent>
     </Card>
+  );
+}
+
+const PLANO_AUTOMATICO = "automatico";
+
+/**
+ * Plano da empresa escolhido pelo admin. "Automático" devolve à regra de
+ * sempre (legado para quem é anterior aos limites, Grátis para o resto).
+ */
+function SeletorDePlano({
+  empresa,
+}: {
+  empresa: {
+    id: string;
+    nome: string;
+    plano: { id: string; nome: string; origem: string };
+  };
+}) {
+  const definirPlano = useDefinirPlanoDaEmpresa();
+  const valor =
+    empresa.plano.origem === "admin" ? empresa.plano.id : PLANO_AUTOMATICO;
+
+  return (
+    <Select
+      value={valor}
+      disabled={definirPlano.isPending}
+      onValueChange={(escolha) =>
+        definirPlano.mutate(
+          {
+            organizationId: empresa.id,
+            planoId: escolha === PLANO_AUTOMATICO ? null : escolha,
+          },
+          {
+            onSuccess: () =>
+              toast.success(`Plano de ${empresa.nome} atualizado`),
+            onError: (error) => toast.error(error.message),
+          },
+        )
+      }
+    >
+      <SelectTrigger
+        className="h-8 w-44"
+        aria-label={`Plano de ${empresa.nome}`}
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value={PLANO_AUTOMATICO}>
+          Automático
+          {empresa.plano.origem !== "admin" ? ` · ${empresa.plano.nome}` : ""}
+        </SelectItem>
+        {PLANOS.map((plano) => (
+          <SelectItem key={plano.id} value={plano.id}>
+            {plano.nome}
+            {plano.limites.produtos === null ? " · sem limite" : ""}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 

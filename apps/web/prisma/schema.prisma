@@ -499,6 +499,10 @@ model Organization {
   /// Sandbox: nulo enquanto o dono não vinculou uma conta de verdade. Tudo o
   /// que sai para o mundo (vitrine, convite, WhatsApp, ERP, compra) exige isto.
   verifiedAt       DateTime?        @map("verified_at")
+  /// Plano escolhido pelo admin da plataforma no painel de Empresas (id de
+  /// `billing/lib/planos.ts`). Nulo = regra automática (legado/grátis). Existe
+  /// enquanto a assinatura paga não está ligada; ela passará na frente disto.
+  planoDefinidoPeloAdmin String?   @map("plano_definido_pelo_admin")
   /// Último acesso de alguém da organização (throttle de 1 h). Sandbox sem
   /// acesso há 30 dias é apagada pelo `sandbox-expire`.
   lastAccessAt     DateTime?        @map("last_access_at")

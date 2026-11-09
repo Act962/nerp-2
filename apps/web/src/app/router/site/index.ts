@@ -33,6 +33,7 @@ import { getSettings, saveSettings } from "./settings";
 import { siteOverview } from "./overview";
 import {
   creditarStars,
+  definirPlanoDaEmpresa,
   definirPrecoDaEmpresa,
   diagnosticoDoAstro,
   empresasDaPlataforma,
@@ -83,6 +84,7 @@ export const siteRoutes = {
     testarChaveDoAstro,
     precos: precosDaEmpresa,
     definirPreco: definirPrecoDaEmpresa,
+    definirPlano: definirPlanoDaEmpresa,
   },
   menu: {
     list: listMenu,

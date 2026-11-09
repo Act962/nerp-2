@@ -43,7 +43,7 @@ export const getBalance = base
         id: z.string(),
         nome: z.string(),
         gratuito: z.boolean(),
-        origem: z.enum(["assinatura", "legado", "gratis"]),
+        origem: z.enum(["assinatura", "admin", "legado", "gratis"]),
       }),
       limite: z.number(),
       consumido: z.number(),
