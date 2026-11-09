@@ -11,6 +11,20 @@ const nextConfig: NextConfig = {
   // pdfjs-dist é carregado só no servidor (parse do texto de encartes PDF na
   // aba Lista). Mantido fora do bundle p/ evitar o resolver do worker e o peso.
   serverExternalPackages: ["pdfjs-dist"],
+  // Memória do `next build` no servidor do Coolify. O deploy morria com
+  // SIGKILL do kernel ("cannot allocate memory") — não é mais o teto do V8 de
+  // `scripts/next-build.mjs`, é a RAM da máquina acabando.
+  //
+  // O multiplicador são os workers: a coleta de dados e a geração estática
+  // sobem `cpus - 1` processos, cada um carregando o client do Prisma (~23 MB
+  // de código) e herdando o `--max-old-space-size=8192` do wrapper. Num
+  // servidor com muitos núcleos e pouca RAM, a soma passa da máquina. Limitar
+  // os workers deixa o build um pouco mais lento e muito mais previsível.
+  // `NEXT_BUILD_CPUS` permite subir de novo onde houver RAM sobrando.
+  experimental: {
+    cpus: Number(process.env.NEXT_BUILD_CPUS) || 2,
+    webpackMemoryOptimizations: true,
+  },
   // O konva puxa um build Node (`index-node.js`) que faz `require('canvas')`
   // (canvas nativo, só usado em render server-side, que não fazemos — o editor
   // é `ssr: false`). Sem o pacote instalado, o build de produção falha ao
