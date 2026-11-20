@@ -1082,6 +1082,16 @@ export function AddProductDialog({
                 busca={categoriaBusca}
                 onApply={onApplyCategories}
                 onDone={() => setOpen(false)}
+                fixosDoMolde={{
+                  textos: (config.texts ?? []).filter((t) => !t.binding).length,
+                  imagens: (config.overlays ?? []).filter(
+                    (o) => !o.binding && !o.shape,
+                  ).length,
+                  exemplos: (config.texts ?? [])
+                    .filter((t) => !t.binding && t.text.trim())
+                    .slice(0, 2)
+                    .map((t) => t.text.trim().slice(0, 30)),
+                }}
               />
             </TabsContent>
           )}

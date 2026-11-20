@@ -194,6 +194,9 @@ export type TextElement = {
   underline?: boolean;
   strikethrough?: boolean;
   uppercase?: boolean;
+  // "Primeira Maiúscula" em cada palavra — padroniza nomes vindos do cadastro
+  // ("BOX", "Arranjos florais") num título só. Ver `capitalizarPalavras`.
+  capitalizar?: boolean;
   align?: "left" | "center" | "right";
   opacity?: number; // 0-100 (%); default 100
   list?: boolean; // lista com marcadores (bullets)
@@ -599,6 +602,10 @@ export type CatalogConfig = {
   // scoped: NÃO altera o `promotionalPrice` do cadastro/ERP. Tem prioridade
   // sobre o `promotionalPrice` do produto na resolução do preço ativo.
   offerOverrides?: Record<string, number>;
+  // Foto do produto SÓ neste catálogo (productId → chave R2). Não mexe no
+  // cadastro: a mesma garrafa pode sair com fundo de Natal num encarte e com a
+  // foto de sempre no resto do sistema. Tem prioridade sobre `thumbnail`.
+  imageOverrides?: Record<string, string>;
   // Estilo padrão do preço (aplica a todos) + override por produto.
   priceStyle: PriceStyle;
   priceStyleOverrides: Record<string, PriceStyle>;
@@ -793,6 +800,7 @@ const TEMPLATE_OMIT_KEYS = [
   "categoryFilter",
   "priceOverrides",
   "offerOverrides",
+  "imageOverrides",
   "priceStyleOverrides",
   "imageAdjustments",
   "productOrder",

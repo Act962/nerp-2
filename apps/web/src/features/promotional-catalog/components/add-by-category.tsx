@@ -25,6 +25,8 @@ type CategoryRow = {
   name: string;
   total: number;
   remaining: number;
+  semPreco: number;
+  semFoto: number;
 };
 
 interface AddByCategoryProps {
@@ -41,6 +43,10 @@ interface AddByCategoryProps {
   busca: string;
   onApply: (groups: CategoryGroup[]) => void;
   onDone: () => void;
+  // Textos e imagens FIXOS da página-molde (sem `binding`). As páginas novas
+  // herdam só os vinculados — os fixos ficam só nesta, e quem não sabe disso
+  // gera 13 páginas sem título. `exemplos` são trechos para o aviso.
+  fixosDoMolde?: { textos: number; imagens: number; exemplos: string[] };
 }
 
 export function AddByCategory({
@@ -50,6 +56,7 @@ export function AddByCategory({
   busca,
   onApply,
   onDone,
+  fixosDoMolde,
 }: AddByCategoryProps) {
   const queryClient = useQueryClient();
   // Chave da linha: slug, ou "__none__" para o balde sem categoria.
@@ -121,7 +128,16 @@ export function AddByCategory({
     onError: (e) => toast.error(e.message),
   });
 
+  // Sem preço/sem foto somados das categorias escolhidas. Com "Quantidade"
+  // limitada o número pode sobrar, mas avisar a mais é melhor que calar.
+  const semPrecoEscolhidos = chosen.reduce((soma, r) => soma + r.semPreco, 0);
+  const semFotoEscolhidos = chosen.reduce((soma, r) => soma + r.semFoto, 0);
+  const avisoDeDados = semPrecoEscolhidos + semFotoEscolhidos > 0;
+  const avisoDeFixos =
+    !!fixosDoMolde && fixosDoMolde.textos + fixosDoMolde.imagens > 0;
   const needsWarning = totalPages > WARN_PAGES;
+  // Qualquer um dos avisos pede o segundo clique — é aviso, não bloqueio.
+  const precisaConfirmar = needsWarning || avisoDeFixos || avisoDeDados;
   const busy = apply.isPending;
 
   return (
@@ -182,6 +198,19 @@ export function AddByCategory({
                   <span className="min-w-0 flex-1 truncate text-xs font-medium">
                     {r.name}
                   </span>
+                  {!esgotada && (r.semPreco > 0 || r.semFoto > 0) && (
+                    <span
+                      className="shrink-0 rounded bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400"
+                      title="Produtos que entrariam sem preço ou sem foto"
+                    >
+                      {[
+                        r.semPreco > 0 && `${r.semPreco} sem preço`,
+                        r.semFoto > 0 && `${r.semFoto} sem foto`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
                   <span className="shrink-0 text-[11px] text-muted-foreground">
                     {esgotada
                       ? "todos já no catálogo"
@@ -271,13 +300,54 @@ export function AddByCategory({
         </div>
       )}
 
+      {avisoDeDados && (
+        <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <span>
+            Vão entrar{" "}
+            {[
+              semPrecoEscolhidos > 0 &&
+                `${semPrecoEscolhidos} produto(s) sem preço`,
+              semFotoEscolhidos > 0 &&
+                `${semFotoEscolhidos} produto(s) sem foto`,
+            ]
+              .filter(Boolean)
+              .join(" e ")}
+            . Dá para corrigir depois no painel da página, ou no cadastro.
+          </span>
+        </div>
+      )}
+
+      {avisoDeFixos && chosen.length > 0 && fixosDoMolde && (
+        <div className="flex gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px]">
+          <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+          <span>
+            Esta página tem{" "}
+            {fixosDoMolde.textos > 0 && (
+              <strong>
+                {fixosDoMolde.textos} texto(s) fixo(s)
+                {fixosDoMolde.exemplos.length > 0 &&
+                  ` (${fixosDoMolde.exemplos.map((e) => `“${e}”`).join(", ")})`}
+              </strong>
+            )}
+            {fixosDoMolde.textos > 0 && fixosDoMolde.imagens > 0 && " e "}
+            {fixosDoMolde.imagens > 0 && (
+              <strong>{fixosDoMolde.imagens} imagem(ns) fixa(s)</strong>
+            )}{" "}
+            que <strong>não vão</strong> para as páginas novas — lá só entram os
+            elementos dinâmicos. Para o título mostrar o nome de cada categoria,
+            selecione-o e use <em>Tornar dinâmico</em> na aba Texto.
+          </span>
+        </div>
+      )}
+
       <Button
         type="button"
         className="w-full"
         disabled={chosen.length === 0 || busy}
         onClick={() => {
           // Aviso é um passo a mais, não um bloqueio: o segundo clique aplica.
-          if (needsWarning && !confirming) {
+          if (precisaConfirmar && !confirming) {
             setConfirming(true);
             return;
           }
@@ -291,6 +361,8 @@ export function AddByCategory({
           </>
         ) : needsWarning && !confirming ? (
           `Confirmar ${totalPages} páginas`
+        ) : (avisoDeFixos || avisoDeDados) && !confirming ? (
+          "Gerar mesmo assim"
         ) : (
           "Aplicar produtos"
         )}

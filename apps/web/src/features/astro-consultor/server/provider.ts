@@ -97,6 +97,24 @@ export type ModeloResolvido = {
 };
 
 /**
+ * O provedor OpenAI, ou `null` sem chave. Separado de `resolverModelo`
+ * porque o gerador de oferta escolhe o provedor por conta própria (OpenAI
+ * primeiro, Gemini de fallback), independente de quem atende o Astro.
+ */
+export function openaiDisponivel(): ReturnType<typeof createOpenAI> | null {
+  const chave = process.env.OPENAI_API_KEY;
+  return chave ? createOpenAI({ apiKey: chave }) : null;
+}
+
+/** O provedor Google, ou `null` sem chave — o fallback do gerador de oferta. */
+export function googleDisponivel(): ReturnType<
+  typeof createGoogleGenerativeAI
+> | null {
+  const chave = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+  return chave ? createGoogleGenerativeAI({ apiKey: chave }) : null;
+}
+
+/**
  * O modelo, ou `null` quando não há chave. Nunca lança: quem chama decide o
  * que fazer sem IA, e a resposta é sempre um site de pé.
  */

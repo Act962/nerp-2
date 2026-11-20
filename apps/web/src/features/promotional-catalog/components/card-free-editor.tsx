@@ -58,6 +58,7 @@ import {
   pageWindowBg,
 } from "../lib/background-presets";
 import { CardFreeLayout } from "./cards/card-free-layout";
+import { ColorSwatch } from "./panel-ui";
 
 // Ícone por variável — paleta mais intuitiva.
 const VAR_ICONS: Record<CardVariable, LucideIcon> = {
@@ -1098,17 +1099,13 @@ export function CardFreeEditor({
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     Cor
-                    <input
-                      type="color"
+                    <ColorSwatch
                       value={single.color ?? "#111111"}
-                      onChange={(e) =>
-                        update(single.id, { color: e.target.value })
-                      }
-                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
+                      onChange={(cor) => update(single.id, { color: cor })}
                     />
-                  </label>
+                  </div>
                   <Button
                     type="button"
                     size="icon"
@@ -1181,33 +1178,27 @@ export function CardFreeEditor({
                   </Button>
                 </div>
                 <div className="flex items-center justify-between gap-3">
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     Fundo
-                    <input
-                      type="color"
+                    <ColorSwatch
                       value={
                         single.fill && single.fill !== "transparent"
                           ? single.fill
                           : "#dc2626"
                       }
                       disabled={single.fill === "transparent"}
-                      onChange={(e) =>
-                        update(single.id, { fill: e.target.value })
-                      }
-                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm disabled:cursor-not-allowed disabled:opacity-40"
+                      onChange={(cor) => update(single.id, { fill: cor })}
                     />
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     Borda
-                    <input
-                      type="color"
+                    <ColorSwatch
                       value={single.outlineColor ?? "#111111"}
-                      onChange={(e) =>
-                        update(single.id, { outlineColor: e.target.value })
+                      onChange={(cor) =>
+                        update(single.id, { outlineColor: cor })
                       }
-                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                     />
-                  </label>
+                  </div>
                 </div>
                 <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   Contorno
@@ -1276,28 +1267,22 @@ export function CardFreeEditor({
                 {single.boxed && (
                   <>
                     <div className="flex items-center justify-between gap-3">
-                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         Fundo
-                        <input
-                          type="color"
+                        <ColorSwatch
                           value={single.fill ?? "#ffffff"}
-                          onChange={(e) =>
-                            update(single.id, { fill: e.target.value })
-                          }
-                          className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
+                          onChange={(cor) => update(single.id, { fill: cor })}
                         />
-                      </label>
-                      <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         Borda
-                        <input
-                          type="color"
+                        <ColorSwatch
                           value={single.outlineColor ?? "#111111"}
-                          onChange={(e) =>
-                            update(single.id, { outlineColor: e.target.value })
+                          onChange={(cor) =>
+                            update(single.id, { outlineColor: cor })
                           }
-                          className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
                         />
-                      </label>
+                      </div>
                     </div>
                     <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                       Contorno

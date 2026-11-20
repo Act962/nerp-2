@@ -5,6 +5,7 @@ import {
   Italic,
   Underline,
   Strikethrough,
+  CaseSensitive,
   CaseUpper,
   AlignLeft,
   AlignCenter,
@@ -18,7 +19,6 @@ import {
   Minus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,6 +42,7 @@ import {
   type TextElement,
   TEXT_FONTS,
 } from "../types";
+import { ColorSwatch, NumeroDigitavel } from "./panel-ui";
 
 interface TextPropertiesProps {
   config: CatalogConfig;
@@ -177,6 +178,57 @@ export function TextProperties({
             </div>
           )}
 
+          {/*
+            Tornar dinâmico SEM recriar o texto: só acrescenta o `binding` ao
+            elemento que já existe — fonte, cor, caixa e posição ficam. O texto
+            atual segue como reserva, mostrado até o dado resolver. Era o que
+            faltava para um título virar "o nome da categoria" em cada página
+            gerada sem ser redesenhado à mão.
+          */}
+          {!selected.binding &&
+            (dynType ? (
+              <Select
+                value=""
+                onValueChange={(v) => {
+                  const variable = v as EntityTextVar;
+                  update({
+                    binding: {
+                      source: variable.split(".")[0] as EntitySource,
+                      variable,
+                    },
+                  });
+                }}
+              >
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Tornar dinâmico…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dynTextVars.map((v) => (
+                    <SelectItem
+                      key={v.value}
+                      value={v.value}
+                      className="text-xs"
+                    >
+                      {v.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                title="Liga a página dinâmica por categoria; escolha a categoria na aba Página"
+                onClick={() =>
+                  onConfigChange({ dynamic: { type: "category" } })
+                }
+              >
+                Tornar a página dinâmica (por categoria)
+              </Button>
+            ))}
+
           {/* Conteúdo (quando dinâmico, serve de placeholder/fallback). */}
           <Textarea
             value={selected.text}
@@ -219,36 +271,52 @@ export function TextProperties({
                 variant="outline"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() =>
-                  update({ fontSize: Math.max(8, selected.fontSize - 4) })
+                title="Diminuir (Shift: de 4 em 4)"
+                onClick={(e) =>
+                  update({
+                    fontSize: Math.max(
+                      8,
+                      selected.fontSize - (e.shiftKey ? 4 : 1),
+                    ),
+                  })
                 }
               >
                 <Minus className="h-3 w-3" />
               </Button>
-              <span className="w-8 text-center text-xs tabular-nums">
-                {selected.fontSize}
-              </span>
+              <NumeroDigitavel
+                aria-label="Tamanho da fonte"
+                value={selected.fontSize}
+                min={8}
+                max={400}
+                onCommit={(fontSize) => update({ fontSize })}
+                className="w-12"
+              />
               <Button
                 type="button"
                 variant="outline"
                 size="icon"
                 className="h-7 w-7"
-                onClick={() =>
-                  update({ fontSize: Math.min(400, selected.fontSize + 4) })
+                title="Aumentar (Shift: de 4 em 4)"
+                onClick={(e) =>
+                  update({
+                    fontSize: Math.min(
+                      400,
+                      selected.fontSize + (e.shiftKey ? 4 : 1),
+                    ),
+                  })
                 }
               >
                 <Plus className="h-3 w-3" />
               </Button>
             </div>
-            <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
               Cor
-              <input
-                type="color"
+              <ColorSwatch
                 value={selected.color}
-                onChange={(e) => update({ color: e.target.value })}
-                className="h-8 w-9 cursor-pointer rounded-xl border p-0 shadow-sm"
+                onChange={(cor) => update({ color: cor })}
+                className="h-8 w-9"
               />
-            </label>
+            </div>
           </div>
 
           {/* Estilo: B / I / U / S / maiúscula */}
@@ -266,6 +334,11 @@ export function TextProperties({
                     title: "Tachado",
                   },
                   { key: "uppercase", Icon: CaseUpper, title: "Maiúscula" },
+                  {
+                    key: "capitalizar",
+                    Icon: CaseSensitive,
+                    title: "Primeira maiúscula em cada palavra",
+                  },
                   { key: "list", Icon: List, title: "Lista" },
                 ] as const
               ).map(({ key, Icon, title }) => (
@@ -276,7 +349,18 @@ export function TextProperties({
                   variant={selected[key] ? "secondary" : "outline"}
                   className={cn("h-8 w-8", selected[key] && "border-primary")}
                   title={title}
-                  onClick={() => update({ [key]: !selected[key] })}
+                  onClick={() =>
+                    update({
+                      [key]: !selected[key],
+                      // Maiúscula e "Primeira maiúscula" se excluem.
+                      ...(key === "uppercase" && !selected[key]
+                        ? { capitalizar: false }
+                        : {}),
+                      ...(key === "capitalizar" && !selected[key]
+                        ? { uppercase: false }
+                        : {}),
+                    })
+                  }
                 >
                   <Icon className="h-4 w-4" />
                 </Button>
@@ -439,38 +523,24 @@ export function TextProperties({
             <div className="flex items-center gap-2">
               <div className="flex flex-1 items-center gap-1 text-[11px] text-muted-foreground">
                 L
-                <Input
-                  type="number"
+                <NumeroDigitavel
+                  aria-label="Largura"
+                  value={selected.w}
                   min={20}
                   max={1080}
-                  value={Math.round(selected.w)}
-                  onChange={(e) =>
-                    update({
-                      w: Math.max(
-                        20,
-                        Math.min(1080, Number(e.target.value) || 0),
-                      ),
-                    })
-                  }
-                  className="h-7 text-xs"
+                  onCommit={(w) => update({ w })}
+                  className="w-full"
                 />
               </div>
               <div className="flex flex-1 items-center gap-1 text-[11px] text-muted-foreground">
                 A
-                <Input
-                  type="number"
+                <NumeroDigitavel
+                  aria-label="Altura"
+                  value={selected.h}
                   min={20}
                   max={2000}
-                  value={Math.round(selected.h)}
-                  onChange={(e) =>
-                    update({
-                      h: Math.max(
-                        20,
-                        Math.min(2000, Number(e.target.value) || 0),
-                      ),
-                    })
-                  }
-                  className="h-7 text-xs"
+                  onCommit={(h) => update({ h })}
+                  className="w-full"
                 />
               </div>
             </div>
@@ -505,26 +575,20 @@ export function TextProperties({
             {selected.boxed && (
               <>
                 <div className="flex items-center justify-between gap-3">
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     Fundo
-                    <input
-                      type="color"
+                    <ColorSwatch
                       value={selected.boxFill ?? "#ffffff"}
-                      onChange={(e) => update({ boxFill: e.target.value })}
-                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
+                      onChange={(cor) => update({ boxFill: cor })}
                     />
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     Borda
-                    <input
-                      type="color"
+                    <ColorSwatch
                       value={selected.boxBorderColor ?? "#111111"}
-                      onChange={(e) =>
-                        update({ boxBorderColor: e.target.value })
-                      }
-                      className="h-8 w-8 cursor-pointer rounded-xl border p-0 shadow-sm"
+                      onChange={(cor) => update({ boxBorderColor: cor })}
                     />
-                  </label>
+                  </div>
                 </div>
                 <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
                   Contorno
