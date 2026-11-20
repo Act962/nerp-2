@@ -21,6 +21,7 @@ export const listProductsOfCart = base
           id: z.string(),
           organizationId: z.string(),
           name: z.string(),
+          packQty: z.number().nullable(),
           description: z.string().nullable(),
           slug: z.string(),
           minStock: z.number(),
@@ -29,6 +30,8 @@ export const listProductsOfCart = base
           thumbnail: z.string(),
           currentStock: z.number(),
           salePrice: z.number(),
+          /** Mesma regra do checkout: ativo e com estoque (ou sem controle de estoque). */
+          disponivel: z.boolean(),
         }),
       ),
     }),
@@ -58,6 +61,7 @@ export const listProductsOfCart = base
         id: product.id,
         organizationId: product.organizationId,
         name: product.name,
+        packQty: product.packQty ?? null,
         description: product.description,
         slug: product.slug,
         minStock: Number(product.minStock),
@@ -66,6 +70,9 @@ export const listProductsOfCart = base
         thumbnail: product.thumbnail,
         currentStock: Number(product.currentStock),
         salePrice: Number(product.salePrice),
+        disponivel:
+          product.isActive &&
+          (!product.trackStock || Number(product.currentStock) >= 1),
       }));
 
       return {

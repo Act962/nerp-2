@@ -5,7 +5,9 @@ import { listProductsOfCart } from "./list-my-products";
 import { listOfferCatalogs } from "./offer-catalogs";
 import { listShowcaseCategories } from "./showcase-categories";
 import { updateCategoryAppearance } from "./update-category-appearance";
+import { listOffers } from "./list-offers";
 import { listProducts } from "./list-products";
+import { listPublicCategories } from "./public-categories";
 import { loginCatalog } from "./login";
 import { orbitaConnectionCatalog } from "./orbita-connection";
 import { getProductAndProductsByCategory } from "./product_with_category";
@@ -21,6 +23,8 @@ export const catalogSettingsRouter = {
   update: updateSettingsCatalog,
   relatedProducts: getProductAndProductsByCategory,
   listProducts: listProducts,
+  publicCategories: listPublicCategories,
+  listOffers,
   loginCatalog: loginCatalog,
   signupCatalog: signupCatalog,
   getUser: getUserCatalog,

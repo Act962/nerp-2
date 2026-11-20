@@ -1,5 +1,9 @@
 import "server-only";
 
+import {
+  type OrigemDoPlano,
+  resolverPlano,
+} from "@/features/billing/server/plano-da-organizacao";
 import { emEstrelas } from "@/features/stars/lib/decimal";
 import { whereVendaValidaGlobal } from "@/features/sales/lib/venda-valida";
 import prisma from "@/lib/db";
@@ -160,6 +164,7 @@ export type LinhaDeEmpresa = {
   custoGeminiReal: number;
   vendas: number;
   catalogos: number;
+  plano: { id: string; nome: string; origem: OrigemDoPlano };
 };
 
 /**
@@ -188,6 +193,7 @@ export async function empresasComConsumo(entrada: {
         lastAccessAt: true,
         verifiedAt: true,
         starsBalance: true,
+        planoDefinidoPeloAdmin: true,
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -251,6 +257,11 @@ export async function empresasComConsumo(entrada: {
       entrada.dolar,
     );
     const referencia = org.lastAccessAt ?? org.createdAt;
+    const { plano, origem } = resolverPlano({
+      createdAt: org.createdAt,
+      assinatura: null,
+      planoDefinidoPeloAdmin: org.planoDefinidoPeloAdmin,
+    });
     return {
       id: org.id,
       nome: org.name,
@@ -265,6 +276,7 @@ export async function empresasComConsumo(entrada: {
       custoGeminiReal: gasto.custoReal,
       vendas: vendasPorOrg.get(org.id) ?? 0,
       catalogos: catalogosPorOrg.get(org.id) ?? 0,
+      plano: { id: plano.id, nome: plano.nome, origem },
     };
   });
 }

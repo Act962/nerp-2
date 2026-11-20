@@ -17,7 +17,7 @@ import { type Segment, SEGMENTS } from "./segments";
  * - os **índices** (`CONSULTOR_*_INDEX`) são curtos e entram no prompt fixo de
  *   toda conversa. São eles que impedem o modelo de inventar uma ferramenta
  *   que não existe;
- * - o **detalhe** sai por função, sob demanda. O texto de dor↔solução das 28
+ * - o **detalhe** sai por função, sob demanda. O texto de dor↔solução das 30
  *   ferramentas junto passa de 30 mil caracteres: no prompt fixo, seria pago
  *   em toda mensagem de toda conversa, para responder sobre uma ferramenta só.
  *
@@ -243,7 +243,7 @@ function camposDe(tool: Tool): CampoPeso[] {
   return campos;
 }
 
-/** O índice é montado no carregamento do módulo: 28 ferramentas, uma vez só. */
+/** O índice é montado no carregamento do módulo: 31 ferramentas, uma vez só. */
 const INDICE: Array<{ tool: Tool; campos: CampoPeso[] }> = RAW_TOOLS.map(
   (tool) => ({ tool, campos: camposDe(tool) }),
 );

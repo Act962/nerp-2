@@ -6,6 +6,7 @@ import {
   ASTRO_CONFIG_KEY,
   lerConfig,
 } from "@/features/astro-consultor/server/provider";
+import { PLANOS } from "@/features/billing/lib/planos";
 import { saldoDoOrcamento } from "@/features/site/lib/custo-gemini";
 import { arredondarEstrelas, emEstrelas } from "@/features/stars/lib/decimal";
 import {
@@ -153,6 +154,11 @@ export const empresasDaPlataforma = siteAdmin
           custoGeminiReal: z.number(),
           vendas: z.number(),
           catalogos: z.number(),
+          plano: z.object({
+            id: z.string(),
+            nome: z.string(),
+            origem: z.enum(["assinatura", "admin", "legado", "gratis"]),
+          }),
         }),
       ),
       dolar: z.number(),
@@ -165,6 +171,51 @@ export const empresasDaPlataforma = siteAdmin
       dolar: config.dolar,
     });
     return { empresas, dolar: config.dolar };
+  });
+
+/**
+ * Plano escolhido pelo admin para uma empresa. Sem a assinatura paga ligada,
+ * é a única forma de tirar do Grátis (10 produtos) quem nasceu depois dos
+ * limites. Vale os limites E as ★ por ciclo do plano, como uma assinatura.
+ * `null` volta à regra automática (legado/grátis).
+ */
+export const definirPlanoDaEmpresa = siteAdmin
+  .route({
+    method: "POST",
+    summary: "Define o plano de uma empresa pelo painel",
+    tags: ["Plataforma"],
+  })
+  .input(
+    z.object({
+      organizationId: z.string().min(1),
+      planoId: z
+        .string()
+        .nullable()
+        .refine(
+          (id) => id === null || PLANOS.some((plano) => plano.id === id),
+          {
+            message: "Plano desconhecido",
+          },
+        ),
+    }),
+  )
+  .output(z.object({ nome: z.string(), planoId: z.string().nullable() }))
+  .handler(async ({ input, errors }) => {
+    const org = await prisma.organization.findUnique({
+      where: { id: input.organizationId },
+      select: { id: true },
+    });
+    if (!org) throw errors.NOT_FOUND({ message: "Empresa não encontrada" });
+
+    const atualizada = await prisma.organization.update({
+      where: { id: input.organizationId },
+      data: { planoDefinidoPeloAdmin: input.planoId },
+      select: { name: true, planoDefinidoPeloAdmin: true },
+    });
+    return {
+      nome: atualizada.name,
+      planoId: atualizada.planoDefinidoPeloAdmin,
+    };
   });
 
 /**

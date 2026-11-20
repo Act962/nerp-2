@@ -137,9 +137,20 @@ export async function createPendingSale(
   });
 
   if (products.length !== input.products.length) {
+    const disponiveis = new Set(products.map((product) => product.id));
+    const faltando = await prisma.product.findMany({
+      where: {
+        id: { in: productIds.filter((id) => !disponiveis.has(id)) },
+        organizationId: input.organizationId,
+      },
+      select: { name: true },
+    });
+    const nomes = faltando.map((product) => product.name).join(", ");
     throw new PendingSaleError(
       "PRODUCTS_UNAVAILABLE",
-      "Alguns produtos não foram encontrados ou estão sem estoque!",
+      nomes
+        ? `Sem estoque agora: ${nomes}. Tire do pedido para continuar.`
+        : "Alguns produtos não foram encontrados ou estão sem estoque!",
     );
   }
 

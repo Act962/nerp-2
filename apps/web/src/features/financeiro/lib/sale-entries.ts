@@ -78,8 +78,17 @@ export function settlementFor(
 export interface BuildSaleEntriesArgs {
   saleNumber: number;
   saleDate: Date;
-  /** Formas de pagamento em REAIS, como o PDV envia. */
-  payments: { method: PaymentMethod; amount: number }[];
+  /**
+   * Formas de pagamento em REAIS, como o PDV envia. `dueDate` vem do pedido a
+   * prazo (Força de Vendas): a parcela nasce pendente com aquele vencimento,
+   * em vez do prazo padrão da forma de pagamento.
+   */
+  payments: {
+    method: PaymentMethod;
+    amount: number;
+    dueDate?: Date;
+    parcela?: { atual: number; total: number };
+  }[];
   /** Total da venda em REAIS — âncora do arredondamento. */
   total: number;
   /** Custo das mercadorias vendidas, em REAIS. Zero ou menos não vira linha. */
@@ -108,12 +117,17 @@ export function buildSaleEntries({
   payments.forEach((payment, index) => {
     const amount = cents[index];
     if (amount <= 0) return;
-    const { status, dueDate, paidAt } = settlementFor(payment.method, saleDate);
+    const { status, dueDate, paidAt } = payment.dueDate
+      ? { status: "PENDING" as const, dueDate: payment.dueDate, paidAt: null }
+      : settlementFor(payment.method, saleDate);
+    const parcela = payment.parcela
+      ? ` ${payment.parcela.atual}/${payment.parcela.total}`
+      : "";
     drafts.push({
       saleEntryKey: `pag-${index}`,
       type: "RECEIVABLE",
       status,
-      description: `Venda #${saleNumber} — ${payment.method}`,
+      description: `Venda #${saleNumber} — ${payment.method}${parcela}`,
       amount,
       paidAmount: status === "PAID" ? amount : 0,
       dueDate,

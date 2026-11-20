@@ -107,7 +107,7 @@ export function useQueryProductsOfCart({
   subdomain,
   productIds,
 }: useQueryProductsOfCartProps) {
-  const { data, isLoading } = useQuery(
+  const { data, isLoading, isSuccess } = useQuery(
     orpc.catalogSettings.listProductsOfCart.queryOptions({
       input: {
         subdomain,
@@ -118,6 +118,8 @@ export function useQueryProductsOfCart({
   return {
     data: data?.products || [],
     isLoading,
+    /** A resposta é dos ids pedidos agora (não o vazio de antes de carregar). */
+    isSuccess,
   };
 }
 
@@ -156,6 +158,20 @@ export const useBulkUpdateProducts = () => {
         );
       },
       onError: avisarErro,
+    }),
+  );
+};
+
+// Reajuste de preço de venda em massa (percentual sobre a venda ou margem
+// sobre o custo). Toast e fechamento da janela ficam no componente.
+export const useBulkAdjustProductPrice = () => {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.products.bulkAdjustPrice.mutationOptions({
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: orpc.products.list.key() });
+        queryClient.invalidateQueries({ queryKey: orpc.products.get.key() });
+      },
     }),
   );
 };

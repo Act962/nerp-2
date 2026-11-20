@@ -11,6 +11,7 @@ import { useCart } from "@/hooks/use-cart";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { cn } from "@/lib/utils";
 import { currencyFormatter } from "@/utils/currency-formatter";
+import { rotuloDaCaixa } from "@/features/storefront/lib/caixa";
 
 /**
  * - `grade`: o cartão em pé da lista de produtos.
@@ -22,6 +23,10 @@ export type FormatoDoCartao = "grade" | "horizontal" | "destaque";
 interface ProductCardProps {
   id: string;
   name: string;
+  /** Código do produto; só aparece com "Mostrar código do produto" ligado. */
+  codigo?: string | null;
+  /** Unidades por caixa: vira "Caixa com 12 un." no card. */
+  unidadesPorCaixa?: number | null;
   slug: string;
   thumbnail: string;
   salePrice: number;
@@ -37,10 +42,14 @@ interface ProductCardProps {
   className?: string;
 }
 
+/** Item já no pedido fica azul em qualquer tema. */
+const COR_NO_PEDIDO = { backgroundColor: "#2563eb", color: "#ffffff" };
+
 /**
  * Preço promocional só vale quando existe e é menor que o de venda: a API
  * devolve `Number(null)`, que é 0, para quem não tem promoção.
  */
+
 export function precoEmOferta(
   salePrice: number,
   promotionalPrice: number | null,
@@ -55,6 +64,8 @@ export function precoEmOferta(
 export function ProductCard({
   id,
   name,
+  codigo,
+  unidadesPorCaixa,
   slug,
   thumbnail,
   salePrice,
@@ -174,6 +185,17 @@ export function ProductCard({
         >
           {name}
         </Link>
+        {codigo && (
+          <span className="text-muted-foreground text-xs">Cód. {codigo}</span>
+        )}
+        {rotuloDaCaixa(unidadesPorCaixa) && (
+          <span
+            className="font-medium text-xs"
+            style={{ color: "var(--primary)" }}
+          >
+            {rotuloDaCaixa(unidadesPorCaixa)}
+          </span>
+        )}
 
         <div
           className={cn(
@@ -228,8 +250,9 @@ export function ProductCard({
                 className={cn(
                   "flex shrink-0 items-center justify-center gap-2 rounded-full font-semibold shadow-sm transition-transform active:scale-95",
                   grande ? "h-12 px-6 text-base" : "ml-auto size-9",
+                  noCarrinho && "animate-item-no-pedido",
                 )}
-                style={corDoTema}
+                style={noCarrinho ? COR_NO_PEDIDO : corDoTema}
               >
                 {noCarrinho ? (
                   <Check className={grande ? "size-5" : "size-4"} />

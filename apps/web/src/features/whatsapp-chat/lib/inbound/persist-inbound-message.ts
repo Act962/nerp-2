@@ -2,6 +2,7 @@ import "server-only";
 
 import { dispararAutomacoes } from "@/features/automacoes/server/disparar";
 import { acharClientePeloTelefone } from "@/features/crm/server/casar-cliente";
+import { responsavelPelaCarteira } from "@/features/forca-vendas/server/responsavel";
 import prisma from "@/lib/db";
 import { conversationChannel, funnelChannel } from "@/lib/realtime/channels";
 import { realtimePublisher } from "@/lib/realtime/publisher";
@@ -280,6 +281,11 @@ async function criarLeadDoInbound(
     canonical.sender.phone,
     ctx.organizationId,
   );
+  // Cliente da carteira de um vendedor (Força de Vendas) já chega com dono:
+  // a conversa aparece no celular de quem atende aquele cliente.
+  const responsibleId = customerId
+    ? await responsavelPelaCarteira(ctx.organizationId, customerId)
+    : null;
 
   return prisma.$transaction(async (tx) => {
     const lead = await tx.crmLead.create({
@@ -288,6 +294,7 @@ async function criarLeadDoInbound(
         funnelId: ctx.funnelId,
         stageId: primeiroEstagio.id,
         customerId,
+        responsibleId,
         name: canonical.sender.displayName?.trim() || canonical.sender.phone,
         phone: canonical.sender.phone,
         source: "WHATSAPP",

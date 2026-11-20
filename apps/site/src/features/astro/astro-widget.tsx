@@ -5,6 +5,7 @@ import { useMemo } from "react";
 import { pixelLead } from "@/features/metricas/pixels";
 import { findToolBySlug } from "@/orbita/data/catalog";
 import { useSiteContent } from "@/orbita/lib/content-context";
+import { AstroChatDoOrbita } from "./astro-chat-do-orbita";
 import type { PaginaDoAstro } from "./pagina";
 
 /**
@@ -12,8 +13,9 @@ import type { PaginaDoAstro } from "./pagina";
  *
  * O widget em si é o `@nerp/astro-widget`, o mesmo que o nerp monta dentro
  * do sistema. O que é do site fica aqui: ligado/desligado e a tabela de
- * preços vindos do painel, o WhatsApp como saída humana, e de que produto a
- * página fala.
+ * preços vindos do painel, o atendimento humano (a equipe responde dentro do
+ * painel, e o WhatsApp fica como segunda saída), e de que produto a página
+ * fala.
  *
  * O POST vai para `/api/astro/chat` do próprio site, que repassa ao `apps/web`.
  * Mesma origem: sem CORS, sem preflight, e o segredo fica no servidor.
@@ -36,9 +38,17 @@ export function AstroWidget({ pagina }: { pagina?: PaginaDoAstro }) {
     };
   }, [pagina]);
 
+  // Código do ASTRO CHAT colado no admin: quem atende é o ASTRO do Órbita, e o
+  // consultor daqui não é desenhado. Dois mascotes no mesmo canto, cada um com
+  // a sua conversa, seria pior que qualquer um dos dois sozinho.
+  if (astro.chat) return <AstroChatDoOrbita chat={astro.chat} />;
+
   return (
     <Widget
       api="/api/astro/chat"
+      // "Falar com uma pessoa" chama a equipe aqui dentro, e as respostas
+      // voltam para a conversa. O WhatsApp continua como segunda saída.
+      apiAtendimento="/api/astro/atendimento"
       ativo={astro.ativo}
       pagina={pagina}
       produto={produto}

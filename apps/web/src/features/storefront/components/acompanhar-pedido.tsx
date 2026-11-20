@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect } from "react";
 import placeholder from "@/assets/background-default-image.svg";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAcompanharPedido } from "@/features/storefront/hooks/use-acompanhar-pedido";
@@ -70,6 +71,14 @@ export function AcompanharPedido({
   } = useAcompanharPedido(subdomain, saleId);
   const homeHref = useCatalogHref("/");
 
+  // Pedido atendido pelo Órbita: o acompanhamento de lá é o que segue o
+  // WhatsApp (valor em preparo, aprovado, pago, separado, em rota). Esta
+  // página só sabe "recebido" e "pago" e mostraria o pedido parado.
+  const portalUrl = pedido?.portalUrl ?? null;
+  useEffect(() => {
+    if (portalUrl) window.location.replace(portalUrl);
+  }, [portalUrl]);
+
   // A cor da loja já vem do servidor na `--primary` (layout da vitrine):
   // usar a variável evita o botão piscar na cor padrão enquanto carrega.
   const tema = "var(--primary)";
@@ -78,7 +87,8 @@ export function AcompanharPedido({
     color: "var(--primary-foreground)",
   };
 
-  if (isPending) return <Esqueleto />;
+  // Enquanto o navegador troca de página, não pisca a linha do tempo antiga.
+  if (isPending || portalUrl) return <Esqueleto />;
 
   if (isError || !pedido) {
     return (

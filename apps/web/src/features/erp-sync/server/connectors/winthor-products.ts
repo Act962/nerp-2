@@ -34,6 +34,7 @@ interface ProductRow {
   UNIDADE: string | null;
   PVENDA: number | null;
   DTEXCLUSAO: Date | null;
+  QTUNITCX: number | null;
 }
 
 function toDTO(row: ProductRow): ExternalProductDTO {
@@ -48,6 +49,7 @@ function toDTO(row: ProductRow): ExternalProductDTO {
     // No Winthor não há coluna booleana de "ativo": produto fora de linha recebe
     // DATA DE EXCLUSÃO. Sem data = ativo.
     isActive: row.DTEXCLUSAO == null,
+    unitsPerBox: row.QTUNITCX == null ? null : Number(row.QTUNITCX),
   };
 }
 
@@ -74,7 +76,8 @@ export async function fetchWinthorProducts(
                 p.codauxiliar  AS "CODAUXILIAR",
                 p.unidade      AS "UNIDADE",
                 p.pvenda       AS "PVENDA",
-                p.dtexclusao   AS "DTEXCLUSAO"
+                p.dtexclusao   AS "DTEXCLUSAO",
+                p.qtunitcx     AS "QTUNITCX"
            FROM ${schema}.pcprodut p
           WHERE p.codprod > :lastCode
           ORDER BY p.codprod
@@ -153,5 +156,53 @@ export async function fetchWinthorProductStock(
     }
 
     return out;
+  });
+}
+
+interface LastSalePriceRow {
+  CODPROD: number | string;
+  PTABELA: number | null;
+}
+
+/** Janela do último preço vendido: curta o bastante para o preço ser atual e o filtro usar o índice de data. */
+export const LAST_SALE_PRICE_DAYS = 90;
+
+/**
+ * Último preço de tabela (`PCPEDI.PTABELA`) de cada produto vendido na filial
+ * nos últimos {@link LAST_SALE_PRICE_DAYS} dias, pedidos não cancelados.
+ *
+ * Fonte provisória: o preço de venda do Winthor mora em `PCTABPR`/`PCEMBALAGEM`,
+ * sem permissão de leitura na Armazém (spec erp-sync-estoque-preco-winthor).
+ * `PCPEDI` tem ~17 mi de linhas: data e filial vão no WHERE para o Oracle
+ * filtrar antes da janela, e a consulta roda só no sync noturno ou no botão.
+ */
+export async function fetchWinthorLastSalePrices(
+  config: OracleConfig,
+  branchCode: string,
+): Promise<Array<{ externalCode: string; price: number }>> {
+  const schema = assertIdentifier(config.schema);
+
+  return withOracleReadOnly(config, async (query: OracleQuery) => {
+    const rows = await query<LastSalePriceRow>(
+      `SELECT "CODPROD", "PTABELA"
+         FROM (SELECT i.codprod AS "CODPROD",
+                      i.ptabela AS "PTABELA",
+                      ROW_NUMBER() OVER (
+                        PARTITION BY i.codprod
+                        ORDER BY i.data DESC, i.numped DESC, i.numseq DESC
+                      ) AS rn
+                 FROM ${schema}.pcpedi i
+                WHERE i.data >= TRUNC(SYSDATE) - :days
+                  AND i.codfilialretira = :branchCode
+                  AND i.ptabela > 0
+                  AND i.posicao <> 'C')
+        WHERE rn = 1
+        FETCH FIRST ${MAX_ROWS} ROWS ONLY`,
+      { days: LAST_SALE_PRICE_DAYS, branchCode },
+    );
+    return rows.map((row) => ({
+      externalCode: String(row.CODPROD),
+      price: Number(row.PTABELA ?? 0),
+    }));
   });
 }

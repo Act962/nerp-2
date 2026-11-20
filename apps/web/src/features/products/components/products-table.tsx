@@ -44,6 +44,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { orpc } from "@/lib/orpc";
 import { toast } from "sonner";
 import { useBulkUpdateProducts } from "@/features/products/hooks/use-products";
+import { ReajustarPrecoDialog } from "./reajustar-preco-dialog";
 import { FilterProducts } from "./filters";
 import { currencyFormatter } from "@/utils/currency-formatter";
 import { CalendarFilter } from "./filter-calendar";
@@ -197,40 +198,38 @@ export function ProductsTable({
 
   const bulkUpdate = useBulkUpdateProducts();
 
-  // Aplica um patch (ex.: { isActive: true }) no escopo escolhido.
+  // Escopo das ações em massa:
   //   `applyToAll` true  → todos os produtos que casam com o filtro atual,
   //                        mesmo os das outras páginas (envia `all: true`).
   //   `applyToAll` false → só os produtos marcados na página visível.
-  const applyPatch = (patch: {
-    isActive?: boolean;
-    trackStock?: boolean;
-    showInCatalog?: boolean;
-  }) => {
-    if (applyToAll) {
-      bulkUpdate.mutate(
-        {
-          all: true,
+  const selecaoAtual = () =>
+    applyToAll
+      ? {
+          all: true as const,
           filter: {
             categorySlugs: activeFilter?.categorySlugs,
             // Prioriza a busca local (input desta tabela) sobre o filtro do
             // container — os dois casam com o que está sendo mostrado.
             search: searchTerm.trim() || activeFilter?.search || undefined,
           },
-          patch,
-        },
-        {
-          onSuccess: () => {
-            setSelectedProducts([]);
-            setApplyToAll(false);
-          },
-        },
-      );
-      return;
-    }
-    if (selectedProducts.length === 0) return;
+        }
+      : { productIds: selectedProducts };
+
+  const limparSelecao = () => {
+    setSelectedProducts([]);
+    setApplyToAll(false);
+  };
+
+  // Aplica um patch (ex.: { isActive: true }) no escopo escolhido.
+  const applyPatch = (patch: {
+    isActive?: boolean;
+    trackStock?: boolean;
+    showInCatalog?: boolean;
+  }) => {
+    if (!applyToAll && selectedProducts.length === 0) return;
     bulkUpdate.mutate(
-      { productIds: selectedProducts, patch },
-      { onSuccess: () => setSelectedProducts([]) },
+      { ...selecaoAtual(), patch },
+      { onSuccess: limparSelecao },
     );
   };
 
@@ -411,6 +410,15 @@ export function ProductsTable({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
+                <ReajustarPrecoDialog
+                  selecao={selecaoAtual}
+                  quantidade={
+                    applyToAll
+                      ? (totalCount ?? filteredProducts.length)
+                      : selectedProducts.length
+                  }
+                  onAplicado={limparSelecao}
+                />
                 <Button size="sm" variant="destructive">
                   <Trash2 className="h-4 w-4 mr-2" />
                   Excluir

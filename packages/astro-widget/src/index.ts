@@ -2,6 +2,7 @@ export { AstroMark } from "./astro-mark";
 export {
   ABRIR_ASTRO,
   abrirAstro,
+  type AcaoNoCliente,
   AstroWidget,
   type AstroWidgetProps,
   type AvisoDoAstro,

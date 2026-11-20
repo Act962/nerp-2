@@ -16,6 +16,7 @@ import { useCheckoutStates } from "@/features/checkout/hooks/use-checkout-states
 import { useEffect } from "react";
 import { useCart } from "@/hooks/use-cart";
 import { toast } from "sonner";
+import { phoneMask } from "@/utils/format-phone";
 
 interface CheckoutProps {
   subdomain: string;
@@ -118,9 +119,10 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
                     id="guest-phone"
                     placeholder="(00) 00000-0000"
                     value={guestPhone ?? ""}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    autoComplete="tel"
+                    onChange={(e) => setGuestPhone(phoneMask(e.target.value))}
+                    autoComplete="tel-national"
                     inputMode="tel"
+                    maxLength={15}
                   />
                 </div>
               </CardContent>
@@ -154,9 +156,10 @@ export function CheckoutPage({ subdomain }: CheckoutProps) {
                     id="orbita-phone"
                     placeholder="(00) 00000-0000"
                     value={guestPhone ?? ""}
-                    onChange={(e) => setGuestPhone(e.target.value)}
-                    autoComplete="tel"
+                    onChange={(e) => setGuestPhone(phoneMask(e.target.value))}
+                    autoComplete="tel-national"
                     inputMode="tel"
+                    maxLength={15}
                   />
                 </div>
               </CardContent>

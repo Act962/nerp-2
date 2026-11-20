@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Jornada } from "@/features/jornada/jornada";
 import {
   gruposDaSecao,
   metadataDaSecao,
@@ -10,7 +11,7 @@ import { jsonLdScript, secaoLd, SECTION_LABEL } from "@/lib/seo";
 /**
  * `/solucoes` — o índice da suíte.
  *
- * O nível que faltava entre a home e as 28 páginas de ferramenta. Ver
+ * O nível que faltava entre a home e as 31 páginas de ferramenta. Ver
  * `features/section-index.tsx` para o porquê das três.
  */
 export const metadata: Metadata = metadataDaSecao("solucoes");
@@ -53,6 +54,16 @@ export default async function SolucoesPage({
         loginHref={APP_LINKS.login}
         signupHref={APP_LINKS.signup}
         initialArea={area}
+        /*
+          A jornada vem primeiro: ela conta POR QUE as soluções existem e em
+          que momento cada uma entra. A grade abaixo continua sendo o caminho
+          de quem já sabe o nome da ferramenta — e é ela que distribui link
+          interno para as 31 páginas de produto. Vai por dentro do
+          `SectionIndexPage` porque o cabeçalho mora lá: por fora, o menu
+          desceria junto.
+        */
+        antesDaAbertura={<Jornada />}
+        semGrade
       />
     </>
   );

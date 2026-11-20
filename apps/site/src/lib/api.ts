@@ -11,6 +11,7 @@ import type {
 } from "@nerp/site-content";
 import {
   ASTRO_PAGINA_VAZIA,
+  lerAstroChat,
   lerAstroPagina,
   lerConversao,
   lerMarketing,
@@ -83,6 +84,27 @@ async function getJson<T>(path: string): Promise<T | null> {
 }
 
 /** Painel vazio cai no padrão; painel com itens manda. */
+/**
+ * Qual Astro atende o site.
+ *
+ * Sem o campo — resposta antiga, ou este app à frente do outro — o consultor
+ * fica desligado. Silêncio é melhor que um botão que não abre.
+ *
+ * Com o código do ASTRO CHAT salvo no admin, quem atende é o ASTRO do Órbita,
+ * e o consultor daqui é dado por DESLIGADO de propósito: é esse booleano que
+ * os botões "falar com o Astro" e a abertura automática consultam, e eles
+ * abrem o painel do consultor — que não está mais na página. Desligado, eles
+ * caem no WhatsApp, que é a saída que sempre existe.
+ *
+ * A chave é conferida de novo deste lado: ela vira `<script src>` no visitante.
+ */
+function lerAstro(astro: SiteContentResponse["astro"]): SiteContent["astro"] {
+  if (!astro) return { ativo: false, precos: false };
+  const chat = lerAstroChat(astro.chat);
+  if (chat) return { ativo: false, precos: false, chat };
+  return { ativo: astro.ativo, precos: astro.precos };
+}
+
 function applyFallback(data: SiteContentResponse | null): SiteContent {
   if (!data) return DEFAULT_CONTENT;
 
@@ -121,9 +143,7 @@ function applyFallback(data: SiteContentResponse | null): SiteContent {
           label: data.whatsapp.label,
         }
       : DEFAULT_CONTENT.whatsapp,
-    // Sem o campo — resposta antiga, ou este app à frente do outro — o
-    // consultor fica desligado. Silêncio é melhor que um botão que não abre.
-    astro: data.astro ?? { ativo: false, precos: false },
+    astro: lerAstro(data.astro),
     // Conferido de novo deste lado: o ID vira `<script>` inline no visitante.
     marketing: lerMarketing(data.marketing),
     // Validado deste lado também: o link vira `href` em todas as páginas.

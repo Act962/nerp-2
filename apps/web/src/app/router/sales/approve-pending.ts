@@ -85,6 +85,14 @@ export const approvePending = base
     if (sale.origin === SaleOrigin.CATALOGO_ORBITA) {
       throw errors.BAD_REQUEST({ message: ORBITA_OWNS_ORDER_MESSAGE });
     }
+    // Aprovar aqui devolveria os itens ao carrinho do PDV e cancelaria o
+    // pedido do vendedor; ele é aprovado e faturado no receptor da Força de Vendas.
+    if (sale.origin === SaleOrigin.FORCA_VENDAS) {
+      throw errors.BAD_REQUEST({
+        message:
+          "Pedido da Força de Vendas é aprovado em Vendas → Força de Vendas.",
+      });
+    }
 
     const productIds = sale.items
       .map((item) => item.productId)

@@ -1,6 +1,12 @@
 "use client";
 
-import { ImageIcon, ImagePlusIcon, Trash2Icon, TypeIcon } from "lucide-react";
+import {
+  ImageIcon,
+  ImageOffIcon,
+  ImagePlusIcon,
+  Trash2Icon,
+  TypeIcon,
+} from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRef, useState } from "react";
@@ -125,24 +131,10 @@ export function TabShowcase({ settings, setSettings }: TabProps) {
         categorias={categorias ?? []}
       />
 
-      <Card className="p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="sem-foto">Esconder produtos sem foto</Label>
-            <p className="text-muted-foreground text-xs">
-              Produto sem imagem (ou com imagem que não abre) sai da vitrine.
-              Ele continua cadastrado e volta a aparecer quando ganhar uma foto.
-            </p>
-          </div>
-          <Switch
-            id="sem-foto"
-            checked={settings.hideProductsWithoutImage}
-            onCheckedChange={(ligado) =>
-              setSettings({ ...settings, hideProductsWithoutImage: ligado })
-            }
-          />
-        </div>
-      </Card>
+      <p className="flex items-center gap-2 px-1 text-muted-foreground text-xs">
+        <ImageOffIcon className="size-3.5 shrink-0" />
+        Só aparecem na vitrine os produtos com foto cadastrada.
+      </p>
 
       <Card className="gap-5 p-6">
         <div className="flex items-start justify-between gap-4">

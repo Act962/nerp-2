@@ -145,6 +145,12 @@ export type EntradaConsultor = {
   /** Só na vitrine: a loja que ele está atendendo. */
   loja?: ContextoDaLoja;
   /**
+   * Só no site: liga a tool que chama a equipe e o trecho do prompt que
+   * ensina quando usá-la. Os dois andam juntos — um sem o outro é o modelo
+   * prometendo o que não tem, ou tendo o que não sabe usar.
+   */
+  atendimento?: { pagina?: string; ip?: string | null };
+  /**
    * As tools prontas, quando quem chama já as montou — é o caso do canal
    * logado, cujas tools carregam `organizationId` em closure. Ausente, valem
    * as do site.
@@ -199,6 +205,7 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
       sessaoId: entrada.sessaoId,
       tabelaPrecos: entrada.tabelaPrecos,
       falaDoVisitante: falaDoVisitante(recentes),
+      atendimento: entrada.atendimento,
     });
 
   return streamText({
@@ -212,6 +219,7 @@ export async function streamAstroConsultor(entrada: EntradaConsultor) {
       avisos: entrada.avisos,
       memoria: entrada.memoria,
       loja: entrada.loja,
+      atendimentoHumano: Boolean(entrada.atendimento),
     }),
     // As tools vão junto: é assim que o conversor reconhece as partes de
     // chamada de ferramenta que já estão no histórico do cliente.

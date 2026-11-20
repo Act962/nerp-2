@@ -41,6 +41,7 @@ import {
   falaDoVisitante,
   streamAstroConsultor,
 } from "@/features/astro-consultor/server/orchestrator";
+import type { ContextoDeNavegacao } from "@/features/astro-consultor/server/prompt";
 import {
   ASTRO_PRECOS_KEY,
   lerTabelaDePrecos,
@@ -53,6 +54,7 @@ import {
 import { auth } from "@/lib/auth";
 import { emEstrelas } from "@/features/stars/lib/decimal";
 import prisma from "@/lib/db";
+import { isOrgAdmin } from "@/lib/org-access";
 
 /**
  * A conversa com o Astro, de dentro do nerp.
@@ -87,7 +89,43 @@ const MAX_MENSAGENS_NO_CORPO = 400;
 const corpoSchema = z.object({
   messages: z.array(z.unknown()).min(1).max(MAX_MENSAGENS_NO_CORPO),
   sessionId: z.string().max(64).optional(),
+  // A URL de onde a pessoa está falando. Só o caminho é lido — é o que diz
+  // ao Astro que ela está no dashboard.
+  landingPage: z.string().max(500).optional(),
 });
+
+/** Só o caminho da URL que o navegador mandou; lixo vira null. */
+function caminhoDaPagina(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * O que o Astro sabe da página em que a pessoa está.
+ *
+ * Por ora só o dashboard tem contexto próprio: é lá que se pede número de
+ * relatório, e o Astro precisa saber que pode consultar o ERP.
+ */
+function navegacaoDoApp(
+  caminho: string | null,
+  podeConsultarErp: boolean,
+): ContextoDeNavegacao | undefined {
+  if (!caminho?.startsWith("/dashboard")) return undefined;
+  return {
+    pagina: {
+      slug: "dashboard",
+      titulo: "Dashboard",
+      resumo: podeConsultarErp
+        ? "O painel de widgets da empresa. Aqui a pessoa pede números de relatório — inadimplência, clientes sem compra, vendas por filial — e eles saem do ERP pela ferramenta consultarErp."
+        : "O painel de widgets da empresa, com os números da operação.",
+      palavrasChave: ["dashboard", "widgets", "relatório", "indicadores"],
+    },
+  };
+}
 
 function indisponivel(motivo: string) {
   return NextResponse.json(
@@ -255,6 +293,21 @@ export async function POST(request: NextRequest) {
         select: { id: true },
       });
 
+  // Consulta ao Oracle: só com Winthor ligado e só para admin, a mesma regra
+  // do construtor de consultas do dashboard.
+  const [conexaoErp, ehAdmin] = await Promise.all([
+    prisma.erpConnection.findUnique({
+      where: { organizationId: org.id },
+      select: { kind: true, status: true, configCiphertext: true },
+    }),
+    isOrgAdmin(org.id, sessaoAuth.user.id),
+  ]);
+  const podeConsultarErp =
+    ehAdmin &&
+    conexaoErp?.kind === "WINTHOR_ORACLE" &&
+    conexaoErp.status !== "PAUSED" &&
+    Boolean(conexaoErp.configCiphertext);
+
   const tools = construirToolsDoApp({
     organizationId: org.id,
     userId: sessaoAuth.user.id,
@@ -262,6 +315,7 @@ export async function POST(request: NextRequest) {
     tabelaPrecos,
     falaDoVisitante: falaDoVisitante(mensagens),
     modelo,
+    podeConsultarErp,
   });
 
   // O AI SDK confere a forma de cada mensagem antes de ela virar prompt: o
@@ -357,6 +411,10 @@ export async function POST(request: NextRequest) {
     modelo,
     mensagens: validadas.data,
     organizacao: org.name,
+    navegacao: navegacaoDoApp(
+      caminhoDaPagina(corpo.data.landingPage),
+      podeConsultarErp,
+    ),
     usuario: `${sessaoAuth.user.name} (${sessaoAuth.user.email})`,
     // Quem fala já é conhecido: vai como "visitante" para ele não perguntar.
     visitante: { nome: sessaoAuth.user.name, empresa: org.name },

@@ -438,6 +438,7 @@ export function useUploadCoverImage() {
 
 export function useAutoGeneratePreview(input: {
   supplierId: string | null;
+  photoSupplierId?: string | null;
   periodMonth: number;
   periodYear: number;
 }) {
@@ -445,6 +446,7 @@ export function useAutoGeneratePreview(input: {
     ...orpc.book.autoGeneratePreview.queryOptions({
       input: {
         supplierId: input.supplierId ?? "",
+        photoSupplierId: input.photoSupplierId ?? undefined,
         periodMonth: input.periodMonth,
         periodYear: input.periodYear,
       },

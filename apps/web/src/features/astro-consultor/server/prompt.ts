@@ -38,6 +38,12 @@ export type ContextoPrompt = {
   memoria?: FatoNaMemoria[];
   /** Só na vitrine: a loja que ele está atendendo. */
   loja?: ContextoDaLoja;
+  /**
+   * Só no site, e só com a ponte para o Chat configurada: há uma equipe que
+   * ele pode chamar. Sem isto o bloco não entra — prompt que cita uma tool que
+   * não existe faz o modelo prometer o que não consegue cumprir.
+   */
+  atendimentoHumano?: boolean;
 };
 
 /**
@@ -54,6 +60,8 @@ export type ContextoDaLoja = {
   produtos: number;
   mostraPrecos: boolean;
   aceitaPedidos: boolean;
+  /** Pedido termina no WhatsApp oficial da loja (modo Órbita): é lá que a equipe manda o valor. */
+  pedidoPeloWhatsapp?: boolean;
   pagamentos: string[];
   entregas: string[];
   infoDeEntrega: string;
@@ -122,6 +130,13 @@ const ROTEIRO = `COMO CONDUZIR (não recite este roteiro; use-o):
 - Quando o quadro estiver claro (ramo + porte + dor + ferramentas), ofereça a estimativa. Só então chame \`estimarFaixaDePreco\`.
 - Interesse de verdade (quer proposta, quer começar, pediu para falar com alguém): chame \`oferecerFormulario\`. O botão "Preencher formulário" aparece na tela e é por ele que o time recebe o pedido com tudo o que precisa. Convide em uma frase e continue disponível — o botão não é despedida.
 - Fecho: chame \`registrarDiagnostico\` com o que você apurou e ofereça as duas saídas — falar com o time e criar o acesso. Peça nome e um contato (e-mail ou WhatsApp) ANTES de registrar; sem contato, não registre.`;
+
+const ATENDIMENTO_HUMANO = `QUANDO PEDIREM UMA PESSOA:
+- Se a pessoa pedir para falar com gente — atendente, humano, alguém do time, suporte, "quero falar com uma pessoa" — chame \`chamarEquipe\` NA HORA. Não é o caso do formulário: quem pede gente quer conversa, não cadastro.
+- Não peça nome nem contato antes, não tente resolver primeiro e não pergunte "posso ajudar em algo antes?". Pedir gente é um pedido completo.
+- No \`resumo\`, escreva o que a equipe precisa saber para não perguntar tudo de novo: o negócio, a dor e o que vocês já viram.
+- Depois de chamar, avise em UMA frase que a equipe responde aqui mesmo, e pare. Daí em diante a conversa é dela.
+- Interesse sem pedido de gente (quer proposta, quer começar) continua indo para \`oferecerFormulario\`.`;
 
 export type Passo = { slug: string; titulo: string };
 
@@ -313,7 +328,7 @@ const REGRAS_LOJA = `REGRAS QUE NÃO SE NEGOCIAM:
 7. Assunto que não é esta loja nem o que ela vende: recuse com educação em uma frase e volte ao catálogo.
 8. Você NÃO pede e NÃO aceita CPF, cartão, senha nem documento. Se vierem, ignore o número e siga.
 9. Você não escreve endereço de página nem URL. Diga o NOME do produto — a pessoa acha na vitrine — e, para fechar, mande falar pelo canal da loja.
-10. Você não fecha pedido, não reserva, não dá desconto e não promete prazo de entrega. Quem faz isso é a loja.`;
+10. Você não cobra, não reserva, não dá desconto e não promete prazo de entrega. Quem faz isso é a loja. Pôr no pedido e levar a finalizar, quando a vitrine aceita pedido, você pode.`;
 
 /**
  * A loja no prompt.
@@ -340,9 +355,14 @@ function blocoDaLoja(loja: ContextoDaLoja): string {
   }
   linhas.push(
     loja.aceitaPedidos
-      ? "A vitrine aceita pedido: a pessoa monta o carrinho e finaliza por lá. Você ajuda a escolher, mas quem fecha é ela, no carrinho."
+      ? "A vitrine aceita pedido. Quando a pessoa decidir levar um produto, ponha no pedido dela com `colocarNoCarrinho` (nunca sem ela pedir). Quando ela disser que terminou, chame `finalizarPedido`: aparece o botão para fechar."
       : "A vitrine é só catálogo, sem carrinho. O pedido é feito pelo canal de contato da loja.",
   );
+  if (loja.aceitaPedidos && loja.pedidoPeloWhatsapp) {
+    linhas.push(
+      "Depois de finalizar, o último passo é o botão \"Enviar pedido pelo WhatsApp\": ele leva ao WhatsApp oficial da loja, onde a equipe confere os itens e manda o valor. Diga isso quando a pessoa perguntar preço ou como pagar.",
+    );
+  }
   if (loja.pagamentos.length > 0) {
     linhas.push(`Formas de pagamento: ${loja.pagamentos.join(", ")}.`);
   }
@@ -367,7 +387,8 @@ const ROTEIRO_LOJA = `COMO ATENDER (use, não recite):
 - Nada encontrado: diga que não achou, ofereça \`listarCategorias\` para mostrar o que a loja tem, e não sugira produto de fora.
 - Achou: no máximo três produtos, um por linha, com o nome e o preço que a tool devolveu. Nome exato, para ela encontrar na vitrine.
 - Detalhe pedido (o que é, do que é feito, se tem disponível): \`detalharProduto\` pelo slug que a busca trouxe.
-- Terminou de ajudar: ofereça o próximo passo da loja — o carrinho, quando há, ou o contato dela.`;
+- Decidiu levar: \`colocarNoCarrinho\` com a quantidade que ela disse e confirme numa frase ("Coloquei 2 no seu pedido. Quer mais alguma coisa?").
+- Terminou de escolher: \`finalizarPedido\` e diga que é só tocar no botão. Sem carrinho na vitrine: ofereça o contato da loja.`;
 
 /**
  * Monta o prompt. Determinístico salvo pela data — é o que permite testar o
@@ -382,6 +403,7 @@ export function montarPrompt(contexto: ContextoPrompt): string {
     ESCOPO_SITE,
     REGRAS,
     ROTEIRO,
+    contexto.atendimentoHumano ? ATENDIMENTO_HUMANO : "",
     IDENTIDADE,
     `FERRAMENTAS DA SUÍTE (id | nome | categoria | o que é) — esta lista é fechada:\n${CONSULTOR_TOOL_INDEX}`,
     `CATEGORIAS:\n${CONSULTOR_CATEGORY_INDEX}`,

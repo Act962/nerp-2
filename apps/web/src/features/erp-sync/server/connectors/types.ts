@@ -45,6 +45,8 @@ export interface ExternalProductDTO {
   unit: string | null;
   salePrice: number | null;
   isActive: boolean;
+  /** Unidades por caixa (QTUNITCX no Winthor). */
+  unitsPerBox?: number | null;
 }
 
 /**

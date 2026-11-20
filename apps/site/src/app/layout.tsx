@@ -49,7 +49,7 @@ const TITULO = "ÓRBITA HUB — Tecnologia que orbita possibilidades";
 // 158 caracteres é o teto prático do que o Google exibe. Esta frase está em
 // 151 — medida, não estimada.
 const DESCRICAO =
-  "Conectamos tecnologia, gestão, dados e inovação para transformar negócios. Uma suíte de 28 ferramentas que dividem o mesmo cadastro, funil e histórico.";
+  "Conectamos tecnologia, gestão, dados e inovação para transformar negócios. Uma suíte de 31 ferramentas que dividem o mesmo cadastro, funil e histórico.";
 const CARTAO = ogImage({ titulo: "Tecnologia que orbita possibilidades" });
 
 /**

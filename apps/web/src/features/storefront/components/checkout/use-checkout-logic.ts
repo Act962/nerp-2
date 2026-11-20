@@ -278,9 +278,10 @@ export function useCheckoutLogic(subdomain: string) {
   const checkoutWithOrbita = (
     cartProducts: Array<{ id: string; quantity: number }>,
   ) => {
-    const phone = guestPhone.trim();
-    if (phone.replace(/\D/g, "").length < 10) {
-      toast.error("Informe seu WhatsApp com DDD pra a loja falar com você");
+    // Só DDD + número: o 55 e o 9º dígito o Órbita resolve ao achar o cliente no WhatsApp.
+    const phone = guestPhone.replace(/\D/g, "");
+    if (phone.length < 10 || phone.length > 11) {
+      toast.error("Informe seu WhatsApp com DDD, ex.: (86) 99999-0000");
       return;
     }
     const name = guestName.trim();

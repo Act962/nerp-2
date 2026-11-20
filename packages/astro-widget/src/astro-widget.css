@@ -440,6 +440,67 @@
   background: #f9fafb;
 }
 
+/* O mesmo desenho serve ao link do WhatsApp e ao botão que chama a equipe;
+   como botão ele precisa herdar a fonte e avisar que é clicável. */
+button.o-astro-human {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button.o-astro-human:disabled {
+  cursor: progress;
+  opacity: 0.7;
+}
+
+/* --- atendimento humano ------------------------------------------------- */
+
+/*
+  A faixa que avisa que a conversa mudou de mão.
+
+  Fica fora da área que rola: quem volta ao painel depois de dez mensagens
+  precisa saber, sem subir a conversa, que do outro lado há uma pessoa.
+*/
+.o-astro-atendimento {
+  /* `output` é inline por padrão; a faixa ocupa a largura do painel. */
+  display: block;
+  margin: 0;
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #0b4a2b;
+  background: #e7f6ec;
+  border-bottom: 1px solid #c9ebd5;
+}
+
+/* O nome de quem respondeu, acima da fala. */
+.o-astro-autor {
+  align-self: flex-start;
+  margin-bottom: -0.35rem;
+  padding-left: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475467;
+}
+
+/* A fala da equipe tem a mesma forma da do Astro e uma borda que a distingue:
+   é outra voz na mesma coluna. */
+.o-astro-msg--equipe {
+  background: #eef7f1;
+  box-shadow: inset 2px 0 0 #2f9e5b;
+}
+
+.o-astro-atendimento-erro {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  color: #b42318;
+}
+
+.o-astro-atendimento-erro a {
+  color: inherit;
+  font-weight: 600;
+}
+
 .o-astro-note {
   margin: 0.7rem 0 0;
   font-size: 0.72rem;
@@ -675,6 +736,40 @@
 .o-astro-acao__nao {
   background: rgba(15, 23, 42, 0.08);
   color: inherit;
+}
+
+/* Perguntas de filtro: as respostas possíveis como botão. */
+.o-astro-escolha {
+  align-self: flex-start;
+  max-width: 92%;
+  margin: 0.25rem 0;
+}
+
+.o-astro-escolha__pergunta {
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+.o-astro-escolha__opcoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.o-astro-escolha__opcao {
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.06);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.8rem;
+}
+
+.o-astro-escolha__opcao:hover {
+  background: rgba(37, 99, 235, 0.14);
 }
 
 /* Anexos: as miniaturas do que vai junto, o clipe e o alvo de arrastar. */

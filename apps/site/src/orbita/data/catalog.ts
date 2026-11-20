@@ -15,10 +15,11 @@ import {
  * deles — é de lá que o admin semeia as páginas. O que fica aqui é o que é do
  * site: para onde cada ferramenta leva, e as duas leituras do catálogo.
  *
- * **As duas leituras.** O menu mostra as 28 ferramentas, em seis colunas por
- * momento do negócio. A cena mostra as 19 que são estação na órbita. É a mesma
- * lista, lida de dois jeitos — e é o que permite o menu crescer sem apertar a
- * animação.
+ * **As três leituras.** O menu mostra as 31 ferramentas, em seis colunas por
+ * momento do negócio. A cena da home mostra as 19 que são estação na órbita. E
+ * `ORBITAS` (em `@nerp/site-content/jornada`) agrupa por momento da jornada do
+ * cliente, para a cena de `/solucoes`. É a mesma lista, lida de três jeitos — e
+ * é o que permite o menu crescer sem apertar a animação.
  */
 
 export type { CategoryId, Feature, Tool };

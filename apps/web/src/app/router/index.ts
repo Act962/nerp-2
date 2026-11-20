@@ -1,4 +1,6 @@
 import { categoryRoutes } from "./category";
+import { forcaVendasRoutes } from "./forca-vendas";
+import { forcaVendasGestaoRoutes } from "./forca-vendas-gestao";
 import { jornadasRoutes } from "./jornadas";
 import { melhoriasRoutes } from "./melhorias";
 import { onboardingRoutes } from "./onboarding";
@@ -65,6 +67,7 @@ import { tradegramPublicRoutes } from "./tradegram-public";
 import { tradeDashboardRoutes } from "./trade-dashboard";
 import { tradeInterestRoutes } from "./trade-interest";
 import { erpSyncRoutes } from "./erp-sync";
+import { erpCarteiraRoutes } from "./erp-carteira";
 import { agendaRoutes } from "./agenda";
 import { automacoesRoutes } from "./automacoes";
 import { campanhasRoutes } from "./campanhas";
@@ -78,6 +81,8 @@ import { integracoesRoutes } from "./integracoes";
 import { fiscalConfigRoutes } from "./fiscal-config";
 import { googleDriveRoutes } from "./google-drive";
 import { oracleExplorerRoutes } from "./oracle-explorer";
+import { mapeamentoBancoRoutes } from "./mapeamento-banco";
+import { mcpRoutes } from "./mcp";
 import { dashboardWidgetsRoutes } from "./dashboard-widgets";
 import { orgDashboardRoutes } from "./org-dashboard";
 import { precosRoutes } from "./precos";
@@ -146,6 +151,9 @@ export const router = {
   storeInventory: storeInventoryRoutes,
   shopperInsights: shopperInsightsRoutes,
   erpSync: erpSyncRoutes,
+  erpCarteira: erpCarteiraRoutes,
+  forcaVendas: forcaVendasRoutes,
+  forcaVendasGestao: forcaVendasGestaoRoutes,
   agenda: agendaRoutes,
   automacoes: automacoesRoutes,
   campanhas: campanhasRoutes,
@@ -162,6 +170,8 @@ export const router = {
   fiscalConfig: fiscalConfigRoutes,
   googleDrive: googleDriveRoutes,
   oracleExplorer: oracleExplorerRoutes,
+  mapeamentoBanco: mapeamentoBancoRoutes,
+  mcp: mcpRoutes,
   dashboardWidgets: dashboardWidgetsRoutes,
   orgDashboard: orgDashboardRoutes,
   precos: precosRoutes,

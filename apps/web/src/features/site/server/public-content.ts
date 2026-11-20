@@ -18,6 +18,7 @@ import {
   ASTRO_CONFIG_KEY,
   lerConfig,
 } from "@/features/astro-consultor/server/provider";
+import { astroChatDoSite } from "./astro-chat";
 
 /**
  * O conteúdo publicado do site, do jeito que ele sai do banco.
@@ -42,6 +43,7 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
     astroPrecosRow,
     marketingRow,
     conversaoRow,
+    astroChat,
   ] = await Promise.all([
     prisma.siteMenuItem.findMany({
       where: { visible: true },
@@ -77,6 +79,7 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
     prisma.siteSetting.findUnique({ where: { key: ASTRO_PRECOS_KEY } }),
     prisma.siteSetting.findUnique({ where: { key: MARKETING_KEY } }),
     prisma.siteSetting.findUnique({ where: { key: CONVERSAO_KEY } }),
+    astroChatDoSite(),
   ]);
 
   const toEntry = (item: (typeof items)[number]): MenuEntry => ({
@@ -155,6 +158,10 @@ export async function getPublicSiteContent(): Promise<SiteContentResponse> {
         const tabela = lerTabelaDePrecos(astroPrecosRow?.value);
         return tabela.ativo && tabela.portes.length > 0;
       })(),
+      // Com código do ASTRO CHAT salvo, quem atende no site é o ASTRO do
+      // Órbita. Vai só a chave e o servidor: a chave é pública (sai no HTML de
+      // toda página), e o site monta o endereço do script a partir dela.
+      ...(astroChat ? { chat: astroChat } : {}),
     },
     // Os IDs são públicos por natureza — saem no HTML de qualquer página que
     // usa pixel. O que importa é que passem pelo formato antes de sair daqui.

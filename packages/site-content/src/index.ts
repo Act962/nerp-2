@@ -1,6 +1,7 @@
 export * from "./about";
 export * from "./areas";
 export * from "./astro-animacao";
+export * from "./astro-chat";
 export * from "./astro-pagina";
 export * from "./astro-paginas";
 export * from "./blocks";
@@ -8,6 +9,7 @@ export * from "./catalog";
 export * from "./consultor";
 export * from "./content";
 export * from "./conversao";
+export * from "./jornada";
 export * from "./marketing";
 export * from "./metodo";
 export * from "./pages";

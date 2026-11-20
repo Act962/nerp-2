@@ -1,6 +1,7 @@
 import { requireAuthMiddleware } from "@/app/middlewares/auth";
 import { base } from "@/app/middlewares/base";
 import { requireOrgMiddleware } from "@/app/middlewares/org";
+import { PLATAFORMA_DO_AGENTE } from "@/features/mcp/escopos";
 import prisma from "@/lib/db";
 import { z } from "zod";
 
@@ -26,7 +27,12 @@ export const listDevices = base
   )
   .handler(async ({ context }) => {
     const devices = await prisma.device.findMany({
-      where: { organizationId: context.org.id },
+      // Token de agente de IA (MCP) também mora em `Device`, mas não é caixa:
+      // tem tela própria no mapeamento do banco.
+      where: {
+        organizationId: context.org.id,
+        platform: { not: PLATAFORMA_DO_AGENTE },
+      },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,

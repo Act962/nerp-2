@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { loadOracleConfig } from "./connectors";
 import { fetchWinthorProductStock } from "./connectors/winthor-products";
@@ -22,6 +23,10 @@ export interface ProductStockSyncReport {
   matched: number;
   /** Filiais distintas vistas nesta passada. */
   branches: number;
+  /** Filial escolhida para o estoque do produto (`ErpConnection.stockBranchCode`); nula = produto não é tocado. */
+  stockBranchCode: string | null;
+  /** Produtos com `Product.currentStock` alterado para o estoque da filial escolhida. */
+  stockUpdated: number;
   dryRun: boolean;
 }
 
@@ -77,10 +82,18 @@ export async function syncErpProductStock(
     });
   }
 
+  const connection = await prisma.erpConnection.findUnique({
+    where: { organizationId },
+    select: { stockBranchCode: true },
+  });
+  const stockBranchCode = connection?.stockBranchCode ?? null;
+
   const report: ProductStockSyncReport = {
     read: rows.length,
     matched: data.length,
     branches: branches.size,
+    stockBranchCode,
+    stockUpdated: 0,
     dryRun,
   };
   if (dryRun) return report;
@@ -97,10 +110,32 @@ export async function syncErpProductStock(
       }),
     );
   }
-  await prisma.$transaction([
+  // Estoque do produto = o da filial escolhida (tela de Produtos e vitrine leem
+  // `currentStock`). Produto vinculado que não veio da filial zerou no ERP. Só
+  // vinculados ao ERP (`erpCode`): o resto é estoque do próprio nerp. Na mesma
+  // transação do espelho, para nunca existir um meio-termo entre os dois.
+  const updateProductStock = stockBranchCode
+    ? [
+        prisma.$executeRaw(Prisma.sql`
+          UPDATE products AS p
+             SET "currentStock" = COALESCE(s.stock, 0)
+            FROM products AS linked
+            LEFT JOIN product_branch_stocks AS s
+              ON s."productId" = linked.id AND s."branchCode" = ${stockBranchCode}
+           WHERE p.id = linked.id
+             AND linked."organizationId" = ${organizationId}
+             AND linked."erpCode" IS NOT NULL
+             AND p."currentStock" IS DISTINCT FROM COALESCE(s.stock, 0)`),
+      ]
+    : [];
+
+  const results = await prisma.$transaction([
     prisma.productBranchStock.deleteMany({ where: { organizationId } }),
     ...inserts,
+    ...updateProductStock,
   ]);
+  if (stockBranchCode)
+    report.stockUpdated = Number(results[results.length - 1]);
 
   return report;
 }

@@ -21,7 +21,10 @@ import {
 // se beneficiam dela.
 const HIDE_BREADCRUMB_ON = ["/vendas/novo", "/whatsapp"];
 // Editores em tela cheia (têm cabeçalho próprio): esconde o breadcrumb.
-const HIDE_BREADCRUMB_PREFIXES = ["/catalogo-promocional/"];
+const HIDE_BREADCRUMB_PREFIXES = [
+  "/catalogo-promocional/",
+  "/integracoes/banco-de-dados",
+];
 
 export function BreadcrumbNav() {
   const pathname = usePathname();

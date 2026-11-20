@@ -4,6 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   AlertTriangle,
+  Database,
   FileText,
   PackagePlus,
   Pause,
@@ -13,7 +14,9 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
 import { Separator } from "@/components/ui/separator";
+import { useEhDaEquipeDoMapeamento } from "@/features/mapeamento-banco/hooks/use-equipe-do-mapeamento";
 import { cn } from "@/lib/utils";
 import {
   useErpConnection,
@@ -21,7 +24,15 @@ import {
   usePauseErpConnection,
   useRemoveErpConnection,
   useRunErpSync,
+  useSetErpStockBranch,
 } from "../hooks/use-erp-sync";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WinthorConnectionForm } from "./winthor-connection-form";
 
 function StatusBadge({
@@ -64,6 +75,65 @@ interface ProductSyncReportView {
   skippedInvalidBarcode: number;
   duplicatesInSource: number;
   failed: number;
+  stockBranchCode?: string | null;
+  stockUpdated?: number;
+  pricesFilled?: number;
+  packQtyFilled?: number;
+}
+
+const NO_BRANCH = "none";
+
+/**
+ * Filial cujo estoque (e último preço vendido, para quem está sem preço) vai
+ * para o produto: é o que a tela de Produtos e a vitrine do catálogo mostram.
+ */
+function StockBranchSection({
+  branches,
+  selected,
+  disabled,
+}: {
+  branches: { code: string; name: string | null; productsWithStock: number }[];
+  selected: string | null;
+  disabled: boolean;
+}) {
+  const setBranch = useSetErpStockBranch();
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h3 className="font-medium text-sm">Filial do estoque</h3>
+        <p className="text-muted-foreground text-sm">
+          O estoque desta filial aparece em Produtos e no catálogo online.
+          Produto sem preço recebe o último preço vendido nela (90 dias). Preço
+          já preenchido não muda.
+        </p>
+      </div>
+      {branches.length === 0 ? (
+        <p className="text-muted-foreground text-sm">
+          Nenhuma filial com estoque ainda. Clique em Atualizar agora.
+        </p>
+      ) : (
+        <Select
+          value={selected ?? NO_BRANCH}
+          disabled={disabled || setBranch.isPending}
+          onValueChange={(value) =>
+            setBranch.mutate({ branchCode: value === NO_BRANCH ? null : value })
+          }
+        >
+          <SelectTrigger className="w-full sm:w-80">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_BRANCH}>Não usar estoque do ERP</SelectItem>
+            {branches.map((branch) => (
+              <SelectItem key={branch.code} value={branch.code}>
+                {`Filial ${branch.code}${branch.name ? ` · ${branch.name}` : ""} (${nf.format(branch.productsWithStock)} com estoque)`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
 }
 
 /**
@@ -120,6 +190,22 @@ function ProductSyncSection({
       });
     if (report.failed > 0)
       stats.push({ label: "Falhas", value: report.failed });
+    if (report.stockBranchCode && report.stockUpdated !== undefined)
+      stats.push({
+        label: `Estoque atualizado (filial ${report.stockBranchCode})`,
+        value: report.stockUpdated,
+      });
+    if (report.packQtyFilled !== undefined && report.packQtyFilled > 0)
+      stats.push({
+        label: "Unidades por caixa preenchidas",
+        value: report.packQtyFilled,
+      });
+    if (report.pricesFilled !== undefined)
+      stats.push({
+        label: "Preços preenchidos",
+        value: report.pricesFilled,
+        hint: "estavam sem preço; vieram do último preço vendido",
+      });
   }
 
   return (
@@ -205,6 +291,9 @@ export function WinthorPanel() {
   const runSync = useRunErpSync();
   const pause = usePauseErpConnection();
   const remove = useRemoveErpConnection();
+  // Só esconde o botão: quem barra de verdade é a página e as procedures
+  // (`podeMapearBanco`), enquanto o mapeamento é ferramenta interna.
+  const podeMapearBanco = useEhDaEquipeDoMapeamento();
 
   const connection = connectionQuery.data;
   const status = statusQuery.data;
@@ -304,6 +393,17 @@ export function WinthorPanel() {
 
           <Separator />
 
+          <StockBranchSection
+            branches={status?.configured ? status.stockBranches : []}
+            selected={status?.configured ? status.stockBranchCode : null}
+            disabled={
+              runSync.isPending ||
+              Boolean(status?.configured && status.isSyncing)
+            }
+          />
+
+          <Separator />
+
           <ProductSyncSection
             report={status?.configured ? status.productSync : null}
             busy={
@@ -327,6 +427,27 @@ export function WinthorPanel() {
               }
             }}
           />
+
+          {podeMapearBanco && (
+            <>
+              <Separator />
+              <div className="flex flex-col gap-2">
+                <div>
+                  <p className="font-medium text-sm">Mapeamento do banco</p>
+                  <p className="text-muted-foreground text-xs">
+                    Ferramenta interna: ver as tabelas deste ERP e dizer de onde
+                    vem produto, estoque, categoria, preço e promoção.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" className="w-fit" asChild>
+                  <Link href="/integracoes/banco-de-dados">
+                    <Database className="size-4" />
+                    Mapear banco de dados
+                  </Link>
+                </Button>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

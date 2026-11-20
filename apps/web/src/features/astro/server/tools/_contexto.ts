@@ -25,6 +25,13 @@ export type ContextoToolsApp = {
    * e quebrando na primeira chamada.
    */
   modelo?: ModeloResolvido;
+  /**
+   * A organização tem Oracle (Winthor) ligado E quem fala é admin. Decidido na
+   * rota, porque é consulta ao banco: sem isto `consultarErp` não entra no
+   * conjunto — o Oracle é o banco de produção do cliente, e a regra é a mesma
+   * do construtor de consultas do dashboard.
+   */
+  podeConsultarErp?: boolean;
 };
 
 /** Converte `Decimal` do Prisma no limite da resposta da tool. */

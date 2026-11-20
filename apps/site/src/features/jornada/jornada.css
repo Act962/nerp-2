@@ -1,0 +1,953 @@
+/*
+  A jornada do ecossistema.
+
+  O fundo é mais claro que o preto da home de propósito: aqui a cena precisa de
+  profundidade azul para os planetas se destacarem, e o azul é o que amarra a
+  página ao resto do site.
+*/
+
+.jor {
+  --jor-fundo: #01030a;
+  --jor-azul: #6fc2ff;
+  --jor-texto: #a9c6e3;
+  --jor-borda: rgba(127, 208, 255, 0.22);
+  position: relative;
+  padding: 40px 0 24px;
+  color: #eaf4ff;
+  overflow: hidden;
+  /*
+    Preto quase absoluto, com três clarões frios muito fracos.
+
+    O azul forte de antes competia com os planetas: tudo ficava no mesmo tom e
+    a cena parecia chapada. Com o fundo preto, a luz passa a vir dos corpos — e
+    as nebulosas em 3D, que são aditivas, aparecem de verdade em vez de se
+    diluírem num fundo já claro.
+  */
+  background:
+    radial-gradient(
+      68% 52% at 22% 28%,
+      rgba(36, 72, 150, 0.3) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      55% 48% at 82% 62%,
+      rgba(86, 40, 128, 0.26) 0%,
+      transparent 72%
+    ),
+    radial-gradient(
+      90% 70% at 50% 100%,
+      rgba(14, 44, 92, 0.34) 0%,
+      transparent 70%
+    ), var(--jor-fundo);
+}
+
+/*
+  O topo é uma faixa, não uma coluna centrada.
+
+  O texto encosta na margem esquerda da página — a mesma do painel da jornada
+  logo abaixo — e a cadeia das etapas ocupa o espaço que sobrava à direita do
+  título, que antes era só fundo.
+*/
+.jor__topo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 0 32px;
+}
+
+/* ------------------------------------------------- a cadeia das etapas */
+
+.jor__etapas {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  width: 100%;
+  /* Casado com `LARGURA_CADEIA` em `geometria.ts`: é esta largura que a órbita
+     externa copia. Mudar aqui sem mudar lá desalinha os dois. */
+  max-width: 1180px;
+}
+
+/* A seta é o que diz que uma etapa alimenta a próxima. */
+.jor__etapa-seta {
+  align-self: center;
+  color: #4a7fb5;
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 900px) {
+  .jor__etapas {
+    gap: 6px;
+  }
+  .jor__etapa-seta {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ palco */
+
+/*
+  Com a cena no ar, a seção é a janela inteira menos o que há acima dela, e o
+  palco é o que sobra abaixo dos cartões.
+
+  É o que faz a órbita ficar centrada "no espaço livre" sem conta nenhuma no
+  CSS: o canvas ocupa esse espaço, e a câmera centra a órbita no canvas. Quando
+  o método some no segundo passo, o palco cresce para cima e a órbita acompanha.
+*/
+.jor--imersivo {
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--jor-acima, 72px));
+  min-height: 600px;
+  padding: 14px 0 0;
+}
+
+.jor__palco {
+  position: relative;
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+  touch-action: pan-y;
+}
+
+.jor__chamada {
+  position: absolute;
+  top: clamp(28px, 6vh, 56px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0 24px;
+  text-align: center;
+  text-wrap: balance;
+  /* Fina e contida: a frase é um sussurro sobre a cena, não um título. No
+     desktop ela cabe com folga dentro da largura da cadeia de cartões. */
+  font-size: clamp(17px, 1.8vw, 34px);
+  font-weight: 200;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  color: #eaf4ff;
+  text-shadow: 0 2px 18px rgba(0, 10, 30, 0.9);
+  pointer-events: none;
+  /* Acima do canvas, que vem depois no documento. */
+  z-index: 1;
+  animation: jor-entra 0.4s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jor__chamada {
+    animation: none;
+  }
+}
+
+.jor__carregando {
+  position: absolute;
+  inset: 0;
+}
+
+.jor__rotulos {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.jor__rotulo {
+  position: absolute;
+  transform: translate(-50%, -230%);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+  background: rgba(5, 20, 45, 0.78);
+  border: 1px solid var(--jor-borda);
+  padding: 3px 9px;
+  border-radius: 6px;
+  transition:
+    opacity 0.22s,
+    transform 0.3s;
+}
+
+.jor__rotulo--alto {
+  transform: translate(-50%, -300%);
+}
+
+.jor__destino {
+  position: absolute;
+  /* Logo abaixo do disco: no centro mora o rosto do Astro, e um nome por cima
+     taparia justamente os olhos que seguem o cursor. */
+  transform: translate(-50%, 8px);
+  text-align: center;
+  white-space: nowrap;
+  transition: opacity 0.22s;
+}
+
+.jor__destino b {
+  display: block;
+  /* O nome fica sobre o planeta, que tem nuvem e calota clara: a sombra é o
+     que o mantém legível em qualquer trecho da superfície. */
+  text-shadow:
+    0 2px 14px rgba(0, 14, 40, 0.95),
+    0 0 4px rgba(0, 14, 40, 0.8);
+  font-size: clamp(20px, 2.4vw, 27px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+
+.jor__destino i {
+  display: block;
+  text-shadow: 0 1px 8px rgba(0, 14, 40, 0.95);
+  font-style: normal;
+  font-size: 10px;
+  color: #bfe0ff;
+  max-width: 200px;
+  margin: 5px auto 0;
+  white-space: normal;
+  line-height: 1.4;
+}
+
+/*
+  A ficha do planeta sob o cursor.
+
+  Chamava-se `.jor__cartao`, o mesmo nome dos cartões das etapas — e os dois
+  blocos se somavam: os botões herdavam `right` e `bottom` daqui e saíam 28px
+  do lugar, o bastante para desalinhar a fileira do resto da página.
+*/
+.jor__ficha {
+  position: absolute;
+  right: 28px;
+  bottom: 28px;
+  width: 290px;
+  padding: 16px 18px;
+  border-radius: 13px;
+  background: rgba(6, 24, 52, 0.95);
+  border: 1px solid var(--jor-azul);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 22px 60px -14px #000;
+}
+
+.jor__ficha-orbita {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
+.jor__ficha h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.jor__ficha p {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  color: var(--jor-texto);
+  line-height: 1.55;
+}
+
+.jor__ficha-link {
+  font-size: 12px;
+  color: var(--jor-azul);
+  font-weight: 650;
+}
+
+.jor__dica {
+  position: absolute;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: #7fa0c2;
+  margin: 0;
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------------- órbitas */
+
+.jor__orbitas {
+  list-style: none;
+  max-width: 1280px;
+  margin: 24px auto 0;
+  padding: 0 24px;
+  display: grid;
+  gap: 22px;
+}
+
+.jor__orbitas--legenda {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.jor__orbita {
+  border-left: 2px solid var(--cor);
+  padding-left: 16px;
+}
+
+.jor__orbita-cab b {
+  display: block;
+  font-size: 15px;
+  font-weight: 750;
+  color: var(--cor);
+}
+
+.jor__orbita-cab i {
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8fb0d0;
+}
+
+.jor__orbita-lead {
+  color: var(--jor-texto);
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 8px 0 6px;
+  max-width: 64ch;
+}
+
+.jor__orbita-dor {
+  color: #8fb0d0;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0 0 10px;
+  max-width: 62ch;
+}
+
+.jor__orbita > ul {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jor__orbita-link {
+  display: block;
+  padding: 8px 12px;
+  border: 1px solid var(--jor-borda);
+  border-radius: 9px;
+  background: rgba(8, 28, 60, 0.5);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 0.18s,
+    background 0.18s;
+}
+
+.jor__orbita-link:hover {
+  border-color: var(--cor);
+  background: rgba(13, 49, 87, 0.7);
+}
+
+.jor__orbita > ul b {
+  display: block;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.jor__orbita > ul span {
+  font-size: 11px;
+  color: #8fb0d0;
+}
+
+/* Na legenda da cena, o card encolhe: só o nome, sem a linha de apoio. */
+.jor__orbitas--legenda .jor__orbita-link {
+  padding: 5px 9px;
+}
+
+.jor__orbitas--legenda .jor__orbita > ul span {
+  display: none;
+}
+
+/* ----------------------------------------------------------------- método */
+
+.jor__metodo {
+  animation: jor-entra 0.28s ease-out;
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 18px 22px;
+  border: 1px solid var(--jor-borda);
+  border-radius: 14px;
+  background: rgba(6, 24, 52, 0.6);
+  display: flex;
+  gap: 22px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.jor__metodo-logo {
+  display: block;
+  height: 26px;
+  width: auto;
+  margin-bottom: 8px;
+}
+
+.jor__metodo-sub {
+  font-size: 11.5px;
+  color: var(--jor-texto);
+  line-height: 1.4;
+}
+
+.jor__metodo ol {
+  list-style: none;
+  display: flex;
+  gap: 14px;
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+}
+
+.jor__metodo li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  flex: 1 1 160px;
+  /* Sem a bolinha da letra, a etapa ganha a barrinha da cor como âncora. */
+  padding-left: 11px;
+  border-left: 2px solid rgba(127, 208, 255, 0.3);
+}
+
+.jor__metodo li b {
+  display: block;
+  font-size: 12.5px;
+}
+
+.jor__metodo li i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--jor-texto);
+  line-height: 1.35;
+}
+
+.jor__metodo-seta {
+  color: #4aa8f0;
+  font-size: 16px;
+  font-style: normal;
+  align-self: center;
+}
+
+@media (max-width: 860px) {
+  .jor {
+    padding-top: 48px;
+  }
+  .jor__metodo {
+    gap: 14px;
+  }
+}
+
+/*
+  Movimento reduzido: a cena nem é montada (ver `Jornada`), então aqui só
+  resta garantir que nada que sobrou pulse.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .jor *,
+  .jor *::before,
+  .jor *::after {
+    transition-duration: 0.01ms;
+    animation-duration: 0.01ms;
+  }
+}
+
+/* ----------------------------------------------------- a jornada guiada */
+
+/*
+  O painel fica SOBRE a cena, à esquerda, e não abaixo dela: o visitante
+  precisa ler o passo e ver a órbita correspondente ao mesmo tempo. Separados,
+  ele leria um texto sobre algo que já saiu da tela.
+*/
+.jor__passo {
+  position: absolute;
+  left: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(360px, 38vw);
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: rgba(5, 18, 40, 0.86);
+  border: 1px solid var(--jor-borda);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 30px 70px -22px #000;
+}
+
+.jor__passo-chapeu {
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #7fb4e8;
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+.jor__passo h3 {
+  font-size: clamp(19px, 2.2vw, 25px);
+  line-height: 1.2;
+  margin: 0 0 8px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.jor__passo-sub {
+  font-size: 13.5px;
+  color: var(--jor-azul);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.jor__passo-texto {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--jor-texto);
+  margin: 0 0 10px;
+}
+
+.jor__passo-dor {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: #8fb0d0;
+  font-style: italic;
+  margin: 0 0 12px;
+  padding-left: 11px;
+  border-left: 2px solid rgba(127, 208, 255, 0.3);
+}
+
+.jor__passo-impacto {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #eaf4ff;
+  font-weight: 650;
+  margin: 0 0 14px;
+  padding-left: 11px;
+  border-left: 2px solid var(--jor-azul);
+}
+
+.jor__passo-tools {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.jor__passo-tools a {
+  display: block;
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border: 1px solid var(--jor-borda);
+  border-radius: 20px;
+  text-decoration: none;
+  color: #cfe6fb;
+  transition:
+    border-color 0.18s,
+    background 0.18s;
+}
+
+.jor__passo-tools a:hover {
+  border-color: var(--jor-azul);
+  background: rgba(13, 49, 87, 0.8);
+}
+
+.jor__passo-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.jor__btn {
+  display: inline-block;
+  padding: 10px 16px;
+  border-radius: 9px;
+  border: 0;
+  background: #2b8fe0;
+  color: #02203f;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.18s;
+}
+
+.jor__btn:hover {
+  background: #4aa8f0;
+}
+
+.jor__btn--fantasma {
+  background: transparent;
+  border: 1px solid var(--jor-borda);
+  color: #cfe6fb;
+}
+
+.jor__btn--fantasma:hover {
+  background: rgba(13, 49, 87, 0.7);
+  border-color: var(--jor-azul);
+}
+
+/* A régua de progresso: um ponto por passo. */
+.jor__regua {
+  list-style: none;
+  display: flex;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+}
+
+.jor__regua button {
+  width: 100%;
+  min-width: 14px;
+  height: 4px;
+  border: 0;
+  padding: 0;
+  border-radius: 2px;
+  background: rgba(127, 208, 255, 0.22);
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.jor__regua li {
+  flex: 1;
+}
+
+.jor__regua button.feito {
+  background: rgba(127, 208, 255, 0.55);
+}
+
+.jor__regua button.atual {
+  background: var(--jor-azul);
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .jor__passo {
+    position: static;
+    transform: none;
+    width: auto;
+    margin: 16px 24px 0;
+  }
+}
+
+/* ------------------------------------------- o nome da órbita, no canto */
+
+/*
+  No canto superior direito, e não sobre o traço: cinco elipses concêntricas
+  não têm onde caber cinco nomes sem um cruzar o outro ou o destino. Aqui
+  aparece um de cada vez — o que o cursor aponta, ou o do passo atual.
+*/
+.jor__orbita-canto {
+  position: absolute;
+  right: 28px;
+  top: 24px;
+  text-align: right;
+  pointer-events: none;
+  animation: jor-entra 0.22s ease-out;
+}
+
+.jor__orbita-canto b {
+  display: block;
+  font-size: clamp(20px, 2.4vw, 30px);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.jor__orbita-canto i {
+  display: block;
+  font-style: normal;
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #9fc0e0;
+  margin-top: 4px;
+}
+
+@keyframes jor-entra {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+/*
+  A lista sai da vista, não do documento: continua indexável e navegável por
+  teclado. `display: none` tiraria as duas coisas.
+*/
+.jor__orbitas--oculta {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  padding: 0;
+  margin: 0;
+}
+
+/*
+  Com tela para isso, o nome da etapa desce para a faixa livre à direita da
+  órbita. No canto de cima ele ficava colado nos cartões e longe dos planetas
+  que descreve; ao lado da cena, o olho vai de um ao outro sem subir.
+
+  O corte é a conta da faixa: 1180 da cadeia de cartões, mais a caixa de 230 e
+  as folgas dos dois lados. Abaixo disso a caixa cairia em cima da órbita, e o
+  canto continua sendo o lugar dela.
+*/
+@media (min-width: 1700px) {
+  .jor__orbita-canto {
+    right: 58px;
+    top: 20%;
+    width: 230px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jor__orbita-canto,
+  .jor__metodo {
+    animation: none;
+  }
+}
+
+/* A lista de soluções da etapa, no canto. */
+.jor__orbita-canto ul {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.jor__orbita-canto li {
+  font-size: 12px;
+  color: #cfe6fb;
+  background: rgba(6, 24, 52, 0.8);
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 3px 10px;
+}
+
+/* ---------------------------------------------- os cartões do painel de bordo */
+
+/*
+  Cantos chanfrados e borda que acende: é a linguagem de HUD de nave, que é
+  onde a cena já está. O `clip-path` corta os quatro cantos; a borda vem de um
+  pseudo-elemento com o mesmo recorte, porque `border` não acompanha corte.
+*/
+.jor__cartao {
+  position: relative;
+  display: flex;
+  flex: 1 1 150px;
+  max-width: 236px;
+  min-width: 128px;
+  /* Um brilho leve, sempre aceso: é o que faz o cartão parecer um painel
+     ligado, e não uma etiqueta impressa sobre o fundo. */
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--cor) 38%, transparent));
+  /*
+    A flutuação usa `translate`, e o hover usa `transform`.
+
+    São propriedades separadas e se somam. Com as duas no `transform`, a
+    animação venceria o hover e o cartão deixaria de subir sob o cursor.
+    O atraso negativo defasa cada cartão sem esperar para começar.
+  */
+  animation: jor-flutua 5.2s ease-in-out infinite;
+  animation-delay: calc(var(--i, 0) * -0.85s);
+  transition:
+    filter 0.2s,
+    transform 0.2s;
+}
+
+@keyframes jor-flutua {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -5px;
+  }
+}
+
+/*
+  O contorno é o fundo que sobra em volta do miolo escuro.
+
+  Um cônico que gira devagar: a cor da etapa quase apagada na maior parte da
+  volta e um trecho claro que percorre a borda. O ângulo precisa ser uma
+  propriedade registrada — sem o `@property`, o navegador não sabe interpolar
+  uma variável e o brilho pularia de 0 a 360 de uma vez.
+*/
+@property --jor-giro {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.jor__cartao-corpo {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 2px;
+  background: conic-gradient(
+    from var(--jor-giro),
+    color-mix(in srgb, var(--cor) 55%, transparent) 0deg,
+    color-mix(in srgb, var(--cor) 28%, transparent) 200deg,
+    var(--cor) 300deg,
+    #ffffff 330deg,
+    var(--cor) 345deg,
+    color-mix(in srgb, var(--cor) 55%, transparent) 360deg
+  );
+  clip-path: polygon(
+    14px 0,
+    100% 0,
+    100% calc(100% - 14px),
+    calc(100% - 14px) 100%,
+    0 100%,
+    0 14px
+  );
+  animation: jor-contorno 6.5s linear infinite;
+  animation-delay: calc(var(--i, 0) * -1.1s);
+}
+
+@keyframes jor-contorno {
+  to {
+    --jor-giro: 360deg;
+  }
+}
+
+.jor__cartao-corpo::after {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  background: linear-gradient(170deg, #060d1c 0%, #040812 100%);
+  clip-path: polygon(
+    13px 0,
+    100% 0,
+    100% calc(100% - 13px),
+    calc(100% - 13px) 100%,
+    0 100%,
+    0 13px
+  );
+  z-index: 0;
+}
+
+.jor__cartao--ativo {
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--cor) 75%, transparent));
+}
+
+.jor__cartao:not(.jor__cartao--travado):hover {
+  transform: translateY(-3px);
+  filter: drop-shadow(0 0 12px color-mix(in srgb, var(--cor) 65%, transparent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jor__cartao,
+  .jor__cartao-corpo {
+    animation: none;
+  }
+}
+
+.jor__cartao-alvo,
+.jor__cartao-prox {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  background: none;
+  border: 0;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.jor__cartao-alvo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 8px;
+}
+
+.jor__cartao-icone {
+  color: var(--cor);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--cor) 45%, transparent);
+  flex: 0 0 auto;
+}
+
+.jor__cartao-txt b {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cor);
+  line-height: 1.15;
+}
+
+.jor__cartao-txt i {
+  display: block;
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #8fb0d0;
+  margin-top: 3px;
+  line-height: 1.3;
+}
+
+.jor__cartao-prox {
+  margin: 0 14px 14px;
+  width: calc(100% - 28px);
+  padding: 7px 0;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 650;
+  color: #eaf4ff;
+  border: 1px solid color-mix(in srgb, var(--cor) 40%, transparent);
+  border-radius: 7px;
+  transition:
+    background 0.18s,
+    border-color 0.18s;
+}
+
+.jor__cartao:not(.jor__cartao--travado) .jor__cartao-prox:hover {
+  background: color-mix(in srgb, var(--cor) 18%, transparent);
+  border-color: var(--cor);
+}
+
+/* Travado continua visível: o visitante precisa ver que há caminho adiante.
+   Flutua com os outros, mas o contorno para: luz correndo na borda é convite
+   ao clique, e este ainda não abre. */
+.jor__cartao--travado {
+  filter: grayscale(0.9) brightness(0.5);
+}
+
+.jor__cartao--travado .jor__cartao-corpo {
+  animation: none;
+}
+
+.jor__cartao--travado .jor__cartao-alvo,
+.jor__cartao--travado .jor__cartao-prox {
+  cursor: not-allowed;
+}
+
+.jor__etapa-seta {
+  align-self: center;
+  color: #35557a;
+  font-size: 18px;
+  flex: 0 0 auto;
+  padding: 0 1px;
+}

@@ -8,6 +8,8 @@ import {
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import prisma from "@/lib/db";
+import { abrirAtendimento } from "./atendimento";
+import { montarPedido } from "./atendimento-texto";
 import { buscarComAFalaDoVisitante } from "./busca";
 import { consultarCnpj, type EmpresaPublica } from "./cnpj";
 import { type AstroPricing, estimarFaixa } from "./preco";
@@ -38,6 +40,19 @@ export type ContextoTools = {
    * o que chegou nela é que não era mais a dor do cliente.
    */
   falaDoVisitante: string;
+  /**
+   * Presente, liga a tool `chamarEquipe`.
+   *
+   * Só o site passa isto: é lá que o visitante é anônimo e a equipe que
+   * atende é a da ÓRBITA. No canal logado quem fala já é cliente, e o caminho
+   * dele até uma pessoa é o suporte — não um lead novo no Chat comercial.
+   */
+  atendimento?: {
+    /** A página em que a pessoa está, para a equipe saber de onde veio. */
+    pagina?: string;
+    /** O IP do visitante, para as travas do Chat contarem por pessoa. */
+    ip?: string | null;
+  };
 };
 
 /**
@@ -275,6 +290,64 @@ export function construirTools(contexto: ContextoTools): ToolSet {
           "O botão já está na tela, logo abaixo da sua resposta. Convide para ele em UMA frase e sem escrever endereço nenhum. A conversa continua depois — o botão não é despedida.",
       }),
     }),
+
+    ...(contexto.atendimento
+      ? {
+          chamarEquipe: tool({
+            description:
+              "Chama uma pessoa da equipe para assumir a conversa, aqui mesmo no chat. Use quando o visitante pedir para falar com uma pessoa, atendente, humano, alguém do time ou suporte. Não peça dados antes e não tente resolver primeiro: pediu gente, chame. Depois disso quem responde é a equipe.",
+            inputSchema: z.object({
+              motivo: z
+                .string()
+                .max(200)
+                .describe("O que a pessoa quer tratar, em uma linha."),
+              resumo: z
+                .string()
+                .max(800)
+                .describe(
+                  "O que já foi conversado, em até cinco linhas: é o que a equipe lê antes de responder.",
+                ),
+              contato: z
+                .string()
+                .max(160)
+                .optional()
+                .describe(
+                  "E-mail ou WhatsApp, SÓ se a pessoa já tiver dito. Não pergunte para chamar a equipe.",
+                ),
+            }),
+            execute: async (entrada) => {
+              const aberto = await abrirAtendimento({
+                sessaoId: contexto.sessaoId,
+                pagina: contexto.atendimento?.pagina,
+                ip: contexto.atendimento?.ip,
+                pedido: montarPedido({
+                  motivo: entrada.motivo,
+                  resumo: entrada.resumo,
+                  contato: entrada.contato,
+                  nome: visitante.nome,
+                  empresa: visitante.empresa ?? empresaConsultada?.razaoSocial,
+                  pagina: contexto.atendimento?.pagina,
+                }),
+              });
+
+              if (!aberto.ok) {
+                return erro("Não consegui chamar a equipe agora.", {
+                  instrucao:
+                    'Diga isso em uma frase, sem culpar sistema nenhum, e ofereça o caminho que funciona: chame `oferecerFormulario` e lembre que o link "Falar com uma pessoa" abre o WhatsApp.',
+                });
+              }
+
+              return {
+                // O widget lê este campo para trocar de modo: daqui em diante
+                // o que a pessoa escreve vai para a equipe, não para o modelo.
+                atendimento: { chamado: true, cursor: aberto.cursor },
+                instrucao:
+                  "A equipe foi chamada e vai responder AQUI, nesta mesma conversa. Diga isso em uma frase, sem prometer prazo, e encerre a sua parte: não faça pergunta nova e não ofereça formulário.",
+              };
+            },
+          }),
+        }
+      : {}),
 
     registrarDiagnostico: tool({
       description:

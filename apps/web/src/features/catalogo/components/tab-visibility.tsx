@@ -75,6 +75,46 @@ export function VisibilityTab({ settings, setSettings }: VisibilityTabProps) {
           </div>
           <div className="flex items-center justify-between border-t border-border pt-6">
             <div className="space-y-0.5">
+              <Label htmlFor="showCategoryNav" className="text-base font-medium">
+                Mostrar &quot;Navegue por categoria&quot;
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Exibe os atalhos de categoria no topo da vitrine
+              </p>
+            </div>
+            <Switch
+              id="showCategoryNav"
+              checked={settings.showCategoryNav}
+              onCheckedChange={(checked) =>
+                setSettings({
+                  ...settings,
+                  showCategoryNav: checked,
+                })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-6">
+            <div className="space-y-0.5">
+              <Label htmlFor="showProductCode" className="text-base font-medium">
+                Mostrar código do produto
+              </Label>
+              <p className="text-sm text-muted-foreground">
+                Exibe o código (SKU) nos cards e na página do produto
+              </p>
+            </div>
+            <Switch
+              id="showProductCode"
+              checked={settings.showProductCode}
+              onCheckedChange={(checked) =>
+                setSettings({
+                  ...settings,
+                  showProductCode: checked,
+                })
+              }
+            />
+          </div>
+          <div className="flex items-center justify-between border-t border-border pt-6">
+            <div className="space-y-0.5">
               <Label htmlFor="showStock" className="text-base font-medium">
                 Mostrar Estoque
               </Label>

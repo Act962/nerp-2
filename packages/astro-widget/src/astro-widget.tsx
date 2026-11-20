@@ -172,6 +172,67 @@ function solucoesDaMensagem(mensagem: {
  */
 type ConviteDeFormulario = { url: string; rotulo: string; motivo: string };
 
+/**
+ * Uma ação que só o navegador consegue fazer (pôr no carrinho, abrir uma
+ * página do app). Vem da saída de uma tool como `acaoNoCliente`; o pacote não
+ * sabe o que cada `tipo` significa — repassa para quem montou o widget.
+ */
+export type AcaoNoCliente = { tipo: string } & Record<string, unknown>;
+
+/** Um botão que a tool pediu para mostrar; o clique dispara a ação. */
+type BotaoDeAcao = { rotulo: string; acao: AcaoNoCliente };
+
+function isAcaoNoCliente(valor: unknown): valor is AcaoNoCliente {
+  return (
+    typeof valor === "object" &&
+    valor !== null &&
+    typeof (valor as { tipo?: unknown }).tipo === "string"
+  );
+}
+
+function botoesDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): BotaoDeAcao[] {
+  const botoes: BotaoDeAcao[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const botao = (saida as { botao?: unknown }).botao as
+      | { rotulo?: unknown; acao?: unknown }
+      | undefined;
+    if (
+      botao &&
+      typeof botao.rotulo === "string" &&
+      isAcaoNoCliente(botao.acao)
+    ) {
+      botoes.push({ rotulo: botao.rotulo, acao: botao.acao });
+    }
+  }
+  return botoes;
+}
+
+/** Ids das chamadas já executadas: a conversa restaurada não repete a ação. */
+const CHAVE_ACOES_EXECUTADAS = "astro:acoes-executadas";
+const MAX_ACOES_LEMBRADAS = 200;
+
+function acoesExecutadas(): Set<string> {
+  try {
+    const salvo = localStorage.getItem(CHAVE_ACOES_EXECUTADAS);
+    return new Set(salvo ? (JSON.parse(salvo) as string[]) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function lembrarAcoes(ids: Set<string>) {
+  try {
+    localStorage.setItem(
+      CHAVE_ACOES_EXECUTADAS,
+      JSON.stringify([...ids].slice(-MAX_ACOES_LEMBRADAS)),
+    );
+  } catch {
+    // Sem armazenamento: no pior caso a ação se repete numa conversa restaurada.
+  }
+}
+
 /** Quem está do outro lado, na medida em que ele foi descobrindo. */
 type Visitante = { nome?: string; empresa?: string; cnpj?: string };
 
@@ -244,6 +305,44 @@ function linksDaMensagem(mensagem: {
     links.push({ href, rotulo: textoDe(campos.rotulo) || "Abrir" });
   }
   return links;
+}
+
+/**
+ * Uma pergunta que a tool mandou fazer, com as respostas como botão.
+ *
+ * Vem da saída da tool (`escolhas`), nunca do texto do modelo: as opções são
+ * as filiais lidas do ERP, e um botão com filial inventada levaria a resposta
+ * para o recorte errado.
+ */
+type Escolha = {
+  pergunta: string;
+  opcoes: { rotulo: string; envio: string }[];
+};
+
+function escolhasDaMensagem(mensagem: {
+  parts: Array<{ type: string }>;
+}): Escolha[] {
+  const escolhas: Escolha[] = [];
+  for (const saida of saidasDeTool(mensagem)) {
+    const lista = (saida as { escolhas?: unknown }).escolhas;
+    if (!Array.isArray(lista)) continue;
+    for (const item of lista) {
+      if (typeof item !== "object" || item === null) continue;
+      const campos = item as Record<string, unknown>;
+      const opcoes = Array.isArray(campos.opcoes)
+        ? campos.opcoes.flatMap((opcao) => {
+            if (typeof opcao !== "object" || opcao === null) return [];
+            const rotulo = textoDe((opcao as Record<string, unknown>).rotulo);
+            const envio = textoDe((opcao as Record<string, unknown>).envio);
+            return rotulo && envio ? [{ rotulo, envio }] : [];
+          })
+        : [];
+      if (opcoes.length > 0) {
+        escolhas.push({ pergunta: textoDe(campos.pergunta), opcoes });
+      }
+    }
+  }
+  return escolhas;
 }
 
 /** Uma imagem que a tool devolveu — gerada pelo Astro, não escrita por ele. */
@@ -369,7 +468,72 @@ type ConversaGuardada = {
   sessionId: string | null;
   aberto: boolean;
   messages: UIMessage[];
+  /** Presente quando a conversa já está com a equipe. */
+  atendimento?: { cursor: string | null } | null;
 };
+
+/**
+ * O atendimento humano.
+ *
+ * Quando o visitante pede uma pessoa, a conversa deixa de ir para o modelo:
+ * o que ele escreve segue para a equipe, e o que a equipe responde é buscado
+ * de tempos em tempos e entra na mesma lista de mensagens. O `cursor` é o id
+ * da última mensagem já vista do outro lado — é o que impede a busca de
+ * trazer a conversa inteira a cada volta.
+ */
+type RespostaDaEquipe = {
+  id: string;
+  texto: string;
+  autor: "equipe" | "astro";
+  nome: string | null;
+};
+
+/** De quanto em quanto tempo o widget pergunta se a equipe respondeu. */
+const INTERVALO_DO_ATENDIMENTO = 4000;
+
+const AVISO_DA_CHAMADA =
+  "Chamei a equipe. Eles respondem por aqui mesmo — pode escrever o que precisar.";
+
+/**
+ * O Astro chamou a equipe nesta conversa?
+ *
+ * Olha a saída da tool, e não o texto: é a tool que abre o atendimento do
+ * outro lado, e uma frase do modelo dizendo "chamei o time" sem a chamada
+ * ter acontecido deixaria o visitante escrevendo para ninguém.
+ */
+function atendimentoChamado(
+  mensagens: UIMessage[],
+): { cursor: string | null } | null {
+  for (const mensagem of mensagens) {
+    for (const parte of mensagem.parts) {
+      if (parte.type !== "tool-chamarEquipe") continue;
+      const chamada = parte as { state?: string; output?: unknown };
+      if (chamada.state !== "output-available") continue;
+      const saida =
+        typeof chamada.output === "object" && chamada.output !== null
+          ? (chamada.output as { atendimento?: unknown }).atendimento
+          : null;
+      if (typeof saida !== "object" || saida === null) continue;
+      const { chamado, cursor } = saida as {
+        chamado?: unknown;
+        cursor?: unknown;
+      };
+      if (chamado === true) {
+        return { cursor: typeof cursor === "string" ? cursor : null };
+      }
+    }
+  }
+  return null;
+}
+
+/** Quem escreveu uma mensagem que não é do visitante nem do modelo. */
+function autorDaMensagem(mensagem: UIMessage): string | null {
+  const meta = mensagem.metadata;
+  if (typeof meta !== "object" || meta === null) return null;
+  const { autor, nome } = meta as { autor?: unknown; nome?: unknown };
+  if (autor !== "equipe") return null;
+  return typeof nome === "string" && nome.trim() ? nome : "Equipe";
+}
 
 function lerConversa(): ConversaGuardada | null {
   try {
@@ -618,6 +782,13 @@ export type AstroWidgetProps = {
   precos?: boolean;
   /** A saída "falar com uma pessoa". Sem ela, o link não aparece. */
   whatsappHref?: string;
+  /**
+   * A rota do atendimento humano. Com ela, "Falar com uma pessoa" chama a
+   * equipe aqui dentro do painel e as respostas voltam para a conversa; sem
+   * ela, o link continua sendo o WhatsApp. O pacote não sabe quem atende — só
+   * que existe um endereço para mandar e para buscar.
+   */
+  apiAtendimento?: string;
   /** Prefixo dos links de solução (no nerp, o endereço do site). */
   baseDosLinks?: string;
   /** Abre link de solução em aba nova (no nerp, para não sair do sistema). */
@@ -677,6 +848,12 @@ export type AstroWidgetProps = {
    * ocupa a tela inteira.
    */
   ferramentas?: (painel: { fechar: () => void }) => ReactNode;
+  /**
+   * Executa uma ação que a tool devolveu em `acaoNoCliente` (uma vez por
+   * chamada) ou que a pessoa disparou por um botão da tool. Sem a prop, essas
+   * saídas são ignoradas — o site e o app seguem como eram.
+   */
+  aoAcaoNoCliente?: (acao: AcaoNoCliente) => void;
 };
 
 /**
@@ -730,6 +907,7 @@ export function AstroWidget({
   produto = null,
   precos = false,
   whatsappHref,
+  apiAtendimento,
   baseDosLinks = "",
   linksEmNovaAba = false,
   abertura: aberturaPadrao,
@@ -747,6 +925,7 @@ export function AstroWidget({
   aoFalarAviso,
   aoLerAviso,
   ferramentas,
+  aoAcaoNoCliente,
 }: AstroWidgetProps) {
   const [aberto, setAberto] = useState(false);
   const [falha, setFalha] = useState<FalhaDoAstro | null>(null);
@@ -758,6 +937,15 @@ export function AstroWidget({
   const [subindo, setSubindo] = useState(false);
   const [erroDoAnexo, setErroDoAnexo] = useState<string | null>(null);
   const [arrastando, setArrastando] = useState(false);
+  const [emAtendimento, setEmAtendimento] = useState(false);
+  const [chamando, setChamando] = useState(false);
+  const [erroDoAtendimento, setErroDoAtendimento] = useState<string | null>(
+    null,
+  );
+  /** Até onde a conversa com a equipe já foi lida. */
+  const cursorRef = useRef<string | null>(null);
+  /** O painel está aberto? Para o laço de busca saber sem reiniciar. */
+  const abertoRef = useRef(false);
   const seletorRef = useRef<HTMLInputElement>(null);
   const trilhaRef = useRef<Passo[]>([]);
   const visitanteRef = useRef<Visitante>({});
@@ -1033,6 +1221,37 @@ export function AstroWidget({
   const carregando = status === "submitted" || status === "streaming";
 
   /*
+    Ações no navegador (carrinho, página), uma vez por chamada da tool. A lista
+    fica guardada: a conversa restaurada depois de recarregar a página não pode
+    pôr o mesmo produto no carrinho de novo.
+  */
+  useEffect(() => {
+    if (!aoAcaoNoCliente) return;
+    const executadas = acoesExecutadas();
+    let isNova = false;
+    for (const mensagem of messages) {
+      for (const parte of mensagem.parts) {
+        if (!parte.type.startsWith("tool-")) continue;
+        const chamada = parte as {
+          toolCallId?: string;
+          state?: string;
+          output?: unknown;
+        };
+        if (chamada.state !== "output-available" || !chamada.toolCallId)
+          continue;
+        if (executadas.has(chamada.toolCallId)) continue;
+        const acao = (chamada.output as { acaoNoCliente?: unknown } | null)
+          ?.acaoNoCliente;
+        if (!isAcaoNoCliente(acao)) continue;
+        executadas.add(chamada.toolCallId);
+        isNova = true;
+        aoAcaoNoCliente(acao);
+      }
+    }
+    if (isNova) lembrarAcoes(executadas);
+  }, [messages, aoAcaoNoCliente]);
+
+  /*
     O lead registrado, uma vez por chamada da tool. Olha as partes e não o
     texto: é a tool que grava, e o `toolCallId` impede que um re-render (ou a
     conversa restaurada) conte a mesma conversão de novo.
@@ -1101,6 +1320,12 @@ export function AstroWidget({
     sessaoRef.current = guardada.sessionId;
     setMessages(guardada.messages);
     setAberto(guardada.aberto);
+    // Quem trocou de página no meio do atendimento continua nele: sem isto a
+    // mensagem seguinte voltaria para o modelo, e a equipe esperaria à toa.
+    if (guardada.atendimento) {
+      cursorRef.current = guardada.atendimento.cursor;
+      setEmAtendimento(true);
+    }
   }, [setMessages]);
 
   /**
@@ -1199,8 +1424,97 @@ export function AstroWidget({
       sessionId: sessaoRef.current,
       aberto,
       messages,
+      atendimento: emAtendimento ? { cursor: cursorRef.current } : null,
     });
-  }, [messages, aberto]);
+  }, [messages, aberto, emAtendimento]);
+
+  useEffect(() => {
+    abertoRef.current = aberto;
+  }, [aberto]);
+
+  /*
+    O Astro chamou a equipe: a conversa muda de mão.
+
+    Espera o stream terminar — a frase em que ele avisa que chamou o time
+    ainda está chegando, e trocar de modo no meio dela cortaria o aviso.
+  */
+  useEffect(() => {
+    if (!apiAtendimento || emAtendimento || carregando) return;
+    const chamado = atendimentoChamado(messages);
+    if (!chamado) return;
+    cursorRef.current = chamado.cursor;
+    setEmAtendimento(true);
+  }, [apiAtendimento, emAtendimento, carregando, messages]);
+
+  /*
+    A busca das respostas da equipe.
+
+    Consulta periódica, e não conexão aberta: é o que a rota do Chat oferece, e
+    o que atravessa os dois proxies do caminho sem configuração especial. Com
+    a aba escondida ela não consulta — ninguém está lendo, e a resposta espera
+    no cursor até a pessoa voltar.
+  */
+  useEffect(() => {
+    if (!apiAtendimento || !emAtendimento) return;
+    let vivo = true;
+
+    const buscar = async () => {
+      const sessao = sessaoRef.current;
+      if (!sessao || document.hidden) return;
+      const consulta = new URLSearchParams({ sessionId: sessao });
+      if (cursorRef.current) consulta.set("after", cursorRef.current);
+
+      try {
+        const resposta = await fetch(
+          `${apiAtendimento}?${consulta.toString()}`,
+          {
+            cache: "no-store",
+          },
+        );
+        if (!resposta.ok || !vivo) return;
+        const dados = (await resposta.json()) as {
+          respostas?: RespostaDaEquipe[];
+          cursor?: string | null;
+        };
+        if (!vivo) return;
+        if (typeof dados.cursor === "string") cursorRef.current = dados.cursor;
+        const novas = dados.respostas ?? [];
+        if (novas.length === 0) return;
+
+        setMessages((atuais) => {
+          // A mesma resposta pode chegar duas vezes — uma busca que se
+          // sobrepõe a outra, uma conversa restaurada com o cursor antigo.
+          const vistas = new Set(atuais.map((mensagem) => mensagem.id));
+          const acrescimo = novas
+            .filter((nova) => !vistas.has(`equipe-${nova.id}`))
+            .map(
+              (nova): UIMessage => ({
+                id: `equipe-${nova.id}`,
+                role: "assistant",
+                parts: [{ type: "text", text: nova.texto }],
+                metadata: { autor: nova.autor, nome: nova.nome },
+              }),
+            );
+          return acrescimo.length > 0 ? [...atuais, ...acrescimo] : atuais;
+        });
+
+        // Painel fechado: o balão avisa. Resposta de gente que ninguém vê
+        // chegar é pior que resposta nenhuma.
+        if (!abertoRef.current) {
+          setBalao("A equipe respondeu. Clique para ler.");
+        }
+      } catch {
+        // Falha de rede numa volta: a próxima tenta de novo, do mesmo cursor.
+      }
+    };
+
+    void buscar();
+    const relogio = setInterval(buscar, INTERVALO_DO_ATENDIMENTO);
+    return () => {
+      vivo = false;
+      clearInterval(relogio);
+    };
+  }, [apiAtendimento, emAtendimento, setMessages]);
 
   /**
    * O Astro falou e ninguém respondeu.
@@ -1215,12 +1529,14 @@ export function AstroWidget({
 
   useEffect(() => {
     setSemResposta(false);
-    if (carregando || !ultimaEDoAstro || digitando) return;
+    // Com a equipe na conversa não há cara emburrada: a última palavra pode
+    // ser de uma pessoa, e cobrar resposta em nome dela não é papel do mascote.
+    if (carregando || !ultimaEDoAstro || digitando || emAtendimento) return;
     const relogio = setTimeout(() => setSemResposta(true), ESPERA_POR_RESPOSTA);
     return () => clearTimeout(relogio);
     // `carregando` basta para reiniciar a contagem a cada resposta: ele vai a
     // verdadeiro no envio e volta a falso quando o Astro termina de escrever.
-  }, [carregando, ultimaEDoAstro, digitando]);
+  }, [carregando, ultimaEDoAstro, digitando, emAtendimento]);
 
   /**
    * Fechar o painel — e reclamar, se a última palavra tiver sido dele.
@@ -1249,6 +1565,10 @@ export function AstroWidget({
     setErroDoAnexo(null);
     setAnexos([]);
     sessaoRef.current = null;
+    // Conversa nova é com o Astro de novo: o atendimento era da sessão antiga.
+    cursorRef.current = null;
+    setEmAtendimento(false);
+    setErroDoAtendimento(null);
     esquecerConversa();
   }, [setMessages]);
 
@@ -1358,8 +1678,106 @@ export function AstroWidget({
               },
         ];
 
+  /** Uma mensagem para a equipe: aparece na hora e some se não for entregue. */
+  const enviarParaAEquipe = async (limpo: string) => {
+    const sessao = sessaoRef.current;
+    if (!apiAtendimento || !sessao) return;
+    const id = `visitante-${Date.now()}`;
+    setTexto("");
+    setErroDoAtendimento(null);
+    setMessages((atuais) => [
+      ...atuais,
+      { id, role: "user", parts: [{ type: "text", text: limpo }] },
+    ]);
+
+    try {
+      const resposta = await fetch(apiAtendimento, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ sessionId: sessao, texto: limpo }),
+      });
+      if (!resposta.ok) throw new Error(String(resposta.status));
+    } catch {
+      // Mensagem na tela que a equipe não recebeu é a pior das três saídas:
+      // ela volta para o campo, e a pessoa sabe que precisa mandar de novo.
+      setMessages((atuais) => atuais.filter((m) => m.id !== id));
+      setTexto(limpo);
+      setErroDoAtendimento(
+        "Sua mensagem não chegou à equipe. Tente de novo em instantes.",
+      );
+    }
+  };
+
+  /**
+   * "Falar com uma pessoa", sem passar pelo modelo.
+   *
+   * Quem clica num botão não pode depender de uma IA decidir chamar a tool
+   * certa. As últimas falas do visitante vão junto para a equipe não começar
+   * do zero — a transcrição não é guardada no servidor, só o navegador as tem.
+   */
+  const falarComPessoa = async () => {
+    if (!apiAtendimento || chamando || emAtendimento) return;
+    setChamando(true);
+    setErroDoAtendimento(null);
+    const falas = messages
+      .filter((mensagem) => mensagem.role === "user")
+      .slice(-4)
+      .map((mensagem) =>
+        mensagem.parts
+          .map((parte) => (parte.type === "text" ? parte.text : ""))
+          .join(" ")
+          .trim()
+          .slice(0, 600),
+      )
+      .filter(Boolean);
+
+    try {
+      const resposta = await fetch(apiAtendimento, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          iniciar: true,
+          sessionId: sessaoRef.current ?? undefined,
+          landingPage: window.location.href,
+          contexto: {
+            nome: visitanteRef.current.nome,
+            empresa: visitanteRef.current.empresa,
+            falas,
+          },
+        }),
+      });
+      if (!resposta.ok) throw new Error(String(resposta.status));
+      const dados = (await resposta.json()) as {
+        sessionId?: string;
+        cursor?: string;
+      };
+      if (!dados.sessionId) throw new Error("sem_sessao");
+
+      sessaoRef.current = dados.sessionId;
+      cursorRef.current = dados.cursor ?? null;
+      setMessages((atuais) => [
+        ...atuais,
+        {
+          id: `chamada-${Date.now()}`,
+          role: "assistant",
+          parts: [{ type: "text", text: AVISO_DA_CHAMADA }],
+        },
+      ]);
+      setEmAtendimento(true);
+    } catch {
+      setErroDoAtendimento("Não consegui chamar a equipe agora.");
+    } finally {
+      setChamando(false);
+    }
+  };
+
   const enviar = (mensagem: string) => {
     const limpo = mensagem.trim();
+    // Com a equipe na conversa, o que a pessoa escreve vai para a equipe.
+    if (emAtendimento) {
+      if (limpo) void enviarParaAEquipe(limpo);
+      return;
+    }
     // Imagem sem legenda vale como mensagem: "olha isto" é o texto que a
     // pessoa não escreveria de qualquer forma.
     if ((!limpo && anexos.length === 0) || carregando || subindo) return;
@@ -1460,6 +1878,12 @@ export function AstroWidget({
         </button>
       </header>
 
+      {emAtendimento && (
+        <output className="o-astro-atendimento">
+          Você está falando com a nossa equipe. As respostas chegam aqui.
+        </output>
+      )}
+
       {/* biome-ignore lint/a11y/noStaticElementInteractions: arrastar arquivo é atalho; o botão de anexo continua sendo o caminho acessível. */}
       <div
         className={
@@ -1548,7 +1972,7 @@ export function AstroWidget({
           </div>
         ) : (
           <>
-            {messages.map((mensagem) => {
+            {messages.map((mensagem, indice) => {
               const texto = mensagem.parts
                 .map((parte) => (parte.type === "text" ? parte.text : ""))
                 .join("");
@@ -1560,19 +1984,37 @@ export function AstroWidget({
                   : formularioDaMensagem(mensagem);
               const aprovacoes =
                 mensagem.role === "user" ? [] : pedidosDeAprovacao(mensagem);
+              const botoesDeAcao =
+                mensagem.role === "user" || !aoAcaoNoCliente
+                  ? []
+                  : botoesDaMensagem(mensagem);
               const links =
                 mensagem.role === "user" ? [] : linksDaMensagem(mensagem);
+              // Só na última mensagem: botão de pergunta já respondida,
+              // tocado de novo, mandaria a resposta fora de hora.
+              const escolhas =
+                mensagem.role === "user" ||
+                indice !== messages.length - 1 ||
+                carregando
+                  ? []
+                  : escolhasDaMensagem(mensagem);
               const imagens =
                 mensagem.role === "user" ? [] : imagensDaMensagem(mensagem);
               const arquivos = anexosDaMensagem(mensagem);
+              // Resposta de gente leva o nome de quem escreveu: é o que
+              // separa, na mesma coluna, a fala da equipe da fala do Astro.
+              const autor =
+                mensagem.role === "user" ? null : autorDaMensagem(mensagem);
               if (
                 !texto &&
                 solucoes.length === 0 &&
                 !formulario &&
                 aprovacoes.length === 0 &&
                 links.length === 0 &&
+                escolhas.length === 0 &&
                 imagens.length === 0 &&
-                arquivos.length === 0
+                arquivos.length === 0 &&
+                botoesDeAcao.length === 0
               ) {
                 return null;
               }
@@ -1599,12 +2041,17 @@ export function AstroWidget({
                     </div>
                   )}
 
+                  {texto && autor && (
+                    <span className="o-astro-autor">{autor}</span>
+                  )}
                   {texto && (
                     <div
                       className={
                         mensagem.role === "user"
                           ? "o-astro-msg o-astro-msg--user"
-                          : "o-astro-msg o-astro-msg--astro"
+                          : autor
+                            ? "o-astro-msg o-astro-msg--astro o-astro-msg--equipe"
+                            : "o-astro-msg o-astro-msg--astro"
                       }
                     >
                       {texto}
@@ -1720,6 +2167,28 @@ export function AstroWidget({
                     </div>
                   )}
 
+                  {escolhas.map((escolha) => (
+                    <div className="o-astro-escolha" key={escolha.pergunta}>
+                      {escolha.pergunta && (
+                        <p className="o-astro-escolha__pergunta">
+                          {escolha.pergunta}
+                        </p>
+                      )}
+                      <div className="o-astro-escolha__opcoes">
+                        {escolha.opcoes.map((opcao) => (
+                          <button
+                            type="button"
+                            key={opcao.envio}
+                            className="o-astro-escolha__opcao"
+                            onClick={() => enviar(opcao.envio)}
+                          >
+                            {opcao.rotulo}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+
                   {links.length > 0 && (
                     <div className="o-astro-links">
                       {links.map((link) => (
@@ -1762,6 +2231,20 @@ export function AstroWidget({
                       >
                         {formulario.rotulo}
                       </a>
+                    </div>
+                  )}
+                  {botoesDeAcao.length > 0 && (
+                    <div className="o-astro-cta">
+                      {botoesDeAcao.map((botao) => (
+                        <button
+                          key={`${botao.rotulo}-${botao.acao.tipo}`}
+                          type="button"
+                          className="o-astro-cta__btn"
+                          onClick={() => aoAcaoNoCliente?.(botao.acao)}
+                        >
+                          {botao.rotulo}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </Fragment>
@@ -1930,7 +2413,11 @@ export function AstroWidget({
                 : undefined
             }
             placeholder={
-              voz.estado === "ouvindo" ? "Ouvindo…" : "Pergunte ao Astro…"
+              voz.estado === "ouvindo"
+                ? "Ouvindo…"
+                : emAtendimento
+                  ? "Escreva para a equipe…"
+                  : "Pergunte ao Astro…"
             }
             maxLength={2000}
             aria-label="Sua mensagem"
@@ -1957,15 +2444,44 @@ export function AstroWidget({
           </button>
         </form>
 
-        {whatsappHref && (
-          <a
+        {apiAtendimento && !emAtendimento ? (
+          <button
+            type="button"
             className="o-astro-human"
-            href={whatsappHref}
-            target="_blank"
-            rel="noreferrer noopener"
+            onClick={() => void falarComPessoa()}
+            disabled={chamando}
           >
-            Falar com uma pessoa
-          </a>
+            {chamando ? "Chamando a equipe…" : "Falar com uma pessoa"}
+          </button>
+        ) : (
+          whatsappHref && (
+            <a
+              className="o-astro-human"
+              href={whatsappHref}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              {emAtendimento ? "Prefere o WhatsApp?" : "Falar com uma pessoa"}
+            </a>
+          )
+        )}
+
+        {erroDoAtendimento && (
+          <p className="o-astro-atendimento-erro" role="alert">
+            {erroDoAtendimento}
+            {whatsappHref && (
+              <>
+                {" "}
+                <a
+                  href={whatsappHref}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Chamar no WhatsApp
+                </a>
+              </>
+            )}
+          </p>
         )}
 
         <p className="o-astro-note">

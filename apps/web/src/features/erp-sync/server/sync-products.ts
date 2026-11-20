@@ -1,10 +1,12 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import prisma from "@/lib/db";
 import { createProductForOrg } from "@/features/products/server/create-product";
 import { loadOracleConfig } from "./connectors";
 import { fetchWinthorProducts } from "./connectors/winthor-products";
 import { normalizeBarcode, reconcileProducts } from "./reconcile-products";
+import { syncErpProductPrices } from "./sync-product-prices";
 import { syncErpProductStock } from "./sync-product-stock";
 
 // Sync do cadastro de produtos do ERP → banco da organização.
@@ -13,6 +15,9 @@ import { syncErpProductStock } from "./sync-product-stock";
 // minutos. Cadastro de produto muda pouco e são milhares de linhas — ler isso a
 // cada quarto de hora seria desperdício e custo de Inngest, que os crons desta
 // base controlam de propósito.
+
+/** Linhas por UPDATE das unidades por caixa. */
+const PACK_QTY_CHUNK = 1000;
 
 export interface ProductSyncReport {
   /** Linhas lidas do ERP. */
@@ -31,6 +36,14 @@ export interface ProductSyncReport {
   failed: number;
   /** `true` = nada foi gravado, só contado. */
   dryRun: boolean;
+  /** Filial do estoque/preço do produto (`ErpConnection.stockBranchCode`). */
+  stockBranchCode?: string | null;
+  /** Produtos com o estoque trocado pelo da filial escolhida. */
+  stockUpdated?: number;
+  /** Produtos que estavam com preço 0 e receberam o último preço vendido. */
+  pricesFilled?: number;
+  /** Produtos sem unidades por caixa que receberam o QTUNITCX do ERP. */
+  packQtyFilled?: number;
 }
 
 /**
@@ -122,6 +135,30 @@ export async function syncErpProducts(
     report.updated += chunk.length;
   }
 
+  // Unidades por caixa: só preenche o que está vazio (quem digitou no nerp
+  // manda). É o que mostra "Caixa com 12 un." e converte unidades em caixas na
+  // vitrine, e o que monta o preço da caixa no orçamento do Órbita.
+  const unitsPerBoxByCode = external.filter(
+    (item) => (item.unitsPerBox ?? 0) > 1,
+  );
+  for (let i = 0; i < unitsPerBoxByCode.length; i += PACK_QTY_CHUNK) {
+    const values = unitsPerBoxByCode
+      .slice(i, i + PACK_QTY_CHUNK)
+      .map(
+        (item) =>
+          Prisma.sql`(${item.externalCode}, ${Math.round(item.unitsPerBox ?? 0)}::int)`,
+      );
+    report.packQtyFilled =
+      (report.packQtyFilled ?? 0) +
+      (await prisma.$executeRaw(Prisma.sql`
+        UPDATE products AS p
+           SET "packQty" = v.qty
+          FROM (VALUES ${Prisma.join(values)}) AS v(code, qty)
+         WHERE p."organizationId" = ${organizationId}
+           AND p."erpCode" = v.code
+           AND p."packQty" IS NULL`));
+  }
+
   // Criação uma a uma: `createProductForOrg` cuida de slug e categoria, e um
   // erro numa linha não pode derrubar o lote inteiro.
   if (createMissing && owner) {
@@ -163,9 +200,22 @@ export async function syncErpProducts(
   // cadastro em dia, só sem o filtro por filial.
   if (!dryRun) {
     try {
-      await syncErpProductStock(organizationId);
+      const stock = await syncErpProductStock(organizationId);
+      report.stockBranchCode = stock.stockBranchCode;
+      report.stockUpdated = stock.stockUpdated;
     } catch (error) {
       console.error("[erp-sync/produtos] falha no estoque por filial:", error);
+    }
+    // Depois do estoque e isolado: a consulta de preço é a mais pesada no
+    // Oracle; se estourar o tempo, o cadastro e o estoque já estão gravados.
+    try {
+      const prices = await syncErpProductPrices(organizationId);
+      report.pricesFilled = prices.pricesFilled;
+    } catch (error) {
+      console.error(
+        "[erp-sync/produtos] falha no preço pelo último vendido:",
+        error,
+      );
     }
   }
 

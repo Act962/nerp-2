@@ -24,6 +24,7 @@
     "INNGEST_*",
     "FISCAL_*",
     "SITE_ASTRO_*",
+    "ORBITA_ASTRO_CHAT_*",
     "ASTRO_CONSULTOR_MODEL"
   ],
   "tasks": {

@@ -54,6 +54,7 @@ import {
   AGGREGATIONS,
   DATE_PRESET_LABEL,
   DATE_PRESETS,
+  MAX_ROW_LIMIT,
   type OracleAggregation,
   type OracleDatePreset,
   type OracleQueryConfig,
@@ -584,7 +585,7 @@ export function OracleQueryBuilder({
                   <Input
                     type="number"
                     min={1}
-                    max={200}
+                    max={MAX_ROW_LIMIT}
                     className="h-8 w-20 text-xs"
                     value={draft.limit}
                     onChange={(event) =>

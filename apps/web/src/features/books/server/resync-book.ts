@@ -34,13 +34,19 @@ export async function resyncBook(
       id: true,
       organizationId: true,
       supplierId: true,
+      photoSupplierId: true,
       periodMonth: true,
       periodYear: true,
       sentAt: true,
       status: true,
     },
   });
-  if (!book || !book.supplierId || book.sentAt || book.status === "GENERATING") {
+  if (
+    !book ||
+    !book.supplierId ||
+    book.sentAt ||
+    book.status === "GENERATING"
+  ) {
     return noop;
   }
 
@@ -48,7 +54,7 @@ export async function resyncBook(
   const photos = await prisma.pdvPhoto.findMany({
     where: {
       organizationId: book.organizationId,
-      supplierId: book.supplierId,
+      supplierId: book.photoSupplierId ?? book.supplierId,
       approvalStatus: "APPROVED",
       promoterName: { not: null },
       capturedAt: { gte: from, lt: to },
@@ -285,11 +291,21 @@ export async function resyncBooksForPhotos(
       organizationId,
       sentAt: null,
       status: { not: "GENERATING" },
-      OR: [...scopes.values()].map((s) => ({
-        supplierId: s.supplierId,
-        periodMonth: s.month,
-        periodYear: s.year,
-      })),
+      // A foto pertence ao escopo pela indústria em que foi lançada: a do
+      // próprio book ou, se ele monta fotos de outra, a `photoSupplierId`.
+      OR: [...scopes.values()].flatMap((s) => [
+        {
+          supplierId: s.supplierId,
+          photoSupplierId: null,
+          periodMonth: s.month,
+          periodYear: s.year,
+        },
+        {
+          photoSupplierId: s.supplierId,
+          periodMonth: s.month,
+          periodYear: s.year,
+        },
+      ]),
     },
     select: { id: true },
   });

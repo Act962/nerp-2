@@ -15,8 +15,10 @@ export const CATALOG_ORIGINS = [
 
 export type CatalogOrigin = (typeof CATALOG_ORIGINS)[number];
 
+// Pela lista e não por "tudo que não é PDV": o pedido da Força de Vendas
+// também não é balcão e não pertence ao catálogo.
 export function isCatalogOrigin(origin: SaleOrigin): origin is CatalogOrigin {
-  return origin !== SaleOrigin.PDV;
+  return (CATALOG_ORIGINS as readonly SaleOrigin[]).includes(origin);
 }
 
 export const CATALOG_STATUS_GROUPS = [

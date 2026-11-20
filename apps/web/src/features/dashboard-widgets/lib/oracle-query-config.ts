@@ -36,6 +36,10 @@ export const FILTER_OPERATORS = [
   "eq",
   "neq",
   "in",
+  // IN que também aceita a coluna vazia. Existe porque o motor só junta
+  // filtros com AND: "filial 1 ou sem filial no cadastro" não tinha como ser
+  // escrito, e no Winthor o vazio costuma ser a própria filial principal.
+  "inOrNull",
   "gt",
   "gte",
   "lt",
@@ -51,6 +55,7 @@ export const OPERATOR_LABEL: Record<OracleFilterOperator, string> = {
   eq: "igual a",
   neq: "diferente de",
   in: "é um de",
+  inOrNull: "é um de, ou vazio",
   gt: "maior que",
   gte: "maior ou igual a",
   lt: "menor que",
@@ -62,10 +67,14 @@ export const OPERATOR_LABEL: Record<OracleFilterOperator, string> = {
 };
 
 /** Quantos valores cada operador exige. `null` = intervalo aberto (IN). */
+/** Teto de linhas de uma consulta agrupada — guarda de payload. */
+export const MAX_ROW_LIMIT = 1000;
+
 const VALUE_ARITY: Record<OracleFilterOperator, number | null> = {
   eq: 1,
   neq: 1,
   in: null,
+  inOrNull: null,
   gt: 1,
   gte: 1,
   lt: 1,
@@ -214,7 +223,7 @@ export const oracleQueryConfigSchema = z.object({
   orderBy: z
     .enum(["measureDesc", "measureAsc", "groupAsc"])
     .default("measureDesc"),
-  limit: z.number().int().min(1).max(200).default(20),
+  limit: z.number().int().min(1).max(MAX_ROW_LIMIT).default(20),
 });
 
 export type OracleQueryConfig = z.infer<typeof oracleQueryConfigSchema>;

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ImageIcon, Plus, Upload } from "lucide-react";
 import Link from "next/link";
 import { ProductsTable } from "./products-table";
+import { ErpStockBranchBadge } from "@/features/erp-sync/components/erp-stock-branch-badge";
 import { constructUrl } from "@/hooks/use-construct-url";
 import { useQueryState } from "nuqs";
 import dayjs from "dayjs";
@@ -111,6 +112,7 @@ export function ProductsContainer() {
                   : "produto" + (totalCount === 1 ? "" : "s")}
               </Badge>
             )}
+            <ErpStockBranchBadge />
           </div>
           <p className="text-sm text-muted-foreground max-sm:hidden">
             Gerencie seu catálogo de produtos

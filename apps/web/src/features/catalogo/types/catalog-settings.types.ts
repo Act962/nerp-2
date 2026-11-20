@@ -20,6 +20,8 @@ export type CatalogSettingsProps = Omit<
   | "createdAt"
   | "updatedAt"
   | "stripeKey"
+  // Coluna aposentada: a vitrine sempre esconde produto sem foto.
+  | "hideProductsWithoutImage"
   // Anulamos os nullable e Decimal para substituir pelas versões adaptadas abaixo
   | "whatsappNumber"
   | "contactEmail"

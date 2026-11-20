@@ -49,8 +49,10 @@ export const updateProduct = base
         maxStock: z.number().optional(),
         location: z.string().optional(),
 
-        // Imagens
-        images: z.array(z.string()).default([]),
+        // Imagens. Sem `images` a galeria fica como está: o formulário de
+        // edição não tem o campo, e o `.default([])` antigo apagava a galeria
+        // a cada salvamento.
+        images: z.array(z.string()).optional(),
         thumbnail: z.string().optional(),
 
         // Dimensões e peso
@@ -149,8 +151,8 @@ export const updateProduct = base
         discountEndsAt: toDate(input.discountEndsAt),
         minStock: input.minStock,
         maxStock: input.maxStock,
-        images: input.images,
-        thumbnail: input.thumbnail || input.images[0] || "",
+        ...(input.images !== undefined && { images: input.images }),
+        thumbnail: input.thumbnail || input.images?.[0] || "",
         weight: input.weight,
         length: input.length,
         width: input.width,

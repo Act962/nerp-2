@@ -22,6 +22,7 @@ import {
   Aperture,
   BookImage,
   Box,
+  Briefcase,
   DollarSign,
   Building,
   Building2,
@@ -361,6 +362,12 @@ const navigation: NavItem[] = [
             permission: "vendedor",
           },
           {
+            name: "App Força de Vendas",
+            href: "/forca-de-vendas",
+            icon: Briefcase,
+            permission: "forca-vendas",
+          },
+          {
             name: "App QR Preço",
             href: "/trade/qr-preco",
             icon: ScanBarcode,
@@ -429,6 +436,49 @@ const navigation: NavItem[] = [
         href: "/dashboard-organizacao",
         icon: LayoutDashboard,
         permission: "dashboard-org",
+      },
+      {
+        name: "Força de Vendas",
+        href: "/vendas/forca-de-vendas/pedidos",
+        icon: Briefcase,
+        children: [
+          {
+            name: "Pedidos (receptor)",
+            href: "/vendas/forca-de-vendas/pedidos",
+            icon: ClipboardList,
+            permission: "forca-vendas-gestao",
+          },
+          {
+            name: "Carteiras",
+            href: "/vendas/forca-de-vendas/carteiras",
+            icon: UsersIcon,
+            permission: "forca-vendas-gestao",
+          },
+          {
+            name: "Vendedores",
+            href: "/vendas/forca-de-vendas/vendedores",
+            icon: UserCircle2,
+            permission: "forca-vendas-gestao",
+          },
+          {
+            name: "Mapa e visitas",
+            href: "/vendas/forca-de-vendas/mapa",
+            icon: MapPinned,
+            permission: "forca-vendas-gestao",
+          },
+          {
+            name: "Avisos",
+            href: "/vendas/forca-de-vendas/avisos",
+            icon: Megaphone,
+            permission: "forca-vendas-gestao",
+          },
+          {
+            name: "Política comercial",
+            href: "/vendas/forca-de-vendas/configuracoes",
+            icon: Settings,
+            permission: "forca-vendas-gestao",
+          },
+        ],
       },
       {
         // Item pai sem `permission`: quem manda é a chave de cada filho, e o pai
@@ -508,6 +558,12 @@ const navigation: NavItem[] = [
         href: "/vendedor",
         icon: MapPinned,
         permission: "vendedor",
+      },
+      {
+        name: "App Força de Vendas",
+        href: "/forca-de-vendas",
+        icon: Briefcase,
+        permission: "forca-vendas",
       },
       {
         // Download do NERP Caixa (Tauri) — o único app que se INSTALA na

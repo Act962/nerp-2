@@ -995,6 +995,136 @@ export const RAW_TOOLS: Tool[] = [
     */
     features: [],
   },
+  {
+    id: "gatilhos",
+    name: "Gatilhos",
+    fullName: "ORBITA Gatilhos Automáticos",
+    category: "plataforma",
+    orbitStation: false,
+    tagline: "Automações que empurram o processo sozinhas",
+    summary:
+      "O que você faria à mão toda vez vira regra. Quando o lead entra, quando a proposta é aceita, quando o prazo vence — a ação acontece sem ninguém lembrar.",
+    features: [
+      {
+        id: "modo-rapido",
+        title: "Modo rápido",
+        description:
+          "Passo a passo linear para montar a automação sem conhecer a paleta inteira.",
+      },
+      {
+        id: "por-frase",
+        title: "Montagem por frase",
+        description:
+          'Escreva "todo dia às 9h me lembra de retornar para Manoel" e o gatilho se monta.',
+      },
+      {
+        id: "gatilho-do-lead",
+        title: "Gatilho do lead",
+        description:
+          "A regra vale para o funil inteiro ou só para um lead — o que for o caso.",
+      },
+      {
+        id: "canvas",
+        title: "Fluxo no canvas",
+        description:
+          "Para quem quer o controle fino: condições, dados, sub-fluxos e IA no mesmo quadro.",
+      },
+      {
+        id: "duplicidade",
+        title: "Aviso de lógica repetida",
+        description:
+          "Se a nova regra conflita com uma existente, o sistema avisa antes de ativar.",
+      },
+    ],
+  },
+  {
+    id: "insights",
+    name: "Insights",
+    fullName: "ORBITA Insights",
+    category: "gestao",
+    orbitStation: false,
+    tagline: "Dados e inteligência da operação",
+    summary:
+      "Onde cada oportunidade parou, de onde ela veio e quem a atendeu. O painel responde o que a reunião de segunda tentava descobrir.",
+    features: [
+      {
+        id: "funil",
+        title: "Funil de leads",
+        description:
+          "Quantos entraram, quantos avançaram e onde o resto parou.",
+      },
+      {
+        id: "origem",
+        title: "Origem e canal",
+        description:
+          "De onde veio cada lead — anúncio, formulário, QR ou indicação.",
+      },
+      {
+        id: "atendentes",
+        title: "Performance por atendente",
+        description: "Quem responde, em quanto tempo e quanto fecha.",
+      },
+      {
+        id: "resgate",
+        title: "Resgate de leads frios",
+        description: "A lista de quem esfriou e ainda dá para recuperar.",
+      },
+      {
+        id: "trafego-unificado",
+        title: "Tráfego pago unificado",
+        description:
+          "Meta, Google e TikTok no mesmo painel, com o lead ligado ao anúncio que o trouxe.",
+      },
+      {
+        id: "painel-publico",
+        title: "Painel por link",
+        description:
+          "O dashboard compartilhado sem dar acesso ao sistema inteiro.",
+      },
+    ],
+  },
+  {
+    id: "star-friends",
+    name: "Star Friends",
+    fullName: "ORBITA Star Friends",
+    category: "comercial",
+    orbitStation: false,
+    tagline: "Fidelização e relacionamento de longo prazo",
+    summary:
+      "A venda não termina na entrega. Cada compra credita estrela, cada estrela aproxima o cliente do próximo prêmio — e do próximo pedido.",
+    features: [
+      {
+        id: "stars",
+        title: "Estrela por compra",
+        description:
+          "Toda compra paga credita ⭐ no saldo do cliente, sem ninguém lançar à mão.",
+      },
+      {
+        id: "niveis",
+        title: "Níveis Terra, Lua e Galaxy",
+        description:
+          "Quanto mais o cliente compra, mais vantagens ele acumula — e trocar prêmio nunca rebaixa o nível.",
+      },
+      {
+        id: "premios",
+        title: "Comprou, ganhou",
+        description:
+          "O prêmio vira cartão de carimbos: o cliente vê quanto falta para o próximo.",
+      },
+      {
+        id: "resgate",
+        title: "Resgate por quatro canais",
+        description:
+          "Pelo consultor, pelo chat, pelo portal do cliente ou pedido ao próprio Astro.",
+      },
+      {
+        id: "extrato",
+        title: "Extrato que não se apaga",
+        description:
+          "Cada lançamento guarda autor, data e motivo. Correção se faz com lançamento novo.",
+      },
+    ],
+  },
 ];
 
 /** Busca no catálogo cru, sem os destinos resolvidos pelo site. */
@@ -1037,7 +1167,7 @@ export const ORBIT_BY_CATEGORY = CATEGORIES.map((category) => ({
 export const MENU_COLUMNS: Array<{ title: string; tools: string[] }> = [
   {
     title: "O cliente chega e avança",
-    tools: ["tracking", "chat", "forms", "agendas", "forge"],
+    tools: ["tracking", "chat", "forms", "agendas", "forge", "star-friends"],
   },
   {
     title: "A loja abre e vende",
@@ -1056,7 +1186,7 @@ export const MENU_COLUMNS: Array<{ title: string; tools: string[] }> = [
   },
   {
     title: "A casa funciona por dentro",
-    tools: ["workspaces", "payment", "nbox", "ranking"],
+    tools: ["workspaces", "payment", "nbox", "ranking", "insights"],
   },
   {
     title: "A empresa aparece e capta",
@@ -1064,6 +1194,6 @@ export const MENU_COLUMNS: Array<{ title: string; tools: string[] }> = [
   },
   {
     title: "O que só existe aqui",
-    tools: ["astro", "space-station", "route"],
+    tools: ["astro", "space-station", "route", "gatilhos"],
   },
 ];

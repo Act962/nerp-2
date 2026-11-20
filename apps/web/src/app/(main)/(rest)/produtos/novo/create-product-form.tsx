@@ -1,6 +1,7 @@
 "use client";
 
 import { Uploader } from "@/components/file-uploader/uploader";
+import { AvisoSemFoto } from "@/features/products/components/aviso-sem-foto";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -475,6 +476,7 @@ export function CreateProductForm() {
                 render={({ field }) => (
                   <Field className="text-center">
                     <Uploader value={field.value} onChange={field.onChange} />
+                    <AvisoSemFoto temFoto={Boolean(field.value)} />
                     <FieldDescription>
                       Formatos aceitos: JPG, PNG, GIF
                       <br />

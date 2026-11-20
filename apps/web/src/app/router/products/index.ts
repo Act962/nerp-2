@@ -1,3 +1,4 @@
+import { bulkAdjustProductPrice } from "./bulk-adjust-price";
 import { bulkUpdateProducts } from "./bulk-update";
 import { createProduct } from "./create";
 import { deleteProduct } from "./delete";
@@ -38,6 +39,7 @@ export const productsRoutes = {
   searchImages: searchProductImages,
   removeBackground: removeProductBackground,
   bulkUpdate: bulkUpdateProducts,
+  bulkAdjustPrice: bulkAdjustProductPrice,
   import: {
     create: createImport,
     get: getImport,

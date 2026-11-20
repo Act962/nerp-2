@@ -1,10 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Item, ItemContent, ItemDescription } from "@/components/ui/item";
-import { Separator } from "@radix-ui/react-separator";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useState } from "react";
-import { CartItem } from "../../types/product";
+import type { CartItem } from "../../types/product";
 
 interface ItemRequestedProps extends CartItem {
   quantityInit: number;
@@ -31,57 +29,58 @@ export function ItemRequested({
   }
 
   return (
-    <Item>
-      <ItemContent className="flex flex-row items-center gap-x-2">
-        <div className="relative h-15 w-15">
+    <div className="flex items-center gap-3 border-b py-3 last:border-b-0">
+      <div className="relative size-14 shrink-0 overflow-hidden rounded-md bg-white">
+        {thumbnail ? (
           <Image
             src={thumbnail}
             alt={name}
             fill
-            className="object-cover rounded-sm "
+            sizes="56px"
+            className="object-contain"
           />
-        </div>
+        ) : null}
+      </div>
 
-        <div className="space-y-2">
-          <ItemDescription>{name}</ItemDescription>
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <p className="line-clamp-2 text-sm leading-snug">{name}</p>
 
-          <div className="flex items-center">
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="size-8 rounded-full text-muted-foreground"
+            aria-label="Tirar do pedido"
+            onClick={() => toggleRemove(id, quantity.toString())}
+          >
+            <Trash2 className="size-4" />
+          </Button>
+          <div className="ml-auto flex items-center rounded-full border">
             <Button
               variant="ghost"
               size="icon-sm"
-              className="h-9 w-9 rounded-none"
-              onClick={() => toggleRemove(id, quantity.toString())}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-
-            <Button
-              variant="secondary"
-              size="icon-sm"
-              className="h-9 w-9 rounded-none"
+              className="size-8 rounded-full"
+              aria-label="Diminuir"
               onClick={() => onSubmit(quantity - 1)}
               disabled={isDisabled}
             >
               <Minus className="size-4" />
             </Button>
-
-            <span className="px-4 font-medium min-w-12 text-center">
+            <span className="min-w-8 text-center font-medium text-sm">
               {quantity}
             </span>
-
             <Button
               variant="ghost"
               size="icon-sm"
-              className="h-9 w-9 rounded-none"
+              className="size-8 rounded-full"
+              aria-label="Aumentar"
               onClick={() => onSubmit(quantity + 1)}
             >
               <Plus className="size-4" />
             </Button>
           </div>
         </div>
-      </ItemContent>
-
-      <Separator orientation="horizontal" className="w-full" />
-    </Item>
+      </div>
+    </div>
   );
 }
