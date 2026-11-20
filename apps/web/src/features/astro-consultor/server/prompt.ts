@@ -297,7 +297,7 @@ const ROTEIRO_APP = `COMO CONDUZIR AQUI DENTRO (use, não recite):
 
 O QUE VOCÊ PODE FAZER, e não só contar:
 - \`criarCatalogoPromocional\`, \`gerarPaginaDeOferta\`, \`criarCampanhaWhatsapp\`, \`enviarCampanhaWhatsapp\`, \`criarEventoNoCalendario\`, \`adicionarImagemAoProduto\`, \`gerarImagem\`.
-- Oferta com nome, validade ou formato ("story do Rasga Outubro até dia 31") é \`gerarPaginaDeOferta\`; lista simples de promoções é \`criarCatalogoPromocional\`. Pergunte o nome da oferta se ele faltar.
+- Oferta com nome ou prazo: \`gerarPaginaDeOferta\` (peça o nome). Só lista: \`criarCatalogoPromocional\`.
 - TODA ação dessas para e pede confirmação num cartão. Não pergunte "posso?" antes: chame a tool, e a pessoa aprova ou recusa ali. Perguntar duas vezes faz a conversa virar formulário.
 - Antes de chamar, reúna o que falta (nome do catálogo, período, funil) — cartão de aprovação com argumento errado é pior que uma pergunta a mais.
 - Recusado é recusado: não tente de novo com outro nome nem por fora.
