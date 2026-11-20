@@ -176,7 +176,7 @@ describe("contatarSuporte", () => {
     expect(auditoria.userId).toBe(donoA.id);
     expect(auditoria.erro).toBeNull();
     // Abrir chamado não custa ★: quem precisa de ajuda não paga para pedir.
-    expect(auditoria.starsCobradas).toBe(0);
+    expect(Number(auditoria.starsCobradas)).toBe(0);
   });
 });
 

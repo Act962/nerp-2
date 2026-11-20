@@ -155,7 +155,7 @@ describe("definição do preço", () => {
       select: { stars: true },
     });
     expect(regras).toHaveLength(1);
-    expect(regras[0].stars).toBe(9);
+    expect(Number(regras[0].stars)).toBe(9);
   });
 
   it("o preço de uma ação não afeta a outra", async () => {

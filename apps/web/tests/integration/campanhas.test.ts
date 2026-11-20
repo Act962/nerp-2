@@ -437,7 +437,7 @@ describe("cobrança de ★ no lote", () => {
       where: { id: org.id },
       select: { starsBalance: true },
     });
-    expect(depois.starsBalance).toBe(0);
+    expect(Number(depois.starsBalance)).toBe(0);
 
     await prisma.starRule.deleteMany({ where: { organizationId: org.id } });
   });

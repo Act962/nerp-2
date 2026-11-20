@@ -72,7 +72,7 @@ describe("criarSandbox", () => {
     expect(org.subdomain).toBeNull();
     expect(org.verifiedAt).toBeNull();
     expect(org.lastAccessAt).not.toBeNull();
-    expect(org.starsBalance).toBe(50);
+    expect(Number(org.starsBalance)).toBe(50);
     expect(org.niche).toBe("supermercados");
     expect(org.interests).toEqual(["pdv", "whatsapp"]);
     expect(org.segment).toBe("VAREJO");

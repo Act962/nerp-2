@@ -28,7 +28,7 @@ test.describe("Começar agora", () => {
     // Empresa de teste: banner, guia e as 50 ★ na barra lateral.
     await expect(page.getByText(/empresa de teste/i).first()).toBeVisible();
     await expect(page.getByText("Seu guia")).toBeVisible();
-    await expect(page.getByText("50 ★")).toBeVisible();
+    await expect(page.getByText("50 ★", { exact: true })).toBeVisible();
   });
 
   test("quem já tem conta chega pelo login", async ({ page }) => {

@@ -188,8 +188,8 @@ describe("cobrança por token", () => {
       where: { id: orgA.id },
       select: { starsBalance: true, starsUsedInCycle: true },
     });
-    expect(org.starsBalance).toBe(0);
-    expect(org.starsUsedInCycle).toBe(2);
+    expect(Number(org.starsBalance)).toBe(0);
+    expect(Number(org.starsUsedInCycle)).toBe(2);
   });
 });
 

@@ -121,10 +121,10 @@ describe("cobrança ligada", () => {
       where: { organizationId: org.id, type: "APP_CHARGE" },
       orderBy: { createdAt: "desc" },
     });
-    expect(lancamento.amount).toBe(-2);
+    expect(Number(lancamento.amount)).toBe(-2);
     // O saldo resultante fica gravado: é o que permite auditar sem
     // reprocessar a soma inteira.
-    expect(lancamento.balanceAfter).toBe(8);
+    expect(Number(lancamento.balanceAfter)).toBe(8);
   });
 
   it("recusa quando o saldo não cobre", async () => {
@@ -326,7 +326,7 @@ describe("débito por quantidade (o Astro)", () => {
       where: { id: org.id },
       select: { starsUsedInCycle: true },
     });
-    expect(depois.starsUsedInCycle).toBe(3);
+    expect(Number(depois.starsUsedInCycle)).toBe(3);
   });
 
   it("cobrarValor recusa quando não há saldo", async () => {
@@ -360,7 +360,7 @@ describe("débito por quantidade (o Astro)", () => {
       where: { organizationId: org.id, actionKey: ACOES.astroTokens },
       orderBy: { createdAt: "desc" },
     });
-    expect(lancamento.amount).toBe(-2);
+    expect(Number(lancamento.amount)).toBe(-2);
     expect(lancamento.description).toContain("parcial");
   });
 
