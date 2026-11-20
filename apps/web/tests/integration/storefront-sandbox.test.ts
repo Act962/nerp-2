@@ -26,6 +26,9 @@ beforeAll(async () => {
     where: { id: sandbox.id },
     data: { subdomain: "loja-sandbox", verifiedAt: null },
   });
+  await prisma.catalogSettings.createMany({
+    data: [{ organizationId: verificada.id }, { organizationId: sandbox.id }],
+  });
 });
 
 afterAll(resetDb);

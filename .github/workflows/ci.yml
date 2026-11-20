@@ -153,6 +153,9 @@ jobs:
           # tornou isso difícil de enxergar. Mesmos valores descartáveis do
           # `.env.test.example`; mantenha os dois em sincronia.
           APP_ENCRYPTION_KEY="dGVzdGUtZGUtaW50ZWdyYWNhby1uYW8tdXNhci1lbS1wcm9kMQ=="
+          # Sem chave, `src/lib/stripe.ts` estoura ao ser importado e derruba
+          # `sandbox` e `stars-precos` inteiros. Valor descartável.
+          STRIPE_SECRET_KEY="sk_test_placeholder"
           NASA_S2S_ENCRYPTION_KEY="00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
           EOF
 

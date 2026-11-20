@@ -68,10 +68,20 @@ export function deviceOptions(
 let counter = 0;
 const unique = () => `${Date.now().toString(36)}-${counter++}`;
 
+/**
+ * Nasce verificada (`verifiedAt` preenchido), como a empresa de um cliente de
+ * verdade: sem isso, tudo o que sai para o mundo (campanha, compra de Stars,
+ * WhatsApp, subdomínio) é recusado com CONTA_NAO_VERIFICADA. Quem testa a
+ * empresa de teste zera `verifiedAt` no próprio teste.
+ */
 export async function createOrg(name = "Org de teste"): Promise<Organization> {
   const suffix = unique();
   return prisma.organization.create({
-    data: { name: `${name} ${suffix}`, slug: `org-${suffix}` },
+    data: {
+      name: `${name} ${suffix}`,
+      slug: `org-${suffix}`,
+      verifiedAt: new Date(),
+    },
   });
 }
 

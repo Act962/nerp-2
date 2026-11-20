@@ -64,7 +64,7 @@ describe("produtos no Grátis", () => {
     expect(await vagasRestantes(org.id, "produtos")).toBe(0);
 
     const erro = await criarProduto("Um a mais").catch((e: unknown) => e);
-    expect(erro).toBeInstanceOf(LimiteDoPlanoError);
+    expect(erro).toMatchObject({ data: { code: "LIMITE_DO_PLANO" } });
     const dados = (erro as LimiteDoPlanoError).data;
     expect(dados.code).toBe("LIMITE_DO_PLANO");
     expect(dados.recurso).toBe("produtos");
@@ -117,7 +117,9 @@ describe("clientes no Grátis", () => {
         { name: "Cliente a mais", type: "FISICA" },
         { context: s2sContext(dono, org) },
       ),
-    ).rejects.toBeInstanceOf(LimiteDoPlanoError);
+    ).rejects.toMatchObject({
+      data: { code: "LIMITE_DO_PLANO", recurso: "clientes" },
+    });
   });
 });
 
