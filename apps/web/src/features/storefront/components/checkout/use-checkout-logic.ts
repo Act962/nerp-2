@@ -16,8 +16,8 @@ import { useCart } from "@/hooks/use-cart";
 import { useQueryProductsOfCart } from "@/features/products/hooks/use-products";
 import { useCatalogBase } from "@/features/storefront/lib/catalog-base";
 import { useOrbitaCheckout } from "@/features/storefront/hooks/use-orbita-checkout";
+import { normalizePhone } from "@/utils/format-phone";
 
-const WHATSAPP_NUMBER = process.env.WHATSAPP_NUMBER || "558688923098";
 
 export function useCheckoutLogic(subdomain: string) {
   const router = useRouter();
@@ -200,80 +200,47 @@ export function useCheckoutLogic(subdomain: string) {
     );
   };
 
-  const handleConfirmOrder = () => {
-    if (!paymentMethod) {
-      toast.error("Por favor, selecione um método de pagamento");
+  const isKitchenMode = catalogSettings?.operationMode === "KITCHEN";
+  const isApprovalMode = catalogSettings?.operationMode === "APPROVAL";
+  const isOrbitaMode = catalogSettings?.operationMode === "ORBITA";
+
+  // Catálogo sem preço fora dos modos com pedido no sistema: o "Pedir orçamento" abre o WhatsApp
+  // da loja com a lista pronta, sem valores. Pagamento e entrega ficam opcionais.
+  const storeWhatsappDigits = normalizePhone(catalogSettings?.whatsappNumber ?? "");
+  const isQuoteByWhatsapp =
+    catalogSettings?.showPrices === false &&
+    !isOrbitaMode &&
+    !isApprovalMode &&
+    !isKitchenMode &&
+    storeWhatsappDigits.length >= 10;
+
+  const sendQuoteByWhatsapp = () => {
+    if (!cartItems?.length) {
+      toast.error("Seu orçamento está vazio");
       return;
     }
-
-    if (!deliveryMethod) {
-      toast.error("Por favor, selecione um método de entrega");
-      return;
-    }
-
     if (deliveryMethod === "DELIVERY_HOME" && !address.trim()) {
       toast.error("Por favor, informe o endereço de entrega");
       return;
     }
-
-    let message = "Olá! Gostaria de fazer um pedido:\n\n";
-
-    message += `*Forma de pagamento:* ${getPaymentMethodLabel(
-      paymentMethod,
-    )}\n`;
-    message += `*Método de entrega:* ${getDeliveryMethodLabel(
-      deliveryMethod,
-    )}\n`;
-
-    if (deliveryMethod === "DELIVERY_HOME" && address.trim()) {
-      message += `*Endereço:* ${address.trim()}\n`;
-    }
-
-    if (freightValue > 0) {
-      message += `*Valor do frete:* R$ ${freightValue.toFixed(2)}\n`;
-    } else if (isFreeShippingApplied) {
-      message += `*Frete:* Grátis (pedido acima de R$ ${catalogSettings?.freeShippingMinValue})\n`;
-    } else if (
-      catalogSettings?.freightOptions === "NEGOTIATE_WHATSAPP" ||
-      catalogSettings?.freightOptions === "NEGOTIATE_FREIGHT"
-    ) {
-      message += `*Frete:* A combinar\n`;
-    }
-
-    if (observations.trim()) {
-      message += `*Observação:* ${observations.trim()}\n`;
-    }
-
-    message += "\n*Produtos:*\n";
-
-    productsOfCart?.forEach((item, index) => {
-      const itemTotal = (
-        item.salePrice *
-        Number(
-          products.find((product) => product.productId === item.id)?.quantity,
-        )
-      ).toFixed(2);
-      message += `${index + 1}. ${item.name} ${findAndConvertQuantity(
-        item.id,
-      )}x - R$ ${itemTotal}\n`;
+    const lines = ["Olá! Gostaria de um orçamento destes itens:", ""];
+    cartItems.forEach((item, index) => {
+      lines.push(`${index + 1}. ${item.name} — ${item.quantity} un.`);
     });
-
-    message += `\n*Subtotal:* R$ ${subtotal.toFixed(2)}`;
-    if (freightValue > 0) {
-      message += `\n*Frete:* R$ ${freightValue.toFixed(2)}`;
-    }
-    message += `\n*TOTAL: R$ ${total.toFixed(2)}*`;
-
-    const encodedMessage = encodeURIComponent(message);
-    const whatsappURL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodedMessage}`;
-    window.open(whatsappURL, "_blank");
-    toast.success("Redirecionando para o WhatsApp...");
-    setTimeout(() => router.push(`${catalogBase}/`), 2000);
+    const details = [
+      deliveryMethod ? `*Entrega:* ${getDeliveryMethodLabel(deliveryMethod)}` : null,
+      deliveryMethod === "DELIVERY_HOME" ? `*Endereço:* ${address.trim()}` : null,
+      paymentMethod ? `*Pagamento:* ${getPaymentMethodLabel(paymentMethod)}` : null,
+      observations.trim() ? `*Observação:* ${observations.trim()}` : null,
+    ].filter((line): line is string => line !== null);
+    if (details.length > 0) lines.push("", ...details);
+    // Número salvo sem o 55 (só DDD + número) ganha o código do país; com 55 vai como está.
+    const phone = storeWhatsappDigits.length <= 11 ? `55${storeWhatsappDigits}` : storeWhatsappDigits;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`, "_blank");
+    toast.success("Abrindo o WhatsApp da loja…");
+    clearOrganizationCart();
+    router.push(`${catalogBase}/`);
   };
-
-  const isKitchenMode = catalogSettings?.operationMode === "KITCHEN";
-  const isApprovalMode = catalogSettings?.operationMode === "APPROVAL";
-  const isOrbitaMode = catalogSettings?.operationMode === "ORBITA";
 
   const checkoutWithOrbita = (
     cartProducts: Array<{ id: string; quantity: number }>,
@@ -320,6 +287,10 @@ export function useCheckoutLogic(subdomain: string) {
   };
 
   const onCheckout = () => {
+    if (isQuoteByWhatsapp) {
+      sendQuoteByWhatsapp();
+      return;
+    }
     const products = productsOfCart?.map((item) => ({
       id: item.id.toString(),
       quantity: findAndConvertQuantity(item.id),
@@ -394,7 +365,7 @@ export function useCheckoutLogic(subdomain: string) {
     total,
     isFreeShippingApplied,
     catalogSettings,
-    handleConfirmOrder,
+    isQuoteByWhatsapp,
     onCheckout,
     purchase,
     isKitchenMode,

@@ -165,8 +165,8 @@ export function Header({ settings }: HeaderProps) {
         aria-label="Buscar produtos"
         className={
           cabecalho
-            ? "h-11 w-full rounded-full border border-transparent bg-white pr-4 pl-10 text-neutral-900 text-sm shadow-xs outline-none placeholder:text-neutral-500"
-            : "h-11 w-full rounded-full border bg-muted/60 pr-4 pl-10 text-sm outline-none transition-colors focus:border-foreground/30 focus:bg-background"
+            ? "h-11 w-full rounded-full border border-transparent bg-white pr-4 pl-10 text-base text-neutral-900 shadow-xs sm:text-sm outline-none placeholder:text-neutral-500"
+            : "h-11 w-full rounded-full border bg-muted/60 pr-4 pl-10 text-base outline-none transition-colors sm:text-sm focus:border-foreground/30 focus:bg-background"
         }
       />
     </form>

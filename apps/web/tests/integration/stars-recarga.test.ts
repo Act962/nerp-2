@@ -174,7 +174,7 @@ describe("abertura do pagamento", () => {
       where: { id: org.id },
       select: { starsBalance: true },
     });
-    expect(saldo.starsBalance).toBe(0);
+    expect(Number(saldo.starsBalance)).toBe(0);
   });
 
   it("marca como falha e avisa quando o Stripe recusa", async () => {
@@ -220,7 +220,7 @@ describe("crédito mensal do plano", () => {
       where: { id: org.id },
       select: { starsBalance: true },
     });
-    expect(saldo.starsBalance).toBe(1500);
+    expect(Number(saldo.starsBalance)).toBe(1500);
 
     const lancamento = await prisma.starTransaction.findFirstOrThrow({
       where: { organizationId: org.id, type: "PLAN_CREDIT" },
@@ -242,7 +242,7 @@ describe("crédito mensal do plano", () => {
       where: { id: org.id },
       select: { starsBalance: true },
     });
-    expect(saldo.starsBalance).toBe(500);
+    expect(Number(saldo.starsBalance)).toBe(500);
   });
 
   it("o mês seguinte credita de novo e zera o consumido do ciclo", async () => {
@@ -275,8 +275,8 @@ describe("crédito mensal do plano", () => {
       where: { id: org.id },
       select: { starsBalance: true, starsUsedInCycle: true },
     });
-    expect(depois.starsBalance).toBe(1000);
-    expect(depois.starsUsedInCycle).toBe(0);
+    expect(Number(depois.starsBalance)).toBe(1000);
+    expect(Number(depois.starsUsedInCycle)).toBe(0);
   });
 });
 
@@ -295,7 +295,7 @@ describe("extrato", () => {
       select: { type: true, amount: true, balanceAfter: true },
     });
     expect(lancamento.type).toBe("TOPUP_PURCHASE");
-    expect(lancamento.amount).toBe(500);
-    expect(lancamento.balanceAfter).toBe(500);
+    expect(Number(lancamento.amount)).toBe(500);
+    expect(Number(lancamento.balanceAfter)).toBe(500);
   });
 });
