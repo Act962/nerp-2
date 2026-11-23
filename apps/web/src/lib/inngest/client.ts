@@ -104,6 +104,18 @@ export const bookGenerateRequested = eventType("book/generate.requested", {
 });
 
 /**
+ * Gerador de oferta com IA (catálogo promocional). Disparado por
+ * `promotionalCatalog.offerGenerate` depois de gravar a linha PENDING em
+ * `PromotionalOfferGeneration`; o cliente acompanha pelo status dela.
+ */
+export type OfferGenerateRequestedData = { generationId: string };
+
+export const offerGenerateRequested = eventType(
+  "promotional-catalog/offer.generate.requested",
+  { schema: staticSchema<OfferGenerateRequestedData>() },
+);
+
+/**
  * Geração do Catálogo PDV em PDF (Trade Marketing).
  *
  * Disparado por `tradeCatalogDoc.generate` após marcar o catálogo como

@@ -41,3 +41,19 @@ describe("aprovação das ações", () => {
     ).toContain("Sem título");
   });
 });
+
+describe("gerarPaginaDeOferta", () => {
+  it("o cartão diz o formato, a origem dos produtos e que custa ★", () => {
+    const resumo = ROTULO_DA_ACAO.gerarPaginaDeOferta.resumir({
+      nome: "Rasga Outubro",
+      formato: "feed",
+      produtos: ["café", "arroz"],
+      logo: "ia",
+    });
+    expect(resumo).toContain("Rasga Outubro");
+    expect(resumo).toContain("post de feed");
+    expect(resumo).toContain("2 produto(s)");
+    expect(resumo).toMatch(/logo criado por IA/);
+    expect(resumo).toContain("★");
+  });
+});

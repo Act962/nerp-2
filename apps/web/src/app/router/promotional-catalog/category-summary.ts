@@ -39,6 +39,11 @@ export const catalogCategorySummary = base
         name: z.string(),
         total: z.number(),
         remaining: z.number(),
+        // Dos restantes: quantos entrariam sem preço ou sem foto. É o aviso
+        // antes de gerar — preço 0 sai em branco no card, e ninguém percebe
+        // até exportar.
+        semPreco: z.number(),
+        semFoto: z.number(),
       }),
     ),
   )
@@ -51,26 +56,49 @@ export const catalogCategorySummary = base
         : { isActive: true }),
     };
 
-    const [totals, remaining, categories] = await Promise.all([
-      prisma.product.groupBy({
-        by: ["categoryId"],
-        where: orgWhere,
-        _count: { _all: true },
-      }),
-      prisma.product.groupBy({
-        by: ["categoryId"],
-        where:
-          input.excludeIds.length > 0
-            ? { ...orgWhere, id: { notIn: input.excludeIds } }
-            : orgWhere,
-        _count: { _all: true },
-      }),
-      prisma.category.findMany({
-        where: { organizationId: context.org.id },
-        select: { id: true, name: true, slug: true },
-        orderBy: { name: "asc" },
-      }),
-    ]);
+    const restantesWhere =
+      input.excludeIds.length > 0
+        ? { ...orgWhere, id: { notIn: input.excludeIds } }
+        : orgWhere;
+
+    const [totals, remaining, categories, semPreco, semFoto] =
+      await Promise.all([
+        prisma.product.groupBy({
+          by: ["categoryId"],
+          where: orgWhere,
+          _count: { _all: true },
+        }),
+        prisma.product.groupBy({
+          by: ["categoryId"],
+          where:
+            input.excludeIds.length > 0
+              ? { ...orgWhere, id: { notIn: input.excludeIds } }
+              : orgWhere,
+          _count: { _all: true },
+        }),
+        prisma.category.findMany({
+          where: { organizationId: context.org.id },
+          select: { id: true, name: true, slug: true },
+          orderBy: { name: "asc" },
+        }),
+        prisma.product.groupBy({
+          by: ["categoryId"],
+          where: { ...restantesWhere, salePrice: { lte: 0 } },
+          _count: { _all: true },
+        }),
+        prisma.product.groupBy({
+          by: ["categoryId"],
+          // `thumbnail` nasce "" (não nulo) quando o produto não tem foto.
+          where: { ...restantesWhere, thumbnail: "" },
+          _count: { _all: true },
+        }),
+      ]);
+    const semPrecoBy = new Map(
+      semPreco.map((r) => [r.categoryId, r._count._all]),
+    );
+    const semFotoBy = new Map(
+      semFoto.map((r) => [r.categoryId, r._count._all]),
+    );
 
     const totalBy = new Map(totals.map((r) => [r.categoryId, r._count._all]));
     const remainingBy = new Map(
@@ -83,6 +111,8 @@ export const catalogCategorySummary = base
       name: string;
       total: number;
       remaining: number;
+      semPreco: number;
+      semFoto: number;
     };
 
     const rows: Row[] = categories
@@ -92,6 +122,8 @@ export const catalogCategorySummary = base
         name: c.name,
         total: totalBy.get(c.id) ?? 0,
         remaining: remainingBy.get(c.id) ?? 0,
+        semPreco: semPrecoBy.get(c.id) ?? 0,
+        semFoto: semFotoBy.get(c.id) ?? 0,
       }))
       // Categoria sem nenhum produto ativo não ajuda em nada na lista.
       .filter((c) => c.total > 0);
@@ -104,6 +136,8 @@ export const catalogCategorySummary = base
         name: UNCATEGORIZED_LABEL,
         total: semCategoria,
         remaining: remainingBy.get(null) ?? 0,
+        semPreco: semPrecoBy.get(null) ?? 0,
+        semFoto: semFotoBy.get(null) ?? 0,
       });
     }
 

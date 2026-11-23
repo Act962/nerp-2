@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  custoDaImagem,
   custoDaResposta,
   MARGEM,
   MODELO_DO_NIVEL,
@@ -169,5 +170,24 @@ describe("custoDaResposta", () => {
     });
     expect(r.estrelas).toBeLessThan(1);
     expect(r.estrelas).toBeGreaterThan(0);
+  });
+});
+
+describe("custoDaImagem", () => {
+  it("imagem cara custa mais ★ que a barata, com a mesma base", () => {
+    const base = { dolar: 5.5, realPorEstrela: 0.1 };
+    const barata = custoDaImagem({
+      modelo: "gpt-image-1-mini",
+      qualidade: "low",
+      base,
+    });
+    const cara = custoDaImagem({
+      modelo: "gpt-image-1",
+      qualidade: "high",
+      base,
+    });
+    expect(cara.estrelas).toBeGreaterThan(barata.estrelas);
+    // 0,006 × 5,5 × 1,5 ÷ 0,1
+    expect(barata.estrelas).toBeCloseTo(0.495, 3);
   });
 });

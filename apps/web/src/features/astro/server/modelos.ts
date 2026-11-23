@@ -191,3 +191,40 @@ export function custoDaResposta(entrada: {
     estrelas: porEstrela > 0 ? precoReal / porEstrela : 0,
   };
 }
+
+// ── Imagem (OpenAI) ─────────────────────────────────────────────────────────
+
+export type QualidadeDeImagem = "low" | "medium" | "high";
+export type ModeloDeImagem = "gpt-image-1-mini" | "gpt-image-1";
+
+/**
+ * US$ por imagem retangular (1024×1536 / 1536×1024), por qualidade — o que a
+ * OpenAI publicava em 2026. A quadrada sai um pouco mais barata; cobrar pela
+ * retangular sempre é arredondar a favor da margem em centavos de ★. Como no
+ * texto, é o único lugar a mudar quando o preço muda.
+ */
+export const IMAGENS: Record<
+  ModeloDeImagem,
+  Record<QualidadeDeImagem, number>
+> = {
+  "gpt-image-1-mini": { low: 0.006, medium: 0.015, high: 0.052 },
+  "gpt-image-1": { low: 0.016, medium: 0.063, high: 0.25 },
+};
+
+/** O que uma imagem gerada vale em ★ — mesma conta de `custoDaResposta`. */
+export function custoDaImagem(entrada: {
+  modelo: ModeloDeImagem;
+  qualidade: QualidadeDeImagem;
+  base: BaseDeCobranca;
+}): CustoDaResposta {
+  const custoDolar = IMAGENS[entrada.modelo][entrada.qualidade];
+  const custoReal = custoDolar * Math.max(0, entrada.base.dolar);
+  const precoReal = custoReal * (entrada.base.margem ?? MARGEM);
+  const porEstrela = entrada.base.realPorEstrela;
+  return {
+    custoDolar,
+    custoReal,
+    precoReal,
+    estrelas: porEstrela > 0 ? precoReal / porEstrela : 0,
+  };
+}

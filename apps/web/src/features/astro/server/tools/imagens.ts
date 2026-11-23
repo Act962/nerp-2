@@ -3,6 +3,10 @@ import "server-only";
 import { tool, type ToolSet } from "ai";
 import { z } from "zod";
 import { inicioDoDiaNaLoja, STORE_TZ } from "@/features/sales/lib/period-range";
+import {
+  googleDisponivel,
+  openaiDisponivel,
+} from "@/features/astro-consultor/server/provider";
 import { ACOES } from "@/features/stars/lib/acoes-chaves";
 import prisma from "@/lib/db";
 import { executarAcao } from "../acoes/registro";
@@ -12,17 +16,20 @@ import type { ContextoToolsApp } from "./_contexto";
 /**
  * Gerar imagem.
  *
- * Existe só quando quem atende é o Google: `generateImage` precisa de um
- * modelo de imagem, e a OpenAI não é configurada aqui. Fora dele, a tool nem
- * entra no conjunto — o modelo não fica com a opção de prometer o que não
- * consegue entregar.
+ * Existe quando quem atende tem modelo de imagem: o Google, ou a OpenAI com
+ * chave (`gpt-image-1-mini`). Fora disso, a tool nem entra no conjunto — o
+ * modelo não fica com a opção de prometer o que não consegue entregar.
  *
  * A cota diária é contada em `AstroAcao`, que já é o registro de toda ação de
  * escrita: sem tabela nova, e o que conta é imagem que SAIU (linha sem erro).
  */
 export function construirToolsDeImagem(ctx: ContextoToolsApp): ToolSet {
   const modelo = ctx.modelo;
-  if (!modelo?.google) return {};
+  const temImagem =
+    !!modelo?.google ||
+    (modelo?.provedor === "openai" &&
+      (!!openaiDisponivel() || !!googleDisponivel()));
+  if (!modelo || !temImagem) return {};
 
   return {
     gerarImagem: tool({
@@ -50,7 +57,9 @@ export function construirToolsDeImagem(ctx: ContextoToolsApp): ToolSet {
             const usadasHoje = await prisma.astroAcao.count({
               where: {
                 organizationId: ctx.organizationId,
-                tool: "gerarImagem",
+                // A cota é por organização e vale para toda imagem gerada —
+                // o logo do gerador de oferta conta junto.
+                tool: { in: ["gerarImagem", "gerarLogoDeOferta"] },
                 erro: null,
                 createdAt: { gte: inicioDoDiaNaLoja(new Date(), STORE_TZ) },
               },

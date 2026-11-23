@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import type { Overlay } from "../types";
+import { ColorSwatch } from "./panel-ui";
 
 interface ElementPropertiesProps {
   overlay: Overlay;
@@ -63,11 +64,10 @@ export function ElementProperties({
         <div className="flex flex-col gap-1.5">
           <Label className="text-xs">Preenchimento</Label>
           <div className="flex items-center gap-2">
-            <input
-              type="color"
+            <ColorSwatch
               value={overlay.fill ?? "#111111"}
-              onChange={(e) => onChange({ fill: e.target.value })}
-              className="h-8 w-10 cursor-pointer rounded border bg-background"
+              onChange={(cor) => onChange({ fill: cor })}
+              className="h-8 w-10"
               title="Cor de preenchimento"
             />
             <span className="text-xs text-muted-foreground">cor da forma</span>
@@ -125,11 +125,10 @@ export function ElementProperties({
             className="h-8 w-20"
             title="Espessura (px)"
           />
-          <input
-            type="color"
+          <ColorSwatch
             value={borderColor}
-            onChange={(e) => onChange({ borderColor: e.target.value })}
-            className="h-8 w-10 cursor-pointer rounded border bg-background"
+            onChange={(cor) => onChange({ borderColor: cor })}
+            className="h-8 w-10"
             title="Cor do contorno"
           />
           <span className="text-xs text-muted-foreground">px · cor</span>

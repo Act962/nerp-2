@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { orphanedByPageDelete, productIdsOnPage } from "./page-products";
+import {
+  orphanedByPageDelete,
+  paginasComProduto,
+  productIdsOnPage,
+  removerDaPagina,
+} from "./page-products";
 import type { CatalogPage } from "../types";
 
 function page(over: Partial<CatalogPage> = {}): CatalogPage {
@@ -105,5 +110,96 @@ describe("orphanedByPageDelete", () => {
 
   it("índice inexistente não quebra", () => {
     expect(orphanedByPageDelete([page({ id: "a" })], 7)).toEqual([]);
+  });
+});
+
+describe("removerDaPagina", () => {
+  it("produto em duas páginas: sai de uma e continua na outra", () => {
+    const pages = [
+      page({ productIds: ["a", "b"] }),
+      page({ productIds: ["a"] }),
+    ];
+    const r = removerDaPagina(pages, 0, ["a"]);
+    expect(r.pages[0].productIds).toEqual(["b"]);
+    expect(r.pages[1].productIds).toEqual(["a"]);
+    expect(r.orfaos).toEqual([]);
+  });
+
+  it("saindo da última página que o mostrava, vira órfão", () => {
+    const pages = [
+      page({ productIds: ["a", "b"] }),
+      page({ productIds: ["c"] }),
+    ];
+    expect(removerDaPagina(pages, 0, ["a"]).orfaos).toEqual(["a"]);
+  });
+
+  it("tira também de bloco de estilo e de grupo com lista própria", () => {
+    const pages = [
+      page({
+        productIds: [],
+        styleBlocks: [
+          { id: "s", productId: "a" },
+        ] as CatalogPage["styleBlocks"],
+        productGroups: [
+          {
+            id: "g",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            gridCols: 2,
+            gridRows: 2,
+            productIds: ["a", "b"],
+          },
+        ] as CatalogPage["productGroups"],
+      }),
+    ];
+    const r = removerDaPagina(pages, 0, ["a"]);
+    expect(r.pages[0].styleBlocks).toEqual([]);
+    expect(r.pages[0].productGroups?.[0].productIds).toEqual(["b"]);
+    expect(r.orfaos).toEqual(["a"]);
+  });
+
+  it("grupo de fluxo (sem productIds) continua sem lista", () => {
+    const pages = [
+      page({
+        productIds: ["a"],
+        productGroups: [
+          {
+            id: "g",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            gridCols: 2,
+            gridRows: 2,
+          },
+        ] as CatalogPage["productGroups"],
+      }),
+    ];
+    const r = removerDaPagina(pages, 0, ["a"]);
+    expect(r.pages[0].productGroups?.[0].productIds).toBeUndefined();
+  });
+
+  it("apagar o grupo leva o grupo e os produtos dele", () => {
+    const pages = [
+      page({
+        productGroups: [
+          {
+            id: "g",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            gridCols: 2,
+            gridRows: 2,
+            productIds: ["a"],
+          },
+        ] as CatalogPage["productGroups"],
+      }),
+    ];
+    const r = removerDaPagina(pages, 0, ["a"], "g");
+    expect(r.pages[0].productGroups).toEqual([]);
+    expect(r.orfaos).toEqual(["a"]);
+  });
+
+  it("paginasComProduto conta as páginas que o mostram", () => {
+    const pages = [
+      page({ productIds: ["a"] }),
+      page({ productIds: ["a", "b"] }),
+    ];
+    expect(paginasComProduto(pages, "a")).toBe(2);
+    expect(paginasComProduto(pages, "b")).toBe(1);
   });
 });

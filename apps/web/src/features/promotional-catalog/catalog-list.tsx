@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Tag, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { LayoutGrid, Tag, Plus, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,6 +16,10 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { CatalogCard } from "./components/catalog-card";
+import { CreateByCategoriesDialog } from "./components/create-by-categories-dialog";
+import { AssistenteOferta } from "./components/gerador-oferta/assistente-oferta";
+import { catalogoDaOferta, comporOferta } from "./lib/compor-oferta";
+import { DEFAULT_CONFIG } from "./types";
 import {
   usePromotionalCatalogs,
   useCanEditCatalog,
@@ -28,6 +33,9 @@ export function CatalogList() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newCatalogName, setNewCatalogName] = useState("");
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [porCategoriasOpen, setPorCategoriasOpen] = useState(false);
+  const [ofertaOpen, setOfertaOpen] = useState(false);
+  const router = useRouter();
 
   // Sem a ação de editar, a listagem vira consulta (criar fica desabilitado).
   const canEdit = useCanEditCatalog();
@@ -67,14 +75,35 @@ export function CatalogList() {
             redes sociais.
           </p>
         </div>
-        <Button
-          data-jornada="catalogo-promocional-novo"
-          onClick={() => setCreateOpen(true)}
-          disabled={!canEdit}
-        >
-          <Plus className="h-4 w-4 mr-2" />
-          Novo Catálogo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setOfertaOpen(true)}
+            disabled={!canEdit}
+          >
+            <Sparkles className="size-4" />
+            Gerar oferta
+          </Button>
+          {/* Precisa de um catálogo existente como modelo (capa + estilo). */}
+          {catalogs && catalogs.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => setPorCategoriasOpen(true)}
+              disabled={!canEdit}
+            >
+              <LayoutGrid className="size-4" />
+              Por categorias
+            </Button>
+          )}
+          <Button
+            data-jornada="catalogo-promocional-novo"
+            onClick={() => setCreateOpen(true)}
+            disabled={!canEdit}
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Novo Catálogo
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -207,6 +236,28 @@ export function CatalogList() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CreateByCategoriesDialog
+        open={porCategoriasOpen}
+        onOpenChange={setPorCategoriasOpen}
+        catalogos={(catalogs ?? []).map((c) => ({ id: c.id, name: c.name }))}
+      />
+
+      <AssistenteOferta
+        open={ofertaOpen}
+        onOpenChange={setOfertaOpen}
+        gerando={createMutation.isPending}
+        aoCriarCatalogo={(id) => router.push(`/catalogo-promocional/${id}`)}
+        onGerar={(entrada, nome) =>
+          createMutation.mutate({
+            name: nome,
+            config: catalogoDaOferta(
+              DEFAULT_CONFIG,
+              comporOferta(entrada),
+            ) as unknown as Record<string, unknown>,
+          })
+        }
+      />
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { orpc } from "@/lib/orpc";
 import type { CatalogConfig, EntitySource } from "../types";
 import { matchStoreByName } from "../lib/resolve-entity";
 import { ProductNameSearch } from "./product-name-search";
+import { ehNomePadrao, proximoNomeLivre } from "../lib/page-names";
 
 const TYPE_OPTS: { value: EntitySource; label: string }[] = [
   { value: "store", label: "Loja/cliente" },
@@ -34,12 +35,16 @@ export function DynamicPageSection({
   config,
   onConfigChange,
   pageName,
+  onRenamePage,
   allPagesDynamic,
   onAllPagesDynamic,
 }: {
   config: CatalogConfig;
   onConfigChange: (changes: Partial<CatalogConfig>) => void;
   pageName: string;
+  // Com nome ainda padrão ("Página 1 (cópia)…"), vincular a uma categoria
+  // renomeia a página para o nome dela.
+  onRenamePage?: (nome: string) => void;
   allPagesDynamic?: boolean;
   onAllPagesDynamic?: (dynamic: CatalogConfig["dynamic"]) => void;
 }) {
@@ -142,9 +147,18 @@ export function DynamicPageSection({
           {type === "category" && (
             <Select
               value={dynamic?.refId ?? ""}
-              onValueChange={(v) =>
-                onConfigChange({ dynamic: { type: "category", refId: v } })
-              }
+              onValueChange={(v) => {
+                onConfigChange({ dynamic: { type: "category", refId: v } });
+                const categoria = categories.find((c) => c.id === v);
+                if (categoria && onRenamePage && ehNomePadrao(pageName)) {
+                  onRenamePage(
+                    proximoNomeLivre(
+                      (config.pages ?? []).map((pg) => pg.name),
+                      categoria.name,
+                    ),
+                  );
+                }
+              }}
             >
               <SelectTrigger className="h-7 text-xs">
                 <SelectValue placeholder="Escolha a categoria" />
